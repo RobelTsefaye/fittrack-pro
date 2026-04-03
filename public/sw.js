@@ -1,5 +1,5 @@
-const CACHE = "fittrack-v7-pwa";
-const SW_VERSION = "7.0";
+const CACHE = "fittrack-v8-pwa";
+const SW_VERSION = "8.0";
 
 self.addEventListener("install", (event) => {
   console.log(`[SW] Installing ${SW_VERSION}`);
