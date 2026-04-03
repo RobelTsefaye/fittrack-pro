@@ -30,12 +30,12 @@ export function Navbar({ onMenuClick }: NavbarProps) {
     .slice(0, 2) ?? "?";
 
   return (
-    <header className="sticky top-0 z-40 shrink-0 border-b bg-card safe-top">
+    <header className="z-40 shrink-0 border-b bg-card">
       <div className="flex h-14 items-center gap-2 px-3 sm:px-4">
         <Button
           variant="ghost"
           size="icon"
-          className="shrink-0 lg:hidden"
+          className="size-11 shrink-0 touch-manipulation lg:hidden"
           onClick={onMenuClick}
           aria-label="Menu"
         >
@@ -46,7 +46,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
 
         <div className="ml-auto shrink-0">
           <DropdownMenu>
-            <DropdownMenuTrigger className="relative flex h-10 w-10 items-center justify-center rounded-full outline-none hover:opacity-80">
+            <DropdownMenuTrigger className="relative flex size-11 touch-manipulation items-center justify-center rounded-full outline-none hover:opacity-80">
               <Avatar className="h-9 w-9 sm:h-10 sm:w-10">
                 <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                   {initials}

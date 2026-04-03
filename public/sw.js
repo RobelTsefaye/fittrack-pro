@@ -1,30 +1,13 @@
-const CACHE = "fittrack-v1";
+const CACHE = "fittrack-v6-pwa";
+const SW_VERSION = "6.0";
 
-// App shell — cached on install so the UI loads offline
-const SHELL = [
-  "/",
-  "/dashboard",
-  "/workouts",
-  "/exercises",
-  "/manifest.webmanifest",
-  "/icons/app-icon.svg",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/icons/apple-touch-icon.png",
-];
-
-// ── Install: pre-cache app shell ──────────────────────────
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE)
-      .then((cache) => cache.addAll(SHELL))
-      .then(() => self.skipWaiting())
-  );
+  console.log(`[SW] Installing ${SW_VERSION}`);
+  event.waitUntil(self.skipWaiting());
 });
 
-// ── Activate: clean up old caches ────────────────────────
 self.addEventListener("activate", (event) => {
+  console.log(`[SW] Activating ${SW_VERSION}, clearing old caches`);
   event.waitUntil(
     caches
       .keys()
@@ -35,55 +18,67 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// ── Fetch: strategy per request type ─────────────────────
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Don't intercept non-GET, cross-origin, or NextAuth requests
-  if (
-    request.method !== "GET" ||
-    url.origin !== self.location.origin ||
-    url.pathname.startsWith("/api/auth")
-  ) {
+  if (request.method !== "GET" || url.origin !== self.location.origin) {
     return;
   }
 
-  // API calls: network-first, no caching (data must be fresh)
-  if (url.pathname.startsWith("/api/")) {
+  if (url.pathname.startsWith("/api/auth")) {
+    return;
+  }
+
+  if (url.pathname.startsWith("/_next/static/")) {
     event.respondWith(
-      fetch(request).catch(() =>
-        new Response(
-          JSON.stringify({ error: "You are offline" }),
-          { status: 503, headers: { "Content-Type": "application/json" } }
+      caches.open(CACHE).then((cache) =>
+        cache.match(request).then(
+          (cached) =>
+            cached ||
+            fetch(request).then((res) => {
+              if (res.ok) cache.put(request, res.clone());
+              return res;
+            })
         )
       )
     );
     return;
   }
 
-  // Static assets (_next/static): cache-first (immutable content hash)
-  if (url.pathname.startsWith("/_next/static/")) {
+  // API: always try network (offline layer uses IndexedDB; no fake JSON)
+  if (url.pathname.startsWith("/api/")) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  // HTML navigations: network first, cache fallback so installed app can reopen offline
+  const isNavigation =
+    request.mode === "navigate" ||
+    (request.headers.get("accept") && request.headers.get("accept").includes("text/html"));
+
+  if (isNavigation) {
     event.respondWith(
-      caches.match(request).then(
-        (cached) =>
-          cached ||
-          fetch(request).then((res) => {
-            const clone = res.clone();
+      fetch(request)
+        .then((res) => {
+          const clone = res.clone();
+          if (res.ok) {
             caches.open(CACHE).then((cache) => cache.put(request, clone));
-            return res;
-          })
-      )
+          }
+          return res;
+        })
+        .catch(() => caches.match(request))
     );
     return;
   }
 
-  // Pages / everything else: network-first, fall back to cache
   event.respondWith(
     fetch(request)
       .then((res) => {
-        const clone = res.clone();
-        caches.open(CACHE).then((cache) => cache.put(request, clone));
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, clone));
+        }
         return res;
       })
       .catch(() => caches.match(request))

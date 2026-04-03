@@ -25,7 +25,6 @@ interface SetRowProps {
   onUpdate: () => void;
   onComplete: () => void;
   disabled?: boolean;
-  /** When set, PATCH/DELETE go through local queue instead of the API (offline / local-ID workout). */
   offlineHandlers?: {
     patchSet: (body: Record<string, unknown>, complete: boolean) => Promise<void>;
     deleteSet: () => Promise<void>;
@@ -67,6 +66,7 @@ export function SetRow({
       await fetch(`/api/workouts/${workoutId}/sets/${set.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(data),
       });
     }
@@ -85,6 +85,7 @@ export function SetRow({
     } else {
       await fetch(`/api/workouts/${workoutId}/sets/${set.id}`, {
         method: "DELETE",
+        credentials: "include",
       });
     }
     onUpdate();

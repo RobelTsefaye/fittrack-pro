@@ -37,25 +37,25 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-50 flex w-[min(18rem,calc(100vw-2.5rem))] max-w-[85vw] flex-col border-r bg-card shadow-xl transition-transform safe-x safe-top lg:static lg:max-w-none lg:translate-x-0 lg:shadow-none",
+        "fixed bottom-0 left-0 top-16 z-50 flex w-[min(18rem,calc(100vw-2.5rem))] max-w-[85vw] flex-col border-r bg-card shadow-xl transition-transform lg:static lg:top-auto lg:max-w-none lg:translate-x-0 lg:shadow-none",
         open ? "translate-x-0" : "-translate-x-full"
       )}
     >
-      <div className="flex h-14 min-h-14 items-center justify-between border-b px-4">
+      <div className="flex h-14 items-center justify-between border-b px-4">
         <Link href={ROUTES.dashboard} className="text-lg font-bold tracking-tight">
           {APP_NAME}
         </Link>
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden"
+          className="size-11 touch-manipulation lg:hidden"
           onClick={onClose}
         >
           <X className="h-5 w-5" />
         </Button>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-3 pb-6">
         {navItems.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");

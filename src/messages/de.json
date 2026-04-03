@@ -115,7 +115,7 @@
     "crossDeviceDesc": "Ein Konto überall — deine Daten liegen auf dem Server, nicht nur in einem Browser.",
     "crossDeviceUrlLabel": "Diese Adresse auf jedem Gerät öffnen (Lesezeichen oder „Zum Home-Bildschirm“):",
     "crossDeviceHint": "Melde dich auf jedem Gerät mit derselben E-Mail und demselben Passwort an. Auf dem Handy funktioniert keine Computer-only-Adresse wie localhost — nutze deine echte App-URL (z. B. Vercel-Domain oder Heimserver).",
-    "crossDeviceOfflineNote": "Offline-Workouts in einem Browser synchronisieren mit deinem Konto, sobald das Gerät wieder online ist — danach sind sie auch auf den anderen Geräten sichtbar.",
+    "crossDeviceSyncNote": "Offline geloggte Workouts liegen auf diesem Gerät, bis du wieder online bist; dann synchronisieren sie mit deinem Konto und erscheinen auf anderen Geräten. Installiere die App über das Browser-Menü („Zum Home-Bildschirm“) für Vollbild ähnlich einer App aus dem Store.",
     "saved": "Einstellungen gespeichert",
     "saveFailed": "Speichern fehlgeschlagen"
   },
@@ -220,10 +220,10 @@
     "restDone": "Fertig!",
     "fromPlanBadge": "Aus Plan",
     "timerTrackingHint": "Die Session-Zeit läuft ab Start bis zum Beenden — die Dauer wird mit dem Workout gespeichert.",
-    "offlineModeBanner": "Offline oder Ausstehend: Änderungen liegen auf diesem Gerät und werden gesendet, sobald du wieder online bist.",
-    "offlineNoSnapshot": "Keine gespeicherte Kopie dieses Workouts auf diesem Gerät. Öffne es einmal online oder starte eine neue Offline-Session.",
+    "offlineModeBanner": "Offline oder ausstehend: Änderungen bleiben auf diesem Gerät und werden hochgeladen, sobald du wieder online bist.",
+    "offlineNoSnapshot": "Keine gespeicherte Kopie dieses Workouts. Öffne es einmal online oder starte eine neue Offline-Session.",
     "startOffline": "Offline starten (später synchronisieren)",
-    "startOfflineHint": "Wird lokal im Browser gespeichert und mit deinem Konto synchronisiert, sobald du wieder verbunden bist."
+    "startOfflineHint": "Zuerst auf diesem Gerät speichern; mit dem Konto synchronisieren, sobald du wieder verbunden bist."
   },
   "plans": {
     "title": "Pläne",
@@ -283,7 +283,7 @@
     "searchPlaceholder": "Übungen suchen…",
     "all": "Alle",
     "noSearchResults": "Keine Übungen gefunden",
-    "offlinePickerNoCache": "Keine Übungsliste im Offline-Speicher. Öffne die Übungsseite oder starte einmal online ein Workout, um die Bibliothek zu cachen.",
+    "offlinePickerNoCache": "Noch keine Übungsliste gespeichert. Öffne die Übungsseite einmal online, um sie für offline zu cachen.",
     "tableDate": "Datum",
     "tableWorkout": "Workout",
     "tableReps": "Wdh.",

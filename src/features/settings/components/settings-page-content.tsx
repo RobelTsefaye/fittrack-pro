@@ -62,7 +62,7 @@ export function SettingsPageContent({
             </div>
           ) : null}
           <p>{t("settings.crossDeviceHint")}</p>
-          <p className="text-xs">{t("settings.crossDeviceOfflineNote")}</p>
+          <p className="text-xs">{t("settings.crossDeviceSyncNote")}</p>
         </CardContent>
       </Card>
 

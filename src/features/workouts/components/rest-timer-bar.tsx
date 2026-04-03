@@ -18,7 +18,7 @@ export function RestTimerBar({ timer }: RestTimerBarProps) {
   const display = `${minutes}:${String(seconds).padStart(2, "0")}`;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 safe-bottom lg:left-64">
+    <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 safe-bottom-pad lg:left-64">
       <div className="relative h-1 bg-muted">
         <div
           className="absolute inset-y-0 left-0 bg-primary transition-all duration-1000"

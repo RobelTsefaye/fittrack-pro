@@ -1,4 +1,4 @@
-/** Shape of `GET /api/workouts/:id` — shared for UI + offline snapshots. */
+/** Shape of `GET /api/workouts/:id` — UI + offline snapshots. */
 
 export type WorkoutSetData = {
   id: string;

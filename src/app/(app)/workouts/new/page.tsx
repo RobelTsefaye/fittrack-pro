@@ -62,6 +62,7 @@ export default function NewWorkoutPage() {
       const res = await fetch("/api/workouts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => ({}));
@@ -140,7 +141,7 @@ export default function NewWorkoutPage() {
             >
               {t("workouts.startOffline")}
             </Button>
-            <p className="text-xs text-muted-foreground text-center">{t("workouts.startOfflineHint")}</p>
+            <p className="text-center text-xs text-muted-foreground">{t("workouts.startOfflineHint")}</p>
           </form>
         </CardContent>
       </Card>

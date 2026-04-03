@@ -20,16 +20,29 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fafafa" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export const metadata: Metadata = {
   title: "FitTrack Pro",
-  description: "Intelligent fitness tracking for serious lifters",
+  description: "Intelligent fitness tracking — offline training, cloud sync.",
+  applicationName: "FitTrack Pro",
   appleWebApp: {
     capable: true,
     title: "FitTrack",
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
+    startupImage: [
+      {
+        url: "/icons/icon-512.png",
+        media: "(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)",
+      },
+    ],
+  },
+  formatDetection: {
+    telephone: false,
   },
   icons: {
     icon: "/icons/app-icon.svg",

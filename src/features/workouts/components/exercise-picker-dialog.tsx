@@ -99,7 +99,7 @@ export function ExercisePickerDialog({
       if (search) params.set("search", search);
       if (muscleGroup) params.set("muscleGroup", muscleGroup);
 
-      const res = await fetch(`/api/exercises?${params}`);
+      const res = await fetch(`/api/exercises?${params}`, { credentials: "include" });
       if (res.ok) {
         const json = (await res.json()) as { data: ExercisePickerExercise[] };
         setExercises(json.data);
@@ -114,12 +114,10 @@ export function ExercisePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col">
+      <DialogContent className="flex max-h-[85dvh] flex-col sm:max-w-md pt-[env(safe-area-inset-top,0px)]">
         <DialogHeader>
           <DialogTitle>{t("exercises.addExerciseDialogTitle")}</DialogTitle>
-          <DialogDescription>
-            {t("exercises.addExerciseDialogDesc")}
-          </DialogDescription>
+          <DialogDescription>{t("exercises.addExerciseDialogDesc")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -162,7 +160,7 @@ export function ExercisePickerDialog({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto -mx-4 px-4 min-h-0">
+        <div className="min-h-0 flex-1 overflow-y-auto -mx-4 px-4">
           {fetching ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
