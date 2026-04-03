@@ -473,9 +473,9 @@ export function WorkoutDetail({
   }
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
+        <div className="min-w-0 flex-1 space-y-1">
           <Link
             href={ROUTES.workouts}
             className={cn(
@@ -531,7 +531,11 @@ export function WorkoutDetail({
         </div>
 
         {isActive && (
-          <Button onClick={completeWorkout} disabled={completing}>
+          <Button
+            className="w-full shrink-0 sm:w-auto"
+            onClick={completeWorkout}
+            disabled={completing}
+          >
             {completing ? t("workouts.finishing") : t("workouts.finishWorkout")}
           </Button>
         )}
@@ -563,8 +567,8 @@ export function WorkoutDetail({
           {workout.workoutExercises.map((we) => (
             <Card key={we.id}>
               <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
-                <div>
-                  <CardTitle className="text-base">
+                <div className="min-w-0 pr-1">
+                  <CardTitle className="text-base leading-snug break-words">
                     <Link
                       href={exercisePath(we.exercise.id)}
                       className="hover:underline underline-offset-2"
@@ -590,7 +594,7 @@ export function WorkoutDetail({
                 )}
               </CardHeader>
               <CardContent className="space-y-2">
-                <div className="flex flex-wrap gap-2">
+                <div className="hidden items-center gap-2 sm:flex">
                   <span className="w-6 shrink-0 text-center text-[10px] font-medium uppercase text-muted-foreground">
                     #
                   </span>

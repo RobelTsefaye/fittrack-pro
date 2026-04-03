@@ -110,7 +110,7 @@ export function DashboardAnalytics({
         <p className="text-muted-foreground">{t("dashboard.trainingOverview")}</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
         {statCards.map((s) => (
           <Card key={s.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -187,9 +187,12 @@ export function DashboardAnalytics({
             <CardTitle className="text-base">{t("dashboard.volumeTitle")}</CardTitle>
             <p className="text-xs text-muted-foreground font-normal">{t("dashboard.volumeHint")}</p>
           </CardHeader>
-          <CardContent className="h-[280px]">
+          <CardContent className="h-[280px] min-h-[240px]">
             <Tabs defaultValue="week" className="h-full">
-              <TabsList variant="line" className="mb-3">
+              <TabsList
+                variant="line"
+                className="mb-3 w-full max-w-full min-w-0 flex-nowrap justify-start overflow-x-auto"
+              >
                 <TabsTrigger value="week">{t("dashboard.weekly")}</TabsTrigger>
                 <TabsTrigger value="month">{t("dashboard.monthly")}</TabsTrigger>
               </TabsList>
@@ -367,9 +370,15 @@ export function DashboardAnalytics({
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardHeader className="flex flex-col gap-2 space-y-0 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base">{t("dashboard.recentWorkouts")}</CardTitle>
-          <Link href={ROUTES.workouts} className={cn(buttonVariants({ variant: "link", size: "sm" }), "h-auto px-0")}>
+          <Link
+            href={ROUTES.workouts}
+            className={cn(
+              buttonVariants({ variant: "link", size: "sm" }),
+              "h-auto shrink-0 self-start px-0 sm:self-auto"
+            )}
+          >
             {t("dashboard.viewAll")}
           </Link>
         </CardHeader>

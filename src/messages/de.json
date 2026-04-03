@@ -111,6 +111,11 @@
     "apiTokensErrLoad": "Tokens konnten nicht geladen werden (HTTP {code}).",
     "apiTokensErrCreateHttp": "Token konnte nicht erstellt werden (HTTP {code}).",
     "apiTokensErrNoSecret": "Server antwortete OK, aber ohne Geheimnis. Server-Logs prüfen.",
+    "crossDeviceTitle": "Handy, Tablet & Computer",
+    "crossDeviceDesc": "Ein Konto überall — deine Daten liegen auf dem Server, nicht nur in einem Browser.",
+    "crossDeviceUrlLabel": "Diese Adresse auf jedem Gerät öffnen (Lesezeichen oder „Zum Home-Bildschirm“):",
+    "crossDeviceHint": "Melde dich auf jedem Gerät mit derselben E-Mail und demselben Passwort an. Auf dem Handy funktioniert keine Computer-only-Adresse wie localhost — nutze deine echte App-URL (z. B. Vercel-Domain oder Heimserver).",
+    "crossDeviceOfflineNote": "Offline-Workouts in einem Browser synchronisieren mit deinem Konto, sobald das Gerät wieder online ist — danach sind sie auch auf den anderen Geräten sichtbar.",
     "saved": "Einstellungen gespeichert",
     "saveFailed": "Speichern fehlgeschlagen"
   },

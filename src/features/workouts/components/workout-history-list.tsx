@@ -77,7 +77,7 @@ export function WorkoutHistoryList() {
         </div>
         <Link
           href={ROUTES.newWorkout}
-          className={cn(buttonVariants(), "inline-flex")}
+          className={cn(buttonVariants(), "inline-flex w-full justify-center sm:w-auto")}
         >
           <Plus className="mr-2 h-4 w-4" />
           {t("workouts.startWorkout")}

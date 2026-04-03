@@ -32,7 +32,7 @@ export function WorkoutHeatmap({
                 key={ri}
                 title={`${cell.date}: ${cell.count}`}
                 className={cn(
-                  "size-3 rounded-sm border border-border/40",
+                  "size-3.5 rounded-sm border border-border/40 sm:size-3",
                   cell.inRange ? levelClass[cell.level] : "bg-transparent border-transparent"
                 )}
               />

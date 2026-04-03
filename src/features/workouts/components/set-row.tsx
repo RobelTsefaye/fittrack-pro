@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Trash2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
+import { cn } from "@/lib/utils";
 
 interface SetData {
   id: string;
@@ -89,78 +90,95 @@ export function SetRow({
     onUpdate();
   }
 
+  const inputClass =
+    "h-11 min-h-11 w-full min-w-0 text-center text-base sm:h-7 sm:min-h-0 sm:text-sm";
+
   return (
     <div
-      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${
+      className={cn(
+        "rounded-lg px-2 py-2 sm:px-2 sm:py-1.5",
         set.isCompleted ? "bg-green-500/10" : "bg-muted/50"
-      }`}
-    >
-      <span className="w-6 text-center text-xs font-medium text-muted-foreground">
-        {set.isWarmup ? (
-          <Badge variant="outline" className="text-[10px] px-1">
-            {t("workouts.warmupBadge")}
-          </Badge>
-        ) : (
-          set.setNumber
-        )}
-      </span>
-
-      <Input
-        type="number"
-        placeholder={weightUnitLabel}
-        value={weight}
-        onChange={(e) => setWeight(e.target.value)}
-        onBlur={() => { if (weight !== (set.weight?.toString() ?? "")) saveSet(); }}
-        className="h-7 w-16 text-center text-sm"
-        disabled={set.isCompleted || disabled}
-      />
-
-      <Input
-        type="number"
-        placeholder={t("workouts.repsPlaceholder")}
-        value={reps}
-        onChange={(e) => setReps(e.target.value)}
-        onBlur={() => { if (reps !== (set.reps?.toString() ?? "")) saveSet(); }}
-        className="h-7 w-16 text-center text-sm"
-        disabled={set.isCompleted || disabled}
-      />
-
-      <Input
-        type="number"
-        placeholder={t("workouts.rpePlaceholder")}
-        value={rpe}
-        onChange={(e) => setRpe(e.target.value)}
-        onBlur={() => { if (rpe !== (set.rpe?.toString() ?? "")) saveSet(); }}
-        className="h-7 w-14 text-center text-sm"
-        disabled={set.isCompleted || disabled}
-        min="1"
-        max="10"
-        step="0.5"
-      />
-
-      {!set.isCompleted && !disabled ? (
-        <>
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            onClick={() => saveSet(true)}
-            disabled={saving}
-            className="text-green-600 hover:text-green-700 hover:bg-green-500/10"
-          >
-            <Check className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            onClick={deleteSet}
-            className="text-muted-foreground hover:text-destructive"
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        </>
-      ) : (
-        <Check className="h-4 w-4 text-green-600" />
       )}
+    >
+      <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+        <span className="flex w-8 shrink-0 justify-center text-xs font-medium text-muted-foreground sm:w-6">
+          {set.isWarmup ? (
+            <Badge variant="outline" className="px-1 text-[10px]">
+              {t("workouts.warmupBadge")}
+            </Badge>
+          ) : (
+            set.setNumber
+          )}
+        </span>
+
+        <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 sm:flex sm:max-w-none sm:flex-none sm:gap-2">
+          <Input
+            type="number"
+            inputMode="decimal"
+            placeholder={weightUnitLabel}
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+            onBlur={() => {
+              if (weight !== (set.weight?.toString() ?? "")) saveSet();
+            }}
+            className={cn(inputClass, "sm:w-16")}
+            disabled={set.isCompleted || disabled}
+          />
+          <Input
+            type="number"
+            inputMode="numeric"
+            placeholder={t("workouts.repsPlaceholder")}
+            value={reps}
+            onChange={(e) => setReps(e.target.value)}
+            onBlur={() => {
+              if (reps !== (set.reps?.toString() ?? "")) saveSet();
+            }}
+            className={cn(inputClass, "sm:w-16")}
+            disabled={set.isCompleted || disabled}
+          />
+          <Input
+            type="number"
+            inputMode="decimal"
+            placeholder={t("workouts.rpePlaceholder")}
+            value={rpe}
+            onChange={(e) => setRpe(e.target.value)}
+            onBlur={() => {
+              if (rpe !== (set.rpe?.toString() ?? "")) saveSet();
+            }}
+            className={cn(inputClass, "sm:w-14")}
+            disabled={set.isCompleted || disabled}
+            min="1"
+            max="10"
+            step="0.5"
+          />
+        </div>
+
+        {!set.isCompleted && !disabled ? (
+          <div className="ml-auto flex shrink-0 items-center gap-1 sm:ml-0">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={() => saveSet(true)}
+              disabled={saving}
+              className="h-11 w-11 text-green-600 hover:bg-green-500/10 hover:text-green-700 sm:h-7 sm:w-7"
+            >
+              <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={deleteSet}
+              className="h-11 w-11 text-muted-foreground hover:text-destructive sm:h-7 sm:w-7"
+            >
+              <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3" />
+            </Button>
+          </div>
+        ) : (
+          <Check className="ml-auto h-5 w-5 shrink-0 text-green-600 sm:ml-0 sm:h-4 sm:w-4" />
+        )}
+      </div>
     </div>
   );
 }

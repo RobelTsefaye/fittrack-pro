@@ -37,11 +37,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r bg-card transition-transform lg:static lg:translate-x-0",
+        "fixed inset-y-0 left-0 z-50 flex w-[min(18rem,calc(100vw-2.5rem))] max-w-[85vw] flex-col border-r bg-card shadow-xl transition-transform safe-x safe-top lg:static lg:max-w-none lg:translate-x-0 lg:shadow-none",
         open ? "translate-x-0" : "-translate-x-full"
       )}
     >
-      <div className="flex h-14 items-center justify-between border-b px-4">
+      <div className="flex h-14 min-h-14 items-center justify-between border-b px-4">
         <Link href={ROUTES.dashboard} className="text-lg font-bold tracking-tight">
           {APP_NAME}
         </Link>
@@ -55,7 +55,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </Button>
       </div>
 
-      <nav className="flex-1 space-y-1 p-3">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
         {navItems.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
@@ -65,7 +65,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               href={item.href}
               onClick={onClose}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex min-h-11 items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
                 isActive
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"

@@ -111,6 +111,11 @@
     "apiTokensErrLoad": "Could not load tokens (HTTP {code}).",
     "apiTokensErrCreateHttp": "Could not create token (HTTP {code}).",
     "apiTokensErrNoSecret": "Server replied OK but sent no secret. Check the server logs.",
+    "crossDeviceTitle": "Phone, tablet & computer",
+    "crossDeviceDesc": "One account everywhere — your data lives on the server, not in a single browser.",
+    "crossDeviceUrlLabel": "Open this address on every device (bookmark or “Add to Home Screen”):",
+    "crossDeviceHint": "Sign in with the same email and password on each device. Do not use a computer-only URL such as localhost on your phone — use your real app link (for example your Vercel domain or home server).",
+    "crossDeviceOfflineNote": "Offline workouts saved in the browser on one device sync to your account when that device is back online; then they appear on your other devices too.",
     "saved": "Preferences saved",
     "saveFailed": "Could not save preferences"
   },

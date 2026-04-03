@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { Menu, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ interface NavbarProps {
 
 export function Navbar({ onMenuClick }: NavbarProps) {
   const { t } = useI18n();
+  const router = useRouter();
   const { data: session } = useSession();
   const initials = session?.user?.name
     ?.split(" ")
@@ -28,49 +30,53 @@ export function Navbar({ onMenuClick }: NavbarProps) {
     .slice(0, 2) ?? "?";
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b bg-card px-4">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="lg:hidden"
-        onClick={onMenuClick}
-      >
-        <Menu className="h-5 w-5" />
-      </Button>
+    <header className="sticky top-0 z-40 shrink-0 border-b bg-card safe-top">
+      <div className="flex h-14 items-center gap-2 px-3 sm:px-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="shrink-0 lg:hidden"
+          onClick={onMenuClick}
+          aria-label="Menu"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
 
-      <div className="lg:hidden" />
+        <div className="min-w-0 flex-1 lg:flex-none" />
 
-      <div className="ml-auto">
-        <DropdownMenu>
-          <DropdownMenuTrigger className="relative flex h-9 w-9 items-center justify-center rounded-full outline-none hover:opacity-80">
-            <Avatar className="h-9 w-9">
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <div className="px-2 py-1.5">
-              <p className="text-sm font-medium">{session?.user?.name}</p>
-              <p className="text-xs text-muted-foreground">{session?.user?.email}</p>
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <a href="/settings" className="flex w-full items-center gap-2">
+        <div className="ml-auto shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="relative flex h-10 w-10 items-center justify-center rounded-full outline-none hover:opacity-80">
+              <Avatar className="h-9 w-9 sm:h-10 sm:w-10">
+                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <div className="px-2 py-1.5">
+                <p className="truncate text-sm font-medium">{session?.user?.name}</p>
+                <p className="break-all text-xs text-muted-foreground">{session?.user?.email}</p>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => router.push("/settings")}
+              >
                 <User className="h-4 w-4" />
                 {t("navbar.settings")}
-              </a>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => signOut({ callbackUrl: "/login" })}
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              {t("navbar.signOut")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => signOut({ callbackUrl: "/login" })}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                {t("navbar.signOut")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </header>
   );
