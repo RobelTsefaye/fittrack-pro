@@ -25,7 +25,8 @@ Gym-goers who want to track workouts, monitor progress, and get intelligent insi
 | Validation | Zod |
 
 ## Status
-- **Current Phase**: Phase 1 — Foundation & Auth
+- **Current Phase**: Phase 6 — Advanced Features
+- **Last major update**: Dashboard & analytics (Phase 5) — live stats, volume/consistency charts, PRs, body-weight sparkline, recent workouts, top volume exercises; dashboard JSON APIs under `/api/dashboard/*`
 - **Started**: 2026-04-03
 
 ## Key Principles

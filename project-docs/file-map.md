@@ -7,6 +7,7 @@ FitnessApp/
 │   ├── architecture.md
 │   ├── database-schema.md
 │   ├── api-routes.md
+│   ├── ai-api.md                    # AI / LLM-oriented endpoints
 │   ├── file-map.md                  # ← You are here
 │   ├── roadmap.md
 │   └── handoff-prompt.md
@@ -28,51 +29,64 @@ FitnessApp/
 │   │   │
 │   │   ├── (app)/                   # Authenticated app route group
 │   │   │   ├── layout.tsx           # App shell (sidebar, nav)
-│   │   │   ├── dashboard/page.tsx   # Main dashboard
+│   │   │   ├── dashboard/page.tsx   # Server: settings + getDashboardClientPayload → DashboardAnalytics
 │   │   │   ├── workouts/
-│   │   │   │   ├── page.tsx         # Workout history list
-│   │   │   │   ├── new/page.tsx     # Start new workout
-│   │   │   │   └── [id]/page.tsx    # Active/completed workout detail
+│   │   │   │   ├── page.tsx         # Workout history (WorkoutHistoryList)
+│   │   │   │   ├── new/
+│   │   │   │   │   ├── layout.tsx   # Page title metadata
+│   │   │   │   │   └── page.tsx     # Start new workout (client)
+│   │   │   │   └── [id]/
+│   │   │   │       ├── layout.tsx   # Page title metadata
+│   │   │   │       └── page.tsx     # Workout detail (server: settings → WorkoutDetail)
 │   │   │   ├── exercises/
 │   │   │   │   ├── page.tsx         # Exercise library
-│   │   │   │   └── [id]/page.tsx    # Exercise detail + history
+│   │   │   │   └── [id]/
+│   │   │   │       ├── layout.tsx
+│   │   │   │       └── page.tsx     # Exercise detail (history + charts + PR)
 │   │   │   ├── body-weight/
-│   │   │   │   └── page.tsx         # Body weight log + chart
+│   │   │   │   └── page.tsx         # BodyWeightTracker (server: settings)
 │   │   │   └── settings/
 │   │   │       └── page.tsx         # User settings
 │   │   │
 │   │   └── api/                     # API route handlers
 │   │       ├── auth/
-│   │       │   ├── register/route.ts
 │   │       │   └── [...nextauth]/route.ts
 │   │       ├── exercises/
 │   │       │   ├── route.ts         # GET list, POST create
 │   │       │   └── [id]/
-│   │       │       ├── route.ts     # PATCH, DELETE
+│   │       │       ├── route.ts     # GET, PATCH, DELETE
 │   │       │       └── history/route.ts
 │   │       ├── workouts/
 │   │       │   ├── route.ts
 │   │       │   └── [id]/
 │   │       │       ├── route.ts
+│   │       │       ├── complete/route.ts
 │   │       │       ├── exercises/
 │   │       │       │   ├── route.ts
 │   │       │       │   └── [weId]/
-│   │       │       │       ├── route.ts
+│   │       │       │       ├── route.ts   # DELETE only
 │   │       │       │       └── sets/route.ts
 │   │       │       └── sets/
 │   │       │           └── [setId]/route.ts
 │   │       ├── body-weight/
-│   │       │   ├── route.ts
-│   │       │   └── [id]/route.ts
+│   │       │   ├── route.ts         # GET, POST (day upsert)
+│   │       │   └── [id]/route.ts    # PATCH, DELETE
 │   │       ├── dashboard/
 │   │       │   ├── summary/route.ts
 │   │       │   ├── prs/route.ts
 │   │       │   ├── volume/route.ts
-│   │       │   ├── progress/[exerciseId]/route.ts
 │   │       │   ├── consistency/route.ts
-│   │       │   └── body-weight-trend/route.ts
-│   │       └── export/
-│   │           └── route.ts
+│   │       │   ├── body-weight-trend/route.ts
+│   │       │   └── progress/[exerciseId]/route.ts
+│   │       ├── ai/
+│   │       │   ├── training-summary/route.ts
+│   │       │   ├── progress-report/route.ts
+│   │       │   └── recommendations/route.ts
+│   │       ├── export/
+│   │       │   ├── route.ts         # Full user JSON
+│   │       │   └── csv/route.ts
+│   │       ├── plans/               # + plan-sessions/, plan-session-exercises/ (templates)
+│   │       └── settings/route.ts
 │   │
 │   ├── components/                  # Shared UI components
 │   │   ├── ui/                      # shadcn/ui primitives
@@ -84,14 +98,8 @@ FitnessApp/
 │   │   │   ├── sidebar.tsx
 │   │   │   ├── navbar.tsx
 │   │   │   └── mobile-nav.tsx
-│   │   ├── charts/
-│   │   │   ├── weight-chart.tsx
-│   │   │   ├── volume-chart.tsx
-│   │   │   └── progress-chart.tsx
-│   │   └── common/
-│   │       ├── loading.tsx
-│   │       ├── error-boundary.tsx
-│   │       └── empty-state.tsx
+│   │   ├── charts/                  # (planned)
+│   │   └── common/                  # (planned)
 │   │
 │   ├── features/                    # Feature-specific code
 │   │   ├── auth/
@@ -99,35 +107,48 @@ FitnessApp/
 │   │   │   ├── actions/             # Server actions
 │   │   │   └── schemas.ts           # Zod schemas
 │   │   ├── workouts/
-│   │   │   ├── components/          # Workout card, set row, etc.
-│   │   │   ├── actions/
+│   │   │   ├── components/
+│   │   │   │   ├── exercise-picker-dialog.tsx
+│   │   │   │   ├── rest-timer-bar.tsx
+│   │   │   │   ├── set-row.tsx
+│   │   │   │   ├── workout-detail.tsx
+│   │   │   │   └── workout-history-list.tsx
 │   │   │   ├── hooks/               # useRestTimer, useWorkoutTimer
 │   │   │   └── schemas.ts
 │   │   ├── exercises/
+│   │   │   ├── history-core.ts      # Shared sets query + progress bucketing (history + dashboard progress API)
 │   │   │   ├── components/
+│   │   │   │   ├── exercise-card.tsx
+│   │   │   │   ├── exercise-detail-view.tsx
+│   │   │   │   ├── exercise-progress-chart.tsx
+│   │   │   │   └── ...
 │   │   │   ├── actions/
 │   │   │   └── schemas.ts
+│   │   ├── dashboard/
+│   │   │   ├── queries.ts           # Prisma aggregations for dashboard + serializer for client props
+│   │   │   └── components/
+│   │   │       └── dashboard-analytics.tsx
+│   │   ├── ai/
+│   │   │   ├── context.ts           # buildTrainingSummary, buildProgressReport, buildHeuristicRecommendations
+│   │   │   ├── week-stats.ts        # Working-set counts per week (AI summaries)
+│   │   │   └── schemas.ts           # Query clamps (weeks)
+│   │   ├── plans/                   # Workout plan templates (sessions, exercises, start → workout)
 │   │   ├── tracking/
 │   │   │   ├── components/
-│   │   │   ├── actions/
+│   │   │   │   └── body-weight-tracker.tsx
 │   │   │   └── schemas.ts
-│   │   └── dashboard/
-│   │       ├── components/          # Dashboard cards, stat widgets
-│   │       └── actions/
 │   │
 │   ├── lib/                         # Shared utilities
 │   │   ├── prisma.ts                # Prisma client singleton
 │   │   ├── auth.ts                  # NextAuth config
 │   │   ├── utils.ts                 # General utilities
-│   │   ├── constants.ts             # App-wide constants
-│   │   └── types.ts                 # Shared TypeScript types
+│   │   ├── constants.ts             # App-wide constants + exercisePath()
+│   │   ├── types.ts                 # Shared TypeScript types
+│   │   ├── strength.ts              # Epley 1RM
+│   │   ├── personal-record.ts     # PR create/remove helpers
+│   │   └── date-only.ts             # UTC / local date helpers for body weight
 │   │
-│   └── services/                    # Business logic layer
-│       ├── workout-service.ts
-│       ├── exercise-service.ts
-│       ├── tracking-service.ts
-│       ├── analytics-service.ts
-│       └── pr-service.ts
+│   └── services/                    # Business logic layer (planned)
 │
 ├── public/                          # Static assets
 │   └── icons/

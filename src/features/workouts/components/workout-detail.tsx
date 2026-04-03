@@ -1,0 +1,672 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, CheckCircle2, Clock, Plus, Timer, Trash2 } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { ROUTES, exercisePath } from "@/lib/constants";
+import { ExercisePickerDialog, type ExercisePickerExercise } from "./exercise-picker-dialog";
+import { RestTimerBar } from "./rest-timer-bar";
+import { SetRow } from "./set-row";
+import { useRestTimer } from "../hooks/use-rest-timer";
+import { useWorkoutTimer } from "../hooks/use-workout-timer";
+import { useI18n } from "@/lib/i18n-provider";
+import type { WorkoutData, WorkoutExerciseData, WorkoutSetData } from "@/features/workouts/workout-types";
+import {
+  enqueueWorkoutOp,
+  listQueueForWorkout,
+  loadWorkoutSnapshot,
+  saveWorkoutSnapshot,
+} from "@/lib/offline/workout-offline-store";
+
+function formatShortDate(iso: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(iso));
+}
+
+function formatDuration(seconds: number | null | undefined) {
+  if (seconds == null) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m >= 60) {
+    const h = Math.floor(m / 60);
+    const rm = m % 60;
+    return `${h}h ${rm}m`;
+  }
+  return `${m}m ${s}s`;
+}
+
+function renumberSets(sets: WorkoutSetData[]): WorkoutSetData[] {
+  return sets.map((s, i) => ({ ...s, setNumber: i + 1 }));
+}
+
+function patchSetInWorkout(
+  w: WorkoutData,
+  setId: string,
+  body: Record<string, unknown>,
+  complete: boolean
+): WorkoutData {
+  return {
+    ...w,
+    workoutExercises: w.workoutExercises.map((we) => ({
+      ...we,
+      sets: we.sets.map((set) => {
+        if (set.id !== setId) return set;
+        const next = { ...set };
+        if (body.reps !== undefined) next.reps = typeof body.reps === "number" ? body.reps : null;
+        if (body.weight !== undefined) next.weight = typeof body.weight === "number" ? body.weight : null;
+        if (body.rpe !== undefined) next.rpe = typeof body.rpe === "number" ? body.rpe : null;
+        if (body.isCompleted === true || complete) next.isCompleted = true;
+        return next;
+      }),
+    })),
+  };
+}
+
+interface WorkoutDetailProps {
+  workoutId: string;
+  defaultRestSeconds: number;
+  weightUnit: "KG" | "LB";
+}
+
+export function WorkoutDetail({
+  workoutId,
+  defaultRestSeconds,
+  weightUnit,
+}: WorkoutDetailProps) {
+  const { t } = useI18n();
+  const router = useRouter();
+  const [workout, setWorkout] = useState<WorkoutData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [addingExercise, setAddingExercise] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const [netOnline, setNetOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
+  const [offlineOriginSession, setOfflineOriginSession] = useState(false);
+  const [pendingQueue, setPendingQueue] = useState(false);
+
+  const restTimer = useRestTimer(defaultRestSeconds);
+  const startedAt = workout ? new Date(workout.startedAt) : null;
+  const { formatted: elapsedLabel } = useWorkoutTimer(startedAt);
+
+  const isActive = workout && !workout.completedAt;
+  const weightLabel = weightUnit === "LB" ? "lb" : "kg";
+  const useLocalWrites = !netOnline || offlineOriginSession || pendingQueue;
+
+  useEffect(() => {
+    const on = () => setNetOnline(true);
+    const off = () => setNetOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+
+  const loadWorkout = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    const queued = await listQueueForWorkout(workoutId);
+    if (queued.length > 0) {
+      const snap = await loadWorkoutSnapshot(workoutId);
+      if (!snap) {
+        setWorkout(null);
+        setError(t("workouts.offlineNoSnapshot"));
+        setLoading(false);
+        return;
+      }
+      setWorkout(snap.data);
+      setOfflineOriginSession(snap.offlineOrigin);
+      setPendingQueue(true);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/workouts/${workoutId}`, { credentials: "include" });
+      if (res.status === 404) {
+        const snap = await loadWorkoutSnapshot(workoutId);
+        if (snap) {
+          setWorkout(snap.data);
+          setOfflineOriginSession(snap.offlineOrigin);
+          const q2 = await listQueueForWorkout(workoutId);
+          setPendingQueue(q2.length > 0);
+          setLoading(false);
+          return;
+        }
+        setWorkout(null);
+        setError(t("workouts.notFound"));
+        setLoading(false);
+        return;
+      }
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        const snap = await loadWorkoutSnapshot(workoutId);
+        if (snap) {
+          setWorkout(snap.data);
+          setOfflineOriginSession(snap.offlineOrigin);
+          const q2 = await listQueueForWorkout(workoutId);
+          setPendingQueue(q2.length > 0);
+          setError(null);
+          setLoading(false);
+          return;
+        }
+        setError(typeof json.error === "string" ? json.error : t("workouts.loadFailed"));
+        setWorkout(null);
+        setLoading(false);
+        return;
+      }
+      const json = (await res.json()) as { data: WorkoutData };
+      setWorkout(json.data);
+      await saveWorkoutSnapshot(workoutId, json.data, false);
+      setOfflineOriginSession(false);
+      setPendingQueue(false);
+      setLoading(false);
+    } catch {
+      const snap = await loadWorkoutSnapshot(workoutId);
+      if (snap) {
+        setWorkout(snap.data);
+        setOfflineOriginSession(snap.offlineOrigin);
+        const q2 = await listQueueForWorkout(workoutId);
+        setPendingQueue(q2.length > 0);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+      setError(t("workouts.loadFailed"));
+      setWorkout(null);
+      setLoading(false);
+    }
+  }, [workoutId, t]);
+
+  useEffect(() => {
+    void loadWorkout();
+  }, [loadWorkout]);
+
+  useEffect(() => {
+    const sync = () => {
+      void listQueueForWorkout(workoutId).then((q) => {
+        setPendingQueue(q.length > 0);
+        if (q.length === 0) void loadWorkout();
+      });
+    };
+    window.addEventListener("online", sync);
+    window.addEventListener("fittrack-offline-synced", sync);
+    return () => {
+      window.removeEventListener("online", sync);
+      window.removeEventListener("fittrack-offline-synced", sync);
+    };
+  }, [workoutId, loadWorkout]);
+
+  useEffect(() => {
+    if (workout?.name != null) setNameDraft(workout.name);
+    else if (workout) setNameDraft("");
+  }, [workout?.name, workout?.id]);
+
+  async function persistLocal(next: WorkoutData, op: Parameters<typeof enqueueWorkoutOp>[1]) {
+    await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
+    await enqueueWorkoutOp(workoutId, op);
+    setPendingQueue(true);
+  }
+
+  async function patchSetOffline(setId: string, body: Record<string, unknown>, complete: boolean) {
+    if (!workout) return;
+    const merged: Record<string, unknown> = { ...body };
+    if (complete) merged.isCompleted = true;
+    let next: WorkoutData | null = null;
+    setWorkout((prev) => {
+      if (!prev) return prev;
+      next = patchSetInWorkout(prev, setId, merged, complete);
+      return next;
+    });
+    if (next) {
+      await persistLocal(next, { t: "patch_set", clientSetId: setId, body: merged });
+    }
+  }
+
+  async function deleteSetOffline(setId: string) {
+    if (!workout) return;
+    const next: WorkoutData = {
+      ...workout,
+      workoutExercises: workout.workoutExercises.map((we) => ({
+        ...we,
+        sets: renumberSets(we.sets.filter((s) => s.id !== setId)),
+      })),
+    };
+    setWorkout(next);
+    await persistLocal(next, { t: "delete_set", clientSetId: setId });
+  }
+
+  async function saveName() {
+    if (!workout || workout.completedAt) return;
+    const trimmed = nameDraft.trim();
+    const nextName = trimmed.length ? trimmed : null;
+    if (nextName === workout.name || (nextName === null && workout.name === null)) return;
+    setSavingName(true);
+    if (useLocalWrites) {
+      const next = { ...workout, name: nextName };
+      setWorkout(next);
+      await persistLocal(next, { t: "patch_workout", name: nextName });
+      setSavingName(false);
+      return;
+    }
+    await fetch(`/api/workouts/${workoutId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ name: nextName }),
+    });
+    setSavingName(false);
+    await loadWorkout();
+  }
+
+  async function handleAddExercise(ex: ExercisePickerExercise) {
+    if (!workout || workout.completedAt) return;
+    if (useLocalWrites) {
+      setAddingExercise(true);
+      const weId = crypto.randomUUID();
+      const setId = crypto.randomUUID();
+      const order = workout.workoutExercises.length;
+      const newWe: WorkoutExerciseData = {
+        id: weId,
+        exerciseId: ex.id,
+        order,
+        notes: null,
+        isCompleted: false,
+        exercise: {
+          id: ex.id,
+          name: ex.name,
+          muscleGroup: ex.muscleGroup,
+          equipment: ex.equipment,
+        },
+        sets: [
+          {
+            id: setId,
+            setNumber: 1,
+            reps: null,
+            weight: null,
+            rpe: null,
+            isWarmup: false,
+            isCompleted: false,
+          },
+        ],
+      };
+      const next: WorkoutData = {
+        ...workout,
+        workoutExercises: [...workout.workoutExercises, newWe],
+      };
+      setWorkout(next);
+      await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
+      await enqueueWorkoutOp(workoutId, { t: "post_exercise", exerciseId: ex.id, clientWeId: weId });
+      await enqueueWorkoutOp(workoutId, {
+        t: "post_set",
+        clientWeId: weId,
+        clientSetId: setId,
+        isWarmup: false,
+      });
+      setPendingQueue(true);
+      setAddingExercise(false);
+      setPickerOpen(false);
+      return;
+    }
+
+    setAddingExercise(true);
+    const res = await fetch(`/api/workouts/${workoutId}/exercises`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ exerciseId: ex.id }),
+    });
+    if (!res.ok) {
+      setAddingExercise(false);
+      return;
+    }
+    const json = await res.json();
+    const weId = json.data?.id as string | undefined;
+    if (weId) {
+      await fetch(`/api/workouts/${workoutId}/exercises/${weId}/sets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({}),
+      });
+    }
+    setAddingExercise(false);
+    setPickerOpen(false);
+    await loadWorkout();
+  }
+
+  async function addSet(weId: string, isWarmup?: boolean) {
+    if (!workout) return;
+    if (useLocalWrites) {
+      const we = workout.workoutExercises.find((w) => w.id === weId);
+      if (!we) return;
+      const setId = crypto.randomUUID();
+      const newSet: WorkoutSetData = {
+        id: setId,
+        setNumber: we.sets.length + 1,
+        reps: null,
+        weight: null,
+        rpe: null,
+        isWarmup: !!isWarmup,
+        isCompleted: false,
+      };
+      const nextSets = renumberSets([...we.sets, newSet]);
+      const next: WorkoutData = {
+        ...workout,
+        workoutExercises: workout.workoutExercises.map((w) =>
+          w.id === weId ? { ...w, sets: nextSets } : w
+        ),
+      };
+      setWorkout(next);
+      await persistLocal(next, {
+        t: "post_set",
+        clientWeId: weId,
+        clientSetId: setId,
+        isWarmup: !!isWarmup,
+      });
+      return;
+    }
+    await fetch(`/api/workouts/${workoutId}/exercises/${weId}/sets`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(isWarmup ? { isWarmup: true } : {}),
+    });
+    await loadWorkout();
+  }
+
+  async function removeExercise(weId: string) {
+    if (!confirm(t("workouts.removeExerciseConfirm"))) return;
+    if (useLocalWrites && workout) {
+      const next: WorkoutData = {
+        ...workout,
+        workoutExercises: workout.workoutExercises.filter((we) => we.id !== weId),
+      };
+      setWorkout(next);
+      await persistLocal(next, { t: "delete_we", clientWeId: weId });
+      return;
+    }
+    await fetch(`/api/workouts/${workoutId}/exercises/${weId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    await loadWorkout();
+  }
+
+  async function completeWorkout() {
+    if (!confirm(t("workouts.finishConfirm"))) return;
+    if (useLocalWrites && workout) {
+      setCompleting(true);
+      const completedAt = new Date().toISOString();
+      const durationSeconds = Math.max(
+        0,
+        Math.floor((Date.now() - new Date(workout.startedAt).getTime()) / 1000)
+      );
+      const next: WorkoutData = { ...workout, completedAt, durationSeconds };
+      setWorkout(next);
+      await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
+      await enqueueWorkoutOp(workoutId, { t: "complete_workout" });
+      setPendingQueue(true);
+      setCompleting(false);
+      restTimer.stop();
+      router.refresh();
+      return;
+    }
+    setCompleting(true);
+    const res = await fetch(`/api/workouts/${workoutId}/complete`, {
+      method: "POST",
+      credentials: "include",
+    });
+    setCompleting(false);
+    if (!res.ok) return;
+    restTimer.stop();
+    await loadWorkout();
+    router.refresh();
+  }
+
+  function onSetCompleted() {
+    if (isActive) restTimer.start(defaultRestSeconds);
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+        <div className="h-40 animate-pulse rounded-xl bg-muted/80" />
+        <div className="h-40 animate-pulse rounded-xl bg-muted/80" />
+      </div>
+    );
+  }
+
+  if (error || !workout) {
+    return (
+      <div className="space-y-4">
+        <Link
+          href={ROUTES.workouts}
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "inline-flex gap-1 px-0")}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {t("workouts.backNavLong")}
+        </Link>
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            {error ?? t("workouts.notFound")}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 pb-24">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <Link
+            href={ROUTES.workouts}
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "sm" }),
+              "inline-flex gap-1 -ml-2 px-2"
+            )}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {t("workouts.backToWorkouts")}
+          </Link>
+          {workout.completedAt ? (
+            <h1 className="text-2xl font-bold tracking-tight">
+              {workout.name?.trim() || t("workouts.workoutFallback")}
+            </h1>
+          ) : (
+            <Input
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={saveName}
+              disabled={savingName}
+              placeholder={t("workouts.workoutNamePlaceholder")}
+              className="max-w-md text-2xl font-bold h-auto py-1 border-0 px-0 shadow-none focus-visible:ring-0"
+            />
+          )}
+          <p className="text-sm text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>{formatShortDate(workout.startedAt)}</span>
+            {workout.planSessionId ? (
+              <Badge variant="secondary" className="text-xs font-normal">
+                {t("workouts.fromPlanBadge")}
+              </Badge>
+            ) : null}
+            {workout.completedAt ? (
+              <>
+                <span className="inline-flex items-center gap-1 text-green-600">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {t("workouts.sessionComplete")}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5" />
+                  {formatDuration(workout.durationSeconds)}
+                </span>
+              </>
+            ) : (
+              <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+                <Timer className="h-3.5 w-3.5" />
+                {elapsedLabel}
+              </span>
+            )}
+          </p>
+          {isActive ? (
+            <p className="text-xs text-muted-foreground max-w-md">{t("workouts.timerTrackingHint")}</p>
+          ) : null}
+        </div>
+
+        {isActive && (
+          <Button onClick={completeWorkout} disabled={completing}>
+            {completing ? t("workouts.finishing") : t("workouts.finishWorkout")}
+          </Button>
+        )}
+      </div>
+
+      {useLocalWrites && isActive ? (
+        <p
+          className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
+          role="status"
+        >
+          {t("workouts.offlineModeBanner")}
+        </p>
+      ) : null}
+
+      {workout.workoutExercises.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+            <p className="text-sm text-muted-foreground">{t("workouts.emptyExercises")}</p>
+            {isActive && (
+              <Button onClick={() => setPickerOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                {t("workouts.addExercise")}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {workout.workoutExercises.map((we) => (
+            <Card key={we.id}>
+              <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
+                <div>
+                  <CardTitle className="text-base">
+                    <Link
+                      href={exercisePath(we.exercise.id)}
+                      className="hover:underline underline-offset-2"
+                    >
+                      {we.exercise.name}
+                    </Link>
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {we.exercise.muscleGroup.replace(/_/g, " ")}
+                  </p>
+                </div>
+                {isActive && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="text-muted-foreground hover:text-destructive shrink-0"
+                    onClick={() => removeExercise(we.id)}
+                    aria-label={t("workouts.removeExerciseAria")}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <span className="w-6 shrink-0 text-center text-[10px] font-medium uppercase text-muted-foreground">
+                    #
+                  </span>
+                  <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">
+                    {weightLabel}
+                  </span>
+                  <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">
+                    {t("workouts.reps")}
+                  </span>
+                  <span className="w-14 text-center text-[10px] font-medium uppercase text-muted-foreground">
+                    {t("workouts.rpe")}
+                  </span>
+                </div>
+                {we.sets.map((set) => (
+                  <SetRow
+                    key={set.id}
+                    set={set}
+                    workoutId={workoutId}
+                    weightUnitLabel={weightLabel}
+                    onUpdate={() => {
+                      if (!useLocalWrites) void loadWorkout();
+                    }}
+                    onComplete={onSetCompleted}
+                    disabled={!isActive}
+                    offlineHandlers={
+                      useLocalWrites && isActive
+                        ? {
+                            patchSet: (body, complete) => patchSetOffline(set.id, body, complete),
+                            deleteSet: () => deleteSetOffline(set.id),
+                          }
+                        : undefined
+                    }
+                  />
+                ))}
+                {isActive && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => addSet(we.id)}
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      {t("workouts.set")}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => addSet(we.id, true)}
+                    >
+                      {t("workouts.warmup")}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+
+          {isActive && (
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setPickerOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t("workouts.addExercise")}
+            </Button>
+          )}
+        </div>
+      )}
+
+      <ExercisePickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onSelect={handleAddExercise}
+        loading={addingExercise}
+      />
+
+      {isActive && <RestTimerBar timer={restTimer} />}
+    </div>
+  );
+}

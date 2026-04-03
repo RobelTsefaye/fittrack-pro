@@ -1,0 +1,400 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Plus, Trash2, Play } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ROUTES, exercisePath } from "@/lib/constants";
+import { useI18n } from "@/lib/i18n-provider";
+import { ExercisePickerDialog } from "@/features/workouts/components/exercise-picker-dialog";
+
+type ExerciseRef = {
+  id: string;
+  name: string;
+  muscleGroup: string;
+  equipment: string;
+};
+
+type Pse = {
+  id: string;
+  exerciseId: string;
+  order: number;
+  targetSets: number;
+  exercise: ExerciseRef;
+};
+
+type PlanSession = {
+  id: string;
+  name: string;
+  order: number;
+  notes: string | null;
+  exercises: Pse[];
+};
+
+type PlanDetail = {
+  id: string;
+  name: string;
+  description: string | null;
+  sessions: PlanSession[];
+};
+
+interface PlanDetailViewProps {
+  planId: string;
+}
+
+export function PlanDetailView({ planId }: PlanDetailViewProps) {
+  const { t } = useI18n();
+  const router = useRouter();
+  const [plan, setPlan] = useState<PlanDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const [planNameDraft, setPlanNameDraft] = useState("");
+  const [savingPlanName, setSavingPlanName] = useState(false);
+
+  const [dayDialogOpen, setDayDialogOpen] = useState(false);
+  const [dayName, setDayName] = useState("");
+  const [addingDay, setAddingDay] = useState(false);
+
+  const [pickerSessionId, setPickerSessionId] = useState<string | null>(null);
+  const [addingExercise, setAddingExercise] = useState(false);
+  const [startingId, setStartingId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    const res = await fetch(`/api/plans/${planId}`);
+    if (res.status === 404) {
+      setPlan(null);
+      setError(t("plans.planNotFound"));
+      setLoading(false);
+      return;
+    }
+    if (!res.ok) {
+      setError(t("plans.loadFailed"));
+      setLoading(false);
+      return;
+    }
+    const json = await res.json();
+    const p = json.data as PlanDetail;
+    setPlan(p);
+    setPlanNameDraft(p.name);
+    setLoading(false);
+  }, [planId, t]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function savePlanName() {
+    const trimmed = planNameDraft.trim();
+    if (!trimmed || !plan || trimmed === plan.name) return;
+    setSavingPlanName(true);
+    await fetch(`/api/plans/${planId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: trimmed }),
+    });
+    setSavingPlanName(false);
+    await load();
+  }
+
+  async function deletePlan() {
+    if (!confirm(t("plans.deletePlanConfirm"))) return;
+    const res = await fetch(`/api/plans/${planId}`, { method: "DELETE" });
+    if (res.ok) router.push(ROUTES.plans);
+  }
+
+  async function addDay(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = dayName.trim();
+    if (!trimmed) return;
+    setAddingDay(true);
+    const res = await fetch(`/api/plans/${planId}/sessions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: trimmed }),
+    });
+    setAddingDay(false);
+    if (!res.ok) return;
+    setDayDialogOpen(false);
+    setDayName("");
+    await load();
+  }
+
+  async function deleteSession(sessionId: string) {
+    if (!confirm(t("plans.removeDayConfirm"))) return;
+    await fetch(`/api/plan-sessions/${sessionId}`, { method: "DELETE" });
+    await load();
+  }
+
+  async function handleAddExercise(exercise: { id: string }) {
+    if (!pickerSessionId) return;
+    setAddingExercise(true);
+    const res = await fetch(`/api/plan-sessions/${pickerSessionId}/exercises`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ exerciseId: exercise.id }),
+    });
+    setAddingExercise(false);
+    setPickerSessionId(null);
+    if (res.ok) await load();
+  }
+
+  async function updateTargetSets(pseId: string, value: string) {
+    const n = parseInt(value, 10);
+    if (Number.isNaN(n) || n < 1 || n > 20) return;
+    await fetch(`/api/plan-session-exercises/${pseId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetSets: n }),
+    });
+    await load();
+  }
+
+  async function removePse(pseId: string) {
+    await fetch(`/api/plan-session-exercises/${pseId}`, { method: "DELETE" });
+    await load();
+  }
+
+  async function startSession(sessionId: string) {
+    setStartingId(sessionId);
+    const res = await fetch(`/api/plan-sessions/${sessionId}/start`, {
+      method: "POST",
+    });
+    setStartingId(null);
+    if (!res.ok) return;
+    const json = await res.json();
+    const id = json.data?.id as string | undefined;
+    if (id) router.push(`/workouts/${id}`);
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+        <div className="h-40 animate-pulse rounded-xl bg-muted/80" />
+      </div>
+    );
+  }
+
+  if (error || !plan) {
+    return (
+      <div className="space-y-4">
+        <Link
+          href={ROUTES.plans}
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "inline-flex gap-1 -ml-2")}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {t("plans.backToPlans")}
+        </Link>
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            {error ?? t("plans.planNotFound")}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Link
+        href={ROUTES.plans}
+        className={cn(
+          buttonVariants({ variant: "ghost", size: "sm" }),
+          "inline-flex gap-1 -ml-2"
+        )}
+      >
+        <ArrowLeft className="h-4 w-4" />
+        {t("plans.backToPlans")}
+      </Link>
+
+      <h1 className="text-2xl font-bold tracking-tight">{plan.name}</h1>
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-2 flex-1 max-w-xl">
+          <Label className="text-muted-foreground text-xs">{t("plans.renamePlan")}</Label>
+          <div className="flex flex-wrap gap-2">
+            <Input
+              value={planNameDraft}
+              onChange={(e) => setPlanNameDraft(e.target.value)}
+              className="max-w-md"
+              maxLength={120}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={savePlanName}
+              disabled={savingPlanName || planNameDraft.trim() === plan.name}
+            >
+              {savingPlanName ? t("common.saving") : t("plans.savePlanName")}
+            </Button>
+          </div>
+          {plan.description ? (
+            <p className="text-sm text-muted-foreground">{plan.description}</p>
+          ) : null}
+        </div>
+        <Button variant="destructive" className="shrink-0" onClick={deletePlan}>
+          {t("plans.deletePlan")}
+        </Button>
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">{t("plans.workoutDaysTitle")}</h2>
+        <Button variant="outline" size="sm" onClick={() => setDayDialogOpen(true)}>
+          <Plus className="mr-1 h-4 w-4" />
+          {t("plans.addWorkoutDay")}
+        </Button>
+      </div>
+
+      {plan.sessions.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            {t("plans.emptyHint")}
+          </CardContent>
+        </Card>
+      ) : (
+        <ul className="space-y-4">
+          {plan.sessions.map((s) => (
+            <li key={s.id}>
+              <Card>
+                <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0 pb-2">
+                  <CardTitle className="text-base">{s.name}</CardTitle>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => startSession(s.id)}
+                      disabled={startingId === s.id}
+                    >
+                      <Play className="mr-1 h-3.5 w-3.5" />
+                      {startingId === s.id ? t("plans.starting") : t("plans.startThisDay")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPickerSessionId(s.id)}
+                    >
+                      <Plus className="mr-1 h-3.5 w-3.5" />
+                      {t("workouts.addExercise")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => deleteSession(s.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">{t("plans.removeDay")}</span>
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {t("plans.exercisesInDay")}
+                  </p>
+                  {s.exercises.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">{t("plans.noExercisesInDay")}</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {s.exercises.map((pse) => (
+                        <li
+                          key={pse.id}
+                          className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm"
+                        >
+                          <Link
+                            href={exercisePath(pse.exerciseId)}
+                            className="font-medium flex-1 min-w-[140px] hover:underline underline-offset-2"
+                          >
+                            {pse.exercise.name}
+                          </Link>
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor={`sets-${pse.id}`} className="text-muted-foreground text-xs">
+                              {t("plans.targetSets")}
+                            </Label>
+                            <Input
+                              id={`sets-${pse.id}`}
+                              type="number"
+                              min={1}
+                              max={20}
+                              className="h-8 w-16"
+                              defaultValue={pse.targetSets}
+                              key={`${pse.id}-${pse.targetSets}`}
+                              onBlur={(e) => {
+                                if (e.target.value !== String(pse.targetSets)) {
+                                  updateTargetSets(pse.id, e.target.value);
+                                }
+                              }}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => removePse(pse.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Dialog open={dayDialogOpen} onOpenChange={setDayDialogOpen}>
+        <DialogContent>
+          <form onSubmit={addDay}>
+            <DialogHeader>
+              <DialogTitle>{t("plans.newDayTitle")}</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <Label htmlFor="day-name">{t("plans.dayName")}</Label>
+              <Input
+                id="day-name"
+                className="mt-2"
+                value={dayName}
+                onChange={(e) => setDayName(e.target.value)}
+                placeholder={t("plans.dayNamePlaceholder")}
+                maxLength={100}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDayDialogOpen(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" disabled={addingDay}>
+                {addingDay ? t("common.saving") : t("plans.addDay")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ExercisePickerDialog
+        open={!!pickerSessionId}
+        onOpenChange={(o) => !o && setPickerSessionId(null)}
+        onSelect={handleAddExercise}
+        loading={addingExercise}
+      />
+    </div>
+  );
+}

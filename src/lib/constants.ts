@@ -1,0 +1,48 @@
+export const APP_NAME = "FitTrack Pro";
+
+export const MUSCLE_GROUPS = [
+  "CHEST",
+  "BACK",
+  "SHOULDERS",
+  "BICEPS",
+  "TRICEPS",
+  "LEGS",
+  "GLUTES",
+  "CORE",
+  "FOREARMS",
+  "CALVES",
+  "FULL_BODY",
+  "CARDIO",
+  "OTHER",
+] as const;
+
+export const EQUIPMENT_TYPES = [
+  "BARBELL",
+  "DUMBBELL",
+  "MACHINE",
+  "CABLE",
+  "BODYWEIGHT",
+  "KETTLEBELL",
+  "BAND",
+  "OTHER",
+] as const;
+
+export const DEFAULT_REST_TIMER = 90;
+
+export const ROUTES = {
+  home: "/",
+  login: "/login",
+  register: "/register",
+  dashboard: "/dashboard",
+  workouts: "/workouts",
+  newWorkout: "/workouts/new",
+  plans: "/plans",
+  exercises: "/exercises",
+  exercisesUsage: "/exercises/usage",
+  bodyWeight: "/body-weight",
+  settings: "/settings",
+} as const;
+
+export function exercisePath(id: string) {
+  return `/exercises/${id}`;
+}

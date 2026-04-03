@@ -93,7 +93,7 @@ User 1──* Workout 1──* WorkoutExercise 1──* Set
 | reps | Int | Reps at that weight |
 | estimated1RM | Float? | Calculated |
 | achievedAt | DateTime | When PR was hit |
-| setId | UUID | FK → Set (the actual set) |
+| setId | UUID | FK → Set (the actual set), **ON DELETE CASCADE** (schema intent — apply with `prisma migrate`) |
 
 ### UserSettings
 | Column | Type | Notes |
