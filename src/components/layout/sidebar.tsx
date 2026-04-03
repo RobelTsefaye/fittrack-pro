@@ -37,7 +37,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "fixed bottom-0 left-0 top-16 z-50 flex w-[min(18rem,calc(100vw-2.5rem))] max-w-[85vw] flex-col border-r bg-card shadow-xl transition-transform lg:static lg:top-auto lg:max-w-none lg:translate-x-0 lg:shadow-none",
+        "fixed bottom-0 left-0 z-50 flex w-[min(18rem,calc(100vw-2.5rem))] max-w-[85vw] flex-col border-r bg-card shadow-xl transition-transform safe-x-pad safe-top-offset lg:static lg:top-auto lg:max-w-none lg:translate-x-0 lg:shadow-none",
         open ? "translate-x-0" : "-translate-x-full"
       )}
     >
@@ -55,7 +55,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </Button>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3 pb-6">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-3 safe-bottom-inset">
         {navItems.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");

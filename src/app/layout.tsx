@@ -20,6 +20,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#fafafa" },
     { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
@@ -33,7 +35,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "FitTrack",
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     startupImage: [
       {
         url: "/icons/icon-512.png",
