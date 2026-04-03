@@ -1,11 +1,9 @@
+import NextAuth from "next-auth";
+import { authConfig } from "@/lib/auth.config";
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 
-/**
- * Use NextAuth `auth()` so session cookies work, including chunked JWTs
- * (`authjs.session-token.0`, …). A plain cookie name check misses those and
- * causes a login → dashboard → login loop.
- */
+const { auth } = NextAuth(authConfig);
+
 export default auth((req) => {
   const { pathname } = req.nextUrl;
 
