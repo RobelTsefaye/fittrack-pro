@@ -9,7 +9,11 @@ export type PreviousLogEntry = {
 } | null;
 
 /**
- * Last logged working set per exercise before this workout session (for placeholders).
+ * Last session per exercise: most recently *completed* workout (any time before now)
+ * that contains this exercise — not "started before this session", so long-running
+ * open workouts still see hints from sessions completed after this one started.
+ *
+ * Set: last non-warmup working set in that session (highest setNumber) with reps + weight.
  */
 export async function GET(
   _req: NextRequest,
@@ -47,13 +51,20 @@ export async function GET(
             userId: session.user.id,
             completedAt: { not: null },
             id: { not: workoutId },
-            startedAt: { lt: workout.startedAt },
           },
         },
-        orderBy: { workout: { startedAt: "desc" } },
+        orderBy: {
+          workout: {
+            completedAt: "desc",
+          },
+        },
         include: {
           sets: {
-            where: { isWarmup: false, isCompleted: true, reps: { gt: 0 } },
+            where: {
+              isWarmup: false,
+              reps: { gt: 0 },
+              weight: { not: null },
+            },
             orderBy: { setNumber: "desc" },
             take: 1,
             select: { weight: true, reps: true, rpe: true },

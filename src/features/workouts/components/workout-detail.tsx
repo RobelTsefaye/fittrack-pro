@@ -87,13 +87,19 @@ function mapApiSet(raw: Record<string, unknown>): WorkoutSetData {
   };
 }
 
+function formatWeightForHint(n: number): string {
+  const v = Math.round(Number(n) * 100) / 100;
+  return Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/\.?0+$/, "");
+}
+
 function formatPreviousHint(
   log: PreviousLogEntry | undefined,
   weightUnit: string,
   t: (key: string, params?: Record<string, string | number | undefined>) => string
 ): string | null {
   if (!log || (log.weight == null && log.reps == null)) return null;
-  const w = log.weight != null ? `${log.weight} ${weightUnit}` : "";
+  const w =
+    log.weight != null ? `${formatWeightForHint(Number(log.weight))} ${weightUnit}` : "";
   const r = log.reps != null ? String(log.reps) : "";
   const values = w && r ? `${w} × ${r}` : w || r;
   return t("workouts.previousTrainingHint", { values });
@@ -536,7 +542,13 @@ export function WorkoutDetail({
     return () => {
       cancelled = true;
     };
-  }, [workoutId, workout?.id, workout?.completedAt, useLocalWrites]);
+  }, [
+    workoutId,
+    workout?.id,
+    workout?.completedAt,
+    useLocalWrites,
+    workout?.workoutExercises?.length,
+  ]);
 
   useEffect(() => {
     if (workout?.name != null) setNameDraft(workout.name);
