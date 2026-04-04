@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { ROUTES, exercisePath } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
+import { tryGetOfflineDb } from "@/lib/offline/db";
 
 type WorkoutListItem = {
   id: string;
@@ -42,6 +43,38 @@ function formatDuration(seconds: number | null | undefined) {
   return `${m}m ${s}s`;
 }
 
+function sortWorkouts(data: WorkoutListItem[]) {
+  return [...data].sort((a, b) => {
+    const aActive = !a.completedAt;
+    const bActive = !b.completedAt;
+    if (aActive && !bActive) return -1;
+    if (!aActive && bActive) return 1;
+    return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime();
+  });
+}
+
+async function saveWorkoutListCache(data: WorkoutListItem[]) {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  await db.workoutListCache.put({
+    id: "default",
+    payload: JSON.stringify(data),
+    updatedAt: Date.now(),
+  });
+}
+
+async function loadWorkoutListCache(): Promise<WorkoutListItem[] | null> {
+  const db = tryGetOfflineDb();
+  if (!db) return null;
+  const row = await db.workoutListCache.get("default");
+  if (!row) return null;
+  try {
+    return JSON.parse(row.payload) as WorkoutListItem[];
+  } catch {
+    return null;
+  }
+}
+
 export function WorkoutHistoryList() {
   const { t } = useI18n();
   const router = useRouter();
@@ -50,22 +83,38 @@ export function WorkoutHistoryList() {
 
   const fetchWorkouts = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/workouts?limit=50");
-    const json = await res.json();
-    const data: WorkoutListItem[] = json.data ?? [];
-    data.sort((a, b) => {
-      const aActive = !a.completedAt;
-      const bActive = !b.completedAt;
-      if (aActive && !bActive) return -1;
-      if (!aActive && bActive) return 1;
-      return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime();
-    });
-    setWorkouts(data);
+
+    if (!navigator.onLine) {
+      const cached = await loadWorkoutListCache();
+      if (cached) setWorkouts(sortWorkouts(cached));
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/workouts?limit=50");
+      const json = await res.json();
+      const data: WorkoutListItem[] = json.data ?? [];
+      const sorted = sortWorkouts(data);
+      setWorkouts(sorted);
+      await saveWorkoutListCache(sorted);
+    } catch {
+      const cached = await loadWorkoutListCache();
+      if (cached) setWorkouts(cached);
+    }
+
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    fetchWorkouts();
+    void fetchWorkouts();
+  }, [fetchWorkouts]);
+
+  // Reload after offline sync completes
+  useEffect(() => {
+    const onSynced = () => void fetchWorkouts();
+    window.addEventListener("fittrack-offline-synced", onSynced);
+    return () => window.removeEventListener("fittrack-offline-synced", onSynced);
   }, [fetchWorkouts]);
 
   return (

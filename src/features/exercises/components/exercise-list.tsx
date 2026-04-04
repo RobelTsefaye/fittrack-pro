@@ -11,6 +11,7 @@ import { ExerciseFormDialog } from "./exercise-form-dialog";
 import { ExerciseDeleteDialog } from "./exercise-delete-dialog";
 import { useI18n } from "@/lib/i18n-provider";
 import { ROUTES } from "@/lib/constants";
+import { saveExerciseCatalog } from "@/lib/offline/workout-offline-store";
 
 export function ExerciseList() {
   const { t } = useI18n();
@@ -26,7 +27,19 @@ export function ExerciseList() {
     const params = new URLSearchParams(searchParams.toString());
     const res = await fetch(`/api/exercises?${params.toString()}`);
     const json = await res.json();
-    setExercises(json.data ?? []);
+    const data: ExerciseData[] = json.data ?? [];
+    setExercises(data);
+    // Cache full list (no filters) for offline exercise picker
+    if (!searchParams.has("search") && !searchParams.has("muscleGroup") && !searchParams.has("equipment")) {
+      void saveExerciseCatalog(
+        data.map((e) => ({
+          id: e.id,
+          name: e.name,
+          muscleGroup: e.muscleGroup,
+          equipment: e.equipment,
+        }))
+      );
+    }
     setLoading(false);
   }, [searchParams]);
 

@@ -22,11 +22,32 @@ export type CatalogRow = {
 
 export type MetaRow = { id: string; queueSeq: number };
 
+export type BodyWeightCacheRow = {
+  id: string;
+  payload: string;
+  updatedAt: number;
+};
+
+export type BodyWeightQueueRow = {
+  id: string;
+  sort: number;
+  opJson: string;
+};
+
+export type WorkoutListCacheRow = {
+  id: "default";
+  payload: string;
+  updatedAt: number;
+};
+
 class FitTrackOfflineDb extends Dexie {
   workouts!: Table<WorkoutSnapshotRow>;
   queue!: Table<QueueRow>;
   catalog!: Table<CatalogRow>;
   meta!: Table<MetaRow>;
+  bodyWeightCache!: Table<BodyWeightCacheRow>;
+  bodyWeightQueue!: Table<BodyWeightQueueRow>;
+  workoutListCache!: Table<WorkoutListCacheRow>;
 
   constructor() {
     super("fittrack_offline_v1");
@@ -35,6 +56,15 @@ class FitTrackOfflineDb extends Dexie {
       queue: "id, workoutRouteId, sort",
       catalog: "id",
       meta: "id",
+    });
+    this.version(2).stores({
+      workouts: "id",
+      queue: "id, workoutRouteId, sort",
+      catalog: "id",
+      meta: "id",
+      bodyWeightCache: "id",
+      bodyWeightQueue: "id, sort",
+      workoutListCache: "id",
     });
   }
 }

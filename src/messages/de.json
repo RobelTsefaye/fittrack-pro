@@ -343,6 +343,13 @@
     "chartSeriesWeight": "Gewicht",
     "notesEditLabel": "Notizen"
   },
+  "offline": {
+    "banner": "Du bist offline — Änderungen werden lokal gespeichert und synchronisiert, sobald du wieder verbunden bist.",
+    "syncing": "Offline-Änderungen werden synchronisiert…",
+    "syncDone": "Alle Änderungen synchronisiert.",
+    "pendingCount": "{count} ausstehende Änderung(en)",
+    "bodyWeightQueued": "Offline gespeichert — wird beim nächsten Verbinden synchronisiert."
+  },
   "export": {
     "jsonFilename": "fittrack-export.json",
     "csvFilename": "fittrack-workouts.csv"

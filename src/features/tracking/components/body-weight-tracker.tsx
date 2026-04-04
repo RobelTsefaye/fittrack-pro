@@ -25,13 +25,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { todayLocalISO } from "@/lib/date-only";
 import { useI18n } from "@/lib/i18n-provider";
-
-type Entry = {
-  id: string;
-  weight: number;
-  date: string;
-  notes: string | null;
-};
+import {
+  applyOpToCache,
+  bodyWeightQueueCount,
+  enqueueBodyWeightOp,
+  loadBodyWeightCache,
+  saveBodyWeightCache,
+} from "@/lib/offline/body-weight-offline-store";
+import type { BodyWeightEntry } from "@/lib/offline/body-weight-offline-store";
 
 interface BodyWeightTrackerProps {
   weightUnit: "KG" | "LB";
@@ -40,37 +41,77 @@ interface BodyWeightTrackerProps {
 export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
   const { t } = useI18n();
   const unitLabel = weightUnit === "LB" ? "lb" : "kg";
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const [entries, setEntries] = useState<BodyWeightEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState(todayLocalISO);
   const [weight, setWeight] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
 
-  const [editEntry, setEditEntry] = useState<Entry | null>(null);
+  const [editEntry, setEditEntry] = useState<BodyWeightEntry | null>(null);
   const [editWeight, setEditWeight] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
+  useEffect(() => {
+    const on = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/body-weight");
-    const json = await res.json();
-    setEntries(json.data ?? []);
+
+    // Check if there are pending offline ops — if so use cache only
+    const pending = await bodyWeightQueueCount();
+    if (pending > 0 || !navigator.onLine) {
+      const cached = await loadBodyWeightCache();
+      if (cached) {
+        setEntries(cached);
+        setLoading(false);
+        return;
+      }
+    }
+
+    try {
+      const res = await fetch("/api/body-weight");
+      if (!res.ok) throw new Error("fetch_failed");
+      const json = await res.json();
+      const data: BodyWeightEntry[] = json.data ?? [];
+      setEntries(data);
+      await saveBodyWeightCache(data);
+    } catch {
+      // Fall back to cache if network fails
+      const cached = await loadBodyWeightCache();
+      if (cached) setEntries(cached);
+    }
+
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
+  }, [load]);
+
+  // Reload from server after sync completes
+  useEffect(() => {
+    const onSynced = () => void load();
+    window.addEventListener("fittrack-bw-synced", onSynced);
+    return () => window.removeEventListener("fittrack-bw-synced", onSynced);
   }, [load]);
 
   const chartData = useMemo(() => {
     return [...entries]
       .sort((a, b) => a.date.localeCompare(b.date))
-      .map((e) => ({
-        date: e.date,
-        weight: e.weight,
-      }));
+      .map((e) => ({ date: e.date, weight: e.weight }));
   }, [entries]);
 
   async function handleLog(e: React.FormEvent) {
@@ -78,14 +119,30 @@ export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
     const w = parseFloat(weight);
     if (Number.isNaN(w) || w <= 0) return;
     setSaving(true);
+
+    if (!isOnline) {
+      const id = crypto.randomUUID();
+      const op = {
+        t: "post" as const,
+        id,
+        date,
+        weight: w,
+        notes: notes.trim() || null,
+      };
+      await enqueueBodyWeightOp(op);
+      await applyOpToCache(op);
+      const cached = await loadBodyWeightCache();
+      if (cached) setEntries(cached);
+      setWeight("");
+      setNotes("");
+      setSaving(false);
+      return;
+    }
+
     const res = await fetch("/api/body-weight", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        date,
-        weight: w,
-        notes: notes.trim() || undefined,
-      }),
+      body: JSON.stringify({ date, weight: w, notes: notes.trim() || undefined }),
     });
     setSaving(false);
     if (!res.ok) return;
@@ -96,11 +153,21 @@ export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
 
   async function handleDelete(id: string) {
     if (!confirm(t("bodyWeight.deleteConfirm"))) return;
+
+    if (!isOnline) {
+      const op = { t: "delete" as const, id };
+      await enqueueBodyWeightOp(op);
+      await applyOpToCache(op);
+      const cached = await loadBodyWeightCache();
+      if (cached) setEntries(cached);
+      return;
+    }
+
     await fetch(`/api/body-weight/${id}`, { method: "DELETE" });
     await load();
   }
 
-  function openEdit(entry: Entry) {
+  function openEdit(entry: BodyWeightEntry) {
     setEditEntry(entry);
     setEditWeight(String(entry.weight));
     setEditNotes(entry.notes ?? "");
@@ -111,6 +178,23 @@ export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
     const w = parseFloat(editWeight);
     if (Number.isNaN(w) || w <= 0) return;
     setEditSaving(true);
+
+    if (!isOnline) {
+      const op = {
+        t: "patch" as const,
+        id: editEntry.id,
+        weight: w,
+        notes: editNotes.trim() ? editNotes.trim() : null,
+      };
+      await enqueueBodyWeightOp(op);
+      await applyOpToCache(op);
+      const cached = await loadBodyWeightCache();
+      if (cached) setEntries(cached);
+      setEditEntry(null);
+      setEditSaving(false);
+      return;
+    }
+
     const res = await fetch(`/api/body-weight/${editEntry.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -264,7 +348,12 @@ export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
                     ) : null}
                   </div>
                   <div className="flex gap-1 shrink-0">
-                    <Button type="button" variant="ghost" size="icon-sm" onClick={() => openEdit(entry)}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => openEdit(entry)}
+                    >
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
@@ -305,7 +394,11 @@ export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
             </div>
             <div className="space-y-2">
               <Label>{t("bodyWeight.notesEditLabel")}</Label>
-              <Textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
+              <Textarea
+                rows={2}
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+              />
             </div>
           </div>
           <DialogFooter>

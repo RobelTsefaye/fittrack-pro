@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { Menu, LogOut, User } from "lucide-react";
+import { Menu, LogOut, User, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,6 +23,21 @@ export function Navbar({ onMenuClick }: NavbarProps) {
   const { t } = useI18n();
   const router = useRouter();
   const { data: session } = useSession();
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
+
+  useEffect(() => {
+    const on = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+
   const initials = session?.user?.name
     ?.split(" ")
     .map((n) => n[0])
@@ -31,6 +47,12 @@ export function Navbar({ onMenuClick }: NavbarProps) {
 
   return (
     <header className="z-40 shrink-0 border-b bg-card">
+      {!isOnline && (
+        <div className="flex items-center gap-2 bg-amber-500/15 px-3 py-1.5 text-xs text-amber-800 dark:text-amber-200">
+          <WifiOff className="h-3.5 w-3.5 shrink-0" />
+          <span>{t("offline.banner")}</span>
+        </div>
+      )}
       <div className="flex h-14 items-center gap-2 px-3 sm:px-4">
         <Button
           variant="ghost"
