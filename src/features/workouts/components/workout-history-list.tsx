@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Dumbbell, Plus } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,18 +11,9 @@ import { useRouter } from "next/navigation";
 import { ROUTES, exercisePath } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
 import { tryGetOfflineDb } from "@/lib/offline/db";
+import type { WorkoutListItemDTO } from "@/features/workouts/workouts-list-data";
 
-type WorkoutListItem = {
-  id: string;
-  name: string | null;
-  startedAt: string;
-  completedAt: string | null;
-  durationSeconds: number | null;
-  workoutExercises: {
-    exercise: { id: string; name: string };
-    sets: { id: string }[];
-  }[];
-};
+type WorkoutListItem = WorkoutListItemDTO;
 
 function formatWhen(iso: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -75,16 +66,26 @@ async function loadWorkoutListCache(): Promise<WorkoutListItem[] | null> {
   }
 }
 
-export function WorkoutHistoryList() {
+export function WorkoutHistoryList({
+  initialWorkouts,
+}: {
+  initialWorkouts: WorkoutListItemDTO[];
+}) {
   const { t } = useI18n();
   const router = useRouter();
-  const [workouts, setWorkouts] = useState<WorkoutListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [workouts, setWorkouts] = useState<WorkoutListItem[]>(() =>
+    sortWorkouts(initialWorkouts)
+  );
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setWorkouts(sortWorkouts(initialWorkouts));
+  }, [initialWorkouts]);
 
   const fetchWorkouts = useCallback(async () => {
     setLoading(true);
 
-    if (!navigator.onLine) {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
       const cached = await loadWorkoutListCache();
       if (cached) setWorkouts(sortWorkouts(cached));
       setLoading(false);
@@ -107,11 +108,6 @@ export function WorkoutHistoryList() {
   }, []);
 
   useEffect(() => {
-    void fetchWorkouts();
-  }, [fetchWorkouts]);
-
-  // Reload after offline sync completes
-  useEffect(() => {
     const onSynced = () => void fetchWorkouts();
     window.addEventListener("fittrack-offline-synced", onSynced);
     return () => window.removeEventListener("fittrack-offline-synced", onSynced);
@@ -126,6 +122,7 @@ export function WorkoutHistoryList() {
         </div>
         <Link
           href={ROUTES.newWorkout}
+          prefetch
           className={cn(buttonVariants(), "inline-flex w-full justify-center sm:w-auto")}
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -152,6 +149,7 @@ export function WorkoutHistoryList() {
             <div className="flex flex-col sm:flex-row gap-2">
               <Link
                 href={ROUTES.newWorkout}
+                prefetch
                 className={cn(buttonVariants(), "inline-flex justify-center")}
               >
                 <Plus className="mr-2 h-4 w-4" />
@@ -159,6 +157,7 @@ export function WorkoutHistoryList() {
               </Link>
               <Link
                 href={ROUTES.plans}
+                prefetch
                 className={cn(buttonVariants({ variant: "outline" }), "inline-flex justify-center")}
               >
                 {t("plans.title")}

@@ -2,7 +2,7 @@ import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { dashboardCacheTag } from "@/lib/constants";
+import { dashboardCacheTag, workoutsListCacheTag } from "@/lib/constants";
 import { recordPersonalRecordIfBest } from "@/lib/personal-record";
 
 export async function POST(
@@ -78,6 +78,7 @@ export async function POST(
   }
 
   revalidateTag(dashboardCacheTag(session.user.id), "max");
+  revalidateTag(workoutsListCacheTag(session.user.id), "max");
 
   return NextResponse.json({ data: updated });
 }

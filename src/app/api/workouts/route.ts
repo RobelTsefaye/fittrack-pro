@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createWorkoutSchema } from "@/features/workouts/schemas";
+import {
+  getCachedWorkoutsListPage,
+  getWorkoutsListUncached,
+} from "@/features/workouts/workouts-list-data";
+import { revalidateTag } from "next/cache";
+import { dashboardCacheTag, workoutsListCacheTag } from "@/lib/constants";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -10,39 +16,31 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = req.nextUrl;
-  const page = parseInt(searchParams.get("page") ?? "1");
-  const limit = parseInt(searchParams.get("limit") ?? "20");
-  const status = searchParams.get("status"); // "active" | "completed" | null
+  const page = parseInt(searchParams.get("page") ?? "1", 10);
+  const limit = parseInt(searchParams.get("limit") ?? "20", 10);
+  const statusParam = searchParams.get("status");
+  const statusFilter: "active" | "completed" | null =
+    statusParam === "active" || statusParam === "completed" ? statusParam : null;
 
-  const where: Record<string, unknown> = { userId: session.user.id };
+  const useCache = page === 1 && limit === 50 && statusFilter === null;
 
-  if (status === "active") {
-    where.completedAt = null;
-  } else if (status === "completed") {
-    where.completedAt = { not: null };
+  if (useCache) {
+    const { items, total } = await getCachedWorkoutsListPage(session.user.id);
+    return NextResponse.json({
+      data: items,
+      meta: { page: 1, limit: 50, total },
+    });
   }
 
-  const [workouts, total] = await Promise.all([
-    prisma.workout.findMany({
-      where,
-      include: {
-        workoutExercises: {
-          include: {
-            exercise: { select: { id: true, name: true, muscleGroup: true } },
-            sets: true,
-          },
-          orderBy: { order: "asc" },
-        },
-      },
-      orderBy: { startedAt: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
-    }),
-    prisma.workout.count({ where }),
-  ]);
+  const { items, total } = await getWorkoutsListUncached(
+    session.user.id,
+    page,
+    limit,
+    statusFilter
+  );
 
   return NextResponse.json({
-    data: workouts,
+    data: items,
     meta: { page, limit, total },
   });
 }
@@ -78,6 +76,9 @@ export async function POST(req: NextRequest) {
       },
     },
   });
+
+  revalidateTag(dashboardCacheTag(session.user.id), "max");
+  revalidateTag(workoutsListCacheTag(session.user.id), "max");
 
   return NextResponse.json({ data: workout }, { status: 201 });
 }

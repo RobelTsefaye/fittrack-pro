@@ -51,3 +51,8 @@ export function exercisePath(id: string) {
 export function dashboardCacheTag(userId: string) {
   return `dashboard-user-${userId}`;
 }
+
+/** next/cache tag for workouts list page + default GET /api/workouts */
+export function workoutsListCacheTag(userId: string) {
+  return `workouts-list-${userId}`;
+}
