@@ -175,7 +175,10 @@
     "insightsKeepLogging": "Complete a few more workouts — insights need a bit more history.",
     "insightViewExercise": "View exercise →",
     "chartLoading": "Loading chart…",
-    "workoutFallback": "Workout"
+    "workoutFallback": "Workout",
+    "nextWorkoutTitle": "Next up",
+    "nextWorkoutStart": "Start workout",
+    "nextWorkoutStarting": "Starting…"
   },
   "workouts": {
     "title": "Workouts",

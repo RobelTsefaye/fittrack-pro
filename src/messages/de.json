@@ -175,7 +175,10 @@
     "insightsKeepLogging": "Noch ein paar Workouts abschließen — für Einblicke braucht es etwas mehr Verlauf.",
     "insightViewExercise": "Übung ansehen →",
     "chartLoading": "Diagramm lädt…",
-    "workoutFallback": "Workout"
+    "workoutFallback": "Workout",
+    "nextWorkoutTitle": "Als Nächstes",
+    "nextWorkoutStart": "Training starten",
+    "nextWorkoutStarting": "Startet…"
   },
   "workouts": {
     "title": "Workouts",

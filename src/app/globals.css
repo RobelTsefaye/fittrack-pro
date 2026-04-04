@@ -126,9 +126,18 @@
   }
   html {
     @apply font-sans;
+    touch-action: manipulation;
   }
   button,
-  [role="button"] {
+  [role="button"],
+  a,
+  input,
+  select,
+  label,
+  [role="link"],
+  [role="option"],
+  [role="menuitem"],
+  [role="tab"] {
     touch-action: manipulation;
   }
 }

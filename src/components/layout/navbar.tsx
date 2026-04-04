@@ -23,11 +23,10 @@ export function Navbar({ onMenuClick }: NavbarProps) {
   const { t } = useI18n();
   const router = useRouter();
   const { data: session } = useSession();
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator !== "undefined" ? navigator.onLine : true
-  );
+  const [isOnline, setIsOnline] = useState(true); // true on SSR to avoid hydration mismatch
 
   useEffect(() => {
+    setIsOnline(navigator.onLine);
     const on = () => setIsOnline(true);
     const off = () => setIsOnline(false);
     window.addEventListener("online", on);

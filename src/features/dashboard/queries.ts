@@ -241,6 +241,56 @@ export async function getBodyWeightTrend(userId: string, take = 14) {
     }));
 }
 
+export async function getNextPlanSession(userId: string) {
+  // Find the most-recent completed workout that was started from a plan session
+  const lastPlanned = await prisma.workout.findFirst({
+    where: { userId, completedAt: { not: null }, planSessionId: { not: null } },
+    orderBy: { completedAt: "desc" },
+    select: { planSessionId: true, name: true },
+  });
+
+  if (!lastPlanned?.planSessionId) return null;
+
+  const planSession = await prisma.planSession.findUnique({
+    where: { id: lastPlanned.planSessionId },
+    select: {
+      order: true,
+      plan: {
+        select: {
+          name: true,
+          userId: true,
+          sessions: {
+            orderBy: { order: "asc" },
+            select: {
+              id: true,
+              name: true,
+              order: true,
+              _count: { select: { exercises: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!planSession || planSession.plan.userId !== userId) return null;
+
+  const sessions = planSession.plan.sessions;
+  if (sessions.length === 0) return null;
+
+  const currentIdx = sessions.findIndex((s) => s.order === planSession.order);
+  const nextIdx = (currentIdx + 1) % sessions.length;
+  const next = sessions[nextIdx]!;
+
+  return {
+    sessionId: next.id,
+    sessionName: next.name,
+    planName: planSession.plan.name,
+    exerciseCount: next._count.exercises,
+    lastSessionName: lastPlanned.name,
+  };
+}
+
 export async function getRecentWorkouts(userId: string, take = 6) {
   return prisma.workout.findMany({
     where: { userId, completedAt: { not: null } },
@@ -359,6 +409,8 @@ export async function getWorkoutHeatmapGrid(
   return columns;
 }
 
+export type NextPlanSession = Awaited<ReturnType<typeof getNextPlanSession>>;
+
 export type DashboardPayload = {
   summary: Awaited<ReturnType<typeof getDashboardSummary>>;
   recentPRs: Awaited<ReturnType<typeof getRecentPersonalRecords>>;
@@ -370,6 +422,7 @@ export type DashboardPayload = {
   topExercises: Awaited<ReturnType<typeof getTopExercisesByVolume>>;
   heatmap: Awaited<ReturnType<typeof getWorkoutHeatmapGrid>>;
   insights: DashboardInsightItem[];
+  nextSession: NextPlanSession;
 };
 
 export type DashboardClientPayload = {
@@ -396,6 +449,7 @@ export type DashboardClientPayload = {
   topExercises: DashboardPayload["topExercises"];
   heatmap: DashboardPayload["heatmap"];
   insights: DashboardInsightItem[];
+  nextSession: NextPlanSession;
 };
 
 export function toDashboardClientPayload(raw: DashboardPayload): DashboardClientPayload {
@@ -423,6 +477,7 @@ export function toDashboardClientPayload(raw: DashboardPayload): DashboardClient
     topExercises: raw.topExercises,
     heatmap: raw.heatmap,
     insights: raw.insights,
+    nextSession: raw.nextSession,
   };
 }
 
@@ -445,6 +500,7 @@ export async function getDashboardPayload(userId: string): Promise<DashboardPayl
     topExercises,
     heatmap,
     insights,
+    nextSession,
   ] = await Promise.all([
     getDashboardSummary(userId),
     getRecentPersonalRecords(userId),
@@ -456,6 +512,7 @@ export async function getDashboardPayload(userId: string): Promise<DashboardPayl
     getTopExercisesByVolume(userId),
     getWorkoutHeatmapGrid(userId),
     getDashboardInsightItems(userId),
+    getNextPlanSession(userId),
   ]);
 
   return {
@@ -469,5 +526,6 @@ export async function getDashboardPayload(userId: string): Promise<DashboardPayl
     topExercises,
     heatmap,
     insights,
+    nextSession,
   };
 }

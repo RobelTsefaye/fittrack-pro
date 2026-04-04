@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import type { DashboardClientPayload } from "@/features/dashboard/queries";
 import { useI18n } from "@/lib/i18n-provider";
 import { WorkoutHeatmap } from "./workout-heatmap";
+import { NextWorkoutCard } from "./next-workout-card";
 
 function formatDuration(seconds: number | null) {
   if (seconds == null) return "—";
@@ -62,6 +63,7 @@ export function DashboardAnalytics({
     topExercises,
     heatmap,
     insights,
+    nextSession,
   } = payload;
 
   const statCards = [
@@ -109,6 +111,8 @@ export function DashboardAnalytics({
         </h1>
         <p className="text-muted-foreground">{t("dashboard.trainingOverview")}</p>
       </div>
+
+      <NextWorkoutCard nextSession={nextSession} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
         {statCards.map((s) => (
