@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Dumbbell, Plus } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
+import { Dumbbell, Plus, Trash2 } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +77,28 @@ export function WorkoutHistoryList({
     sortWorkouts(initialWorkouts)
   );
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function deleteCompletedWorkout(id: string) {
+    if (!confirm(t("workouts.deleteCompletedConfirm"))) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      window.alert(t("workouts.deleteCompletedOffline"));
+      return;
+    }
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/workouts/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        window.alert(j.error ?? t("workouts.deleteCompletedFailed"));
+        return;
+      }
+      setWorkouts((prev) => prev.filter((w) => w.id !== id));
+      router.refresh();
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   useEffect(() => {
     setWorkouts(sortWorkouts(initialWorkouts));
@@ -221,11 +243,29 @@ export function WorkoutHistoryList({
                         </p>
                       ) : null}
                     </div>
-                    <div className="flex shrink-0 flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3 text-xs text-muted-foreground">
                       <span>{exerciseLabel}</span>
                       <span>{setLabel}</span>
                       {!active && formatDuration(w.durationSeconds) ? (
                         <span>{formatDuration(w.durationSeconds)}</span>
+                      ) : null}
+                      {!active ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                          disabled={deletingId === w.id}
+                          aria-label={t("workouts.deleteCompletedAria")}
+                          title={t("workouts.deleteCompleted")}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void deleteCompletedWorkout(w.id);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       ) : null}
                     </div>
                   </CardContent>

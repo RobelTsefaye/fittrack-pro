@@ -34,6 +34,7 @@ import { useWorkoutTimer } from "../hooks/use-workout-timer";
 import { useI18n } from "@/lib/i18n-provider";
 import type { WorkoutData, WorkoutExerciseData, WorkoutSetData } from "@/features/workouts/workout-types";
 import {
+  deleteWorkoutSnapshot,
   enqueueWorkoutOp,
   listQueueForWorkout,
   loadWorkoutSnapshot,
@@ -239,6 +240,7 @@ export function WorkoutDetail({
   const [nameDraft, setNameDraft] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [deletingWorkout, setDeletingWorkout] = useState(false);
   const [netOnline, setNetOnline] = useState(
     typeof navigator !== "undefined" ? navigator.onLine : true
   );
@@ -645,6 +647,36 @@ export function WorkoutDetail({
     if (isActive) restTimer.start(defaultRestSeconds);
   }
 
+  async function deleteCompletedWorkout() {
+    if (!workout?.completedAt) return;
+    if (!confirm(t("workouts.deleteCompletedConfirm"))) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      window.alert(t("workouts.deleteCompletedOffline"));
+      return;
+    }
+    setDeletingWorkout(true);
+    try {
+      const res = await fetch(`/api/workouts/${workoutId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        window.alert(j.error ?? t("workouts.deleteCompletedFailed"));
+        return;
+      }
+      try {
+        await deleteWorkoutSnapshot(workoutId);
+      } catch {
+        /* ignore IDB */
+      }
+      router.push(ROUTES.workouts);
+      router.refresh();
+    } finally {
+      setDeletingWorkout(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -732,7 +764,7 @@ export function WorkoutDetail({
           ) : null}
         </div>
 
-        {isActive && (
+        {isActive ? (
           <Button
             className="w-full shrink-0 sm:w-auto"
             onClick={completeWorkout}
@@ -740,7 +772,17 @@ export function WorkoutDetail({
           >
             {completing ? t("workouts.finishing") : t("workouts.finishWorkout")}
           </Button>
-        )}
+        ) : workout.completedAt ? (
+          <Button
+            variant="outline"
+            className="w-full shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+            onClick={() => void deleteCompletedWorkout()}
+            disabled={deletingWorkout}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            {deletingWorkout ? t("workouts.deletingWorkout") : t("workouts.deleteCompleted")}
+          </Button>
+        ) : null}
       </div>
 
       {useLocalWrites && isActive ? (
