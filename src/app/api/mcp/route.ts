@@ -75,9 +75,24 @@ const TOOLS = [
   },
 ];
 
-// ── SSE response builder ──────────────────────────────────────────────────────
-// MCP Streamable HTTP transport requires text/event-stream responses.
+// ── Response helpers ──────────────────────────────────────────────────────────
 
+/** Single JSON-RPC response — application/json (spec §6.1). */
+function jsonResponse(
+  payload: unknown,
+  extraHeaders: Record<string, string> = {}
+): Response {
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      ...CORS_HEADERS,
+      ...extraHeaders,
+    },
+  });
+}
+
+/** Batch or streaming — text/event-stream SSE (spec §6.2). */
 function sseResponse(
   messages: unknown[],
   extraHeaders: Record<string, string> = {}
@@ -209,8 +224,15 @@ export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
-export async function GET() {
-  // Health/discovery — some clients probe this before connecting
+export async function GET(req: NextRequest) {
+  // MCP spec: GET is for server-to-client SSE streams.
+  // We don't need server-initiated messages, so return 405 per spec.
+  // Exception: if a browser / health-check hits us without Accept: text/event-stream,
+  // return a friendly JSON discovery response instead.
+  const accept = req.headers.get("accept") ?? "";
+  if (accept.includes("text/event-stream")) {
+    return new Response(null, { status: 405, headers: CORS_HEADERS });
+  }
   return NextResponse.json(
     {
       name: SERVER_INFO.name,
@@ -240,7 +262,7 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return sseResponse([rpcErr(null, -32700, "Parse error: invalid JSON")]);
+    return jsonResponse(rpcErr(null, -32700, "Parse error: invalid JSON"));
   }
 
   const isBatch = Array.isArray(body);
@@ -260,5 +282,10 @@ export async function POST(req: NextRequest) {
   }
 
   const extraHeaders: Record<string, string> = isInit ? { "Mcp-Session-Id": randomUUID() } : {};
-  return sseResponse(isBatch ? responses : responses, extraHeaders);
+
+  // Single request → application/json; batch → text/event-stream SSE
+  if (!isBatch && responses.length === 1) {
+    return jsonResponse(responses[0], extraHeaders);
+  }
+  return sseResponse(responses, extraHeaders);
 }
