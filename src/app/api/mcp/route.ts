@@ -7,7 +7,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
+import { resolveUserIdForDataApi, resolveUserIdBySecret } from "@/lib/api-auth";
 import {
   buildCoachContext,
   buildTrainingSummary,
@@ -224,11 +224,14 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  // Auth
-  const userId = await resolveUserIdForDataApi();
+  // Auth — accept Bearer header OR ?token= query param (for Claude.ai connector UI)
+  const tokenParam = req.nextUrl.searchParams.get("token");
+  const userId = tokenParam
+    ? await resolveUserIdBySecret(tokenParam)
+    : await resolveUserIdForDataApi();
   if (!userId) {
     return new Response(
-      JSON.stringify(rpcErr(null, -32001, "Unauthorized — set Authorization: Bearer ftp_… header")),
+      JSON.stringify(rpcErr(null, -32001, "Unauthorized — set Authorization: Bearer ftp_… header or ?token= query param")),
       { status: 401, headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
     );
   }

@@ -3,6 +3,21 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hashApiTokenSecret } from "@/lib/api-token-crypto";
 
+/** Look up a userId directly from a raw token secret (no header parsing). */
+export async function resolveUserIdBySecret(secret: string): Promise<string | null> {
+  if (!secret) return null;
+  const tokenHash = hashApiTokenSecret(secret);
+  const row = await prisma.apiToken.findUnique({
+    where: { tokenHash },
+    select: { id: true, userId: true },
+  });
+  if (!row) return null;
+  void prisma.apiToken
+    .update({ where: { id: row.id }, data: { lastUsedAt: new Date() } })
+    .catch(() => {});
+  return row.userId;
+}
+
 /**
  * Web session (cookie) or `Authorization: Bearer <api_token>` for whitelisted routes.
  * API tokens are created in Settings and only grant access to AI + export endpoints.
