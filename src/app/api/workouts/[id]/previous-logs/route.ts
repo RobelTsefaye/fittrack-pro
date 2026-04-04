@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@/generated/prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -9,11 +10,11 @@ export type PreviousLogEntry = {
 } | null;
 
 /**
- * Last session per exercise: most recently *completed* workout (any time before now)
- * that contains this exercise — not "started before this session", so long-running
- * open workouts still see hints from sessions completed after this one started.
+ * Per exercise: values from the most recently *completed* workout (excluding this one),
+ * picking the **last logged working set** in that session (highest `setNumber` — what was
+ * moved last), not the heaviest set.
  *
- * Set: last non-warmup working set in that session (highest setNumber) with reps + weight.
+ * Raw SQL + DISTINCT ON so “latest session” ordering is reliable.
  */
 export async function GET(
   _req: NextRequest,
@@ -42,49 +43,53 @@ export async function GET(
     return NextResponse.json({ data: {} as Record<string, PreviousLogEntry> });
   }
 
-  const entries = await Promise.all(
-    exerciseIds.map(async (exerciseId) => {
-      const lastWe = await prisma.workoutExercise.findFirst({
-        where: {
-          exerciseId,
-          workout: {
-            userId: session.user.id,
-            completedAt: { not: null },
-            id: { not: workoutId },
-          },
-        },
-        orderBy: {
-          workout: {
-            completedAt: "desc",
-          },
-        },
-        include: {
-          sets: {
-            where: {
-              isWarmup: false,
-              reps: { gt: 0 },
-              weight: { not: null },
-            },
-            orderBy: { setNumber: "desc" },
-            take: 1,
-            select: { weight: true, reps: true, rpe: true },
-          },
-        },
-      });
+  const rows = await prisma.$queryRaw<
+    Array<{
+      exercise_id: string;
+      weight: number | null;
+      reps: number | null;
+      rpe: number | null;
+    }>
+  >(Prisma.sql`
+    SELECT DISTINCT ON (we."exerciseId")
+      we."exerciseId" AS exercise_id,
+      s.weight AS weight,
+      s.reps AS reps,
+      s.rpe AS rpe
+    FROM workout_exercises we
+    INNER JOIN workouts w ON w.id = we."workoutId"
+    INNER JOIN sets s ON s."workoutExerciseId" = we.id
+    WHERE w."userId" = ${session.user.id}
+      AND w."completedAt" IS NOT NULL
+      AND w.id <> ${workoutId}
+      AND we."exerciseId" IN (${Prisma.join(exerciseIds)})
+      AND s."isWarmup" = false
+      AND s.reps > 0
+      AND s.weight IS NOT NULL
+    ORDER BY
+      we."exerciseId",
+      w."completedAt" DESC,
+      s."setNumber" DESC
+  `);
 
-      const s = lastWe?.sets[0];
-      if (!s) return [exerciseId, null] as const;
+  const data = Object.fromEntries(
+    exerciseIds.map((id) => {
+      const row = rows.find((r) => r.exercise_id === id);
+      if (!row)
+        return [
+          id,
+          null,
+        ] as const;
       return [
-        exerciseId,
+        id,
         {
-          weight: s.weight,
-          reps: s.reps,
-          rpe: s.rpe,
+          weight: row.weight,
+          reps: row.reps,
+          rpe: row.rpe,
         },
       ] as const;
     })
-  );
+  ) as Record<string, PreviousLogEntry>;
 
-  const data = Object.fromEntries(entries) as Record<string, PreviousLogEntry>;
   return NextResponse.json({ data });
 }
