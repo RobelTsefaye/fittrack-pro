@@ -95,9 +95,9 @@ interface SortableExerciseCardProps {
   onRemove: (weId: string) => void;
   onAddSet: (weId: string, isWarmup?: boolean) => void;
   onUpdate: () => void;
-  onSetCompleted: (set: WorkoutSetData) => void;
-  patchSetOffline: (setId: string, body: Record<string, unknown>, complete: boolean) => void;
-  deleteSetOffline: (setId: string) => void;
+  onSetCompleted: () => void;
+  patchSetOffline: (setId: string, body: Record<string, unknown>, complete: boolean) => Promise<void>;
+  deleteSetOffline: (setId: string) => Promise<void>;
   t: (key: string, params?: Record<string, string | number | undefined>) => string;
 }
 
