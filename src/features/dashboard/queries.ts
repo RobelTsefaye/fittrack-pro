@@ -38,6 +38,9 @@ export async function getDashboardSummary(userId: string) {
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const monthStart = startOfMonth(now);
 
+  /** Cap streak query — full history can be huge; streak beyond ~5y is negligible */
+  const streakSince = subDays(now, 5 * 365);
+
   const [completedAll, weekCount, monthCount, prCount, completedWorkouts] =
     await Promise.all([
       prisma.workout.count({
@@ -57,7 +60,10 @@ export async function getDashboardSummary(userId: string) {
       }),
       prisma.personalRecord.count({ where: { userId } }),
       prisma.workout.findMany({
-        where: { userId, completedAt: { not: null } },
+        where: {
+          userId,
+          completedAt: { not: null, gte: streakSince },
+        },
         select: { completedAt: true },
       }),
     ]);
