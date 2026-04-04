@@ -1,9 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Clock, Plus, Timer, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, GripVertical, Plus, Timer, Trash2 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,6 +86,138 @@ function patchSetInWorkout(
   };
 }
 
+interface SortableExerciseCardProps {
+  we: WorkoutExerciseData;
+  isActive: boolean;
+  workoutId: string;
+  weightLabel: string;
+  useLocalWrites: boolean;
+  onRemove: (weId: string) => void;
+  onAddSet: (weId: string, isWarmup?: boolean) => void;
+  onUpdate: () => void;
+  onSetCompleted: (set: WorkoutSetData) => void;
+  patchSetOffline: (setId: string, body: Record<string, unknown>, complete: boolean) => void;
+  deleteSetOffline: (setId: string) => void;
+  t: (key: string, params?: Record<string, string | number | undefined>) => string;
+}
+
+function SortableExerciseCard({
+  we,
+  isActive,
+  workoutId,
+  weightLabel,
+  useLocalWrites,
+  onRemove,
+  onAddSet,
+  onUpdate,
+  onSetCompleted,
+  patchSetOffline,
+  deleteSetOffline,
+  t,
+}: SortableExerciseCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: we.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: "relative",
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
+          <div className="flex min-w-0 flex-1 items-start gap-1 pr-1">
+            {isActive && (
+              <button
+                type="button"
+                className="mt-0.5 cursor-grab touch-none shrink-0 text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
+                aria-label="Drag to reorder"
+                {...attributes}
+                {...listeners}
+              >
+                <GripVertical className="h-4 w-4" />
+              </button>
+            )}
+            <div className="min-w-0">
+              <CardTitle className="text-base leading-snug break-words">
+                <Link
+                  href={exercisePath(we.exercise.id)}
+                  className="hover:underline underline-offset-2"
+                >
+                  {we.exercise.name}
+                </Link>
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {we.exercise.muscleGroup.replace(/_/g, " ")}
+              </p>
+            </div>
+          </div>
+          {isActive && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground hover:text-destructive shrink-0"
+              onClick={() => onRemove(we.id)}
+              aria-label={t("workouts.removeExerciseAria")}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="hidden items-center gap-2 sm:flex">
+            <span className="w-6 shrink-0 text-center text-[10px] font-medium uppercase text-muted-foreground">#</span>
+            <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">{weightLabel}</span>
+            <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">{t("workouts.reps")}</span>
+            <span className="w-14 text-center text-[10px] font-medium uppercase text-muted-foreground">{t("workouts.rpe")}</span>
+          </div>
+          {we.sets.map((set) => (
+            <SetRow
+              key={set.id}
+              set={set}
+              workoutId={workoutId}
+              weightUnitLabel={weightLabel}
+              onUpdate={onUpdate}
+              onComplete={onSetCompleted}
+              disabled={!isActive}
+              offlineHandlers={
+                useLocalWrites && isActive
+                  ? {
+                      patchSet: (body, complete) => patchSetOffline(set.id, body, complete),
+                      deleteSet: () => deleteSetOffline(set.id),
+                    }
+                  : undefined
+              }
+            />
+          ))}
+          {isActive && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button type="button" variant="outline" size="xs" onClick={() => onAddSet(we.id)}>
+                <Plus className="mr-1 h-3 w-3" />
+                {t("workouts.set")}
+              </Button>
+              <Button type="button" variant="outline" size="xs" onClick={() => onAddSet(we.id, true)}>
+                {t("workouts.warmup")}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 interface WorkoutDetailProps {
   workoutId: string;
   defaultRestSeconds: number;
@@ -104,6 +252,60 @@ export function WorkoutDetail({
   const isActive = workout && !workout.completedAt;
   const weightLabel = weightUnit === "LB" ? "lb" : "kg";
   const useLocalWrites = !netOnline || offlineOriginSession || pendingQueue;
+
+  // Ordered exercise list — kept in sync with workout state
+  const [exerciseIds, setExerciseIds] = useState<string[]>([]);
+  const reorderPending = useRef(false);
+
+  useEffect(() => {
+    if (workout) {
+      setExerciseIds(
+        [...workout.workoutExercises]
+          .sort((a, b) => a.order - b.order)
+          .map((we) => we.id)
+      );
+    }
+  }, [workout]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !workout) return;
+
+    const oldIndex = exerciseIds.indexOf(active.id as string);
+    const newIndex = exerciseIds.indexOf(over.id as string);
+    const newIds = arrayMove(exerciseIds, oldIndex, newIndex);
+
+    setExerciseIds(newIds);
+
+    // Reorder workout state locally
+    setWorkout((prev) => {
+      if (!prev) return prev;
+      const byId = new Map(prev.workoutExercises.map((we) => [we.id, we]));
+      return {
+        ...prev,
+        workoutExercises: newIds
+          .map((id, i) => ({ ...byId.get(id)!, order: i + 1 }))
+          .filter(Boolean),
+      };
+    });
+
+    if (reorderPending.current) return;
+    reorderPending.current = true;
+    try {
+      await fetch(`/api/workouts/${workoutId}/exercises/reorder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: newIds }),
+      });
+    } finally {
+      reorderPending.current = false;
+    }
+  }
 
   useEffect(() => {
     const on = () => setNetOnline(true);
@@ -564,95 +766,34 @@ export function WorkoutDetail({
         </Card>
       ) : (
         <div className="space-y-4">
-          {workout.workoutExercises.map((we) => (
-            <Card key={we.id}>
-              <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
-                <div className="min-w-0 pr-1">
-                  <CardTitle className="text-base leading-snug break-words">
-                    <Link
-                      href={exercisePath(we.exercise.id)}
-                      className="hover:underline underline-offset-2"
-                    >
-                      {we.exercise.name}
-                    </Link>
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {we.exercise.muscleGroup.replace(/_/g, " ")}
-                  </p>
-                </div>
-                {isActive && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    className="text-muted-foreground hover:text-destructive shrink-0"
-                    onClick={() => removeExercise(we.id)}
-                    aria-label={t("workouts.removeExerciseAria")}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="hidden items-center gap-2 sm:flex">
-                  <span className="w-6 shrink-0 text-center text-[10px] font-medium uppercase text-muted-foreground">
-                    #
-                  </span>
-                  <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">
-                    {weightLabel}
-                  </span>
-                  <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">
-                    {t("workouts.reps")}
-                  </span>
-                  <span className="w-14 text-center text-[10px] font-medium uppercase text-muted-foreground">
-                    {t("workouts.rpe")}
-                  </span>
-                </div>
-                {we.sets.map((set) => (
-                  <SetRow
-                    key={set.id}
-                    set={set}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={exerciseIds} strategy={verticalListSortingStrategy}>
+              {exerciseIds
+                .map((id) => workout.workoutExercises.find((we) => we.id === id))
+                .filter((we): we is WorkoutExerciseData => !!we)
+                .map((we) => (
+                  <SortableExerciseCard
+                    key={we.id}
+                    we={we}
+                    isActive={!!isActive}
                     workoutId={workoutId}
-                    weightUnitLabel={weightLabel}
-                    onUpdate={() => {
-                      if (!useLocalWrites) void loadWorkout();
-                    }}
-                    onComplete={onSetCompleted}
-                    disabled={!isActive}
-                    offlineHandlers={
-                      useLocalWrites && isActive
-                        ? {
-                            patchSet: (body, complete) => patchSetOffline(set.id, body, complete),
-                            deleteSet: () => deleteSetOffline(set.id),
-                          }
-                        : undefined
-                    }
+                    weightLabel={weightLabel}
+                    useLocalWrites={useLocalWrites}
+                    onRemove={removeExercise}
+                    onAddSet={addSet}
+                    onUpdate={() => { if (!useLocalWrites) void loadWorkout(); }}
+                    onSetCompleted={onSetCompleted}
+                    patchSetOffline={patchSetOffline}
+                    deleteSetOffline={deleteSetOffline}
+                    t={t}
                   />
                 ))}
-                {isActive && (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => addSet(we.id)}
-                    >
-                      <Plus className="mr-1 h-3 w-3" />
-                      {t("workouts.set")}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => addSet(we.id, true)}
-                    >
-                      {t("workouts.warmup")}
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+            </SortableContext>
+          </DndContext>
 
           {isActive && (
             <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setPickerOpen(true)}>
