@@ -186,10 +186,24 @@ export type DashboardInsightItem = {
 };
 
 export async function getDashboardInsightItems(userId: string): Promise<DashboardInsightItem[]> {
-  const [plateaus, deloads, completedTotal] = await Promise.all([
+  const completedTotal = await prisma.workout.count({
+    where: { userId, completedAt: { not: null } },
+  });
+
+  /** Skip heavy plateau/set scans until enough history — big DB win for new users */
+  if (completedTotal < 5) {
+    return [
+      {
+        id: "keep-logging",
+        severity: "info" as const,
+        messageKey: "dashboard.insightsKeepLogging",
+      },
+    ];
+  }
+
+  const [plateaus, deloads] = await Promise.all([
     analyzePlateaus(userId),
     analyzeDeloadSignals(userId),
-    prisma.workout.count({ where: { userId, completedAt: { not: null } } }),
   ]);
 
   const items: DashboardInsightItem[] = [];
