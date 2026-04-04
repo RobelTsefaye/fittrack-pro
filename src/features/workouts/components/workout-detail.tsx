@@ -433,45 +433,62 @@ export function WorkoutDetail({
     };
   }, []);
 
-  const loadWorkout = useCallback(async () => {
-    setLoading(true);
+  const loadWorkout = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? false;
+    if (!silent) setLoading(true);
     setError(null);
 
-    const queued = await listQueueForWorkout(workoutId);
-    if (queued.length > 0) {
-      const snap = await loadWorkoutSnapshot(workoutId);
-      if (!snap) {
-        setWorkout(null);
-        setError(t("workouts.offlineNoSnapshot"));
-        setLoading(false);
-        return;
-      }
-      setWorkout(snap.data);
-      setOfflineOriginSession(snap.offlineOrigin);
-      setPendingQueue(true);
-      setLoading(false);
-      return;
-    }
-
     try {
-      const res = await fetch(`/api/workouts/${workoutId}`, { credentials: "include" });
-      if (res.status === 404) {
+      const queued = await listQueueForWorkout(workoutId);
+      if (queued.length > 0) {
         const snap = await loadWorkoutSnapshot(workoutId);
-        if (snap) {
-          setWorkout(snap.data);
-          setOfflineOriginSession(snap.offlineOrigin);
-          const q2 = await listQueueForWorkout(workoutId);
-          setPendingQueue(q2.length > 0);
-          setLoading(false);
+        if (!snap) {
+          setWorkout(null);
+          setError(t("workouts.offlineNoSnapshot"));
           return;
         }
-        setWorkout(null);
-        setError(t("workouts.notFound"));
-        setLoading(false);
+        setWorkout(snap.data);
+        setOfflineOriginSession(snap.offlineOrigin);
+        setPendingQueue(true);
         return;
       }
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
+
+      try {
+        const res = await fetch(`/api/workouts/${workoutId}`, { credentials: "include" });
+        if (res.status === 404) {
+          const snap = await loadWorkoutSnapshot(workoutId);
+          if (snap) {
+            setWorkout(snap.data);
+            setOfflineOriginSession(snap.offlineOrigin);
+            const q2 = await listQueueForWorkout(workoutId);
+            setPendingQueue(q2.length > 0);
+            return;
+          }
+          setWorkout(null);
+          setError(t("workouts.notFound"));
+          return;
+        }
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          const snap = await loadWorkoutSnapshot(workoutId);
+          if (snap) {
+            setWorkout(snap.data);
+            setOfflineOriginSession(snap.offlineOrigin);
+            const q2 = await listQueueForWorkout(workoutId);
+            setPendingQueue(q2.length > 0);
+            setError(null);
+            return;
+          }
+          setError(typeof json.error === "string" ? json.error : t("workouts.loadFailed"));
+          setWorkout(null);
+          return;
+        }
+        const json = (await res.json()) as { data: WorkoutData };
+        setWorkout(json.data);
+        await saveWorkoutSnapshot(workoutId, json.data, false);
+        setOfflineOriginSession(false);
+        setPendingQueue(false);
+      } catch {
         const snap = await loadWorkoutSnapshot(workoutId);
         if (snap) {
           setWorkout(snap.data);
@@ -479,34 +496,13 @@ export function WorkoutDetail({
           const q2 = await listQueueForWorkout(workoutId);
           setPendingQueue(q2.length > 0);
           setError(null);
-          setLoading(false);
           return;
         }
-        setError(typeof json.error === "string" ? json.error : t("workouts.loadFailed"));
+        setError(t("workouts.loadFailed"));
         setWorkout(null);
-        setLoading(false);
-        return;
       }
-      const json = (await res.json()) as { data: WorkoutData };
-      setWorkout(json.data);
-      await saveWorkoutSnapshot(workoutId, json.data, false);
-      setOfflineOriginSession(false);
-      setPendingQueue(false);
-      setLoading(false);
-    } catch {
-      const snap = await loadWorkoutSnapshot(workoutId);
-      if (snap) {
-        setWorkout(snap.data);
-        setOfflineOriginSession(snap.offlineOrigin);
-        const q2 = await listQueueForWorkout(workoutId);
-        setPendingQueue(q2.length > 0);
-        setError(null);
-        setLoading(false);
-        return;
-      }
-      setError(t("workouts.loadFailed"));
-      setWorkout(null);
-      setLoading(false);
+    } finally {
+      if (!silent) setLoading(false);
     }
   }, [workoutId, t]);
 
@@ -818,7 +814,7 @@ export function WorkoutDetail({
     if (json.comparison) setCompletionSummary(json.comparison);
     restTimer.stop();
     notifyActiveWorkoutChanged();
-    await loadWorkout();
+    await loadWorkout({ silent: true });
     router.refresh();
   }
 
