@@ -34,7 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ROUTES, exercisePath } from "@/lib/constants";
-import type { PreviousLogEntry } from "@/app/api/workouts/[id]/previous-logs/route";
+import type { PreviousLogEntry, PreviousSetEntry } from "@/app/api/workouts/[id]/previous-logs/route";
 import { ExercisePickerDialog, type ExercisePickerExercise } from "./exercise-picker-dialog";
 import { RestTimerBar } from "./rest-timer-bar";
 import { SetRow } from "./set-row";
@@ -92,17 +92,26 @@ function formatWeightForHint(n: number): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/\.?0+$/, "");
 }
 
-function formatPreviousHint(
-  log: PreviousLogEntry | undefined,
+function formatSetHint(
+  entry: PreviousSetEntry,
   weightUnit: string,
   t: (key: string, params?: Record<string, string | number | undefined>) => string
 ): string | null {
-  if (!log || (log.weight == null && log.reps == null)) return null;
+  if (entry.weight == null && entry.reps == null) return null;
   const w =
-    log.weight != null ? `${formatWeightForHint(Number(log.weight))} ${weightUnit}` : "";
-  const r = log.reps != null ? String(log.reps) : "";
+    entry.weight != null ? `${formatWeightForHint(Number(entry.weight))} ${weightUnit}` : "";
+  const r = entry.reps != null ? String(entry.reps) : "";
   const values = w && r ? `${w} × ${r}` : w || r;
   return t("workouts.previousTrainingHint", { values });
+}
+
+/** Find the matching previous set for a given working-set index (0-based among non-warmups). */
+function getPreviousHintForSet(
+  prevSets: PreviousLogEntry | undefined,
+  workingSetIndex: number,
+): PreviousSetEntry | undefined {
+  if (!prevSets || prevSets.length === 0) return undefined;
+  return prevSets[workingSetIndex];
 }
 
 function patchSetInWorkout(
@@ -133,7 +142,7 @@ interface SortableExerciseCardProps {
   workoutId: string;
   weightLabel: string;
   useLocalWrites: boolean;
-  previousLog?: PreviousLogEntry;
+  previousSets?: PreviousLogEntry;
   onRemove: (weId: string) => void;
   onAddSet: (weId: string, isWarmup?: boolean) => void;
   onMergeSet: (weId: string, data: WorkoutSetData) => void;
@@ -150,7 +159,7 @@ function SortableExerciseCard({
   workoutId,
   weightLabel,
   useLocalWrites,
-  previousLog,
+  previousSets,
   onRemove,
   onAddSet,
   onMergeSet,
@@ -226,15 +235,26 @@ function SortableExerciseCard({
             <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">{weightLabel}</span>
             <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">{t("workouts.reps")}</span>
           </div>
-          {sortSetsForDisplay(we.sets).map((set) => (
+          {sortSetsForDisplay(we.sets).map((set, _idx, sorted) => {
+            let workingIdx = 0;
+            if (!set.isWarmup) {
+              for (const s of sorted) {
+                if (s.id === set.id) break;
+                if (!s.isWarmup) workingIdx++;
+              }
+            }
+            const prevEntry = !set.isWarmup
+              ? getPreviousHintForSet(previousSets, workingIdx)
+              : undefined;
+            return (
             <SetRow
               key={set.id}
               set={set}
               workoutId={workoutId}
               weightUnitLabel={weightLabel}
               previousHint={
-                previousLog && set.weight == null && set.reps == null && !set.isCompleted
-                  ? formatPreviousHint(previousLog, weightLabel, t)
+                prevEntry && set.weight == null && set.reps == null && !set.isCompleted
+                  ? formatSetHint(prevEntry, weightLabel, t)
                   : null
               }
               onMergeSet={
@@ -258,7 +278,8 @@ function SortableExerciseCard({
                   : undefined
               }
             />
-          ))}
+            );
+          })}
           {isActive && (
             <div className="flex flex-wrap gap-2 pt-1">
               <Button type="button" variant="outline" size="xs" onClick={() => onAddSet(we.id)}>
@@ -1012,7 +1033,7 @@ export function WorkoutDetail({
                     workoutId={workoutId}
                     weightLabel={weightLabel}
                     useLocalWrites={useLocalWrites}
-                    previousLog={previousLogs[we.exercise.id]}
+                    previousSets={previousLogs[we.exercise.id]}
                     onRemove={removeExercise}
                     onAddSet={addSet}
                     onMergeSet={mergeSet}

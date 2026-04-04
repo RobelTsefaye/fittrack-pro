@@ -2,18 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-export type PreviousLogEntry = {
+export type PreviousSetEntry = {
+  setNumber: number;
   weight: number | null;
   reps: number | null;
   rpe: number | null;
-} | null;
+};
+
+/** Per exercise: ordered array of working sets from the previous session. */
+export type PreviousLogEntry = PreviousSetEntry[] | null;
 
 /**
- * Per exercise: weight/reps/rpe from the **last working set** (highest setNumber,
- * excluding warmups) of that exercise in the most recently *started* completed workout.
+ * For each exercise in the current workout, return **all working sets**
+ * (non-warmup, weight + reps filled) from the most recent *other* completed
+ * workout that contains that exercise — ordered by setNumber.
  *
- * Sorted by `startedAt` (not `completedAt`) because a user may press "finish" days
- * after the actual session, making `completedAt` unreliable for "last training".
+ * - "Most recent" = highest `startedAt` (not `completedAt`, because users
+ *   sometimes press "finish" days later).
+ * - Workouts where the exercise only has empty/warmup sets are skipped via
+ *   a nested `sets: { some: … }` filter so we never pick a stale session.
  */
 export async function GET(
   _req: NextRequest,
@@ -45,14 +52,25 @@ export async function GET(
     return NextResponse.json({ data: {} as Record<string, PreviousLogEntry> });
   }
 
+  const validSetFilter = {
+    isWarmup: false,
+    reps: { gt: 0 },
+    weight: { not: null },
+  } as const;
+
   const entries = await Promise.all(
     exerciseIds.map(async (exerciseId) => {
-      const latestWorkout = await prisma.workout.findFirst({
+      const prevWorkout = await prisma.workout.findFirst({
         where: {
           userId: session.user!.id,
           completedAt: { not: null },
           id: { not: workoutId },
-          workoutExercises: { some: { exerciseId } },
+          workoutExercises: {
+            some: {
+              exerciseId,
+              sets: { some: validSetFilter },
+            },
+          },
         },
         orderBy: { startedAt: "desc" },
         select: {
@@ -64,26 +82,18 @@ export async function GET(
         },
       });
 
-      const weId = latestWorkout?.workoutExercises[0]?.id;
+      const weId = prevWorkout?.workoutExercises[0]?.id;
       if (!weId) return [exerciseId, null] as const;
 
-      const lastSet = await prisma.set.findFirst({
-        where: {
-          workoutExerciseId: weId,
-          isWarmup: false,
-          reps: { gt: 0 },
-          weight: { not: null },
-        },
-        orderBy: { setNumber: "desc" },
-        select: { weight: true, reps: true, rpe: true },
+      const sets = await prisma.set.findMany({
+        where: { workoutExerciseId: weId, ...validSetFilter },
+        orderBy: { setNumber: "asc" },
+        select: { setNumber: true, weight: true, reps: true, rpe: true },
       });
 
-      if (!lastSet) return [exerciseId, null] as const;
+      if (sets.length === 0) return [exerciseId, null] as const;
 
-      return [
-        exerciseId,
-        { weight: lastSet.weight, reps: lastSet.reps, rpe: lastSet.rpe },
-      ] as const;
+      return [exerciseId, sets] as const;
     })
   );
 
