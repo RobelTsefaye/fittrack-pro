@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { ArrowLeft, CheckCircle2, Clock, GripVertical, Plus, Timer, Trash2 } from "lucide-react";
 import {
   DndContext,
@@ -25,12 +26,21 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ROUTES, exercisePath } from "@/lib/constants";
+import type { PreviousLogEntry } from "@/app/api/workouts/[id]/previous-logs/route";
 import { ExercisePickerDialog, type ExercisePickerExercise } from "./exercise-picker-dialog";
 import { RestTimerBar } from "./rest-timer-bar";
 import { SetRow } from "./set-row";
 import { useRestTimer } from "../hooks/use-rest-timer";
 import { useWorkoutTimer } from "../hooks/use-workout-timer";
+import { sortSetsForDisplay } from "../set-sort";
 import { useI18n } from "@/lib/i18n-provider";
 import type { WorkoutData, WorkoutExerciseData, WorkoutSetData } from "@/features/workouts/workout-types";
 import {
@@ -64,6 +74,30 @@ function renumberSets(sets: WorkoutSetData[]): WorkoutSetData[] {
   return sets.map((s, i) => ({ ...s, setNumber: i + 1 }));
 }
 
+function mapApiSet(raw: Record<string, unknown>): WorkoutSetData {
+  return {
+    id: String(raw.id),
+    setNumber: Number(raw.setNumber),
+    reps: raw.reps == null ? null : Number(raw.reps),
+    weight: raw.weight == null ? null : Number(raw.weight),
+    rpe: raw.rpe == null ? null : Number(raw.rpe),
+    isWarmup: !!raw.isWarmup,
+    isCompleted: !!raw.isCompleted,
+  };
+}
+
+function formatPreviousHint(
+  log: PreviousLogEntry | undefined,
+  weightUnit: string,
+  t: (key: string, params?: Record<string, string | number | undefined>) => string
+): string | null {
+  if (!log || (log.weight == null && log.reps == null)) return null;
+  const w = log.weight != null ? `${log.weight} ${weightUnit}` : "";
+  const r = log.reps != null ? String(log.reps) : "";
+  const values = w && r ? `${w} × ${r}` : w || r;
+  return t("workouts.previousTrainingHint", { values });
+}
+
 function patchSetInWorkout(
   w: WorkoutData,
   setId: string,
@@ -93,9 +127,11 @@ interface SortableExerciseCardProps {
   workoutId: string;
   weightLabel: string;
   useLocalWrites: boolean;
+  previousLog?: PreviousLogEntry;
   onRemove: (weId: string) => void;
   onAddSet: (weId: string, isWarmup?: boolean) => void;
-  onUpdate: () => void;
+  onMergeSet: (weId: string, data: WorkoutSetData) => void;
+  onRemoveSet: (weId: string, setId: string) => void;
   onSetCompleted: () => void;
   patchSetOffline: (setId: string, body: Record<string, unknown>, complete: boolean) => Promise<void>;
   deleteSetOffline: (setId: string) => Promise<void>;
@@ -108,9 +144,11 @@ function SortableExerciseCard({
   workoutId,
   weightLabel,
   useLocalWrites,
+  previousLog,
   onRemove,
   onAddSet,
-  onUpdate,
+  onMergeSet,
+  onRemoveSet,
   onSetCompleted,
   patchSetOffline,
   deleteSetOffline,
@@ -183,13 +221,27 @@ function SortableExerciseCard({
             <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">{t("workouts.reps")}</span>
             <span className="w-14 text-center text-[10px] font-medium uppercase text-muted-foreground">{t("workouts.rpe")}</span>
           </div>
-          {we.sets.map((set) => (
+          {sortSetsForDisplay(we.sets).map((set) => (
             <SetRow
               key={set.id}
               set={set}
               workoutId={workoutId}
               weightUnitLabel={weightLabel}
-              onUpdate={onUpdate}
+              previousHint={
+                previousLog && set.weight == null && set.reps == null && !set.isCompleted
+                  ? formatPreviousHint(previousLog, weightLabel, t)
+                  : null
+              }
+              onMergeSet={
+                useLocalWrites || !isActive
+                  ? undefined
+                  : (data) => onMergeSet(we.id, data)
+              }
+              onRemoveSet={
+                useLocalWrites || !isActive
+                  ? undefined
+                  : () => onRemoveSet(we.id, set.id)
+              }
               onComplete={onSetCompleted}
               disabled={!isActive}
               offlineHandlers={
@@ -246,8 +298,25 @@ export function WorkoutDetail({
   );
   const [offlineOriginSession, setOfflineOriginSession] = useState(false);
   const [pendingQueue, setPendingQueue] = useState(false);
+  const [previousLogs, setPreviousLogs] = useState<Record<string, PreviousLogEntry>>({});
+  const [completionSummary, setCompletionSummary] = useState<{
+    hasPrevious: boolean;
+    previousVolume: number;
+    currentVolume: number;
+    volumeDelta: number;
+    volumeDeltaPct: number | null;
+  } | null>(null);
 
-  const restTimer = useRestTimer(defaultRestSeconds);
+  const restTimer = useRestTimer(defaultRestSeconds, {
+    onExpire: () => {
+      toast.success(t("workouts.restDoneToast"), { duration: 8000 });
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        new Notification(t("workouts.restNotificationTitle"), {
+          body: t("workouts.restNotificationBody"),
+        });
+      }
+    },
+  });
   const startedAt = workout ? new Date(workout.startedAt) : null;
   const { formatted: elapsedLabel } = useWorkoutTimer(startedAt);
 
@@ -258,6 +327,51 @@ export function WorkoutDetail({
   // Ordered exercise list — kept in sync with workout state
   const [exerciseIds, setExerciseIds] = useState<string[]>([]);
   const reorderPending = useRef(false);
+
+  const mergeSet = useCallback((weId: string, data: WorkoutSetData) => {
+    setWorkout((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        workoutExercises: prev.workoutExercises.map((we) =>
+          we.id !== weId
+            ? we
+            : {
+                ...we,
+                sets: sortSetsForDisplay(
+                  we.sets.map((s) => (s.id === data.id ? { ...s, ...data } : s))
+                ),
+              }
+        ),
+      };
+    });
+  }, []);
+
+  const removeSetFromWe = useCallback((weId: string, setId: string) => {
+    setWorkout((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        workoutExercises: prev.workoutExercises.map((we) =>
+          we.id !== weId
+            ? we
+            : { ...we, sets: renumberSets(we.sets.filter((s) => s.id !== setId)) }
+        ),
+      };
+    });
+  }, []);
+
+  const replaceSetsForWe = useCallback((weId: string, sets: WorkoutSetData[]) => {
+    setWorkout((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        workoutExercises: prev.workoutExercises.map((we) =>
+          we.id !== weId ? we : { ...we, sets: sortSetsForDisplay(sets) }
+        ),
+      };
+    });
+  }, []);
 
   useEffect(() => {
     if (workout) {
@@ -417,6 +531,19 @@ export function WorkoutDetail({
   }, [workoutId, loadWorkout]);
 
   useEffect(() => {
+    if (!workout || workout.completedAt || useLocalWrites) return;
+    let cancelled = false;
+    void fetch(`/api/workouts/${workoutId}/previous-logs`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((json: { data?: Record<string, PreviousLogEntry> }) => {
+        if (!cancelled && json.data) setPreviousLogs(json.data);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workoutId, workout?.id, workout?.completedAt, useLocalWrites]);
+
+  useEffect(() => {
     if (workout?.name != null) setNameDraft(workout.name);
     else if (workout) setNameDraft("");
   }, [workout?.name, workout?.id]);
@@ -560,16 +687,34 @@ export function WorkoutDetail({
       const we = workout.workoutExercises.find((w) => w.id === weId);
       if (!we) return;
       const setId = crypto.randomUUID();
-      const newSet: WorkoutSetData = {
-        id: setId,
-        setNumber: we.sets.length + 1,
-        reps: null,
-        weight: null,
-        rpe: null,
-        isWarmup: !!isWarmup,
-        isCompleted: false,
-      };
-      const nextSets = renumberSets([...we.sets, newSet]);
+      let nextSets: WorkoutSetData[];
+      if (isWarmup) {
+        const shifted = we.sets.map((s) => ({ ...s, setNumber: s.setNumber + 1 }));
+        const newSet: WorkoutSetData = {
+          id: setId,
+          setNumber: 1,
+          reps: null,
+          weight: null,
+          rpe: null,
+          isWarmup: true,
+          isCompleted: false,
+        };
+        nextSets = sortSetsForDisplay([newSet, ...shifted]).map((s, i) => ({
+          ...s,
+          setNumber: i + 1,
+        }));
+      } else {
+        const newSet: WorkoutSetData = {
+          id: setId,
+          setNumber: we.sets.length + 1,
+          reps: null,
+          weight: null,
+          rpe: null,
+          isWarmup: false,
+          isCompleted: false,
+        };
+        nextSets = sortSetsForDisplay([...we.sets, newSet]);
+      }
       const next: WorkoutData = {
         ...workout,
         workoutExercises: workout.workoutExercises.map((w) =>
@@ -585,13 +730,36 @@ export function WorkoutDetail({
       });
       return;
     }
-    await fetch(`/api/workouts/${workoutId}/exercises/${weId}/sets`, {
+    const res = await fetch(`/api/workouts/${workoutId}/exercises/${weId}/sets`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify(isWarmup ? { isWarmup: true } : {}),
     });
-    await loadWorkout();
+    if (!res.ok) return;
+    const json = (await res.json()) as {
+      data: { set: Record<string, unknown>; sets?: Record<string, unknown>[] };
+    };
+    const payload = json.data;
+    const setPayload = mapApiSet(payload.set as Record<string, unknown>);
+    if (payload.sets) {
+      replaceSetsForWe(
+        weId,
+        payload.sets.map((s) => mapApiSet(s as Record<string, unknown>))
+      );
+    } else {
+      setWorkout((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          workoutExercises: prev.workoutExercises.map((we) =>
+            we.id !== weId
+              ? we
+              : { ...we, sets: sortSetsForDisplay([...we.sets, setPayload]) }
+          ),
+        };
+      });
+    }
   }
 
   async function removeExercise(weId: string) {
@@ -638,6 +806,16 @@ export function WorkoutDetail({
     });
     setCompleting(false);
     if (!res.ok) return;
+    const json = (await res.json()) as {
+      comparison?: {
+        hasPrevious: boolean;
+        previousVolume: number;
+        currentVolume: number;
+        volumeDelta: number;
+        volumeDeltaPct: number | null;
+      };
+    };
+    if (json.comparison) setCompletionSummary(json.comparison);
     restTimer.stop();
     await loadWorkout();
     router.refresh();
@@ -707,7 +885,7 @@ export function WorkoutDetail({
   }
 
   return (
-    <div className="space-y-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
+    <div className="space-y-6 pb-24 max-[1024px]:pb-[max(5.5rem,env(safe-area-inset-bottom))]">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1 space-y-1">
           <Link
@@ -825,9 +1003,11 @@ export function WorkoutDetail({
                     workoutId={workoutId}
                     weightLabel={weightLabel}
                     useLocalWrites={useLocalWrites}
+                    previousLog={previousLogs[we.exercise.id]}
                     onRemove={removeExercise}
                     onAddSet={addSet}
-                    onUpdate={() => { if (!useLocalWrites) void loadWorkout(); }}
+                    onMergeSet={mergeSet}
+                    onRemoveSet={removeSetFromWe}
                     onSetCompleted={onSetCompleted}
                     patchSetOffline={patchSetOffline}
                     deleteSetOffline={deleteSetOffline}
@@ -852,6 +1032,45 @@ export function WorkoutDetail({
         onSelect={handleAddExercise}
         loading={addingExercise}
       />
+
+      <Dialog
+        open={!!completionSummary}
+        onOpenChange={(open) => {
+          if (!open) setCompletionSummary(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("workouts.sessionSummaryTitle")}</DialogTitle>
+            <DialogDescription className="space-y-2 pt-1 text-left">
+              {completionSummary?.hasPrevious ? (
+                <>
+                  <p>
+                    {t("workouts.sessionSummaryVolume", {
+                      current: Math.round(completionSummary.currentVolume),
+                    })}
+                  </p>
+                  <p>
+                    {t("workouts.sessionSummaryDelta", {
+                      delta:
+                        completionSummary.volumeDelta >= 0
+                          ? `+${Math.round(completionSummary.volumeDelta)}`
+                          : String(Math.round(completionSummary.volumeDelta)),
+                      pct:
+                        completionSummary.volumeDeltaPct != null
+                          ? (completionSummary.volumeDeltaPct > 0 ? "+" : "") +
+                            completionSummary.volumeDeltaPct.toFixed(1)
+                          : "—",
+                    })}
+                  </p>
+                </>
+              ) : (
+                <p>{t("workouts.sessionSummaryNoPrevious")}</p>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
 
       {isActive && <RestTimerBar timer={restTimer} />}
     </div>

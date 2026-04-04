@@ -87,8 +87,8 @@ export async function flushWorkoutQueue(
             body: JSON.stringify(op.isWarmup ? { isWarmup: true } : {}),
           });
           if (!res.ok) throw new Error(`post_set ${res.status}`);
-          const json = (await res.json()) as { data?: { id: string } };
-          const sid = json.data?.id;
+          const json = (await res.json()) as { data?: { set?: { id: string } } };
+          const sid = json.data?.set?.id;
           if (!sid) throw new Error("no_set_id");
           setMap.set(op.clientSetId, sid);
           queueIdsToDelete.push(row.id);

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Trash2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
 import { cn } from "@/lib/utils";
+import type { WorkoutSetData } from "@/features/workouts/workout-types";
 
 interface SetData {
   id: string;
@@ -22,9 +23,16 @@ interface SetRowProps {
   set: SetData;
   workoutId: string;
   weightUnitLabel?: string;
-  onUpdate: () => void;
+  /** Fallback when PATCH fails */
+  onRefresh?: () => void;
   onComplete: () => void;
   disabled?: boolean;
+  /** Shown under inputs (last session reference). */
+  previousHint?: string | null;
+  /** Online: merge server set into parent state without full reload */
+  onMergeSet?: (set: WorkoutSetData) => void;
+  /** Online: remove set from parent state after DELETE */
+  onRemoveSet?: () => void;
   offlineHandlers?: {
     patchSet: (body: Record<string, unknown>, complete: boolean) => Promise<void>;
     deleteSet: () => Promise<void>;
@@ -35,9 +43,12 @@ export function SetRow({
   set,
   workoutId,
   weightUnitLabel = "kg",
-  onUpdate,
+  onRefresh,
   onComplete,
   disabled,
+  previousHint,
+  onMergeSet,
+  onRemoveSet,
   offlineHandlers,
 }: SetRowProps) {
   const { t } = useI18n();
@@ -55,40 +66,54 @@ export function SetRow({
   async function saveSet(complete = false) {
     setSaving(true);
     const data: Record<string, unknown> = {};
-    if (reps) data.reps = parseInt(reps);
+    if (reps) data.reps = parseInt(reps, 10);
     if (weight) data.weight = parseFloat(weight);
     if (rpe) data.rpe = parseFloat(rpe);
     if (complete) data.isCompleted = true;
 
     if (offlineHandlers) {
       await offlineHandlers.patchSet(data, complete);
-    } else {
-      await fetch(`/api/workouts/${workoutId}/sets/${set.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
+      setSaving(false);
+      if (complete) {
+        onComplete();
+      }
+      return;
     }
 
+    const res = await fetch(`/api/workouts/${workoutId}/sets/${set.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(data),
+    });
+
     setSaving(false);
-    if (complete) {
-      onComplete();
+
+    if (res.ok) {
+      const json = (await res.json()) as { data?: WorkoutSetData };
+      if (json.data) onMergeSet?.(json.data);
+      if (complete) {
+        onComplete();
+      }
     } else {
-      onUpdate();
+      onRefresh?.();
     }
   }
 
   async function deleteSet() {
     if (offlineHandlers) {
       await offlineHandlers.deleteSet();
-    } else {
-      await fetch(`/api/workouts/${workoutId}/sets/${set.id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      return;
     }
-    onUpdate();
+    const res = await fetch(`/api/workouts/${workoutId}/sets/${set.id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (res.ok) {
+      onRemoveSet?.();
+    } else {
+      onRefresh?.();
+    }
   }
 
   const inputClass =
@@ -173,13 +198,18 @@ export function SetRow({
               onClick={deleteSet}
               className="h-11 w-11 text-muted-foreground hover:text-destructive sm:h-7 sm:w-7"
             >
-              <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3" />
+              <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
             </Button>
           </div>
         ) : (
           <Check className="ml-auto h-5 w-5 shrink-0 text-green-600 sm:ml-0 sm:h-4 sm:w-4" />
         )}
       </div>
+      {previousHint ? (
+        <p className="mt-1.5 pl-8 text-[11px] leading-tight text-muted-foreground/90 sm:pl-6">
+          {previousHint}
+        </p>
+      ) : null}
     </div>
   );
 }

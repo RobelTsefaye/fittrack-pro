@@ -46,7 +46,40 @@ export async function POST(
     );
   }
 
-  // Get next set number
+  const isWarmup = parsed.data.isWarmup === true;
+
+  if (isWarmup) {
+    const existingCount = await prisma.set.count({
+      where: { workoutExerciseId: weId },
+    });
+
+    if (existingCount > 0) {
+      await prisma.set.updateMany({
+        where: { workoutExerciseId: weId },
+        data: { setNumber: { increment: 1 } },
+      });
+    }
+
+    const set = await prisma.set.create({
+      data: {
+        workoutExerciseId: weId,
+        setNumber: 1,
+        isWarmup: true,
+        reps: parsed.data.reps,
+        weight: parsed.data.weight,
+        durationSeconds: parsed.data.durationSeconds,
+        rpe: parsed.data.rpe,
+      },
+    });
+
+    const sets = await prisma.set.findMany({
+      where: { workoutExerciseId: weId },
+      orderBy: { setNumber: "asc" },
+    });
+
+    return NextResponse.json({ data: { set, sets } }, { status: 201 });
+  }
+
   const lastSet = await prisma.set.findFirst({
     where: { workoutExerciseId: weId },
     orderBy: { setNumber: "desc" },
@@ -60,5 +93,5 @@ export async function POST(
     },
   });
 
-  return NextResponse.json({ data: set }, { status: 201 });
+  return NextResponse.json({ data: { set } }, { status: 201 });
 }

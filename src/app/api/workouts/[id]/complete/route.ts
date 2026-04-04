@@ -5,6 +5,20 @@ import { prisma } from "@/lib/prisma";
 import { dashboardCacheTag, workoutsListCacheTag } from "@/lib/constants";
 import { recordPersonalRecordIfBest } from "@/lib/personal-record";
 
+async function sumWorkoutVolume(workoutId: string): Promise<number> {
+  const sets = await prisma.set.findMany({
+    where: {
+      workoutExercise: { workoutId },
+      isWarmup: false,
+      isCompleted: true,
+      weight: { not: null },
+      reps: { not: null },
+    },
+    select: { weight: true, reps: true },
+  });
+  return sets.reduce((sum, s) => sum + Number(s.weight) * (s.reps ?? 0), 0);
+}
+
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -26,6 +40,20 @@ export async function POST(
       { status: 404 }
     );
   }
+
+  const previousWorkout = await prisma.workout.findFirst({
+    where: {
+      userId: session.user.id,
+      completedAt: { not: null },
+      startedAt: { lt: workout.startedAt },
+    },
+    orderBy: { startedAt: "desc" },
+    select: { id: true },
+  });
+
+  const previousVolume = previousWorkout
+    ? await sumWorkoutVolume(previousWorkout.id)
+    : 0;
 
   const now = new Date();
   const durationSeconds = Math.round(
@@ -77,8 +105,23 @@ export async function POST(
     });
   }
 
+  const currentVolume = await sumWorkoutVolume(id);
+
+  const volumeDelta = currentVolume - previousVolume;
+  const volumeDeltaPct =
+    previousVolume > 0 ? (volumeDelta / previousVolume) * 100 : null;
+
   revalidateTag(dashboardCacheTag(session.user.id), "max");
   revalidateTag(workoutsListCacheTag(session.user.id), "max");
 
-  return NextResponse.json({ data: updated });
+  return NextResponse.json({
+    data: updated,
+    comparison: {
+      hasPrevious: !!previousWorkout,
+      previousVolume,
+      currentVolume,
+      volumeDelta,
+      volumeDeltaPct,
+    },
+  });
 }
