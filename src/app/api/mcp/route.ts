@@ -4,10 +4,9 @@
  * Configure once in Claude.ai → Settings → Integrations → Add MCP Server:
  *   URL:    https://<your-vercel-app>.vercel.app/api/mcp
  *   Header: Authorization: Bearer ftp_<your_token>
- *
- * After that, Claude can call fittrack_* tools from any device (phone, web, desktop).
  */
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import {
   buildCoachContext,
@@ -17,10 +16,17 @@ import {
 } from "@/features/ai/context";
 import { clampWeeks } from "@/features/ai/schemas";
 
-// ── MCP metadata ─────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const PROTOCOL_VERSION = "2024-11-05";
 const SERVER_INFO = { name: "fittrack-pro", version: "1.0.0" };
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, Mcp-Session-Id",
+  "Access-Control-Expose-Headers": "Mcp-Session-Id",
+};
 
 const TOOLS = [
   {
@@ -69,6 +75,30 @@ const TOOLS = [
   },
 ];
 
+// ── SSE response builder ──────────────────────────────────────────────────────
+// MCP Streamable HTTP transport requires text/event-stream responses.
+
+function sseResponse(
+  messages: unknown[],
+  extraHeaders: Record<string, string> = {}
+): Response {
+  const body = messages
+    .filter((m) => m !== null && m !== undefined)
+    .map((m) => `event: message\ndata: ${JSON.stringify(m)}\n\n`)
+    .join("");
+
+  return new Response(body || "\n", {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+      ...CORS_HEADERS,
+      ...extraHeaders,
+    },
+  });
+}
+
 // ── JSON-RPC helpers ──────────────────────────────────────────────────────────
 
 type JsonRpcId = string | number | null;
@@ -77,7 +107,7 @@ function ok(id: JsonRpcId, result: unknown) {
   return { jsonrpc: "2.0", id, result };
 }
 
-function err(id: JsonRpcId, code: number, message: string) {
+function rpcErr(id: JsonRpcId, code: number, message: string) {
   return { jsonrpc: "2.0", id, error: { code, message } };
 }
 
@@ -126,11 +156,11 @@ async function callTool(
   }
 }
 
-// ── Message handler ───────────────────────────────────────────────────────────
+// ── Single message handler ────────────────────────────────────────────────────
 
 async function handleMessage(msg: unknown, userId: string): Promise<unknown | null> {
   if (typeof msg !== "object" || msg === null) {
-    return err(null, -32600, "Invalid request");
+    return rpcErr(null, -32600, "Invalid request");
   }
 
   const m = msg as Record<string, unknown>;
@@ -146,10 +176,9 @@ async function handleMessage(msg: unknown, userId: string): Promise<unknown | nu
         serverInfo: SERVER_INFO,
       });
 
-    // Notifications have no id and expect no response
     case "notifications/initialized":
     case "notifications/cancelled":
-      return null;
+      return null; // notifications have no response
 
     case "ping":
       return ok(id, {});
@@ -164,26 +193,43 @@ async function handleMessage(msg: unknown, userId: string): Promise<unknown | nu
         const text = await callTool(toolName, toolArgs, userId);
         return ok(id, { content: [{ type: "text", text }] });
       } catch (e) {
-        return err(id, -32603, e instanceof Error ? e.message : "Internal error");
+        return rpcErr(id, -32603, e instanceof Error ? e.message : "Internal error");
       }
     }
 
     default:
-      // Notifications (no id) are silently ignored; requests get an error
-      if (id === null) return null;
-      return err(id, -32601, `Method not found: ${method ?? "(none)"}`);
+      if (id === null) return null; // unknown notification — ignore
+      return rpcErr(id, -32601, `Method not found: ${method ?? "(none)"}`);
   }
 }
 
-// ── Route handler ─────────────────────────────────────────────────────────────
+// ── Route handlers ────────────────────────────────────────────────────────────
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
+export async function GET() {
+  // Health/discovery — some clients probe this before connecting
+  return NextResponse.json(
+    {
+      name: SERVER_INFO.name,
+      version: SERVER_INFO.version,
+      protocol: PROTOCOL_VERSION,
+      transport: "streamable-http",
+      tools: TOOLS.map((t) => t.name),
+    },
+    { headers: CORS_HEADERS }
+  );
+}
 
 export async function POST(req: NextRequest) {
-  // Auth — Bearer token or active session
+  // Auth
   const userId = await resolveUserIdForDataApi();
   if (!userId) {
-    return NextResponse.json(
-      err(null, -32001, "Unauthorized — provide a valid Bearer token (Authorization: Bearer ftp_…)"),
-      { status: 401 }
+    return new Response(
+      JSON.stringify(rpcErr(null, -32001, "Unauthorized — set Authorization: Bearer ftp_… header")),
+      { status: 401, headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
     );
   }
 
@@ -191,28 +237,25 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json(err(null, -32700, "Parse error: invalid JSON"), { status: 400 });
+    return sseResponse([rpcErr(null, -32700, "Parse error: invalid JSON")]);
   }
 
   const isBatch = Array.isArray(body);
   const messages: unknown[] = isBatch ? (body as unknown[]) : [body];
 
+  // Check if this is an initialize request to attach a session ID
+  const isInit = messages.some(
+    (m) => typeof m === "object" && m !== null && (m as Record<string, unknown>).method === "initialize"
+  );
+
   const responses = (
     await Promise.all(messages.map((m: unknown) => handleMessage(m, userId)))
   ).filter((r: unknown) => r !== null);
 
-  // Batch → array response; single → object; all notifications → 202 No Content
-  if (responses.length === 0) return new NextResponse(null, { status: 202 });
-  return NextResponse.json(isBatch ? responses : responses[0]);
-}
+  if (responses.length === 0) {
+    return new Response(null, { status: 202, headers: CORS_HEADERS });
+  }
 
-// Some MCP clients do a GET to check the endpoint is alive
-export async function GET() {
-  return NextResponse.json({
-    name: SERVER_INFO.name,
-    version: SERVER_INFO.version,
-    protocol: PROTOCOL_VERSION,
-    transport: "streamable-http",
-    tools: TOOLS.map((t) => t.name),
-  });
+  const extraHeaders: Record<string, string> = isInit ? { "Mcp-Session-Id": randomUUID() } : {};
+  return sseResponse(isBatch ? responses : responses, extraHeaders);
 }
