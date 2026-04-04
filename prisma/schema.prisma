@@ -188,6 +188,7 @@ model Workout {
   workoutExercises WorkoutExercise[]
 
   @@index([userId, startedAt])
+  @@index([userId, completedAt])
   @@index([planSessionId])
   @@map("workouts")
 }

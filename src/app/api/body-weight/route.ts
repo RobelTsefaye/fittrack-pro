@@ -1,6 +1,8 @@
+import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { dashboardCacheTag } from "@/lib/constants";
 import { createBodyWeightSchema } from "@/features/tracking/schemas";
 import { parseDateOnlyUtc } from "@/lib/date-only";
 
@@ -78,6 +80,8 @@ export async function POST(req: NextRequest) {
       notes,
     },
   });
+
+  revalidateTag(dashboardCacheTag(session.user.id), "max");
 
   return NextResponse.json({
     data: {

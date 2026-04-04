@@ -1,6 +1,8 @@
+import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { dashboardCacheTag } from "@/lib/constants";
 import { updateWorkoutSchema } from "@/features/workouts/schemas";
 
 export async function GET(
@@ -94,6 +96,8 @@ export async function DELETE(
   }
 
   await prisma.workout.delete({ where: { id } });
+
+  revalidateTag(dashboardCacheTag(session.user.id), "max");
 
   return NextResponse.json({ success: true });
 }

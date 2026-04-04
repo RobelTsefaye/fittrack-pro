@@ -1,6 +1,8 @@
+import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { dashboardCacheTag } from "@/lib/constants";
 import { updateBodyWeightSchema } from "@/features/tracking/schemas";
 
 export async function PATCH(
@@ -45,6 +47,8 @@ export async function PATCH(
     },
   });
 
+  revalidateTag(dashboardCacheTag(session.user.id), "max");
+
   return NextResponse.json({
     data: {
       id: updated.id,
@@ -76,6 +80,8 @@ export async function DELETE(
   }
 
   await prisma.bodyWeight.delete({ where: { id } });
+
+  revalidateTag(dashboardCacheTag(session.user.id), "max");
 
   return NextResponse.json({ success: true });
 }

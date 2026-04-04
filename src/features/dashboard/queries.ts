@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import {
   addDays,
   eachMonthOfInterval,
@@ -10,6 +11,7 @@ import {
   subWeeks,
 } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import { dashboardCacheTag } from "@/lib/constants";
 import {
   getDashboardInsightItems,
   type DashboardInsightItem,
@@ -539,8 +541,15 @@ export function toDashboardClientPayload(raw: DashboardPayload): DashboardClient
 export async function getDashboardClientPayload(
   userId: string
 ): Promise<DashboardClientPayload> {
-  const raw = await getDashboardPayload(userId);
-  return toDashboardClientPayload(raw);
+  const tag = dashboardCacheTag(userId);
+  return unstable_cache(
+    async () => {
+      const raw = await getDashboardPayload(userId);
+      return toDashboardClientPayload(raw);
+    },
+    ["dashboard-client", userId],
+    { revalidate: 45, tags: [tag] }
+  )();
 }
 
 export async function getDashboardPayload(userId: string): Promise<DashboardPayload> {

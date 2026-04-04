@@ -46,3 +46,8 @@ export const ROUTES = {
 export function exercisePath(id: string) {
   return `/exercises/${id}`;
 }
+
+/** next/cache tag for `unstable_cache` dashboard payload — invalidate after workout/body changes */
+export function dashboardCacheTag(userId: string) {
+  return `dashboard-user-${userId}`;
+}
