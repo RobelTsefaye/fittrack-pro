@@ -10,10 +10,10 @@ export type PreviousLogEntry = {
 
 /**
  * Per exercise: weight/reps/rpe from the **last working set** (highest setNumber,
- * excluding warmups) of that exercise in the most recently completed workout.
+ * excluding warmups) of that exercise in the most recently *started* completed workout.
  *
- * Queries the Workout model directly (orderBy completedAt on the model itself)
- * to avoid unreliable nested-relation orderBy with the PrismaPg adapter.
+ * Sorted by `startedAt` (not `completedAt`) because a user may press "finish" days
+ * after the actual session, making `completedAt` unreliable for "last training".
  */
 export async function GET(
   _req: NextRequest,
@@ -47,7 +47,6 @@ export async function GET(
 
   const entries = await Promise.all(
     exerciseIds.map(async (exerciseId) => {
-      // Step 1: find the latest completed workout that has this exercise
       const latestWorkout = await prisma.workout.findFirst({
         where: {
           userId: session.user!.id,
@@ -55,7 +54,7 @@ export async function GET(
           id: { not: workoutId },
           workoutExercises: { some: { exerciseId } },
         },
-        orderBy: { completedAt: "desc" },
+        orderBy: { startedAt: "desc" },
         select: {
           workoutExercises: {
             where: { exerciseId },
@@ -68,7 +67,6 @@ export async function GET(
       const weId = latestWorkout?.workoutExercises[0]?.id;
       if (!weId) return [exerciseId, null] as const;
 
-      // Step 2: last working set in that workout-exercise
       const lastSet = await prisma.set.findFirst({
         where: {
           workoutExerciseId: weId,
