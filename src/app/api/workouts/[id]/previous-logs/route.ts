@@ -10,9 +10,10 @@ export type PreviousLogEntry = {
 
 /**
  * Per exercise: weight/reps/rpe from the **last working set** (highest setNumber,
- * excluding warmups) in the most recently completed workout that contains this exercise.
+ * excluding warmups) of that exercise in the most recently completed workout.
  *
- * Two-step Prisma queries (no raw SQL) so the result is deterministic.
+ * Queries the Workout model directly (orderBy completedAt on the model itself)
+ * to avoid unreliable nested-relation orderBy with the PrismaPg adapter.
  */
 export async function GET(
   _req: NextRequest,
@@ -46,24 +47,31 @@ export async function GET(
 
   const entries = await Promise.all(
     exerciseIds.map(async (exerciseId) => {
-      const latestWe = await prisma.workoutExercise.findFirst({
+      // Step 1: find the latest completed workout that has this exercise
+      const latestWorkout = await prisma.workout.findFirst({
         where: {
-          exerciseId,
-          workout: {
-            userId: session.user!.id,
-            completedAt: { not: null },
-            id: { not: workoutId },
+          userId: session.user!.id,
+          completedAt: { not: null },
+          id: { not: workoutId },
+          workoutExercises: { some: { exerciseId } },
+        },
+        orderBy: { completedAt: "desc" },
+        select: {
+          workoutExercises: {
+            where: { exerciseId },
+            select: { id: true },
+            take: 1,
           },
         },
-        orderBy: { workout: { completedAt: "desc" } },
-        select: { id: true },
       });
 
-      if (!latestWe) return [exerciseId, null] as const;
+      const weId = latestWorkout?.workoutExercises[0]?.id;
+      if (!weId) return [exerciseId, null] as const;
 
+      // Step 2: last working set in that workout-exercise
       const lastSet = await prisma.set.findFirst({
         where: {
-          workoutExerciseId: latestWe.id,
+          workoutExerciseId: weId,
           isWarmup: false,
           reps: { gt: 0 },
           weight: { not: null },
@@ -76,11 +84,7 @@ export async function GET(
 
       return [
         exerciseId,
-        {
-          weight: lastSet.weight,
-          reps: lastSet.reps,
-          rpe: lastSet.rpe,
-        },
+        { weight: lastSet.weight, reps: lastSet.reps, rpe: lastSet.rpe },
       ] as const;
     })
   );
