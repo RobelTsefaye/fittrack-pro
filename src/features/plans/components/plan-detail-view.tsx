@@ -1,9 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Play } from "lucide-react";
+import { ArrowLeft, GripVertical, Plus, Trash2, Play } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,6 +66,199 @@ type PlanDetail = {
   sessions: PlanSession[];
 };
 
+// ── Sortable exercise row ────────────────────────────────────────────────────
+
+interface SortablePseRowProps {
+  pse: Pse;
+  onRemove: (pseId: string) => void;
+  onUpdateTargetSets: (pseId: string, value: string) => void;
+  targetSetsLabel: string;
+}
+
+function SortablePseRow({
+  pse,
+  onRemove,
+  onUpdateTargetSets,
+  targetSetsLabel,
+}: SortablePseRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: pse.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm"
+    >
+      <button
+        type="button"
+        className="cursor-grab touch-none shrink-0 text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
+        aria-label="Drag to reorder"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <Link
+        href={exercisePath(pse.exerciseId)}
+        className="font-medium flex-1 min-w-[120px] hover:underline underline-offset-2"
+      >
+        {pse.exercise.name}
+      </Link>
+      <div className="flex items-center gap-2">
+        <Label htmlFor={`sets-${pse.id}`} className="text-muted-foreground text-xs">
+          {targetSetsLabel}
+        </Label>
+        <Input
+          id={`sets-${pse.id}`}
+          type="number"
+          min={1}
+          max={20}
+          className="h-8 w-16"
+          defaultValue={pse.targetSets}
+          key={`${pse.id}-${pse.targetSets}`}
+          onBlur={(e) => {
+            if (e.target.value !== String(pse.targetSets)) {
+              onUpdateTargetSets(pse.id, e.target.value);
+            }
+          }}
+        />
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="text-destructive hover:text-destructive"
+        onClick={() => onRemove(pse.id)}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </li>
+  );
+}
+
+// ── Sortable session card ────────────────────────────────────────────────────
+
+interface SortableSessionCardProps {
+  s: PlanSession;
+  pseIds: string[];
+  exerciseSensors: ReturnType<typeof useSensors>;
+  startingId: string | null;
+  onStart: (sessionId: string) => void;
+  onPickExercise: (sessionId: string) => void;
+  onDeleteSession: (sessionId: string) => void;
+  onRemovePse: (pseId: string) => void;
+  onUpdateTargetSets: (pseId: string, value: string) => void;
+  onExerciseDragEnd: (sessionId: string, event: DragEndEvent) => void;
+  t: (key: string) => string;
+}
+
+function SortableSessionCard({
+  s,
+  pseIds,
+  exerciseSensors,
+  startingId,
+  onStart,
+  onPickExercise,
+  onDeleteSession,
+  onRemovePse,
+  onUpdateTargetSets,
+  onExerciseDragEnd,
+  t,
+}: SortableSessionCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: s.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: "relative",
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  const byId = new Map(s.exercises.map((p) => [p.id, p]));
+
+  return (
+    <li ref={setNodeRef} style={style}>
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0 pb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              className="cursor-grab touch-none shrink-0 text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing"
+              aria-label="Drag to reorder day"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+            <CardTitle className="text-base">{s.name}</CardTitle>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => onStart(s.id)} disabled={startingId === s.id}>
+              <Play className="mr-1 h-3.5 w-3.5" />
+              {startingId === s.id ? t("plans.starting") : t("plans.startThisDay")}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => onPickExercise(s.id)}>
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              {t("workouts.addExercise")}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              onClick={() => onDeleteSession(s.id)}
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="sr-only">{t("plans.removeDay")}</span>
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            {t("plans.exercisesInDay")}
+          </p>
+          {s.exercises.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("plans.noExercisesInDay")}</p>
+          ) : (
+            <DndContext
+              sensors={exerciseSensors}
+              collisionDetection={closestCenter}
+              onDragEnd={(e) => onExerciseDragEnd(s.id, e)}
+            >
+              <SortableContext items={pseIds} strategy={verticalListSortingStrategy}>
+                <ul className="space-y-2">
+                  {pseIds
+                    .map((id) => byId.get(id))
+                    .filter((p): p is Pse => !!p)
+                    .map((pse) => (
+                      <SortablePseRow
+                        key={pse.id}
+                        pse={pse}
+                        onRemove={onRemovePse}
+                        onUpdateTargetSets={onUpdateTargetSets}
+                        targetSetsLabel={t("plans.targetSets")}
+                      />
+                    ))}
+                </ul>
+              </SortableContext>
+            </DndContext>
+          )}
+        </CardContent>
+      </Card>
+    </li>
+  );
+}
+
+// ── Main component ───────────────────────────────────────────────────────────
+
 interface PlanDetailViewProps {
   planId: string;
 }
@@ -71,6 +280,17 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
   const [pickerSessionId, setPickerSessionId] = useState<string | null>(null);
   const [addingExercise, setAddingExercise] = useState(false);
   const [startingId, setStartingId] = useState<string | null>(null);
+
+  // DnD order state
+  const [sessionIds, setSessionIds] = useState<string[]>([]);
+  const [pseIdsBySession, setPseIdsBySession] = useState<Map<string, string[]>>(new Map());
+  const sessionReorderPending = useRef(false);
+  const pseReorderPending = useRef(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
 
   const load = useCallback(async () => {
     setError(null);
@@ -97,6 +317,92 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Sync order state whenever plan is loaded
+  useEffect(() => {
+    if (!plan) return;
+    setSessionIds([...plan.sessions].sort((a, b) => a.order - b.order).map((s) => s.id));
+    const map = new Map<string, string[]>();
+    for (const s of plan.sessions) {
+      map.set(s.id, [...s.exercises].sort((a, b) => a.order - b.order).map((p) => p.id));
+    }
+    setPseIdsBySession(map);
+  }, [plan]);
+
+  // ── Session drag ────────────────────────────────────────────────────────
+
+  async function handleSessionDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !plan) return;
+
+    const oldIdx = sessionIds.indexOf(active.id as string);
+    const newIdx = sessionIds.indexOf(over.id as string);
+    const newIds = arrayMove(sessionIds, oldIdx, newIdx);
+    setSessionIds(newIds);
+
+    setPlan((prev) => {
+      if (!prev) return prev;
+      const byId = new Map(prev.sessions.map((s) => [s.id, s]));
+      return {
+        ...prev,
+        sessions: newIds.map((id, i) => ({ ...byId.get(id)!, order: i + 1 })),
+      };
+    });
+
+    if (sessionReorderPending.current) return;
+    sessionReorderPending.current = true;
+    try {
+      await fetch(`/api/plans/${planId}/sessions/reorder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: newIds }),
+      });
+    } finally {
+      sessionReorderPending.current = false;
+    }
+  }
+
+  // ── Exercise drag ───────────────────────────────────────────────────────
+
+  async function handleExerciseDragEnd(sessionId: string, event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const currentIds = pseIdsBySession.get(sessionId) ?? [];
+    const oldIdx = currentIds.indexOf(active.id as string);
+    const newIdx = currentIds.indexOf(over.id as string);
+    const newIds = arrayMove(currentIds, oldIdx, newIdx);
+
+    setPseIdsBySession((prev) => new Map([...prev, [sessionId, newIds]]));
+    setPlan((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        sessions: prev.sessions.map((s) => {
+          if (s.id !== sessionId) return s;
+          const byId = new Map(s.exercises.map((p) => [p.id, p]));
+          return {
+            ...s,
+            exercises: newIds.map((id, i) => ({ ...byId.get(id)!, order: i + 1 })),
+          };
+        }),
+      };
+    });
+
+    if (pseReorderPending.current) return;
+    pseReorderPending.current = true;
+    try {
+      await fetch(`/api/plan-sessions/${sessionId}/exercises/reorder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: newIds }),
+      });
+    } finally {
+      pseReorderPending.current = false;
+    }
+  }
+
+  // ── CRUD handlers ───────────────────────────────────────────────────────
 
   async function savePlanName() {
     const trimmed = planNameDraft.trim();
@@ -171,15 +477,15 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
 
   async function startSession(sessionId: string) {
     setStartingId(sessionId);
-    const res = await fetch(`/api/plan-sessions/${sessionId}/start`, {
-      method: "POST",
-    });
+    const res = await fetch(`/api/plan-sessions/${sessionId}/start`, { method: "POST" });
     setStartingId(null);
     if (!res.ok) return;
     const json = await res.json();
     const id = json.data?.id as string | undefined;
     if (id) router.push(`/workouts/${id}`);
   }
+
+  // ── Render ──────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -209,14 +515,15 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
     );
   }
 
+  const orderedSessions = sessionIds
+    .map((id) => plan.sessions.find((s) => s.id === id))
+    .filter((s): s is PlanSession => !!s);
+
   return (
     <div className="space-y-6">
       <Link
         href={ROUTES.plans}
-        className={cn(
-          buttonVariants({ variant: "ghost", size: "sm" }),
-          "inline-flex gap-1 -ml-2"
-        )}
+        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "inline-flex gap-1 -ml-2")}
       >
         <ArrowLeft className="h-4 w-4" />
         {t("plans.backToPlans")}
@@ -267,96 +574,32 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
           </CardContent>
         </Card>
       ) : (
-        <ul className="space-y-4">
-          {plan.sessions.map((s) => (
-            <li key={s.id}>
-              <Card>
-                <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0 pb-2">
-                  <CardTitle className="text-base">{s.name}</CardTitle>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => startSession(s.id)}
-                      disabled={startingId === s.id}
-                    >
-                      <Play className="mr-1 h-3.5 w-3.5" />
-                      {startingId === s.id ? t("plans.starting") : t("plans.startThisDay")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setPickerSessionId(s.id)}
-                    >
-                      <Plus className="mr-1 h-3.5 w-3.5" />
-                      {t("workouts.addExercise")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => deleteSession(s.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">{t("plans.removeDay")}</span>
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {t("plans.exercisesInDay")}
-                  </p>
-                  {s.exercises.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">{t("plans.noExercisesInDay")}</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {s.exercises.map((pse) => (
-                        <li
-                          key={pse.id}
-                          className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm"
-                        >
-                          <Link
-                            href={exercisePath(pse.exerciseId)}
-                            className="font-medium flex-1 min-w-[140px] hover:underline underline-offset-2"
-                          >
-                            {pse.exercise.name}
-                          </Link>
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor={`sets-${pse.id}`} className="text-muted-foreground text-xs">
-                              {t("plans.targetSets")}
-                            </Label>
-                            <Input
-                              id={`sets-${pse.id}`}
-                              type="number"
-                              min={1}
-                              max={20}
-                              className="h-8 w-16"
-                              defaultValue={pse.targetSets}
-                              key={`${pse.id}-${pse.targetSets}`}
-                              onBlur={(e) => {
-                                if (e.target.value !== String(pse.targetSets)) {
-                                  updateTargetSets(pse.id, e.target.value);
-                                }
-                              }}
-                            />
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => removePse(pse.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </CardContent>
-              </Card>
-            </li>
-          ))}
-        </ul>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleSessionDragEnd}
+        >
+          <SortableContext items={sessionIds} strategy={verticalListSortingStrategy}>
+            <ul className="space-y-4">
+              {orderedSessions.map((s) => (
+                <SortableSessionCard
+                  key={s.id}
+                  s={s}
+                  pseIds={pseIdsBySession.get(s.id) ?? s.exercises.map((p) => p.id)}
+                  exerciseSensors={sensors}
+                  startingId={startingId}
+                  onStart={startSession}
+                  onPickExercise={setPickerSessionId}
+                  onDeleteSession={deleteSession}
+                  onRemovePse={removePse}
+                  onUpdateTargetSets={updateTargetSets}
+                  onExerciseDragEnd={handleExerciseDragEnd}
+                  t={t}
+                />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
       )}
 
       <Dialog open={dayDialogOpen} onOpenChange={setDayDialogOpen}>
