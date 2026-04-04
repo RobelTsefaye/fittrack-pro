@@ -57,7 +57,9 @@ class FitTrackOfflineDb extends Dexie {
       catalog: "id",
       meta: "id",
     });
-    this.version(2).stores({
+    // version(2) was defined but the DB was already at v10 in some envs, so
+    // we add the new tables at v11 to guarantee the upgrade always runs.
+    this.version(11).stores({
       workouts: "id",
       queue: "id, workoutRouteId, sort",
       catalog: "id",
