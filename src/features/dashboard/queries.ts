@@ -242,52 +242,101 @@ export async function getBodyWeightTrend(userId: string, take = 14) {
 }
 
 export async function getNextPlanSession(userId: string) {
-  // Find the most-recent completed workout that was started from a plan session
+  // Strategy 1: last completed workout directly linked to a plan session
   const lastPlanned = await prisma.workout.findFirst({
     where: { userId, completedAt: { not: null }, planSessionId: { not: null } },
     orderBy: { completedAt: "desc" },
     select: { planSessionId: true, name: true },
   });
 
-  if (!lastPlanned?.planSessionId) return null;
-
-  const planSession = await prisma.planSession.findUnique({
-    where: { id: lastPlanned.planSessionId },
-    select: {
-      order: true,
-      plan: {
-        select: {
-          name: true,
-          userId: true,
-          sessions: {
-            orderBy: { order: "asc" },
-            select: {
-              id: true,
-              name: true,
-              order: true,
-              _count: { select: { exercises: true } },
+  if (lastPlanned?.planSessionId) {
+    const planSession = await prisma.planSession.findUnique({
+      where: { id: lastPlanned.planSessionId },
+      select: {
+        order: true,
+        plan: {
+          select: {
+            name: true,
+            userId: true,
+            sessions: {
+              orderBy: { order: "asc" },
+              select: {
+                id: true,
+                name: true,
+                order: true,
+                _count: { select: { exercises: true } },
+              },
             },
           },
+        },
+      },
+    });
+
+    if (planSession && planSession.plan.userId === userId) {
+      const sessions = planSession.plan.sessions;
+      if (sessions.length > 0) {
+        const currentIdx = sessions.findIndex((s) => s.order === planSession.order);
+        const nextIdx = (currentIdx + 1) % sessions.length;
+        const next = sessions[nextIdx]!;
+        return {
+          sessionId: next.id,
+          sessionName: next.name,
+          planName: planSession.plan.name,
+          exerciseCount: next._count.exercises,
+          lastSessionName: lastPlanned.name,
+        };
+      }
+    }
+  }
+
+  // Strategy 2: fall back to the user's most recently updated plan.
+  // Try to match the last workout's name against a session name to determine
+  // position; if no match, default to the first session.
+  const plan = await prisma.workoutPlan.findFirst({
+    where: { userId },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      name: true,
+      sessions: {
+        orderBy: { order: "asc" },
+        select: {
+          id: true,
+          name: true,
+          order: true,
+          _count: { select: { exercises: true } },
         },
       },
     },
   });
 
-  if (!planSession || planSession.plan.userId !== userId) return null;
+  if (!plan || plan.sessions.length === 0) return null;
 
-  const sessions = planSession.plan.sessions;
-  if (sessions.length === 0) return null;
+  const lastWorkout = await prisma.workout.findFirst({
+    where: { userId, completedAt: { not: null } },
+    orderBy: { completedAt: "desc" },
+    select: { name: true },
+  });
 
-  const currentIdx = sessions.findIndex((s) => s.order === planSession.order);
-  const nextIdx = (currentIdx + 1) % sessions.length;
-  const next = sessions[nextIdx]!;
+  let nextIdx = 0;
+  if (lastWorkout?.name) {
+    const lower = lastWorkout.name.toLowerCase();
+    const matchIdx = plan.sessions.findIndex(
+      (s) =>
+        lower.includes(s.name.toLowerCase()) ||
+        s.name.toLowerCase().includes(lower)
+    );
+    if (matchIdx !== -1) {
+      nextIdx = (matchIdx + 1) % plan.sessions.length;
+    }
+  }
 
+  const next = plan.sessions[nextIdx]!;
   return {
     sessionId: next.id,
     sessionName: next.name,
-    planName: planSession.plan.name,
+    planName: plan.name,
     exerciseCount: next._count.exercises,
-    lastSessionName: lastPlanned.name,
+    lastSessionName: lastWorkout?.name ?? null,
   };
 }
 
