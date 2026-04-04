@@ -50,6 +50,7 @@ import {
   loadWorkoutSnapshot,
   saveWorkoutSnapshot,
 } from "@/lib/offline/workout-offline-store";
+import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
 
 function formatShortDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -113,7 +114,6 @@ function patchSetInWorkout(
         const next = { ...set };
         if (body.reps !== undefined) next.reps = typeof body.reps === "number" ? body.reps : null;
         if (body.weight !== undefined) next.weight = typeof body.weight === "number" ? body.weight : null;
-        if (body.rpe !== undefined) next.rpe = typeof body.rpe === "number" ? body.rpe : null;
         if (body.isCompleted === true || complete) next.isCompleted = true;
         return next;
       }),
@@ -219,7 +219,6 @@ function SortableExerciseCard({
             <span className="w-6 shrink-0 text-center text-[10px] font-medium uppercase text-muted-foreground">#</span>
             <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">{weightLabel}</span>
             <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">{t("workouts.reps")}</span>
-            <span className="w-14 text-center text-[10px] font-medium uppercase text-muted-foreground">{t("workouts.rpe")}</span>
           </div>
           {sortSetsForDisplay(we.sets).map((set) => (
             <SetRow
@@ -796,6 +795,7 @@ export function WorkoutDetail({
       setPendingQueue(true);
       setCompleting(false);
       restTimer.stop();
+      notifyActiveWorkoutChanged();
       router.refresh();
       return;
     }
@@ -817,6 +817,7 @@ export function WorkoutDetail({
     };
     if (json.comparison) setCompletionSummary(json.comparison);
     restTimer.stop();
+    notifyActiveWorkoutChanged();
     await loadWorkout();
     router.refresh();
   }

@@ -234,6 +234,8 @@
     "sessionSummaryVolume": "Training volume (weight × reps): {current}",
     "sessionSummaryDelta": "Vs last completed session: {delta} ({pct} %).",
     "sessionSummaryNoPrevious": "No previous completed workout to compare — keep going.",
+    "activeSessionBanner": "Training in progress",
+    "activeSessionBannerAria": "Open in-progress workout: {name}",
     "fromPlanBadge": "From plan",
     "timerTrackingHint": "Session timer runs from start until you finish — time is saved with the workout.",
     "offlineModeBanner": "Offline or pending sync: changes stay on this device and upload when you are back online.",

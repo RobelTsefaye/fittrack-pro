@@ -9,18 +9,8 @@ import { useI18n } from "@/lib/i18n-provider";
 import { cn } from "@/lib/utils";
 import type { WorkoutSetData } from "@/features/workouts/workout-types";
 
-interface SetData {
-  id: string;
-  setNumber: number;
-  reps: number | null;
-  weight: number | null;
-  rpe: number | null;
-  isWarmup: boolean;
-  isCompleted: boolean;
-}
-
 interface SetRowProps {
-  set: SetData;
+  set: WorkoutSetData;
   workoutId: string;
   weightUnitLabel?: string;
   /** Fallback when PATCH fails */
@@ -54,21 +44,18 @@ export function SetRow({
   const { t } = useI18n();
   const [reps, setReps] = useState(set.reps?.toString() ?? "");
   const [weight, setWeight] = useState(set.weight?.toString() ?? "");
-  const [rpe, setRpe] = useState(set.rpe?.toString() ?? "");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setReps(set.reps?.toString() ?? "");
     setWeight(set.weight?.toString() ?? "");
-    setRpe(set.rpe?.toString() ?? "");
-  }, [set.id, set.reps, set.weight, set.rpe]);
+  }, [set.id, set.reps, set.weight]);
 
   async function saveSet(complete = false) {
     setSaving(true);
     const data: Record<string, unknown> = {};
     if (reps) data.reps = parseInt(reps, 10);
     if (weight) data.weight = parseFloat(weight);
-    if (rpe) data.rpe = parseFloat(rpe);
     if (complete) data.isCompleted = true;
 
     if (offlineHandlers) {
@@ -137,7 +124,7 @@ export function SetRow({
           )}
         </span>
 
-        <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 sm:flex sm:max-w-none sm:flex-none sm:gap-2">
+        <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:flex sm:max-w-none sm:flex-none sm:gap-2">
           <Input
             type="number"
             inputMode="decimal"
@@ -147,7 +134,7 @@ export function SetRow({
             onBlur={() => {
               if (weight !== (set.weight?.toString() ?? "")) saveSet();
             }}
-            className={cn(inputClass, "sm:w-16")}
+            className={cn(inputClass, "sm:w-20")}
             disabled={set.isCompleted || disabled}
           />
           <Input
@@ -159,23 +146,8 @@ export function SetRow({
             onBlur={() => {
               if (reps !== (set.reps?.toString() ?? "")) saveSet();
             }}
-            className={cn(inputClass, "sm:w-16")}
+            className={cn(inputClass, "sm:w-20")}
             disabled={set.isCompleted || disabled}
-          />
-          <Input
-            type="number"
-            inputMode="decimal"
-            placeholder={t("workouts.rpePlaceholder")}
-            value={rpe}
-            onChange={(e) => setRpe(e.target.value)}
-            onBlur={() => {
-              if (rpe !== (set.rpe?.toString() ?? "")) saveSet();
-            }}
-            className={cn(inputClass, "sm:w-14")}
-            disabled={set.isCompleted || disabled}
-            min="1"
-            max="10"
-            step="0.5"
           />
         </div>
 

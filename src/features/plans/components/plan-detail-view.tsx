@@ -33,6 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROUTES, exercisePath } from "@/lib/constants";
+import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
 import { useI18n } from "@/lib/i18n-provider";
 import { ExercisePickerDialog } from "@/features/workouts/components/exercise-picker-dialog";
 
@@ -482,7 +483,10 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
     if (!res.ok) return;
     const json = await res.json();
     const id = json.data?.id as string | undefined;
-    if (id) router.push(`/workouts/${id}`);
+    if (id) {
+      notifyActiveWorkoutChanged();
+      router.push(`/workouts/${id}`);
+    }
   }
 
   // ── Render ──────────────────────────────────────────────────────────────

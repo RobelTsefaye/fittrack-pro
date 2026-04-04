@@ -13,6 +13,7 @@ import { ROUTES } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
 import type { WorkoutData } from "@/features/workouts/workout-types";
 import { enqueueWorkoutOp, saveWorkoutSnapshot } from "@/lib/offline/workout-offline-store";
+import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
 
 export default function NewWorkoutPage() {
   const { t } = useI18n();
@@ -37,6 +38,7 @@ export default function NewWorkoutPage() {
     };
     await saveWorkoutSnapshot(id, data, true);
     await enqueueWorkoutOp(id, { t: "post_workout", name: data.name });
+    notifyActiveWorkoutChanged();
     router.push(`/workouts/${id}`);
   }
 
@@ -74,7 +76,10 @@ export default function NewWorkoutPage() {
       }
 
       const id = json.data?.id as string | undefined;
-      if (id) router.push(`/workouts/${id}`);
+      if (id) {
+        notifyActiveWorkoutChanged();
+        router.push(`/workouts/${id}`);
+      }
       else {
         setError(t("workouts.invalidResponse"));
         setSubmitting(false);

@@ -117,7 +117,6 @@ export function ExerciseDetailAnalytics({
                     <th className="px-3 py-2 text-right">{unit}</th>
                     <th className="px-3 py-2 text-right">{t("exercises.tableReps")}</th>
                     <th className="px-3 py-2 text-right">{t("exercises.tableEst1rm")}</th>
-                    <th className="px-3 py-2 text-right">{t("exercises.tableRpe")}</th>
                     <th className="px-3 py-2 w-[100px]" />
                   </tr>
                 </thead>
@@ -140,9 +139,6 @@ export function ExerciseDetailAnalytics({
                         {row.estimated1RM > 0
                           ? Math.round(row.estimated1RM * 10) / 10
                           : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right text-muted-foreground">
-                        {row.rpe ?? "—"}
                       </td>
                       <td className="px-3 py-2">
                         <Link

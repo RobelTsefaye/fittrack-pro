@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n } from "@/lib/i18n-provider";
 import type { NextPlanSession } from "@/features/dashboard/queries";
+import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
 
 interface NextWorkoutCardProps {
   nextSession: NextPlanSession;
@@ -28,6 +29,7 @@ export function NextWorkoutCard({ nextSession }: NextWorkoutCardProps) {
       });
       const json = await res.json();
       if (!res.ok || !json.data?.id) throw new Error();
+      notifyActiveWorkoutChanged();
       router.push(`/workouts/${json.data.id}`);
     } catch {
       setLoading(false);
