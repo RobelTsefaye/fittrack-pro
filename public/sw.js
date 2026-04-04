@@ -1,30 +1,11 @@
-const CACHE = "fittrack-v9-pwa";
-const SW_VERSION = "9.0";
-
-// App shell pages to pre-cache on install so the app opens offline immediately
-const PRECACHE_URLS = [
-  "/",
-  "/dashboard",
-  "/workouts",
-  "/workouts/new",
-  "/exercises",
-  "/body-weight",
-  "/plans",
-  "/settings",
-  "/offline",
-];
+const CACHE = "fittrack-v10-pwa";
+const SW_VERSION = "10.0";
 
 self.addEventListener("install", (event) => {
   console.log(`[SW] Installing ${SW_VERSION}`);
-  event.waitUntil(
-    caches
-      .open(CACHE)
-      .then((cache) =>
-        // Pre-cache app shell pages; ignore individual failures (page may not exist yet)
-        Promise.allSettled(PRECACHE_URLS.map((url) => cache.add(url)))
-      )
-      .then(() => self.skipWaiting())
-  );
+  // No pre-caching on install — authenticated pages would cache as redirects.
+  // Pages are cached on first visit via the network-first handler below.
+  event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener("activate", (event) => {
