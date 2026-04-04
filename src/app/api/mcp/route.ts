@@ -252,9 +252,17 @@ export async function POST(req: NextRequest) {
     ? await resolveUserIdBySecret(tokenParam)
     : await resolveUserIdForDataApi();
   if (!userId) {
+    const base = `${req.nextUrl.protocol}//${req.nextUrl.host}`;
     return new Response(
-      JSON.stringify(rpcErr(null, -32001, "Unauthorized — set Authorization: Bearer ftp_… header or ?token= query param")),
-      { status: 401, headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
+      JSON.stringify(rpcErr(null, -32001, "Unauthorized")),
+      {
+        status: 401,
+        headers: {
+          "Content-Type": "application/json",
+          "WWW-Authenticate": `Bearer realm="mcp", resource_metadata="${base}/.well-known/oauth-protected-resource"`,
+          ...CORS_HEADERS,
+        },
+      }
     );
   }
 
