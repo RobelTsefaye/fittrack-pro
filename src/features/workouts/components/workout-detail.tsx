@@ -36,9 +36,8 @@ import {
 import { ROUTES, exercisePath } from "@/lib/constants";
 import type { PreviousLogEntry, PreviousSetEntry } from "@/app/api/workouts/[id]/previous-logs/route";
 import { ExercisePickerDialog, type ExercisePickerExercise } from "./exercise-picker-dialog";
-import { RestTimerBar } from "./rest-timer-bar";
 import { SetRow } from "./set-row";
-import { useRestTimer } from "../hooks/use-rest-timer";
+import { useRestTimer } from "../rest-timer-context";
 import { useWorkoutTimer } from "../hooks/use-workout-timer";
 import { sortSetsForDisplay } from "../set-sort";
 import { useI18n } from "@/lib/i18n-provider";
@@ -151,6 +150,8 @@ interface SortableExerciseCardProps {
   patchSetOffline: (setId: string, body: Record<string, unknown>, complete: boolean) => Promise<void>;
   deleteSetOffline: (setId: string) => Promise<void>;
   t: (key: string, params?: Record<string, string | number | undefined>) => string;
+  /** Edit weight/reps on an already-finished workout */
+  reviseCompletedSets?: boolean;
 }
 
 function SortableExerciseCard({
@@ -168,7 +169,9 @@ function SortableExerciseCard({
   patchSetOffline,
   deleteSetOffline,
   t,
+  reviseCompletedSets = false,
 }: SortableExerciseCardProps) {
+  const rowDisabled = !isActive && !reviseCompletedSets;
   const {
     attributes,
     listeners,
@@ -252,23 +255,24 @@ function SortableExerciseCard({
               set={set}
               workoutId={workoutId}
               weightUnitLabel={weightLabel}
+              unlockCompleted={reviseCompletedSets}
               previousHint={
                 prevEntry && set.weight == null && set.reps == null && !set.isCompleted
                   ? formatSetHint(prevEntry, weightLabel, t)
                   : null
               }
               onMergeSet={
-                useLocalWrites || !isActive
+                useLocalWrites || (!isActive && !reviseCompletedSets)
                   ? undefined
                   : (data) => onMergeSet(we.id, data)
               }
               onRemoveSet={
-                useLocalWrites || !isActive
+                useLocalWrites || (!isActive && !reviseCompletedSets)
                   ? undefined
                   : () => onRemoveSet(we.id, set.id)
               }
               onComplete={onSetCompleted}
-              disabled={!isActive}
+              disabled={rowDisabled}
               offlineHandlers={
                 useLocalWrites && isActive
                   ? {
@@ -325,6 +329,7 @@ export function WorkoutDetail({
   const [offlineOriginSession, setOfflineOriginSession] = useState(false);
   const [pendingQueue, setPendingQueue] = useState(false);
   const [previousLogs, setPreviousLogs] = useState<Record<string, PreviousLogEntry>>({});
+  const [reviseCompletedSets, setReviseCompletedSets] = useState(false);
   const [completionSummary, setCompletionSummary] = useState<{
     hasPrevious: boolean;
     previousVolume: number;
@@ -333,16 +338,16 @@ export function WorkoutDetail({
     volumeDeltaPct: number | null;
   } | null>(null);
 
-  const restTimer = useRestTimer(defaultRestSeconds, {
-    onExpire: () => {
-      toast.success(t("workouts.restDoneToast"), { duration: 8000 });
-      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-        new Notification(t("workouts.restNotificationTitle"), {
-          body: t("workouts.restNotificationBody"),
-        });
-      }
-    },
-  });
+  const restTimer = useRestTimer();
+
+  const fireRestDone = useCallback(() => {
+    toast.success(t("workouts.restDoneToast"), { duration: 8000 });
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      new Notification(t("workouts.restNotificationTitle"), {
+        body: t("workouts.restNotificationBody"),
+      });
+    }
+  }, [t]);
   const startedAt = workout ? new Date(workout.startedAt) : null;
   const { formatted: elapsedLabel } = useWorkoutTimer(startedAt);
 
@@ -575,6 +580,10 @@ export function WorkoutDetail({
     if (workout?.name != null) setNameDraft(workout.name);
     else if (workout) setNameDraft("");
   }, [workout?.name, workout?.id]);
+
+  useEffect(() => {
+    setReviseCompletedSets(false);
+  }, [workout?.id]);
 
   async function persistLocal(next: WorkoutData, op: Parameters<typeof enqueueWorkoutOp>[1]) {
     await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
@@ -852,7 +861,7 @@ export function WorkoutDetail({
   }
 
   function onSetCompleted() {
-    if (isActive) restTimer.start(defaultRestSeconds);
+    if (isActive) restTimer.start(defaultRestSeconds, { onExpire: fireRestDone });
   }
 
   async function deleteCompletedWorkout() {
@@ -968,7 +977,10 @@ export function WorkoutDetail({
             )}
           </p>
           {isActive ? (
-            <p className="text-xs text-muted-foreground max-w-md">{t("workouts.timerTrackingHint")}</p>
+            <div className="max-w-md space-y-1 text-xs text-muted-foreground">
+              <p>{t("workouts.timerTrackingHint")}</p>
+              <p>{t("workouts.restTimerBackgroundHint")}</p>
+            </div>
           ) : null}
         </div>
 
@@ -981,15 +993,29 @@ export function WorkoutDetail({
             {completing ? t("workouts.finishing") : t("workouts.finishWorkout")}
           </Button>
         ) : workout.completedAt ? (
-          <Button
-            variant="outline"
-            className="w-full shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
-            onClick={() => void deleteCompletedWorkout()}
-            disabled={deletingWorkout}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            {deletingWorkout ? t("workouts.deletingWorkout") : t("workouts.deleteCompleted")}
-          </Button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            {!useLocalWrites ? (
+              <Button
+                variant="secondary"
+                className="w-full sm:w-auto"
+                type="button"
+                onClick={() => setReviseCompletedSets((v) => !v)}
+              >
+                {reviseCompletedSets
+                  ? t("workouts.doneEditingSets")
+                  : t("workouts.editCompletedSets")}
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              className="w-full shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+              onClick={() => void deleteCompletedWorkout()}
+              disabled={deletingWorkout}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              {deletingWorkout ? t("workouts.deletingWorkout") : t("workouts.deleteCompleted")}
+            </Button>
+          </div>
         ) : null}
       </div>
 
@@ -1042,6 +1068,7 @@ export function WorkoutDetail({
                     patchSetOffline={patchSetOffline}
                     deleteSetOffline={deleteSetOffline}
                     t={t}
+                    reviseCompletedSets={reviseCompletedSets}
                   />
                 ))}
             </SortableContext>
@@ -1102,7 +1129,6 @@ export function WorkoutDetail({
         </DialogContent>
       </Dialog>
 
-      {isActive && <RestTimerBar timer={restTimer} />}
     </div>
   );
 }

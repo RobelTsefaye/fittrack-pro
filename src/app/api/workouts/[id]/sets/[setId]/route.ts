@@ -45,8 +45,6 @@ export async function PATCH(
     );
   }
 
-  const wasCompleted = existing.isCompleted;
-
   const updateData: Record<string, unknown> = { ...parsed.data };
 
   if (parsed.data.isCompleted === true) {
@@ -60,15 +58,10 @@ export async function PATCH(
     data: updateData,
   });
 
-  if (parsed.data.isCompleted === false && wasCompleted) {
-    await removePersonalRecordForSet(setId);
-  }
-
-  const becameCompleted =
-    parsed.data.isCompleted === true && !wasCompleted && set.isCompleted;
-
+  /** Always reconcile PR for this set so edits (incl. past sessions) stay consistent. */
+  await removePersonalRecordForSet(setId);
   if (
-    becameCompleted &&
+    set.isCompleted &&
     !set.isWarmup &&
     set.weight != null &&
     set.reps != null &&

@@ -2,11 +2,11 @@
 
 import { Button } from "@/components/ui/button";
 import { Minus, Pause, Play, Plus, Timer, X } from "lucide-react";
-import type { useRestTimer } from "../hooks/use-rest-timer";
+import type { RestTimerApi } from "../rest-timer-context";
 import { useI18n } from "@/lib/i18n-provider";
 
 interface RestTimerBarProps {
-  timer: ReturnType<typeof useRestTimer>;
+  timer: RestTimerApi;
 }
 
 const STEP = 10;

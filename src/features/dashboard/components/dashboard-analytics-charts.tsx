@@ -7,6 +7,8 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -48,6 +50,7 @@ export function DashboardAnalyticsChartsSection({
     recentPRs,
     volumeWeekly,
     volumeMonthly,
+    strengthTrendWeekly,
     consistencyWeekly,
     bodyWeightTrend,
     recentWorkouts,
@@ -115,6 +118,58 @@ export function DashboardAnalyticsChartsSection({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">{t("dashboard.strengthTrendTitle")}</CardTitle>
+            <p className="text-xs text-muted-foreground font-normal">
+              {t("dashboard.strengthTrendHint")}
+            </p>
+          </CardHeader>
+          <CardContent className="h-[260px]">
+            {strengthTrendWeekly.every((d) => d.bestE1RM == null) ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground text-center px-4">
+                {t("dashboard.strengthTrendEmpty")}
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={strengthTrendWeekly}
+                  margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} className="text-muted-foreground" />
+                  <YAxis
+                    tick={{ fontSize: 10 }}
+                    width={44}
+                    domain={["auto", "auto"]}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: 8,
+                      border: "1px solid var(--border)",
+                      background: "var(--card)",
+                    }}
+                    formatter={(v) => [
+                      typeof v === "number"
+                        ? `${Math.round(v * 10) / 10} ${unit}`
+                        : "—",
+                      t("dashboard.strengthTrendAxis"),
+                    ]}
+                  />
+                  <Line
+                    type="stepAfter"
+                    dataKey="bestE1RM"
+                    stroke="var(--color-chart-2)"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "var(--color-chart-2)" }}
+                    connectNulls
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{t("dashboard.volumeTitle")}</CardTitle>

@@ -9,10 +9,27 @@ import { useI18n } from "@/lib/i18n-provider";
 import { cn } from "@/lib/utils";
 import type { WorkoutSetData } from "@/features/workouts/workout-types";
 
+function parseLocaleDecimal(raw: string): number | null {
+  const t = raw.trim().replace(/\s/g, "").replace(",", ".");
+  if (!t) return null;
+  const n = parseFloat(t);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseRepsInput(raw: string): number | null {
+  const n = parseLocaleDecimal(raw);
+  if (n == null) return null;
+  const r = Math.round(n);
+  if (r < 0 || r > 999) return null;
+  return r;
+}
+
 interface SetRowProps {
   set: WorkoutSetData;
   workoutId: string;
   weightUnitLabel?: string;
+  /** Allow editing weight/reps after set was marked complete (past session correction). */
+  unlockCompleted?: boolean;
   /** Fallback when PATCH fails */
   onRefresh?: () => void;
   onComplete: () => void;
@@ -33,6 +50,7 @@ export function SetRow({
   set,
   workoutId,
   weightUnitLabel = "kg",
+  unlockCompleted = false,
   onRefresh,
   onComplete,
   disabled,
@@ -54,8 +72,10 @@ export function SetRow({
   async function saveSet(complete = false) {
     setSaving(true);
     const data: Record<string, unknown> = {};
-    if (reps) data.reps = parseInt(reps, 10);
-    if (weight) data.weight = parseFloat(weight);
+    const rN = parseRepsInput(reps);
+    if (rN != null) data.reps = rN;
+    const wN = parseLocaleDecimal(weight);
+    if (wN != null) data.weight = wN;
     if (complete) data.isCompleted = true;
 
     if (offlineHandlers) {
@@ -106,6 +126,9 @@ export function SetRow({
   const inputClass =
     "h-11 min-h-11 w-full min-w-0 text-center text-base sm:h-7 sm:min-h-0 sm:text-sm";
 
+  const inputsLocked =
+    disabled || (set.isCompleted && !unlockCompleted);
+
   return (
     <div
       className={cn(
@@ -126,28 +149,30 @@ export function SetRow({
 
         <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:flex sm:max-w-none sm:flex-none sm:gap-2">
           <Input
-            type="number"
+            type="text"
             inputMode="decimal"
+            autoComplete="off"
             placeholder={weightUnitLabel}
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
             onBlur={() => {
-              if (weight !== (set.weight?.toString() ?? "")) saveSet();
+              if (weight !== (set.weight?.toString() ?? "")) saveSet(false);
             }}
             className={cn(inputClass, "sm:w-20")}
-            disabled={set.isCompleted || disabled}
+            disabled={inputsLocked}
           />
           <Input
-            type="number"
+            type="text"
             inputMode="numeric"
+            autoComplete="off"
             placeholder={t("workouts.repsPlaceholder")}
             value={reps}
             onChange={(e) => setReps(e.target.value)}
             onBlur={() => {
-              if (reps !== (set.reps?.toString() ?? "")) saveSet();
+              if (reps !== (set.reps?.toString() ?? "")) saveSet(false);
             }}
             className={cn(inputClass, "sm:w-20")}
-            disabled={set.isCompleted || disabled}
+            disabled={inputsLocked}
           />
         </div>
 

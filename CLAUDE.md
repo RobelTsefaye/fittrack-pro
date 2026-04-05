@@ -13,7 +13,6 @@ Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui, Prisma, PostgreSQL
 - `npm run db:migrate` — `prisma migrate deploy` (apply existing migrations, e.g. production)
 - `npm run db:push` — `prisma db push` (sync **entire** `schema.prisma` to DB without migration files — use when you see **missing column** errors locally)
 - `npx prisma generate` — regenerate Prisma client (also runs on `npm install` via `postinstall` and before `next build`)
-
 ### “Column X does not exist” (e.g. `workouts.planSessionId`)
 The app schema is ahead of your database. After `DATABASE_URL` is set, run **`npm run db:push`** (simplest for local) **or** **`npm run db:migrate`** (applies `prisma/migrations`). Then restart `npm run dev`.
 
@@ -27,6 +26,7 @@ The app schema is ahead of your database. After `DATABASE_URL` is set, run **`np
 - `src/components/` — shared UI components (shadcn/ui in components/ui/)
 - `src/lib/` — utilities (prisma client, auth config, constants)
 - `prisma/` — database schema and migrations
+- **Mobile:** Safari / “Add to Home Screen”; rest timer = wall-clock + `sessionStorage` (no native iOS shell).
 
 ## Key Patterns
 - Zod validation on all inputs (shared client/server)

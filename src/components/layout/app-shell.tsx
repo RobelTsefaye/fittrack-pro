@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { ActiveWorkoutBanner } from "@/components/layout/active-workout-banner";
+import { RestTimerProvider } from "@/features/workouts/rest-timer-context";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Navbar } from "@/components/layout/navbar";
 
@@ -38,11 +39,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <Navbar onMenuClick={() => setSidebarOpen(true)} />
-          <ActiveWorkoutBanner />
-          <main className="main-scroll flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain bg-muted/40 px-3 py-4 sm:px-4 md:p-6 safe-bottom-pad">
-            {children}
-          </main>
+          <RestTimerProvider>
+            <Navbar onMenuClick={() => setSidebarOpen(true)} />
+            <ActiveWorkoutBanner />
+            <main className="main-scroll flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain bg-muted/40 px-3 py-4 sm:px-4 md:p-6 safe-bottom-pad">
+              {children}
+            </main>
+          </RestTimerProvider>
         </div>
       </div>
     </div>

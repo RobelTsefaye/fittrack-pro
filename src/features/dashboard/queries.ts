@@ -4,6 +4,7 @@ import {
   eachMonthOfInterval,
   eachWeekOfInterval,
   endOfDay,
+  endOfWeek,
   startOfMonth,
   startOfWeek,
   subDays,
@@ -194,6 +195,40 @@ export async function getVolumeBucketsMonthly(userId: string, monthCount = 6) {
       key: k,
       label: k.slice(0, 7),
       volume: volByMonth.get(k) ?? 0,
+    };
+  });
+}
+
+/** Running max of estimated 1RM from PRs achieved up to each week end (Epley). */
+export async function getStrengthTrendWeekly(userId: string, weekCount = 12) {
+  const now = new Date();
+  const intervalStart = startOfWeek(subWeeks(now, weekCount - 1), { weekStartsOn: 1 });
+  const weekStarts = eachWeekOfInterval(
+    { start: intervalStart, end: now },
+    { weekStartsOn: 1 }
+  );
+
+  const allPrs = await prisma.personalRecord.findMany({
+    where: {
+      userId,
+      estimated1RM: { not: null, gt: 0 },
+    },
+    orderBy: { achievedAt: "asc" },
+    select: { achievedAt: true, estimated1RM: true },
+  });
+
+  let i = 0;
+  let runMax = 0;
+  return weekStarts.map((ws) => {
+    const wEnd = endOfWeek(ws, { weekStartsOn: 1 });
+    while (i < allPrs.length && allPrs[i].achievedAt <= wEnd) {
+      runMax = Math.max(runMax, allPrs[i].estimated1RM!);
+      i++;
+    }
+    return {
+      key: utcDayKey(startOfWeek(ws, { weekStartsOn: 1 })),
+      label: utcDayKey(ws).slice(5),
+      bestE1RM: runMax > 0 ? runMax : null,
     };
   });
 }
@@ -473,6 +508,7 @@ export type DashboardPayload = {
   recentPRs: Awaited<ReturnType<typeof getRecentPersonalRecords>>;
   volumeWeekly: Awaited<ReturnType<typeof getVolumeBucketsWeekly>>;
   volumeMonthly: Awaited<ReturnType<typeof getVolumeBucketsMonthly>>;
+  strengthTrendWeekly: Awaited<ReturnType<typeof getStrengthTrendWeekly>>;
   consistencyWeekly: Awaited<ReturnType<typeof getConsistencyWeekly>>;
   bodyWeightTrend: Awaited<ReturnType<typeof getBodyWeightTrend>>;
   recentWorkouts: Awaited<ReturnType<typeof getRecentWorkouts>>;
@@ -494,6 +530,7 @@ export type DashboardClientPayload = {
   }>;
   volumeWeekly: DashboardPayload["volumeWeekly"];
   volumeMonthly: DashboardPayload["volumeMonthly"];
+  strengthTrendWeekly: DashboardPayload["strengthTrendWeekly"];
   consistencyWeekly: DashboardPayload["consistencyWeekly"];
   bodyWeightTrend: DashboardPayload["bodyWeightTrend"];
   recentWorkouts: Array<{
@@ -522,6 +559,7 @@ export function toDashboardClientPayload(raw: DashboardPayload): DashboardClient
     })),
     volumeWeekly: raw.volumeWeekly,
     volumeMonthly: raw.volumeMonthly,
+    strengthTrendWeekly: raw.strengthTrendWeekly,
     consistencyWeekly: raw.consistencyWeekly,
     bodyWeightTrend: raw.bodyWeightTrend,
     recentWorkouts: raw.recentWorkouts.map((w) => ({
@@ -558,6 +596,7 @@ export async function getDashboardPayload(userId: string): Promise<DashboardPayl
     recentPRs,
     volumeWeekly,
     volumeMonthly,
+    strengthTrendWeekly,
     consistencyWeekly,
     bodyWeightTrend,
     recentWorkouts,
@@ -570,6 +609,7 @@ export async function getDashboardPayload(userId: string): Promise<DashboardPayl
     getRecentPersonalRecords(userId),
     getVolumeBucketsWeekly(userId),
     getVolumeBucketsMonthly(userId),
+    getStrengthTrendWeekly(userId),
     getConsistencyWeekly(userId),
     getBodyWeightTrend(userId),
     getRecentWorkouts(userId),
@@ -584,6 +624,7 @@ export async function getDashboardPayload(userId: string): Promise<DashboardPayl
     recentPRs,
     volumeWeekly,
     volumeMonthly,
+    strengthTrendWeekly,
     consistencyWeekly,
     bodyWeightTrend,
     recentWorkouts,
