@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -154,7 +154,7 @@ interface SortableExerciseCardProps {
   reviseCompletedSets?: boolean;
 }
 
-function SortableExerciseCard({
+const SortableExerciseCard = memo(function SortableExerciseCard({
   we,
   isActive,
   workoutId,
@@ -299,7 +299,15 @@ function SortableExerciseCard({
       </Card>
     </div>
   );
-}
+}, (prev, next) =>
+  prev.we === next.we &&
+  prev.isActive === next.isActive &&
+  prev.workoutId === next.workoutId &&
+  prev.weightLabel === next.weightLabel &&
+  prev.useLocalWrites === next.useLocalWrites &&
+  prev.previousSets === next.previousSets &&
+  prev.reviseCompletedSets === next.reviseCompletedSets
+);
 
 interface WorkoutDetailProps {
   workoutId: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { memo, useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +46,7 @@ interface SetRowProps {
   };
 }
 
-export function SetRow({
+export const SetRow = memo(function SetRow({
   set,
   workoutId,
   weightUnitLabel = "kg",
@@ -209,4 +209,14 @@ export function SetRow({
       ) : null}
     </div>
   );
-}
+}, (prev, next) =>
+  prev.set.id === next.set.id &&
+  prev.set.isCompleted === next.set.isCompleted &&
+  prev.set.weight === next.set.weight &&
+  prev.set.reps === next.set.reps &&
+  prev.set.setNumber === next.set.setNumber &&
+  prev.set.isWarmup === next.set.isWarmup &&
+  prev.disabled === next.disabled &&
+  prev.previousHint === next.previousHint &&
+  prev.unlockCompleted === next.unlockCompleted
+);

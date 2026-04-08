@@ -139,7 +139,7 @@
     "consistencyTitle": "Workout consistency",
     "consistencyHint": "Completed workouts per week (Mon-start weeks)",
     "strengthTrendTitle": "Strength trend (est. 1RM)",
-    "strengthTrendHint": "Running maximum of estimated 1RM from your logged PRs (Epley), by calendar week.",
+    "strengthTrendHint": "Running best estimated 1RM per muscle group, by calendar week. Switch tabs to compare.",
     "strengthTrendEmpty": "Log a few heavy sets — your best estimated 1RM will show here over time.",
     "strengthTrendAxis": "Best est. 1RM",
     "workoutsAxis": "Workouts",

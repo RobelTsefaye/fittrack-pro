@@ -26,6 +26,56 @@ import { WorkoutHeatmap } from "./workout-heatmap";
 
 const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
+function formatMuscleGroup(mg: string): string {
+  return mg.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function StrengthLineChart({
+  data,
+  unit,
+  axisLabel,
+}: {
+  data: { key: string; label: string; bestE1RM: number | null }[];
+  unit: string;
+  axisLabel: string;
+}) {
+  if (data.every((d) => d.bestE1RM == null)) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground text-center px-4">
+        —
+      </div>
+    );
+  }
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+        <XAxis dataKey="label" tick={{ fontSize: 10 }} className="text-muted-foreground" />
+        <YAxis tick={{ fontSize: 10 }} width={44} domain={["auto", "auto"]} />
+        <Tooltip
+          contentStyle={{
+            borderRadius: 8,
+            border: "1px solid var(--border)",
+            background: "var(--card)",
+          }}
+          formatter={(v) => [
+            typeof v === "number" ? `${Math.round(v * 10) / 10} ${unit}` : "—",
+            axisLabel,
+          ]}
+        />
+        <Line
+          type="stepAfter"
+          dataKey="bestE1RM"
+          stroke="var(--color-chart-2)"
+          strokeWidth={2}
+          dot={{ r: 3, fill: "var(--color-chart-2)" }}
+          connectNulls
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
 function formatDuration(seconds: number | null) {
   if (seconds == null) return "—";
   const m = Math.floor(seconds / 60);
@@ -50,7 +100,7 @@ export function DashboardAnalyticsChartsSection({
     recentPRs,
     volumeWeekly,
     volumeMonthly,
-    strengthTrendWeekly,
+    strengthTrendByGroup,
     consistencyWeekly,
     bodyWeightTrend,
     recentWorkouts,
@@ -125,47 +175,41 @@ export function DashboardAnalyticsChartsSection({
               {t("dashboard.strengthTrendHint")}
             </p>
           </CardHeader>
-          <CardContent className="h-[260px]">
-            {strengthTrendWeekly.every((d) => d.bestE1RM == null) ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground text-center px-4">
+          <CardContent>
+            {strengthTrendByGroup.length === 0 ? (
+              <div className="flex h-[240px] items-center justify-center text-sm text-muted-foreground text-center px-4">
                 {t("dashboard.strengthTrendEmpty")}
               </div>
+            ) : strengthTrendByGroup.length === 1 ? (
+              <div className="h-[240px]">
+                <StrengthLineChart
+                  data={strengthTrendByGroup[0].data}
+                  unit={unit}
+                  axisLabel={t("dashboard.strengthTrendAxis")}
+                />
+              </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={strengthTrendWeekly}
-                  margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+              <Tabs defaultValue={strengthTrendByGroup[0].muscleGroup}>
+                <TabsList
+                  variant="line"
+                  className="mb-3 w-full max-w-full min-w-0 flex-nowrap justify-start overflow-x-auto"
                 >
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="label" tick={{ fontSize: 10 }} className="text-muted-foreground" />
-                  <YAxis
-                    tick={{ fontSize: 10 }}
-                    width={44}
-                    domain={["auto", "auto"]}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: 8,
-                      border: "1px solid var(--border)",
-                      background: "var(--card)",
-                    }}
-                    formatter={(v) => [
-                      typeof v === "number"
-                        ? `${Math.round(v * 10) / 10} ${unit}`
-                        : "—",
-                      t("dashboard.strengthTrendAxis"),
-                    ]}
-                  />
-                  <Line
-                    type="stepAfter"
-                    dataKey="bestE1RM"
-                    stroke="var(--color-chart-2)"
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: "var(--color-chart-2)" }}
-                    connectNulls
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+                  {strengthTrendByGroup.map((g) => (
+                    <TabsTrigger key={g.muscleGroup} value={g.muscleGroup}>
+                      {formatMuscleGroup(g.muscleGroup)}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                {strengthTrendByGroup.map((g) => (
+                  <TabsContent key={g.muscleGroup} value={g.muscleGroup} className="h-[240px]">
+                    <StrengthLineChart
+                      data={g.data}
+                      unit={unit}
+                      axisLabel={t("dashboard.strengthTrendAxis")}
+                    />
+                  </TabsContent>
+                ))}
+              </Tabs>
             )}
           </CardContent>
         </Card>

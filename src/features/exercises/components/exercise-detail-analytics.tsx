@@ -1,14 +1,23 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Trophy } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExerciseProgressChart } from "./exercise-progress-chart";
-import { ExerciseVolumeChart } from "./exercise-volume-chart";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n-provider";
 import type { ProgressPoint, VolumePoint } from "@/features/exercises/progress-types";
+
+const ExerciseProgressChart = dynamic(
+  () => import("./exercise-progress-chart").then((m) => m.ExerciseProgressChart),
+  { ssr: false, loading: () => <div className="h-[220px] animate-pulse rounded bg-muted/40" /> }
+);
+
+const ExerciseVolumeChart = dynamic(
+  () => import("./exercise-volume-chart").then((m) => m.ExerciseVolumeChart),
+  { ssr: false, loading: () => <div className="h-[180px] animate-pulse rounded bg-muted/40" /> }
+);
 
 export type AnalyticsHistoryRow = {
   setId: string;
