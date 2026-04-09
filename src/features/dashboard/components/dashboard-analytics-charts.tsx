@@ -344,7 +344,7 @@ export function DashboardAnalyticsChartsSection({
             {recentPRs.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("dashboard.noPrsYet")}</p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="stagger-children space-y-3">
                 {recentPRs.map((pr) => (
                   <li key={pr.id} className="text-sm border-b border-border/60 pb-3 last:border-0 last:pb-0">
                     <Link
@@ -423,12 +423,12 @@ export function DashboardAnalyticsChartsSection({
               </Link>
             </p>
           ) : (
-            <ul className="divide-y rounded-lg border">
+            <ul className="stagger-children divide-y rounded-lg border">
               {recentWorkouts.map((w) => (
                 <li key={w.id}>
                   <Link
                     href={`/workouts/${w.id}`}
-                    className="flex flex-col gap-0.5 px-4 py-3 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-0.5 px-4 py-3 transition-[background-color] duration-[120ms] [transition-timing-function:var(--ease-out)] hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div>
                       <p className="font-medium">{w.name?.trim() || t("dashboard.workoutFallback")}</p>

@@ -98,7 +98,7 @@ export function DashboardAnalytics({
 
       <NextWorkoutCard nextSession={nextSession} />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="stagger-children grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
         {statCards.map((s) => (
           <Card key={s.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
