@@ -56,30 +56,35 @@ export function DashboardAnalytics({
       value: nf.format(summary.totalWorkouts),
       hint: t("dashboard.completedSessions"),
       icon: Dumbbell,
+      accent: false,
     },
     {
       title: t("dashboard.thisWeek"),
       value: nf.format(summary.completedThisWeek),
       hint: t("dashboard.weekHint"),
       icon: TrendingUp,
+      accent: false,
     },
     {
       title: t("dashboard.thisMonth"),
       value: nf.format(summary.completedThisMonth),
       hint: t("dashboard.completed"),
       icon: TrendingUp,
+      accent: false,
     },
     {
       title: t("dashboard.streak"),
       value: nf.format(summary.workoutStreakDays),
       hint: t("dashboard.streakHint"),
       icon: Flame,
+      accent: true,
     },
     {
       title: t("dashboard.personalRecords"),
       value: nf.format(summary.personalRecordsCount),
       hint: t("dashboard.prHint"),
       icon: Trophy,
+      accent: true,
     },
   ];
 
@@ -89,11 +94,11 @@ export function DashboardAnalytics({
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           {t("dashboard.welcome")}
           {userName ? `, ${userName.split(" ")[0]}` : ""}
         </h1>
-        <p className="text-muted-foreground">{t("dashboard.trainingOverview")}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t("dashboard.trainingOverview")}</p>
       </div>
 
       <NextWorkoutCard nextSession={nextSession} />
@@ -103,11 +108,11 @@ export function DashboardAnalytics({
           <Card key={s.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">{s.title}</CardTitle>
-              <s.icon className="h-4 w-4 text-muted-foreground" />
+              <s.icon className={`h-4 w-4 ${s.accent ? "text-primary" : "text-muted-foreground"}`} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{s.value}</div>
-              <p className="text-xs text-muted-foreground">{s.hint}</p>
+              <div className="font-display text-3xl font-bold tracking-tight">{s.value}</div>
+              <p className="mt-0.5 text-xs text-muted-foreground">{s.hint}</p>
             </CardContent>
           </Card>
         ))}

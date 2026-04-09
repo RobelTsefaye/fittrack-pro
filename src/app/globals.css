@@ -23,6 +23,7 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --font-display: var(--font-barlow-condensed);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -54,11 +55,12 @@
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 
-  --background: oklch(1 0 0);
+  /* Subtly warm white — almost imperceptible amber tint for cohesion */
+  --background: oklch(0.999 0.002 46);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  --card: oklch(0.998 0.003 46);
   --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
+  --popover: oklch(0.998 0.003 46);
   --popover-foreground: oklch(0.145 0 0);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
@@ -71,55 +73,63 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  /* Amber ring for focus indicators */
+  --ring: oklch(0.52 0.13 46);
+  /* Amber + steel-blue chart palette (readable on light) */
+  --chart-1: oklch(0.55 0.16 46);
+  --chart-2: oklch(0.48 0.12 220);
+  --chart-3: oklch(0.63 0.12 46);
+  --chart-4: oklch(0.42 0.10 220);
+  --chart-5: oklch(0.35 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
+  --sidebar: oklch(0.982 0.003 46);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-ring: oklch(0.52 0.13 46);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
+  /* Subtly amber-tinted dark surfaces — creates warmth, ties to brand */
+  --background: oklch(0.145 0.005 46);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  --card: oklch(0.205 0.004 46);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
+  --popover: oklch(0.205 0.004 46);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
+  /* Amber is the primary accent in dark mode — energy, performance, fire */
+  --primary: oklch(0.74 0.15 46);
+  --primary-foreground: oklch(0.145 0.008 46);
+  --secondary: oklch(0.269 0.003 46);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
+  --muted: oklch(0.269 0.003 46);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+  --accent: oklch(0.269 0.003 46);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
+  /* Amber ring — intentional, matches primary */
+  --ring: oklch(0.74 0.15 46);
+  /* Amber + steel-blue chart palette */
+  --chart-1: oklch(0.74 0.15 46);
+  --chart-2: oklch(0.65 0.11 220);
+  --chart-3: oklch(0.62 0.10 46);
+  --chart-4: oklch(0.55 0.09 220);
+  --chart-5: oklch(0.40 0 0);
+  /* Sidebar is visually distinct from card — its own layer */
+  --sidebar: oklch(0.175 0.004 46);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
+  /* Sidebar active state uses amber, matching primary */
+  --sidebar-primary: oklch(0.74 0.15 46);
+  --sidebar-primary-foreground: oklch(0.145 0.008 46);
+  --sidebar-accent: oklch(0.269 0.003 46);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: oklch(0.74 0.15 46);
 }
 
 @layer base {

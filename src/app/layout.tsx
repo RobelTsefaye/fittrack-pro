@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Barlow_Condensed } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { I18nProvider } from "@/lib/i18n-provider";
 import { getMessages } from "@/lib/i18n-server";
@@ -14,6 +14,14 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin", "latin-ext"],
+});
+
+/* Barlow Condensed — for large metric numerals (stat cards, big numbers).
+   Athletic, precise, distinctive without being decorative. */
+const barlowCondensed = Barlow_Condensed({
+  variable: "--font-barlow-condensed",
+  subsets: ["latin"],
+  weight: ["600", "700"],
 });
 
 export const viewport: Viewport = {
@@ -61,7 +69,7 @@ export default async function RootLayout({
   const messages = getMessages(locale);
 
   return (
-    <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang={locale} className={`${geistSans.variable} ${geistMono.variable} ${barlowCondensed.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col">
         <Providers>
           <I18nProvider locale={locale} messages={messages}>
