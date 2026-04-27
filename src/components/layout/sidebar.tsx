@@ -66,13 +66,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               prefetch
               onClick={onClose}
               className={cn(
-                "flex min-h-11 items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                "relative flex min-h-11 items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
                 isActive
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <item.icon className="h-4 w-4" />
+              {isActive && (
+                <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary" aria-hidden />
+              )}
+              <item.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "")} />
               {t(item.labelKey)}
             </Link>
           );

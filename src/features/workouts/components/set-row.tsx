@@ -132,8 +132,10 @@ export const SetRow = memo(function SetRow({
   return (
     <div
       className={cn(
-        "rounded-lg px-2 py-2 sm:px-2 sm:py-1.5",
-        set.isCompleted ? "bg-green-500/10" : "bg-muted/50"
+        "rounded-lg px-2 py-2 transition-colors sm:px-2 sm:py-1.5",
+        set.isCompleted
+          ? "bg-green-500/10 ring-1 ring-green-500/20 dark:bg-green-500/8 dark:ring-green-500/15"
+          : "bg-muted/50"
       )}
     >
       <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">

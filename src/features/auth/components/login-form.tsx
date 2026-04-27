@@ -60,7 +60,11 @@ export function LoginForm() {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            <div
+              id="login-error"
+              role="alert"
+              className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+            >
               {error}
             </div>
           )}
@@ -74,6 +78,8 @@ export function LoginForm() {
               placeholder="you@example.com"
               required
               autoComplete="email"
+              aria-invalid={!!error || undefined}
+              aria-describedby={error ? "login-error" : undefined}
             />
           </div>
 
@@ -86,6 +92,8 @@ export function LoginForm() {
               placeholder={t("auth.login.passwordPlaceholder")}
               required
               autoComplete="current-password"
+              aria-invalid={!!error || undefined}
+              aria-describedby={error ? "login-error" : undefined}
             />
           </div>
 

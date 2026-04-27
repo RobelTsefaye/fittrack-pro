@@ -153,6 +153,8 @@
   html {
     @apply font-sans;
     touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   button,
   [role="button"],
@@ -165,6 +167,15 @@
   [role="menuitem"],
   [role="tab"] {
     touch-action: manipulation;
+  }
+  /* Momentum scrolling on iOS for all scroll containers */
+  [class*="overflow-y-auto"],
+  [class*="overflow-y-scroll"] {
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Prevent tap highlight flash on mobile */
+  * {
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
@@ -182,6 +193,12 @@
 .safe-bottom-inset {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
 }
+/* Main scroll container — iOS momentum + contain for GPU layer */
+.main-scroll {
+  -webkit-overflow-scrolling: touch;
+  contain: layout style;
+}
+
 .safe-x-pad {
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);

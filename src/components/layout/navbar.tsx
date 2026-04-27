@@ -76,8 +76,8 @@ export function Navbar({ onMenuClick }: NavbarProps) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <div className="px-2 py-1.5">
-                <p className="truncate text-sm font-medium">{session?.user?.name}</p>
-                <p className="break-all text-xs text-muted-foreground">{session?.user?.email}</p>
+                <p className="truncate text-sm font-medium">{session?.user?.name ?? "—"}</p>
+                <p className="truncate text-xs text-muted-foreground">{session?.user?.email ?? ""}</p>
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem

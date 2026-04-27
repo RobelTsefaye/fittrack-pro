@@ -205,6 +205,7 @@
     "couldNotStart": "Could not start workout.",
     "invalidResponse": "Invalid response from server.",
     "removeExerciseAria": "Remove exercise",
+    "dragToReorderAria": "Drag to reorder exercise (or use Space to pick up, arrow keys to move)",
     "workoutFallback": "Workout",
     "workoutNamePlaceholder": "Workout name",
     "finishWorkout": "Finish workout",

@@ -93,23 +93,36 @@ export function ExercisePickerDialog({
       };
     }
 
+    const controller = new AbortController();
+
     async function load() {
       setFetching(true);
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (muscleGroup) params.set("muscleGroup", muscleGroup);
+      try {
+        const params = new URLSearchParams();
+        if (search) params.set("search", search);
+        if (muscleGroup) params.set("muscleGroup", muscleGroup);
 
-      const res = await fetch(`/api/exercises?${params}`, { credentials: "include" });
-      if (res.ok) {
-        const json = (await res.json()) as { data: ExercisePickerExercise[] };
-        setExercises(json.data);
-        await saveExerciseCatalog(json.data);
+        const res = await fetch(`/api/exercises?${params}`, {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          const json = (await res.json()) as { data: ExercisePickerExercise[] };
+          setExercises(json.data);
+          await saveExerciseCatalog(json.data);
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      } finally {
+        setFetching(false);
       }
-      setFetching(false);
     }
 
     const timeout = setTimeout(() => void load(), 300);
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
   }, [open, search, muscleGroup, offlineMode]);
 
   return (

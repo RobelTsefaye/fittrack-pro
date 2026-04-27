@@ -205,6 +205,7 @@
     "couldNotStart": "Workout konnte nicht gestartet werden.",
     "invalidResponse": "Ungültige Serverantwort.",
     "removeExerciseAria": "Übung entfernen",
+    "dragToReorderAria": "Zum Umsortieren ziehen (oder Leertaste zum Aufnehmen, Pfeiltasten zum Bewegen)",
     "workoutFallback": "Workout",
     "workoutNamePlaceholder": "Workout-Name",
     "finishWorkout": "Workout beenden",

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import dynamic from "next/dynamic";
 import { Dumbbell, Flame, Trophy, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,7 +51,7 @@ export function DashboardAnalytics({
   const { t } = useI18n();
   const { summary, nextSession, heatmap } = payload;
 
-  const statCards = [
+  const statCards = useMemo(() => [
     {
       title: t("dashboard.totalWorkouts"),
       value: nf.format(summary.totalWorkouts),
@@ -86,7 +87,14 @@ export function DashboardAnalytics({
       icon: Trophy,
       accent: true,
     },
-  ];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [
+    summary.totalWorkouts,
+    summary.completedThisWeek,
+    summary.completedThisMonth,
+    summary.workoutStreakDays,
+    summary.personalRecordsCount,
+  ]);
 
   const empty = summary.totalWorkouts === 0;
   const heatmapWeeks = heatmap.length;
@@ -105,13 +113,18 @@ export function DashboardAnalytics({
 
       <div className="stagger-children grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
         {statCards.map((s) => (
-          <Card key={s.title}>
+          <Card
+            key={s.title}
+            className={s.accent ? "border-primary/30 bg-primary/5 dark:bg-primary/8" : undefined}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">{s.title}</CardTitle>
-              <s.icon className={`h-4 w-4 ${s.accent ? "text-primary" : "text-muted-foreground"}`} />
+              <s.icon className={`h-4 w-4 ${s.accent ? "text-primary" : "text-muted-foreground/60"}`} />
             </CardHeader>
             <CardContent>
-              <div className="font-display text-3xl font-bold tracking-tight">{s.value}</div>
+              <div className={`font-display text-3xl font-bold tracking-tight${s.accent ? " text-primary" : ""}`}>
+                {s.value}
+              </div>
               <p className="mt-0.5 text-xs text-muted-foreground">{s.hint}</p>
             </CardContent>
           </Card>

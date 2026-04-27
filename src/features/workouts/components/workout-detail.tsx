@@ -8,6 +8,7 @@ import { ArrowLeft, CheckCircle2, Clock, GripVertical, Plus, Timer, Trash2 } fro
 import {
   DndContext,
   closestCenter,
+  KeyboardSensor,
   PointerSensor,
   TouchSensor,
   useSensor,
@@ -16,6 +17,7 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
+  sortableKeyboardCoordinates,
   verticalListSortingStrategy,
   useSortable,
   arrayMove,
@@ -198,7 +200,7 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
               <button
                 type="button"
                 className="mt-0.5 cursor-grab touch-none shrink-0 text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
-                aria-label="Drag to reorder"
+                aria-label={t("workouts.dragToReorderAria")}
                 {...attributes}
                 {...listeners}
               >
@@ -424,7 +426,8 @@ export function WorkoutDetail({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -452,11 +455,28 @@ export function WorkoutDetail({
     if (reorderPending.current) return;
     reorderPending.current = true;
     try {
-      await fetch(`/api/workouts/${workoutId}/exercises/reorder`, {
+      const res = await fetch(`/api/workouts/${workoutId}/exercises/reorder`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: newIds }),
       });
+      if (!res.ok) {
+        // Roll back optimistic update on failure
+        setExerciseIds(exerciseIds);
+        setWorkout((prev) => {
+          if (!prev) return prev;
+          const byId = new Map(prev.workoutExercises.map((we) => [we.id, we]));
+          return {
+            ...prev,
+            workoutExercises: exerciseIds
+              .map((id, i) => ({ ...byId.get(id)!, order: i + 1 }))
+              .filter(Boolean),
+          };
+        });
+      }
+    } catch {
+      // Roll back on network error
+      setExerciseIds(exerciseIds);
     } finally {
       reorderPending.current = false;
     }
@@ -994,10 +1014,12 @@ export function WorkoutDetail({
 
         {isActive ? (
           <Button
-            className="w-full shrink-0 sm:w-auto"
+            className="w-full shrink-0 sm:w-auto font-semibold"
+            size="lg"
             onClick={completeWorkout}
             disabled={completing}
           >
+            <CheckCircle2 className="mr-2 h-4 w-4" />
             {completing ? t("workouts.finishing") : t("workouts.finishWorkout")}
           </Button>
         ) : workout.completedAt ? (

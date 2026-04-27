@@ -35,6 +35,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               e.preventDefault();
               closeSidebar();
             }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") closeSidebar();
+            }}
           />
         )}
 

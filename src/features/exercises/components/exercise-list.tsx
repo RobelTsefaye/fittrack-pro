@@ -24,27 +24,36 @@ export function ExerciseList() {
 
   const fetchExercises = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams(searchParams.toString());
-    const res = await fetch(`/api/exercises?${params.toString()}`);
-    const json = await res.json();
-    const data: ExerciseData[] = json.data ?? [];
-    setExercises(data);
-    // Cache full list (no filters) for offline exercise picker
-    if (!searchParams.has("search") && !searchParams.has("muscleGroup") && !searchParams.has("equipment")) {
-      void saveExerciseCatalog(
-        data.map((e) => ({
-          id: e.id,
-          name: e.name,
-          muscleGroup: e.muscleGroup,
-          equipment: e.equipment,
-        }))
-      );
+    try {
+      const params = new URLSearchParams(searchParams.toString());
+      const res = await fetch(`/api/exercises?${params.toString()}`);
+      if (!res.ok) {
+        setExercises([]);
+        return;
+      }
+      const json = await res.json() as { data?: ExerciseData[] };
+      const data: ExerciseData[] = json.data ?? [];
+      setExercises(data);
+      // Cache full list (no filters) for offline exercise picker
+      if (!searchParams.has("search") && !searchParams.has("muscleGroup") && !searchParams.has("equipment")) {
+        void saveExerciseCatalog(
+          data.map((e) => ({
+            id: e.id,
+            name: e.name,
+            muscleGroup: e.muscleGroup,
+            equipment: e.equipment,
+          }))
+        );
+      }
+    } catch {
+      setExercises([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [searchParams]);
 
   useEffect(() => {
-    fetchExercises();
+    void fetchExercises();
   }, [fetchExercises]);
 
   function handleEdit(exercise: ExerciseData) {
