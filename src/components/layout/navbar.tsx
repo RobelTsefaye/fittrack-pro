@@ -1,104 +1,88 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
-import { Menu, LogOut, User, WifiOff } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { Menu, WifiOff } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
+import { ROUTES } from "@/lib/constants";
 
-interface NavbarProps {
+/* ── Page-title lookup for the mobile top bar ───────────────────── */
+function usePageTitle() {
+  const pathname = usePathname();
+  const { t } = useI18n();
+
+  if (pathname === ROUTES.dashboard)  return t("nav.dashboard");
+  if (pathname.startsWith(ROUTES.workouts))   return t("nav.workouts");
+  if (pathname.startsWith(ROUTES.plans))      return t("nav.plans");
+  if (pathname.startsWith(ROUTES.exercises))  return t("nav.exercises");
+  if (pathname.startsWith(ROUTES.bodyWeight)) return t("nav.bodyWeight");
+  if (pathname.startsWith(ROUTES.settings))   return t("nav.settings");
+  return "";
+}
+
+interface MobileTopBarProps {
   onMenuClick: () => void;
 }
 
-export function Navbar({ onMenuClick }: NavbarProps) {
+/** Visible only on mobile (< lg). Desktop shows the sidebar instead. */
+export function MobileTopBar({ onMenuClick }: MobileTopBarProps) {
   const { t } = useI18n();
-  const router = useRouter();
   const { data: session } = useSession();
-  const [isOnline, setIsOnline] = useState(true); // true on SSR to avoid hydration mismatch
+  const [isOnline, setIsOnline] = useState(true);
+  const title = usePageTitle();
 
   useEffect(() => {
     setIsOnline(navigator.onLine);
-    const on = () => setIsOnline(true);
+    const on  = () => setIsOnline(true);
     const off = () => setIsOnline(false);
-    window.addEventListener("online", on);
+    window.addEventListener("online",  on);
     window.addEventListener("offline", off);
     return () => {
-      window.removeEventListener("online", on);
+      window.removeEventListener("online",  on);
       window.removeEventListener("offline", off);
     };
   }, []);
 
   const initials = session?.user?.name
-    ?.split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2) ?? "?";
+    ?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) ?? "?";
 
   return (
-    <header className="z-40 shrink-0 border-b bg-card">
+    <header className={cn("shrink-0 lg:hidden", "safe-top-pad")}>
+      {/* Offline banner */}
       {!isOnline && (
-        <div className="flex items-center gap-2 bg-amber-500/15 px-3 py-1.5 text-xs text-amber-800 dark:text-amber-200">
+        <div className="flex items-center gap-2 bg-amber-500/15 px-4 py-1.5 text-xs text-amber-800 dark:text-amber-200">
           <WifiOff className="h-3.5 w-3.5 shrink-0" />
           <span>{t("offline.banner")}</span>
         </div>
       )}
-      <div className="flex h-14 items-center gap-2 px-3 sm:px-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-11 shrink-0 touch-manipulation lg:hidden"
+
+      {/* Top bar */}
+      <div className="flex h-12 items-center gap-3 border-b border-border/60 bg-card/80 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-card/70">
+        <button
+          type="button"
           onClick={onMenuClick}
-          aria-label="Menu"
+          aria-label="Menü öffnen"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
         >
           <Menu className="h-5 w-5" />
-        </Button>
+        </button>
 
-        <div className="min-w-0 flex-1 lg:flex-none" />
+        <span className="min-w-0 flex-1 text-[0.9375rem] font-semibold tracking-tight text-foreground truncate">
+          {title}
+        </span>
 
-        <div className="ml-auto shrink-0">
-          <DropdownMenu>
-            <DropdownMenuTrigger className="relative flex size-11 touch-manipulation items-center justify-center rounded-full outline-none hover:opacity-80">
-              <Avatar className="h-9 w-9 sm:h-10 sm:w-10">
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <div className="px-2 py-1.5">
-                <p className="truncate text-sm font-medium">{session?.user?.name ?? "—"}</p>
-                <p className="truncate text-xs text-muted-foreground">{session?.user?.email ?? ""}</p>
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="cursor-pointer"
-                onClick={() => router.push("/settings")}
-              >
-                <User className="h-4 w-4" />
-                {t("navbar.settings")}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => signOut({ callbackUrl: "/login" })}
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                {t("navbar.signOut")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <Avatar className="h-8 w-8 shrink-0">
+          <AvatarFallback className="bg-primary text-primary-foreground text-[0.65rem] font-semibold">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
       </div>
     </header>
   );
 }
+
+/* Legacy named export — kept for any remaining imports */
+export { MobileTopBar as Navbar };

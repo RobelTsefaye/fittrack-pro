@@ -8,7 +8,9 @@
     "exercises": "Exercises",
     "bodyWeight": "Body Weight",
     "plans": "Plans",
-    "settings": "Settings"
+    "settings": "Settings",
+    "sectionTraining": "Training",
+    "sectionAccount": "Account"
   },
   "navbar": {
     "settings": "Settings",

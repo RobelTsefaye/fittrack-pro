@@ -5,51 +5,55 @@ import { usePathname } from "next/navigation";
 import { ActiveWorkoutBanner } from "@/components/layout/active-workout-banner";
 import { RestTimerProvider } from "@/features/workouts/rest-timer-context";
 import { Sidebar } from "@/components/layout/sidebar";
-import { Navbar } from "@/components/layout/navbar";
+import { MobileTopBar } from "@/components/layout/navbar";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
 
-  // Close sidebar on route change (navigation via link)
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [pathname]);
+  useEffect(() => { setSidebarOpen(false); }, [pathname]);
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
   return (
-    <div className="flex h-dvh max-h-dvh min-h-dvh flex-col overflow-hidden safe-top-pad">
-      <div className="flex min-w-0 flex-1 overflow-hidden">
-        <Sidebar open={sidebarOpen} onClose={closeSidebar} />
+    <div className="flex h-dvh max-h-dvh min-h-dvh overflow-hidden bg-background">
 
-        {/* Backdrop overlay — uses button for guaranteed touch handling in
-            iOS standalone / PWA mode where plain div onClick is unreliable */}
-        {sidebarOpen && (
-          <button
-            type="button"
-            className="fixed inset-0 z-40 cursor-pointer touch-manipulation bg-black/50 lg:hidden"
-            aria-label="Close menu"
-            onClick={closeSidebar}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              closeSidebar();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") closeSidebar();
-            }}
-          />
-        )}
+      {/* ── Desktop sidebar — always visible on lg+ ─────── */}
+      <Sidebar open={sidebarOpen} onClose={closeSidebar} />
 
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <RestTimerProvider>
-            <Navbar onMenuClick={() => setSidebarOpen(true)} />
-            <ActiveWorkoutBanner />
-            <main className="main-scroll flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain bg-muted/40 px-3 py-4 sm:px-4 md:p-6 safe-bottom-pad">
+      {/* ── Mobile backdrop ──────────────────────────────── */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 cursor-pointer touch-manipulation bg-black/40 backdrop-blur-sm lg:hidden"
+          aria-label="Menü schließen"
+          onClick={closeSidebar}
+          onTouchEnd={(e) => { e.preventDefault(); closeSidebar(); }}
+          onKeyDown={(e) => { if (e.key === "Escape") closeSidebar(); }}
+        />
+      )}
+
+      {/* ── Main column ──────────────────────────────────── */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <RestTimerProvider>
+
+          {/* Mobile top bar — hidden on desktop (sidebar replaces it) */}
+          <MobileTopBar onMenuClick={() => setSidebarOpen(true)} />
+
+          {/* Active workout strip */}
+          <ActiveWorkoutBanner />
+
+          {/* Scrollable content */}
+          <main
+            id="main-content"
+            className="main-scroll flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background px-4 py-5 sm:px-6 md:px-8 md:py-7 safe-bottom-pad"
+          >
+            <div className="mx-auto w-full max-w-5xl">
               {children}
-            </main>
-          </RestTimerProvider>
-        </div>
+            </div>
+          </main>
+
+        </RestTimerProvider>
       </div>
     </div>
   );
