@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Plus, ListChecks, TrendingUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dumbbell, Plus, TrendingUp } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { ExerciseCard, type ExerciseData } from "./exercise-card";
 import { ExerciseFormDialog } from "./exercise-form-dialog";
 import { ExerciseDeleteDialog } from "./exercise-delete-dialog";
@@ -27,22 +27,13 @@ export function ExerciseList() {
     try {
       const params = new URLSearchParams(searchParams.toString());
       const res = await fetch(`/api/exercises?${params.toString()}`);
-      if (!res.ok) {
-        setExercises([]);
-        return;
-      }
+      if (!res.ok) { setExercises([]); return; }
       const json = await res.json() as { data?: ExerciseData[] };
       const data: ExerciseData[] = json.data ?? [];
       setExercises(data);
-      // Cache full list (no filters) for offline exercise picker
       if (!searchParams.has("search") && !searchParams.has("muscleGroup") && !searchParams.has("equipment")) {
         void saveExerciseCatalog(
-          data.map((e) => ({
-            id: e.id,
-            name: e.name,
-            muscleGroup: e.muscleGroup,
-            equipment: e.equipment,
-          }))
+          data.map((e) => ({ id: e.id, name: e.name, muscleGroup: e.muscleGroup, equipment: e.equipment }))
         );
       }
     } catch {
@@ -52,95 +43,107 @@ export function ExerciseList() {
     }
   }, [searchParams]);
 
-  useEffect(() => {
-    void fetchExercises();
-  }, [fetchExercises]);
+  useEffect(() => { void fetchExercises(); }, [fetchExercises]);
 
-  function handleEdit(exercise: ExerciseData) {
-    setEditingExercise(exercise);
-    setFormOpen(true);
-  }
+  function handleEdit(exercise: ExerciseData) { setEditingExercise(exercise); setFormOpen(true); }
+  function handleDelete(exercise: ExerciseData) { setDeletingExercise(exercise); }
+  function handleFormClose(open: boolean) { setFormOpen(open); if (!open) setEditingExercise(null); }
 
-  function handleDelete(exercise: ExerciseData) {
-    setDeletingExercise(exercise);
-  }
+  const grouped = exercises.reduce<Record<string, ExerciseData[]>>((acc, e) => {
+    if (!acc[e.muscleGroup]) acc[e.muscleGroup] = [];
+    acc[e.muscleGroup].push(e);
+    return acc;
+  }, {});
 
-  function handleFormClose(open: boolean) {
-    setFormOpen(open);
-    if (!open) setEditingExercise(null);
-  }
-
-  // Group exercises by muscle group
-  const grouped = exercises.reduce<Record<string, ExerciseData[]>>(
-    (acc, exercise) => {
-      const group = exercise.muscleGroup;
-      if (!acc[group]) acc[group] = [];
-      acc[group].push(exercise);
-      return acc;
-    },
-    {}
-  );
-
-  const formatLabel = (value: string) =>
-    value
-      .replace(/_/g, " ")
-      .toLowerCase()
-      .replace(/\b\w/g, (c) => c.toUpperCase());
+  const formatLabel = (v: string) =>
+    v.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
     <>
-      <div className="flex items-center justify-between">
+      {/* ── Page header ─────────────────────────────── */}
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("exercises.title")}</h1>
-          <p className="text-muted-foreground">
+          <h1 className="page-title">{t("exercises.title")}</h1>
+          <p className="mt-0.5 text-sm text-[var(--sys-label2)]">
             {t("exercises.countInLibrary", { count: exercises.length })}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+        <div className="flex shrink-0 items-center gap-2">
           <Link
             href={ROUTES.exercisesUsage}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            className="hidden sm:inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:opacity-80"
           >
             <TrendingUp className="h-4 w-4" />
             {t("exercises.usageLink")}
           </Link>
-          <Button onClick={() => setFormOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
+          <button
+            type="button"
+            onClick={() => setFormOpen(true)}
+            className={cn(buttonVariants({ size: "default" }), "shrink-0")}
+          >
+            <Plus className="h-4 w-4" />
             {t("exercises.newExercise")}
-          </Button>
+          </button>
         </div>
       </div>
 
-      {loading ? (
-        <div className="space-y-3">
-          {[...Array(5)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className="h-16 animate-pulse bg-muted/50" />
-            </Card>
+      {/* ── Loading skeleton ─────────────────────────── */}
+      {loading && (
+        <div className="space-y-6">
+          {[...Array(3)].map((_, g) => (
+            <div key={g} className="space-y-2">
+              <div className="h-3 w-28 rounded-full bg-[var(--sys-fill2)] animate-pulse" />
+              <div className="ios-group animate-pulse">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="ios-row h-16">
+                    <div className="h-9 w-9 rounded-xl bg-[var(--sys-fill2)]" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3.5 w-1/2 rounded-full bg-[var(--sys-fill2)]" />
+                      <div className="h-2.5 w-1/3 rounded-full bg-[var(--sys-fill2)]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
-      ) : exercises.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <ListChecks className="h-12 w-12 text-muted-foreground/50" />
-            <CardHeader className="text-center">
-              <CardTitle className="text-lg">{t("exercises.noExercises")}</CardTitle>
-            </CardHeader>
-            <p className="text-sm text-muted-foreground">
-              {t("exercises.noExercisesHint")}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
+      )}
+
+      {/* ── Empty state ──────────────────────────────── */}
+      {!loading && exercises.length === 0 && (
+        <div className="ios-group">
+          <div className="flex flex-col items-center gap-4 py-16 text-center px-6">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--sys-fill)]">
+              <Dumbbell className="h-7 w-7 text-[var(--sys-label2)]" />
+            </div>
+            <div>
+              <p className="font-semibold text-[0.9375rem]">{t("exercises.noExercises")}</p>
+              <p className="mt-1 text-sm text-[var(--sys-label2)]">{t("exercises.noExercisesHint")}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFormOpen(true)}
+              className={cn(buttonVariants(), "justify-center")}
+            >
+              <Plus className="h-4 w-4" />
+              {t("exercises.newExercise")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Grouped exercise list ────────────────────── */}
+      {!loading && exercises.length > 0 && (
         <div className="space-y-6">
           {Object.entries(grouped)
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([group, groupExercises]) => (
-              <div key={group}>
-                <h2 className="mb-2 text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                  {formatLabel(group)} ({groupExercises.length})
-                </h2>
-                <div className="space-y-2">
+              <section key={group} className="space-y-2">
+                <p className="ios-section-label">
+                  {formatLabel(group)}{" "}
+                  <span className="font-normal opacity-60">({groupExercises.length})</span>
+                </p>
+                <div className="ios-group">
                   {groupExercises.map((exercise) => (
                     <ExerciseCard
                       key={exercise.id}
@@ -150,7 +153,7 @@ export function ExerciseList() {
                     />
                   ))}
                 </div>
-              </div>
+              </section>
             ))}
         </div>
       )}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Dumbbell, TrendingUp, Brain, ArrowRight } from "lucide-react";
+import { Dumbbell, TrendingUp, Brain, ArrowRight, Wifi } from "lucide-react";
 import { APP_NAME } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
 import { LOCALE_COOKIE } from "@/lib/i18n-config";
@@ -10,96 +10,126 @@ import { cn } from "@/lib/utils";
 
 function LandingLocaleSwitch() {
   const { t, locale } = useI18n();
-
   function setLang(l: UiLocale) {
     document.cookie = `${LOCALE_COOKIE}=${l};path=/;max-age=31536000;SameSite=Lax`;
     window.location.reload();
   }
-
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
+    <div className="flex items-center justify-center gap-3 text-xs text-[var(--sys-label3)]">
       <span>{t("landing.language")}:</span>
-      <button
-        type="button"
-        className={cn("underline-offset-2 hover:underline", locale === "en" && "font-semibold text-foreground")}
-        onClick={() => setLang("en")}
-      >
-        English
-      </button>
-      <span aria-hidden>·</span>
-      <button
-        type="button"
-        className={cn("underline-offset-2 hover:underline", locale === "de" && "font-semibold text-foreground")}
-        onClick={() => setLang("de")}
-      >
-        Deutsch
-      </button>
+      {(["en", "de"] as UiLocale[]).map((l) => (
+        <button
+          key={l}
+          type="button"
+          className={cn(
+            "transition-colors",
+            locale === l
+              ? "font-semibold text-foreground"
+              : "hover:text-foreground/70"
+          )}
+          onClick={() => setLang(l)}
+        >
+          {l === "en" ? "English" : "Deutsch"}
+        </button>
+      ))}
     </div>
   );
 }
+
+const features = [
+  {
+    icon: Dumbbell,
+    titleKey: "landing.featureWorkoutsTitle" as const,
+    descKey:  "landing.featureWorkoutsDesc"  as const,
+  },
+  {
+    icon: TrendingUp,
+    titleKey: "landing.featureProgressTitle" as const,
+    descKey:  "landing.featureProgressDesc"  as const,
+  },
+  {
+    icon: Brain,
+    titleKey: "landing.featureAiTitle"       as const,
+    descKey:  "landing.featureAiDesc"        as const,
+  },
+  {
+    icon: Wifi,
+    titleKey: "landing.featureOfflineTitle"  as const,
+    descKey:  "landing.featureOfflineDesc"   as const,
+  },
+];
 
 export function LandingView() {
   const { t } = useI18n();
 
   return (
-    <main className="flex min-h-screen flex-col">
-      <section className="flex flex-1 flex-col items-center justify-center px-4 text-center">
-        <div className="mx-auto max-w-2xl space-y-6">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary">
-            <Dumbbell className="h-8 w-8 text-primary-foreground" />
-          </div>
+    <main className="flex min-h-screen flex-col bg-[var(--sys-grouped-bg)]">
 
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{APP_NAME}</h1>
+      {/* ── Hero ───────────────────────────────────── */}
+      <section className="flex flex-1 flex-col items-center justify-center px-5 py-20 text-center">
+        {/* App icon */}
+        <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-[22px] bg-foreground shadow-xl shadow-black/20">
+          <Dumbbell className="h-10 w-10 text-background" />
+        </div>
 
-          <p className="text-lg text-muted-foreground">{t("landing.tagline")}</p>
+        <h1 className="page-title mb-3">{APP_NAME}</h1>
 
-          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <Link
-              href="/register"
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              {t("landing.getStarted")}
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/login"
-              className="inline-flex h-10 items-center justify-center rounded-lg border border-border bg-background px-6 text-sm font-medium transition-colors hover:bg-muted"
-            >
-              {t("landing.signIn")}
-            </Link>
-          </div>
+        <p className="mb-10 max-w-xs text-[1.0625rem] leading-relaxed text-[var(--sys-label2)]">
+          {t("landing.tagline")}
+        </p>
+
+        {/* CTAs */}
+        <div className="flex w-full max-w-xs flex-col gap-3">
+          <Link
+            href="/register"
+            className={cn(
+              "flex h-12 items-center justify-center gap-2 rounded-2xl",
+              "bg-primary text-primary-foreground",
+              "text-[0.9375rem] font-semibold shadow-md shadow-black/12",
+              "transition-opacity hover:opacity-90 active:opacity-75 active:scale-[0.98]",
+              "transition-all duration-150"
+            )}
+          >
+            {t("landing.getStarted")}
+            <ArrowRight className="h-4.5 w-4.5" />
+          </Link>
+          <Link
+            href="/login"
+            className={cn(
+              "flex h-12 items-center justify-center rounded-2xl",
+              "bg-card border border-border",
+              "text-[0.9375rem] font-medium text-foreground",
+              "shadow-sm shadow-black/5",
+              "transition-opacity hover:opacity-80 active:opacity-60 active:scale-[0.98]",
+              "transition-all duration-150"
+            )}
+          >
+            {t("landing.signIn")}
+          </Link>
         </div>
       </section>
 
-      <section className="border-t bg-muted/40 px-4 py-16">
-        <div className="mx-auto grid max-w-4xl gap-8 md:grid-cols-3">
-          <div className="space-y-2 text-center">
-            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Dumbbell className="h-5 w-5 text-primary" />
+      {/* ── Features ───────────────────────────────── */}
+      <section className="px-5 pb-16">
+        <div className="ios-group mx-auto max-w-md">
+          {features.map(({ icon: Icon, titleKey, descKey }, i) => (
+            <div key={i} className="ios-row gap-4 py-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                <Icon className="h-5 w-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-[0.9375rem]">{t(titleKey)}</p>
+                <p className="mt-0.5 text-sm text-[var(--sys-label2)]">{t(descKey)}</p>
+              </div>
             </div>
-            <h3 className="font-semibold">{t("landing.featureWorkoutsTitle")}</h3>
-            <p className="text-sm text-muted-foreground">{t("landing.featureWorkoutsDesc")}</p>
-          </div>
-          <div className="space-y-2 text-center">
-            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <TrendingUp className="h-5 w-5 text-primary" />
-            </div>
-            <h3 className="font-semibold">{t("landing.featureProgressTitle")}</h3>
-            <p className="text-sm text-muted-foreground">{t("landing.featureProgressDesc")}</p>
-          </div>
-          <div className="space-y-2 text-center">
-            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Brain className="h-5 w-5 text-primary" />
-            </div>
-            <h3 className="font-semibold">{t("landing.featureAiTitle")}</h3>
-            <p className="text-sm text-muted-foreground">{t("landing.featureAiDesc")}</p>
-          </div>
+          ))}
         </div>
       </section>
 
-      <footer className="border-t px-4 py-4 text-center text-xs text-muted-foreground space-y-3">
+      {/* ── Footer ─────────────────────────────────── */}
+      <footer className="border-t border-border px-5 py-5 text-center space-y-3">
         <LandingLocaleSwitch />
-        <p>{t("landing.footer")}</p>
+        <p className="text-xs text-[var(--sys-label3)]">{t("landing.footer")}</p>
       </footer>
     </main>
   );

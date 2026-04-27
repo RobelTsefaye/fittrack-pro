@@ -4,13 +4,12 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Dumbbell } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { registerSchema } from "../schemas";
 import { registerUser } from "../actions/register";
 import { useI18n } from "@/lib/i18n-provider";
+import { APP_NAME } from "@/lib/constants";
 
 export function RegisterForm() {
   const { t } = useI18n();
@@ -25,9 +24,9 @@ export function RegisterForm() {
 
     const formData = new FormData(e.currentTarget);
     const data = {
-      name: formData.get("name") as string,
-      email: formData.get("email") as string,
-      password: formData.get("password") as string,
+      name:            formData.get("name")            as string,
+      email:           formData.get("email")           as string,
+      password:        formData.get("password")        as string,
       confirmPassword: formData.get("confirmPassword") as string,
     };
 
@@ -45,13 +44,11 @@ export function RegisterForm() {
       return;
     }
 
-    // Auto sign in after registration
     const signInResult = await signIn("credentials", {
-      email: data.email,
+      email:    data.email,
       password: data.password,
       redirect: false,
     });
-
     if (signInResult?.error) {
       setError(t("auth.register.signInFailed"));
       setLoading(false);
@@ -63,83 +60,85 @@ export function RegisterForm() {
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold">{t("auth.register.title")}</CardTitle>
-        <CardDescription>{t("auth.register.description")}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div
-              id="register-error"
-              role="alert"
-              className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
-            >
-              {error}
-            </div>
-          )}
+    <div className="w-full max-w-sm px-5">
 
-          <div className="space-y-2">
-            <Label htmlFor="name">{t("auth.register.name")}</Label>
-            <Input
-              id="name"
-              name="name"
-              type="text"
+      <div className="mb-8 text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[18px] bg-foreground shadow-lg shadow-black/20">
+          <Dumbbell className="h-8 w-8 text-background" />
+        </div>
+        <h1 className="text-[1.625rem] font-bold tracking-tight">{t("auth.register.title")}</h1>
+        <p className="mt-1 text-sm text-[var(--sys-label2)]">{APP_NAME}</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div
+            id="register-error"
+            role="alert"
+            className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
+            {error}
+          </div>
+        )}
+
+        <div className="ios-group">
+          <div className="ios-row flex-col items-start gap-1.5 py-3">
+            <label htmlFor="name" className="text-[0.8125rem] font-medium text-[var(--sys-label2)]">
+              {t("auth.register.name")}
+            </label>
+            <input
+              id="name" name="name" type="text"
               placeholder={t("auth.register.namePlaceholder")}
-              required
-              autoComplete="name"
+              required autoComplete="name"
+              className="w-full bg-transparent text-[0.9375rem] text-foreground placeholder:text-muted-foreground/50 outline-none"
             />
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="email">{t("auth.register.email")}</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="you@example.com"
-              required
-              autoComplete="email"
+          <div className="ios-row flex-col items-start gap-1.5 py-3">
+            <label htmlFor="email" className="text-[0.8125rem] font-medium text-[var(--sys-label2)]">
+              {t("auth.register.email")}
+            </label>
+            <input
+              id="email" name="email" type="email"
+              placeholder="name@example.com"
+              required autoComplete="email"
+              className="w-full bg-transparent text-[0.9375rem] text-foreground placeholder:text-muted-foreground/50 outline-none"
             />
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password">{t("auth.register.password")}</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              placeholder={t("auth.register.passwordPlaceholder")}
-              required
-              autoComplete="new-password"
+          <div className="ios-row flex-col items-start gap-1.5 py-3">
+            <label htmlFor="password" className="text-[0.8125rem] font-medium text-[var(--sys-label2)]">
+              {t("auth.register.password")}
+            </label>
+            <input
+              id="password" name="password" type="password"
+              placeholder="••••••••"
+              required autoComplete="new-password"
+              className="w-full bg-transparent text-[0.9375rem] text-foreground placeholder:text-muted-foreground/50 outline-none"
             />
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword">{t("auth.register.confirmPassword")}</Label>
-            <Input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              placeholder={t("auth.register.confirmPlaceholder")}
-              required
-              autoComplete="new-password"
+          <div className="ios-row flex-col items-start gap-1.5 py-3">
+            <label htmlFor="confirmPassword" className="text-[0.8125rem] font-medium text-[var(--sys-label2)]">
+              {t("auth.register.confirmPassword")}
+            </label>
+            <input
+              id="confirmPassword" name="confirmPassword" type="password"
+              placeholder="••••••••"
+              required autoComplete="new-password"
+              className="w-full bg-transparent text-[0.9375rem] text-foreground placeholder:text-muted-foreground/50 outline-none"
             />
           </div>
+        </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? t("auth.register.submitting") : t("auth.register.submit")}
-          </Button>
+        <Button type="submit" size="lg" className="w-full" disabled={loading}>
+          {loading ? t("auth.register.submitting") : t("auth.register.submit")}
+        </Button>
 
-          <p className="text-center text-sm text-muted-foreground">
-            {t("auth.register.hasAccount")}{" "}
-            <Link href="/login" className="text-primary underline-offset-4 hover:underline">
-              {t("auth.register.signIn")}
-            </Link>
-          </p>
-        </form>
-      </CardContent>
-    </Card>
+        <p className="text-center text-sm text-[var(--sys-label2)]">
+          {t("auth.register.hasAccount")}{" "}
+          <Link href="/login" className="font-semibold text-primary hover:opacity-80">
+            {t("auth.register.signIn")}
+          </Link>
+        </p>
+      </form>
+    </div>
   );
 }

@@ -70,6 +70,8 @@
     "featureProgressDesc": "Diagramme, PRs, Volumen und Konsistenz auf einen Blick.",
     "featureAiTitle": "KI-bereit",
     "featureAiDesc": "Strukturierte Daten für intelligente Analyse und Coaching.",
+    "featureOfflineTitle": "Funktioniert offline",
+    "featureOfflineDesc": "Trainiere ohne Internet. Alles synchronisiert sich automatisch wenn du wieder online bist.",
     "footer": "FitTrack Pro — Portfolio-Projekt"
   },
   "settings": {
@@ -252,6 +254,8 @@
     "offlineNoSnapshot": "Keine gespeicherte Kopie dieses Workouts. Öffne es einmal online oder starte eine neue Offline-Session.",
     "startOffline": "Offline starten (später synchronisieren)",
     "startOfflineHint": "Zuerst auf diesem Gerät speichern; mit dem Konto synchronisieren, sobald du wieder verbunden bist.",
+    "sectionActive": "Läuft gerade",
+    "sectionHistory": "Verlauf",
     "deleteCompleted": "Löschen",
     "deleteCompletedAria": "Abgeschlossenes Workout löschen",
     "deleteCompletedConfirm": "Dieses abgeschlossene Workout dauerhaft löschen? Die Eintragung entfernst du z. B. nach Testläufen, damit Auswertungen stimmen.",

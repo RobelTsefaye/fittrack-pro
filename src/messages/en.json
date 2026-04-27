@@ -70,6 +70,8 @@
     "featureProgressDesc": "Charts, PRs, volume tracking, and consistency insights.",
     "featureAiTitle": "AI-Ready",
     "featureAiDesc": "Structured data designed for intelligent analysis and coaching.",
+    "featureOfflineTitle": "Works Offline",
+    "featureOfflineDesc": "Train without internet. Everything syncs automatically when you're back online.",
     "footer": "FitTrack Pro — Portfolio project"
   },
   "settings": {
@@ -252,6 +254,8 @@
     "offlineNoSnapshot": "No saved copy of this workout on this device. Open it once while online, or start a new offline session.",
     "startOffline": "Start offline (sync later)",
     "startOfflineHint": "Saves on this device first; syncs to your account when you reconnect.",
+    "sectionActive": "In progress",
+    "sectionHistory": "History",
     "deleteCompleted": "Delete",
     "deleteCompletedAria": "Delete completed workout",
     "deleteCompletedConfirm": "Permanently delete this completed workout? Use this to remove test sessions so your stats stay accurate.",

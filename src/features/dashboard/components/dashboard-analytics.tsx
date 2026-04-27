@@ -102,11 +102,11 @@ export function DashboardAnalytics({
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+        <h1 className="page-title">
           {t("dashboard.welcome")}
           {userName ? `, ${userName.split(" ")[0]}` : ""}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t("dashboard.trainingOverview")}</p>
+        <p className="mt-0.5 text-sm text-[var(--sys-label2)]">{t("dashboard.trainingOverview")}</p>
       </div>
 
       <NextWorkoutCard nextSession={nextSession} />
@@ -115,17 +115,19 @@ export function DashboardAnalytics({
         {statCards.map((s) => (
           <Card
             key={s.title}
-            className={s.accent ? "border-primary/30 bg-primary/5 dark:bg-primary/8" : undefined}
+            className={s.accent ? "border-primary/30 bg-primary/5 dark:bg-primary/[0.08]" : undefined}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{s.title}</CardTitle>
-              <s.icon className={`h-4 w-4 ${s.accent ? "text-primary" : "text-muted-foreground/60"}`} />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-4">
+              <CardTitle className="text-xs font-medium text-[var(--sys-label2)] uppercase tracking-wide">
+                {s.title}
+              </CardTitle>
+              <s.icon className={`h-4 w-4 ${s.accent ? "text-primary" : "text-[var(--sys-label3)]"}`} />
             </CardHeader>
-            <CardContent>
-              <div className={`font-display text-3xl font-bold tracking-tight${s.accent ? " text-primary" : ""}`}>
+            <CardContent className="pb-4">
+              <div className={`font-display text-[2rem] font-bold tracking-tight leading-none${s.accent ? " text-primary" : ""}`}>
                 {s.value}
               </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">{s.hint}</p>
+              <p className="mt-1 text-[0.6875rem] text-[var(--sys-label3)]">{s.hint}</p>
             </CardContent>
           </Card>
         ))}

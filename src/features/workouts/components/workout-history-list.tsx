@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Dumbbell, Plus, Trash2 } from "lucide-react";
+import { Dumbbell, Plus, Trash2, ChevronRight, Clock, Layers } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { ROUTES, exercisePath } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
@@ -16,104 +15,71 @@ import type { WorkoutListItemDTO } from "@/features/workouts/workouts-list-data"
 type WorkoutListItem = WorkoutListItemDTO;
 
 function formatWhen(iso: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(iso));
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
 }
-
+function formatDay(iso: string) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(iso));
+}
+function formatTime(iso: string) {
+  return new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(new Date(iso));
+}
 function formatDuration(seconds: number | null | undefined) {
   if (seconds == null) return null;
   const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  if (m >= 60) {
-    const h = Math.floor(m / 60);
-    const rm = m % 60;
-    return `${h}h ${rm}m`;
-  }
-  return `${m}m ${s}s`;
+  if (m >= 60) { const h = Math.floor(m / 60); return `${h}h ${m % 60}m`; }
+  return `${m}m`;
 }
-
 function sortWorkouts(data: WorkoutListItem[]) {
   return [...data].sort((a, b) => {
-    const aActive = !a.completedAt;
-    const bActive = !b.completedAt;
-    if (aActive && !bActive) return -1;
-    if (!aActive && bActive) return 1;
+    const aA = !a.completedAt, bA = !b.completedAt;
+    if (aA && !bA) return -1;
+    if (!aA && bA) return 1;
     return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime();
   });
 }
-
 async function saveWorkoutListCache(data: WorkoutListItem[]) {
-  const db = tryGetOfflineDb();
-  if (!db) return;
-  await db.workoutListCache.put({
-    id: "default",
-    payload: JSON.stringify(data),
-    updatedAt: Date.now(),
-  });
+  const db = tryGetOfflineDb(); if (!db) return;
+  await db.workoutListCache.put({ id: "default", payload: JSON.stringify(data), updatedAt: Date.now() });
 }
-
 async function loadWorkoutListCache(): Promise<WorkoutListItem[] | null> {
-  const db = tryGetOfflineDb();
-  if (!db) return null;
-  const row = await db.workoutListCache.get("default");
-  if (!row) return null;
-  try {
-    return JSON.parse(row.payload) as WorkoutListItem[];
-  } catch {
-    return null;
-  }
+  const db = tryGetOfflineDb(); if (!db) return null;
+  const row = await db.workoutListCache.get("default"); if (!row) return null;
+  try { return JSON.parse(row.payload) as WorkoutListItem[]; } catch { return null; }
 }
 
-export function WorkoutHistoryList({
-  initialWorkouts,
-}: {
-  initialWorkouts: WorkoutListItemDTO[];
-}) {
+export function WorkoutHistoryList({ initialWorkouts }: { initialWorkouts: WorkoutListItemDTO[] }) {
   const { t } = useI18n();
   const router = useRouter();
-  const [workouts, setWorkouts] = useState<WorkoutListItem[]>(() =>
-    sortWorkouts(initialWorkouts)
-  );
+  const [workouts, setWorkouts] = useState<WorkoutListItem[]>(() => sortWorkouts(initialWorkouts));
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function deleteCompletedWorkout(id: string) {
     if (!confirm(t("workouts.deleteCompletedConfirm"))) return;
     if (typeof navigator !== "undefined" && !navigator.onLine) {
-      window.alert(t("workouts.deleteCompletedOffline"));
-      return;
+      window.alert(t("workouts.deleteCompletedOffline")); return;
     }
     setDeletingId(id);
     try {
       const res = await fetch(`/api/workouts/${id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
-        window.alert(j.error ?? t("workouts.deleteCompletedFailed"));
-        return;
+        window.alert(j.error ?? t("workouts.deleteCompletedFailed")); return;
       }
       setWorkouts((prev) => prev.filter((w) => w.id !== id));
       router.refresh();
-    } finally {
-      setDeletingId(null);
-    }
+    } finally { setDeletingId(null); }
   }
 
-  useEffect(() => {
-    setWorkouts(sortWorkouts(initialWorkouts));
-  }, [initialWorkouts]);
+  useEffect(() => { setWorkouts(sortWorkouts(initialWorkouts)); }, [initialWorkouts]);
 
   const fetchWorkouts = useCallback(async () => {
     setLoading(true);
-
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       const cached = await loadWorkoutListCache();
       if (cached) setWorkouts(sortWorkouts(cached));
-      setLoading(false);
-      return;
+      setLoading(false); return;
     }
-
     try {
       const res = await fetch("/api/workouts?limit=50");
       const json = await res.json();
@@ -125,7 +91,6 @@ export function WorkoutHistoryList({
       const cached = await loadWorkoutListCache();
       if (cached) setWorkouts(cached);
     }
-
     setLoading(false);
   }, []);
 
@@ -135,146 +100,194 @@ export function WorkoutHistoryList({
     return () => window.removeEventListener("fittrack-offline-synced", onSynced);
   }, [fetchWorkouts]);
 
+  const active  = workouts.filter((w) => !w.completedAt);
+  const history = workouts.filter((w) =>  w.completedAt);
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-8">
+
+      {/* ── Page header ─────────────────────────────── */}
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("workouts.title")}</h1>
-          <p className="text-muted-foreground">{t("workouts.subtitle")}</p>
+          <h1 className="page-title">{t("workouts.title")}</h1>
+          <p className="mt-0.5 text-sm text-[var(--sys-label2)]">{t("workouts.subtitle")}</p>
         </div>
         <Link
           href={ROUTES.newWorkout}
           prefetch
-          className={cn(buttonVariants(), "inline-flex w-full justify-center sm:w-auto")}
+          className={cn(buttonVariants({ size: "default" }), "shrink-0")}
         >
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="h-4 w-4" />
           {t("workouts.startWorkout")}
         </Link>
       </div>
 
-      {loading ? (
-        <div className="space-y-3">
-          {[...Array(5)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className="h-16 animate-pulse bg-muted/50 rounded-lg" />
-            </Card>
-          ))}
-        </div>
-      ) : workouts.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Dumbbell className="h-12 w-12 text-muted-foreground/50" />
-            <CardHeader className="text-center">
-              <CardTitle className="text-lg">{t("workouts.noWorkouts")}</CardTitle>
-            </CardHeader>
-            <p className="text-sm text-muted-foreground mb-4">{t("workouts.noWorkoutsHint")}</p>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Link
-                href={ROUTES.newWorkout}
-                prefetch
-                className={cn(buttonVariants(), "inline-flex justify-center")}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                {t("workouts.startWorkout")}
+      {/* ── Empty state ─────────────────────────────── */}
+      {!loading && workouts.length === 0 && (
+        <div className="ios-group">
+          <div className="flex flex-col items-center gap-4 py-16 text-center px-6">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--sys-fill)]">
+              <Dumbbell className="h-7 w-7 text-[var(--sys-label2)]" />
+            </div>
+            <div>
+              <p className="font-semibold text-[0.9375rem]">{t("workouts.noWorkouts")}</p>
+              <p className="mt-1 text-sm text-[var(--sys-label2)]">{t("workouts.noWorkoutsHint")}</p>
+            </div>
+            <div className="flex flex-col gap-2 w-full max-w-xs">
+              <Link href={ROUTES.newWorkout} prefetch className={cn(buttonVariants(), "justify-center")}>
+                <Plus className="h-4 w-4" />{t("workouts.startWorkout")}
               </Link>
-              <Link
-                href={ROUTES.plans}
-                prefetch
-                className={cn(buttonVariants({ variant: "outline" }), "inline-flex justify-center")}
-              >
+              <Link href={ROUTES.plans} prefetch className={cn(buttonVariants({ variant: "outline" }), "justify-center")}>
                 {t("plans.title")}
               </Link>
             </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <ul className="space-y-2">
-          {workouts.map((w) => {
-            const active = !w.completedAt;
-            const exerciseCount = w.workoutExercises.length;
-            const setCount = w.workoutExercises.reduce((n, we) => n + we.sets.length, 0);
-            const exerciseLabel =
-              exerciseCount === 1
-                ? t("workouts.exerciseOne")
-                : t("workouts.exerciseMany", { count: exerciseCount });
-            const setLabel =
-              setCount === 1 ? t("workouts.setOne") : t("workouts.setMany", { count: setCount });
-            return (
-              <li key={w.id}>
-                <Card
-                  role="button"
-                  tabIndex={0}
-                  className="transition-colors hover:bg-muted/40 cursor-pointer"
-                  onClick={() => router.push(`/workouts/${w.id}`)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      router.push(`/workouts/${w.id}`);
-                    }
+          </div>
+        </div>
+      )}
+
+      {/* ── Loading skeleton ────────────────────────── */}
+      {loading && (
+        <div className="ios-group animate-pulse">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="ios-row h-20">
+              <div className="h-4 w-2/3 rounded-full bg-[var(--sys-fill2)]" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Active section ──────────────────────────── */}
+      {!loading && active.length > 0 && (
+        <section className="space-y-2">
+          <p className="ios-section-label">{t("workouts.sectionActive")}</p>
+          <WorkoutGroup
+            workouts={active}
+            onNavigate={(id) => router.push(`/workouts/${id}`)}
+            onDelete={deleteCompletedWorkout}
+            deletingId={deletingId}
+            t={t}
+          />
+        </section>
+      )}
+
+      {/* ── History section ─────────────────────────── */}
+      {!loading && history.length > 0 && (
+        <section className="space-y-2">
+          <p className="ios-section-label">{t("workouts.sectionHistory")}</p>
+          <WorkoutGroup
+            workouts={history}
+            onNavigate={(id) => router.push(`/workouts/${id}`)}
+            onDelete={deleteCompletedWorkout}
+            deletingId={deletingId}
+            t={t}
+          />
+        </section>
+      )}
+    </div>
+  );
+}
+
+function WorkoutGroup({
+  workouts,
+  onNavigate,
+  onDelete,
+  deletingId,
+  t,
+}: {
+  workouts: WorkoutListItem[];
+  onNavigate: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
+  deletingId: string | null;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  return (
+    <div className="ios-group">
+      {workouts.map((w) => {
+        const isActive = !w.completedAt;
+        const exerciseCount = w.workoutExercises.length;
+        const setCount = w.workoutExercises.reduce((n, we) => n + we.sets.length, 0);
+        const dur = formatDuration(w.durationSeconds);
+
+        return (
+          <button
+            key={w.id}
+            type="button"
+            className="ios-row group w-full cursor-pointer text-left gap-3 hover:bg-[var(--nav-hover-bg)] transition-colors"
+            onClick={() => onNavigate(w.id)}
+          >
+            {/* Icon */}
+            <div className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+              isActive
+                ? "bg-primary/15 dark:bg-primary/20"
+                : "bg-[var(--sys-fill)]"
+            )}>
+              <Dumbbell className={cn("h-5 w-5", isActive ? "text-primary" : "text-[var(--sys-label2)]")} />
+            </div>
+
+            {/* Content */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate font-semibold text-[0.9375rem]">
+                  {w.name?.trim() || t("workouts.workoutFallback")}
+                </span>
+                {isActive && (
+                  <Badge variant="warning" className="shrink-0">{t("common.inProgress")}</Badge>
+                )}
+              </div>
+
+              <p className="mt-0.5 text-xs text-[var(--sys-label2)]">
+                {isActive ? formatTime(w.startedAt) : formatDay(w.startedAt)}
+              </p>
+
+              {/* Exercise names */}
+              {w.workoutExercises.length > 0 && (
+                <p className="mt-1 truncate text-xs text-[var(--sys-label3)]">
+                  {w.workoutExercises.slice(0, 4).map((we) => we.exercise.name).join(" · ")}
+                  {w.workoutExercises.length > 4 && ` +${w.workoutExercises.length - 4}`}
+                </p>
+              )}
+
+              {/* Meta row */}
+              <div className="mt-1 flex items-center gap-3 text-[0.7rem] text-[var(--sys-label3)]">
+                {exerciseCount > 0 && (
+                  <span className="flex items-center gap-1">
+                    <Layers className="h-3 w-3" />
+                    {exerciseCount}
+                  </span>
+                )}
+                {setCount > 0 && <span>{setCount} sets</span>}
+                {dur && (
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />{dur}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Right side */}
+            <div className="flex shrink-0 items-center gap-1">
+              {!isActive && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                  disabled={deletingId === w.id}
+                  aria-label={t("workouts.deleteCompletedAria")}
+                  onClick={(e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    void onDelete(w.id);
                   }}
                 >
-                  <CardContent className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium truncate">
-                          {w.name?.trim() || t("workouts.workoutFallback")}
-                        </span>
-                        {active ? (
-                          <Badge>{t("common.inProgress")}</Badge>
-                        ) : (
-                          <Badge variant="secondary">{t("common.completed")}</Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">{formatWhen(w.startedAt)}</p>
-                      {w.workoutExercises.length > 0 ? (
-                        <p className="text-sm text-muted-foreground flex flex-wrap gap-x-1 gap-y-0.5">
-                          {w.workoutExercises.slice(0, 5).map((we, i) => (
-                            <span key={we.exercise.id} className="inline-flex items-center">
-                              {i > 0 ? <span className="mr-1">·</span> : null}
-                              <Link
-                                href={exercisePath(we.exercise.id)}
-                                className="truncate hover:underline underline-offset-2"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {we.exercise.name}
-                              </Link>
-                            </span>
-                          ))}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3 text-xs text-muted-foreground">
-                      <span>{exerciseLabel}</span>
-                      <span>{setLabel}</span>
-                      {!active && formatDuration(w.durationSeconds) ? (
-                        <span>{formatDuration(w.durationSeconds)}</span>
-                      ) : null}
-                      {!active ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          className="shrink-0 text-muted-foreground hover:text-destructive"
-                          disabled={deletingId === w.id}
-                          aria-label={t("workouts.deleteCompletedAria")}
-                          title={t("workouts.deleteCompleted")}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            void deleteCompletedWorkout(w.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      ) : null}
-                    </div>
-                  </CardContent>
-                </Card>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <ChevronRight className="h-4 w-4 text-[var(--sys-label3)]" />
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }
