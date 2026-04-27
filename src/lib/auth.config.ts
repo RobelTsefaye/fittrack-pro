@@ -10,7 +10,13 @@ export const authConfig: NextAuthConfig = {
     signIn: "/login",
   },
   providers: [],
-  session: { strategy: "jwt" },
+  // 90-day rolling session — PWA users on mobile shouldn't have to re-auth
+  // every month. Sessions auto-extend on activity (updateAge).
+  session: {
+    strategy: "jwt",
+    maxAge: 60 * 60 * 24 * 90, // 90 days
+    updateAge: 60 * 60 * 24, // refresh token once per day on activity
+  },
   callbacks: {
     async jwt({ token, user }) {
       if (user) token.id = user.id;

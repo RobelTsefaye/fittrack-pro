@@ -15,7 +15,10 @@ export default auth((req) => {
     pathname === "/" || pathname === "/login" || pathname === "/register";
 
   if (isPublic) {
-    if (req.auth?.user && (pathname === "/login" || pathname === "/register")) {
+    // Authenticated users on landing/login/register go straight to the app.
+    // This means the home-screen icon (start_url=/dashboard) and any direct
+    // visit to "/" both land on the dashboard for logged-in users.
+    if (req.auth?.user) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
     return NextResponse.next();
