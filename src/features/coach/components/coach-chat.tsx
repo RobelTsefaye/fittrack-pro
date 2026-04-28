@@ -87,7 +87,7 @@ export function CoachChat() {
       </div>
 
       {/* ── Messages ────────────────────────────────── */}
-      <div className="min-h-0 flex-1 overflow-y-auto -mx-1 px-1">
+      <div className="main-scroll min-h-0 flex-1 overflow-y-auto -mx-1 px-1">
         <div className="space-y-4 pb-4">
 
           {/* Empty state + suggestions */}
@@ -219,8 +219,8 @@ export function CoachChat() {
             onKeyDown={onKeyDown}
             placeholder={t("coach.placeholder")}
             disabled={isLoading}
-            className="min-h-[2rem] flex-1 resize-none bg-transparent text-[0.9375rem] leading-relaxed text-foreground placeholder:text-muted-foreground/50 outline-none"
-            style={{ height: "2rem" }}
+            className="min-h-[2rem] flex-1 resize-none bg-transparent text-[1rem] leading-relaxed text-foreground placeholder:text-muted-foreground/50 outline-none"
+            style={{ height: "2rem", fontSize: "16px" }}
           />
           <button
             type="button"
