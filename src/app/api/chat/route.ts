@@ -3,7 +3,7 @@ import { streamText } from "ai";
 import { auth } from "@/lib/auth";
 import { buildCoachContext, buildTrainingSummary } from "@/features/ai/context";
 
-export const maxDuration = 30;
+export const maxDuration = 10; // Vercel Hobby plan max
 
 function buildSystemPrompt(
   ctx: Awaited<ReturnType<typeof buildCoachContext>>,
