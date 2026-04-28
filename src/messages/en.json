@@ -9,6 +9,7 @@
     "bodyWeight": "Body Weight",
     "plans": "Plans",
     "settings": "Settings",
+    "coach": "AI Coach",
     "sectionTraining": "Training",
     "sectionAccount": "Account"
   },
@@ -391,5 +392,22 @@
   "export": {
     "jsonFilename": "fittrack-export.json",
     "csvFilename": "fittrack-workouts.csv"
+  },
+  "coach": {
+    "title": "AI Coach",
+    "subtitle": "Powered by your training data",
+    "navLabel": "AI Coach",
+    "intro": "Hi! I'm your personal training coach. I have full access to your workout history, PRs, volume trends, and body weight. Ask me anything about your training.",
+    "suggestLabel": "Try asking",
+    "suggest1": "How is my training progressing?",
+    "suggest2": "Should I deload this week?",
+    "suggest3": "What's my strongest exercise right now?",
+    "suggest4": "What should I train next?",
+    "placeholder": "Ask your coach…",
+    "send": "Send",
+    "error": "Something went wrong. Please try again.",
+    "retry": "Retry",
+    "disclaimer": "AI can make mistakes. Not medical advice.",
+    "noApiKey": "No Anthropic API key configured. Add ANTHROPIC_API_KEY to your environment."
   }
 }

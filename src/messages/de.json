@@ -9,6 +9,7 @@
     "bodyWeight": "Körpergewicht",
     "plans": "Pläne",
     "settings": "Einstellungen",
+    "coach": "KI-Coach",
     "sectionTraining": "Training",
     "sectionAccount": "Konto"
   },
@@ -391,5 +392,22 @@
   "export": {
     "jsonFilename": "fittrack-export.json",
     "csvFilename": "fittrack-workouts.csv"
+  },
+  "coach": {
+    "title": "KI-Coach",
+    "subtitle": "Basierend auf deinen Trainingsdaten",
+    "navLabel": "KI-Coach",
+    "intro": "Hallo! Ich bin dein persönlicher Trainingscoach. Ich habe vollständigen Zugriff auf deine Workout-Historie, PRs, Volumentrends und Körpergewicht. Frag mich alles über dein Training.",
+    "suggestLabel": "Frag mich zum Beispiel",
+    "suggest1": "Wie entwickelt sich mein Training?",
+    "suggest2": "Sollte ich diese Woche deloaden?",
+    "suggest3": "Was ist meine stärkste Übung gerade?",
+    "suggest4": "Was sollte ich als nächstes trainieren?",
+    "placeholder": "Coach fragen…",
+    "send": "Senden",
+    "error": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
+    "retry": "Nochmal versuchen",
+    "disclaimer": "KI kann Fehler machen. Kein medizinischer Rat.",
+    "noApiKey": "Kein Anthropic API-Key konfiguriert. ANTHROPIC_API_KEY zur Umgebung hinzufügen."
   }
 }

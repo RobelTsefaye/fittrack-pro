@@ -41,6 +41,7 @@ export const ROUTES = {
   exercisesUsage: "/exercises/usage",
   bodyWeight: "/body-weight",
   settings: "/settings",
+  coach: "/coach",
 } as const;
 
 export function exercisePath(id: string) {
