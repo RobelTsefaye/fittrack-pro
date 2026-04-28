@@ -1,4 +1,4 @@
-import { anthropic } from "@ai-sdk/anthropic";
+import { google } from "@ai-sdk/google";
 import { streamText } from "ai";
 import { auth } from "@/lib/auth";
 import { buildCoachContext, buildTrainingSummary } from "@/features/ai/context";
@@ -104,7 +104,7 @@ export async function POST(req: Request) {
   const systemPrompt = buildSystemPrompt(coachCtx, trainingSummary);
 
   const result = streamText({
-    model: anthropic("claude-3-5-haiku-20241022"),
+    model: google("gemini-2.0-flash"),
     system: systemPrompt,
     messages,
     maxOutputTokens: 1024,
