@@ -1,5 +1,5 @@
 import { google } from "@ai-sdk/google";
-import { streamText } from "ai";
+import { streamText, convertToModelMessages } from "ai";
 import { auth } from "@/lib/auth";
 import { buildCoachContext, buildTrainingSummary } from "@/features/ai/context";
 
@@ -92,9 +92,7 @@ export async function POST(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const { messages } = (await req.json()) as {
-    messages: Array<{ role: "user" | "assistant"; content: string }>;
-  };
+  const { messages } = await req.json() as { messages: Parameters<typeof convertToModelMessages>[0] };
 
   const [coachCtx, trainingSummary] = await Promise.all([
     buildCoachContext(session.user.id),
@@ -106,7 +104,7 @@ export async function POST(req: Request) {
   const result = streamText({
     model: google("gemini-2.0-flash"),
     system: systemPrompt,
-    messages,
+    messages: await convertToModelMessages(messages),
     maxOutputTokens: 1024,
   });
 
