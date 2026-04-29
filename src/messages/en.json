@@ -455,6 +455,8 @@
     "CALVES": "Calves",
     "FULL_BODY": "Full Body",
     "CARDIO": "Cardio",
-    "OTHER": "Other"
+    "OTHER": "Other",
+    "none": "none",
+    "high": "high"
   }
 }

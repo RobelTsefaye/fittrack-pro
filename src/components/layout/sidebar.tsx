@@ -63,20 +63,32 @@ function NavItem({
       prefetch
       onClick={onClick}
       className={cn(
-        "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[0.8125rem] font-medium leading-none transition-all duration-150",
+        "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[0.8125rem] font-medium leading-none transition-all duration-150",
         isActive
-          ? "bg-[var(--nav-active-bg)] text-[var(--nav-active-fg)]"
-          : "text-sidebar-foreground/70 hover:bg-[var(--nav-hover-bg)] hover:text-sidebar-foreground"
+          ? "bg-primary/10 text-primary"
+          : "text-sidebar-foreground/65 hover:bg-sidebar-foreground/6 hover:text-sidebar-foreground"
       )}
     >
+      {/* Active indicator pill */}
+      {isActive && (
+        <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />
+      )}
       <Icon
         className={cn(
           "h-[1.05rem] w-[1.05rem] shrink-0 transition-colors",
-          isActive ? "text-primary opacity-100" : "opacity-60 group-hover:opacity-80"
+          isActive ? "text-primary" : "opacity-55 group-hover:opacity-80"
         )}
       />
       {label}
     </Link>
+  );
+}
+
+function SectionLabel({ label }: { label: string }) {
+  return (
+    <p className="mb-1 px-3 text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-sidebar-foreground/30 select-none">
+      {label}
+    </p>
   );
 }
 
@@ -101,27 +113,28 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     <aside
       className={cn(
         /* base */
-        "fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-sidebar-border",
-        /* frosted glass — applied via class so backdrop-filter only renders when sidebar is visible */
-        "sidebar-glass",
-        /* safe area on notched phones */
-        "safe-x-pad safe-top-offset",
+        "fixed inset-y-0 left-0 z-50 flex w-[15.5rem] flex-col",
+        /* border + subtle background */
+        "border-r border-sidebar-border/60 bg-sidebar",
         /* mobile: slide in/out */
-        "transition-transform duration-300 [transition-timing-function:var(--ease-drawer)]",
+        "transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
         open ? "translate-x-0" : "-translate-x-full",
-        /* desktop: always visible, no shadow */
+        /* desktop: always visible, no transform */
         "lg:translate-x-0 lg:shadow-none lg:static lg:inset-y-auto lg:z-auto"
       )}
     >
-      {/* ── Header ──────────────────────────────────── */}
-      <div className="flex h-14 shrink-0 items-center justify-between px-4 safe-top-pad lg:safe-top-pad">
+      {/* ── Header — only one safe-area applied here via padding ────── */}
+      <div
+        className="flex h-14 shrink-0 items-center justify-between px-4 lg:h-14"
+        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+      >
         <Link
           href={ROUTES.dashboard}
           prefetch
           onClick={onClose}
-          className="flex items-center gap-2 group"
+          className="flex items-center gap-2.5 group"
         >
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary shadow-sm transition-opacity group-hover:opacity-80">
+          <div className="flex h-7 w-7 items-center justify-center rounded-[10px] bg-primary shadow-sm ring-1 ring-primary/20 transition-opacity group-hover:opacity-80">
             <Dumbbell className="h-3.5 w-3.5 text-primary-foreground" />
           </div>
           <span className="text-[0.9375rem] font-semibold tracking-tight text-sidebar-foreground">
@@ -134,20 +147,21 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           type="button"
           onClick={onClose}
           aria-label="Menü schließen"
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-sidebar-foreground/50 transition-colors hover:bg-[var(--nav-hover-bg)] hover:text-sidebar-foreground lg:hidden"
+          className="flex h-8 w-8 items-center justify-center rounded-xl text-sidebar-foreground/40 transition-colors hover:bg-sidebar-foreground/8 hover:text-sidebar-foreground lg:hidden"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
 
-      {/* ── Navigation ──────────────────────────────── */}
-      <nav className="flex-1 overflow-y-auto px-2.5 py-2 safe-bottom-inset space-y-5">
+      {/* ── Divider ─────────────────────────────────────────────────── */}
+      <div className="mx-4 h-px bg-sidebar-border/50" />
+
+      {/* ── Navigation ──────────────────────────────────────────────── */}
+      <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4">
 
         {/* Main section */}
         <div className="space-y-0.5">
-          <p className="mb-1.5 px-2.5 text-[0.65rem] font-semibold uppercase tracking-widest text-sidebar-foreground/35 select-none">
-            {t("nav.sectionTraining")}
-          </p>
+          <SectionLabel label={t("nav.sectionTraining")} />
           {mainNav.map((item) => (
             <NavItem
               key={item.href}
@@ -162,9 +176,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* Tools section */}
         <div className="space-y-0.5">
-          <p className="mb-1.5 px-2.5 text-[0.65rem] font-semibold uppercase tracking-widest text-sidebar-foreground/35 select-none">
-            {t("nav.sectionTools")}
-          </p>
+          <SectionLabel label={t("nav.sectionTools")} />
           {toolsNav.map((item) => (
             <NavItem
               key={item.href}
@@ -179,9 +191,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* Account section */}
         <div className="space-y-0.5">
-          <p className="mb-1.5 px-2.5 text-[0.65rem] font-semibold uppercase tracking-widest text-sidebar-foreground/35 select-none">
-            {t("nav.sectionAccount")}
-          </p>
+          <SectionLabel label={t("nav.sectionAccount")} />
           {accountNav.map((item) => (
             <NavItem
               key={item.href}
@@ -195,36 +205,39 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </div>
       </nav>
 
-      {/* ── User profile ────────────────────────────── */}
-      <div className="shrink-0 border-t border-sidebar-border px-2.5 py-3">
+      {/* ── Divider ─────────────────────────────────────────────────── */}
+      <div className="mx-4 h-px bg-sidebar-border/50" />
+
+      {/* ── User profile ────────────────────────────────────────────── */}
+      <div className="shrink-0 px-2.5 py-3">
         <button
           type="button"
           onClick={() => {
             onClose?.();
             router.push(ROUTES.settings);
           }}
-          className="group flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors duration-150 hover:bg-[var(--nav-hover-bg)]"
+          className="group flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition-colors duration-150 hover:bg-sidebar-foreground/6"
         >
-          <Avatar className="h-7 w-7 shrink-0">
+          <Avatar className="h-8 w-8 shrink-0 ring-2 ring-primary/20">
             <AvatarFallback className="bg-primary text-primary-foreground text-[0.6rem] font-semibold">
               {initials}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[0.8rem] font-medium leading-tight text-sidebar-foreground">
+            <p className="truncate text-[0.8rem] font-semibold leading-tight text-sidebar-foreground">
               {session?.user?.name ?? "—"}
             </p>
-            <p className="truncate text-[0.7rem] leading-tight text-sidebar-foreground/50">
+            <p className="truncate text-[0.7rem] leading-tight text-sidebar-foreground/45">
               {session?.user?.email ?? ""}
             </p>
           </div>
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/30 transition-transform group-hover:translate-x-0.5" />
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/25 transition-transform group-hover:translate-x-0.5" />
         </button>
 
         <button
           type="button"
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="mt-0.5 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-[0.78rem] text-sidebar-foreground/50 transition-colors hover:bg-[var(--nav-hover-bg)] hover:text-destructive"
+          className="mt-1 flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-[0.78rem] font-medium text-sidebar-foreground/45 transition-colors hover:bg-destructive/8 hover:text-destructive"
         >
           <LogOut className="h-3.5 w-3.5 shrink-0" />
           {t("navbar.signOut")}

@@ -455,6 +455,8 @@
     "CALVES": "Waden",
     "FULL_BODY": "Ganzkörper",
     "CARDIO": "Cardio",
-    "OTHER": "Sonstiges"
+    "OTHER": "Sonstiges",
+    "none": "–",
+    "high": "hoch"
   }
 }
