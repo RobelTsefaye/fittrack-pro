@@ -6,108 +6,136 @@ import { useI18n } from "@/lib/i18n-provider";
 import type { MuscleHeatEntry } from "@/services/muscle-heatmap";
 import type { MuscleGroup } from "@/generated/prisma/client";
 
-// ─── Intensity → CSS opacity (primary color overlay) ─────────────────────────
+// ─── Intensity → opacity ──────────────────────────────────────────────────────
 
 function intensityToOpacity(intensity: number): number {
-  if (intensity <= 0) return 0.06;
-  // low → medium → high: 0.18 → 0.55 → 0.92
-  return 0.18 + intensity * 0.74;
+  if (intensity <= 0) return 0;
+  return 0.22 + intensity * 0.72;
 }
 
-// ─── SVG region definitions ───────────────────────────────────────────────────
-// ViewBox: 0 0 180 315
+// ─── Realistic body SVG paths (200 × 430 viewBox) ────────────────────────────
+//
+// One continuous silhouette path traced from neck → left shoulder → left arm →
+// left torso → left leg → feet → right leg → right torso → right arm → neck.
+// Muscle-group regions are separate overlay paths inside the silhouette.
 
-// Front muscle regions
-const FRONT_REGIONS: { id: MuscleGroup; label: string; path: string }[] = [
+const BODY_SILHOUETTE = `
+M 90,56
+C 74,56 57,58 43,68 C 29,77 19,91 15,108
+L 11,152 C 9,164 9,176 13,188 L 17,228
+C 18,236 18,244 18,252 L 14,270
+C 13,276 12,282 14,286 C 16,290 20,290 22,286
+C 24,282 24,276 22,272 L 22,256
+C 22,248 23,240 25,232 L 29,192
+C 31,184 34,178 38,174
+L 37,192 C 35,204 33,218 33,232
+L 35,304 C 36,312 38,320 41,326
+L 41,378 C 41,384 43,390 49,393
+L 71,393 C 77,394 81,392 83,388
+C 84,384 85,378 85,374 L 85,312
+C 85,302 85,294 87,284 L 91,248
+C 92,238 96,232 100,230
+C 104,232 108,238 109,248 L 113,284
+C 115,294 115,302 115,312 L 115,374
+C 115,378 116,384 117,388 C 119,392 123,394 129,393
+L 151,393 C 157,390 159,384 159,378
+L 159,326 C 162,320 164,312 165,304
+L 167,232 C 167,218 165,204 163,192
+L 162,174 C 166,178 169,184 171,192
+L 175,232 C 177,240 177,248 178,256
+L 178,272 C 176,276 176,282 178,286
+C 180,290 184,290 186,286 C 188,282 187,276 186,270
+L 182,252 C 182,244 182,236 183,228
+L 187,188 C 191,176 191,164 189,152
+L 185,108 C 181,91 171,77 157,68
+C 143,58 126,56 110,56 Z
+`;
+
+// ─── Front-view muscle regions ────────────────────────────────────────────────
+
+const FRONT_REGIONS: { id: MuscleGroup; path: string }[] = [
   {
     id: "SHOULDERS",
-    label: "Shoulders",
-    path: "M48,68 C38,68 28,73 28,82 C28,91 38,96 48,96 C58,96 68,91 68,82 C68,73 58,68 48,68 Z M132,68 C122,68 112,73 112,82 C112,91 122,96 132,96 C142,96 152,91 152,82 C152,73 142,68 132,68 Z",
+    path: `M 15,102 C 11,110 11,122 15,132 C 19,140 27,144 35,142
+           C 42,140 46,132 44,122 C 42,112 36,106 28,102
+           C 22,98 17,98 15,102 Z
+           M 185,102 C 189,110 189,122 185,132 C 181,140 173,144 165,142
+           C 158,140 154,132 156,122 C 158,112 164,106 172,102
+           C 178,98 183,98 185,102 Z`,
   },
   {
     id: "CHEST",
-    label: "Chest",
-    path: "M66,60 Q90,55 114,60 L112,106 Q90,112 68,106 Z",
+    path: `M 43,70 C 57,65 78,62 100,62 C 122,62 143,65 157,70
+           L 154,126 Q 100,133 46,126 Z`,
   },
   {
     id: "BICEPS",
-    label: "Biceps",
-    path: "M24,84 L42,84 L43,128 L23,128 Z",
+    path: `M 11,136 L 27,132 L 28,174 L 12,177 Z
+           M 189,136 L 173,132 L 172,174 L 188,177 Z`,
   },
   {
     id: "FOREARMS",
-    label: "Forearms",
-    path: "M22,130 L42,130 L44,174 L21,174 Z M138,130 L158,130 L159,174 L136,174 Z",
+    path: `M 12,179 L 27,176 L 28,228 L 13,231 Z
+           M 188,179 L 173,176 L 172,228 L 187,231 Z`,
   },
   {
     id: "CORE",
-    label: "Core",
-    path: "M68,108 L112,108 L110,162 Q90,166 70,162 Z",
+    path: `M 46,128 Q 100,135 154,128 L 151,192 Q 100,200 49,192 Z`,
   },
   {
     id: "LEGS",
-    label: "Quads",
-    path: "M68,166 L90,166 L89,238 L66,238 Z M90,166 L112,166 L114,238 L91,238 Z",
+    path: `M 49,240 L 83,240 L 82,312 L 47,312 Z
+           M 117,240 L 151,240 L 153,312 L 118,312 Z`,
   },
   {
     id: "CALVES",
-    label: "Calves",
-    path: "M67,241 L88,241 L87,305 L64,305 Z M92,241 L113,241 L115,305 L91,305 Z",
+    path: `M 48,316 L 81,316 L 80,376 L 47,376 Z
+           M 119,316 L 152,316 L 153,376 L 120,376 Z`,
   },
 ];
 
-const BACK_REGIONS: { id: MuscleGroup; label: string; path: string }[] = [
+// ─── Back-view muscle regions ─────────────────────────────────────────────────
+
+const BACK_REGIONS: { id: MuscleGroup; path: string }[] = [
   {
     id: "SHOULDERS",
-    label: "Rear Delts",
-    path: "M48,68 C38,68 28,73 28,82 C28,91 38,96 48,96 C58,96 68,91 68,82 C68,73 58,68 48,68 Z M132,68 C122,68 112,73 112,82 C112,91 122,96 132,96 C142,96 152,91 152,82 C152,73 142,68 132,68 Z",
+    path: `M 15,102 C 11,110 11,122 15,132 C 19,140 27,144 35,142
+           C 42,140 46,132 44,122 C 42,112 36,106 28,102
+           C 22,98 17,98 15,102 Z
+           M 185,102 C 189,110 189,122 185,132 C 181,140 173,144 165,142
+           C 158,140 154,132 156,122 C 158,112 164,106 172,102
+           C 178,98 183,98 185,102 Z`,
   },
   {
     id: "BACK",
-    label: "Back",
-    path: "M66,60 Q90,55 114,60 L112,152 Q90,157 68,152 Z",
+    path: `M 43,70 C 57,65 78,62 100,62 C 122,62 143,65 157,70
+           L 154,188 Q 100,196 46,188 Z`,
   },
   {
     id: "TRICEPS",
-    label: "Triceps",
-    path: "M138,84 L156,84 L157,128 L137,128 Z",
+    path: `M 11,136 L 27,132 L 28,174 L 12,177 Z
+           M 189,136 L 173,132 L 172,174 L 188,177 Z`,
   },
   {
     id: "FOREARMS",
-    label: "Forearms",
-    path: "M22,130 L42,130 L44,174 L21,174 Z M138,130 L158,130 L159,174 L136,174 Z",
+    path: `M 12,179 L 27,176 L 28,228 L 13,231 Z
+           M 188,179 L 173,176 L 172,228 L 187,231 Z`,
   },
   {
     id: "GLUTES",
-    label: "Glutes",
-    path: "M68,154 Q90,160 112,154 L110,192 Q90,198 70,192 Z",
+    path: `M 46,192 Q 100,200 154,192 L 151,232 Q 100,240 49,232 Z`,
   },
   {
     id: "LEGS",
-    label: "Hamstrings",
-    path: "M69,196 L90,196 L89,238 L67,238 Z M91,196 L112,196 L114,238 L90,238 Z",
+    path: `M 49,236 L 83,236 L 82,312 L 47,312 Z
+           M 117,236 L 151,236 L 153,312 L 118,312 Z`,
   },
   {
     id: "CALVES",
-    label: "Calves",
-    path: "M67,241 L88,241 L87,305 L64,305 Z M92,241 L113,241 L115,305 L91,305 Z",
+    path: `M 48,316 L 81,316 L 80,376 L 47,376 Z
+           M 119,316 L 152,316 L 153,376 L 120,376 Z`,
   },
 ];
-
-// ─── Body outline (static, always shown) ─────────────────────────────────────
-
-const BODY_OUTLINE = `
-M90,8 C80,8 72,16 72,26 C72,36 80,44 90,44 C100,44 108,36 108,26 C108,16 100,8 90,8 Z
-M84,44 L80,56 Q66,58 63,60 L63,168 Q68,172 90,174 Q112,172 117,168 L117,60 Q114,58 100,56 L96,44 Z
-M20,82 L63,68 L63,168 L20,168 Z
-M160,82 L117,68 L117,168 L160,168 Z
-M20,82 L20,176 L44,176 L63,168 Z
-M160,82 L160,176 L136,176 L117,168 Z
-M44,176 L44,240 L67,240 L63,168 Z
-M136,176 L136,240 L113,240 L117,168 Z
-M64,240 L67,308 L88,308 L89,240 Z
-M116,240 L113,308 L92,308 L91,240 Z
-`;
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -123,12 +151,12 @@ export function MuscleHeatmap({ data, weightUnit = "kg" }: MuscleHeatmapProps) {
 
   const volumeMap = new Map(data.map((d) => [d.muscleGroup, d]));
   const regions = view === "front" ? FRONT_REGIONS : BACK_REGIONS;
-
   const hoveredEntry = hovered ? volumeMap.get(hovered) : null;
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* View toggle */}
+
+      {/* Front / Back toggle */}
       <div className="flex rounded-xl overflow-hidden border border-[var(--sys-separator)]">
         {(["front", "back"] as const).map((v) => (
           <button
@@ -136,7 +164,7 @@ export function MuscleHeatmap({ data, weightUnit = "kg" }: MuscleHeatmapProps) {
             type="button"
             onClick={() => setView(v)}
             className={cn(
-              "px-5 py-1.5 text-sm font-semibold transition-colors",
+              "px-6 py-1.5 text-sm font-semibold transition-colors",
               view === v
                 ? "bg-primary text-primary-foreground"
                 : "bg-transparent text-[var(--sys-label2)] hover:bg-[var(--sys-fill)]"
@@ -147,78 +175,115 @@ export function MuscleHeatmap({ data, weightUnit = "kg" }: MuscleHeatmapProps) {
         ))}
       </div>
 
-      {/* SVG body map */}
-      <div className="relative flex flex-col items-center">
-        <svg
-          viewBox="0 0 180 315"
-          className="w-full max-w-[200px]"
-          aria-label="Muscle heatmap"
-        >
-          {/* Body outline — very faint */}
-          <path
-            d={BODY_OUTLINE}
-            fill="var(--sys-fill2)"
-            stroke="var(--sys-separator)"
-            strokeWidth="0.5"
-          />
+      {/* Body SVG */}
+      <svg
+        viewBox="0 0 200 430"
+        className="w-full max-w-[160px]"
+        aria-label="Muscle heatmap"
+        style={{ overflow: "visible" }}
+      >
+        {/* Head */}
+        <ellipse
+          cx="100" cy="32" rx="24" ry="27"
+          fill="var(--card)"
+          stroke="var(--sys-separator)"
+          strokeWidth="1.5"
+        />
+        {/* Face details — eyes + mouth for realism */}
+        <ellipse cx="91" cy="29" rx="3" ry="3.5" fill="var(--sys-fill2)" />
+        <ellipse cx="109" cy="29" rx="3" ry="3.5" fill="var(--sys-fill2)" />
+        <path d="M 93,40 Q 100,44 107,40" stroke="var(--sys-separator)" strokeWidth="1.2" fill="none" strokeLinecap="round" />
 
-          {/* Muscle regions */}
-          {regions.map(({ id, path }) => {
-            const entry   = volumeMap.get(id);
-            const intensity = entry?.intensity ?? 0;
-            const opacity   = intensityToOpacity(intensity);
-            const isHov     = hovered === id;
+        {/* Body silhouette */}
+        <path
+          d={BODY_SILHOUETTE}
+          fill="var(--card)"
+          stroke="var(--sys-separator)"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
 
+        {/* Muscle region heat overlays */}
+        {regions.map(({ id, path }) => {
+          const entry     = volumeMap.get(id);
+          const intensity = entry?.intensity ?? 0;
+          const opacity   = intensityToOpacity(intensity);
+          const isHov     = hovered === id;
+
+          if (opacity <= 0 && !isHov) {
+            // Still render an invisible hit-area for hover
             return (
               <path
                 key={id}
                 d={path}
-                fill={`oklch(var(--primary-l, 0.205) var(--primary-c, 0) var(--primary-h, 0) / ${opacity})`}
-                style={{
-                  fill: `color-mix(in oklch, var(--primary) ${Math.round(opacity * 100)}%, transparent)`,
-                  filter: isHov ? "brightness(1.15)" : undefined,
-                  transition: "fill 300ms ease, filter 150ms ease",
-                  cursor: entry ? "pointer" : "default",
-                }}
+                fill="transparent"
                 onMouseEnter={() => setHovered(id)}
                 onMouseLeave={() => setHovered(null)}
                 onTouchStart={() => setHovered(id)}
-                onTouchEnd={() => setTimeout(() => setHovered(null), 1200)}
+                onTouchEnd={() => setTimeout(() => setHovered(null), 1400)}
+                style={{ cursor: "default" }}
               />
             );
-          })}
-        </svg>
+          }
 
-        {/* Tooltip */}
-        <div
-          className={cn(
-            "mt-2 h-10 flex items-center justify-center transition-opacity duration-200",
-            hovered ? "opacity-100" : "opacity-0"
-          )}
-        >
-          {hoveredEntry ? (
-            <div className="rounded-xl bg-[var(--card)] px-4 py-2 shadow-md text-sm">
-              <span className="font-semibold">
-                {t(`muscleMap.${hoveredEntry.muscleGroup}` as Parameters<typeof t>[0])}
-              </span>
+          return (
+            <path
+              key={id}
+              d={path}
+              style={{
+                fill: `color-mix(in oklch, var(--primary) ${Math.round(opacity * 100)}%, transparent)`,
+                filter: isHov ? "brightness(1.2) drop-shadow(0 0 4px color-mix(in oklch, var(--primary) 60%, transparent))" : undefined,
+                transition: "fill 350ms ease, filter 150ms ease",
+                cursor: entry ? "pointer" : "default",
+              }}
+              onMouseEnter={() => setHovered(id)}
+              onMouseLeave={() => setHovered(null)}
+              onTouchStart={() => setHovered(id)}
+              onTouchEnd={() => setTimeout(() => setHovered(null), 1400)}
+            />
+          );
+        })}
+
+        {/* Neck connector (drawn on top so it looks clean) */}
+        <path
+          d="M 88,56 L 112,56 L 111,72 L 89,72 Z"
+          fill="var(--card)"
+          stroke="var(--sys-separator)"
+          strokeWidth="1"
+        />
+      </svg>
+
+      {/* Tooltip */}
+      <div className={cn(
+        "h-9 flex items-center justify-center transition-opacity duration-200",
+        hovered ? "opacity-100" : "opacity-0 pointer-events-none"
+      )}>
+        {hovered && (
+          <div className="rounded-xl bg-[var(--card)] px-4 py-2 shadow-lg ring-1 ring-[var(--sys-separator)] text-sm">
+            <span className="font-semibold">
+              {t(`muscleMap.${hovered}` as Parameters<typeof t>[0])}
+            </span>
+            {hoveredEntry ? (
               <span className="ml-2 text-[var(--sys-label2)]">
                 {Math.round(hoveredEntry.volume).toLocaleString()} {weightUnit}
               </span>
-            </div>
-          ) : hovered ? (
-            <div className="rounded-xl bg-[var(--card)] px-4 py-2 shadow-md text-sm text-[var(--sys-label3)]">
-              {t(`muscleMap.${hovered}` as Parameters<typeof t>[0])} — no data
-            </div>
-          ) : null}
-        </div>
+            ) : (
+              <span className="ml-2 text-[var(--sys-label3)]">no data</span>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-2 text-xs text-[var(--sys-label3)]">
-        <div className="flex items-center gap-1">
-          <div className="h-3 w-8 rounded-full" style={{ background: "linear-gradient(to right, color-mix(in oklch, var(--primary) 12%, transparent), color-mix(in oklch, var(--primary) 90%, transparent))" }} />
-        </div>
-        <span>low → high volume</span>
+      {/* Colour legend */}
+      <div className="flex items-center gap-2.5 text-[0.6875rem] text-[var(--sys-label3)]">
+        <span>none</span>
+        <div
+          className="h-2.5 w-24 rounded-full"
+          style={{
+            background: "linear-gradient(to right, color-mix(in oklch, var(--primary) 22%, transparent), color-mix(in oklch, var(--primary) 94%, transparent))",
+          }}
+        />
+        <span>high</span>
       </div>
     </div>
   );
