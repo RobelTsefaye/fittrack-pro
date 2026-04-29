@@ -20,7 +20,8 @@ function usePageTitle() {
   if (pathname.startsWith(ROUTES.exercises))   return t("nav.exercises");
   if (pathname.startsWith(ROUTES.bodyWeight))  return t("nav.bodyWeight");
   if (pathname.startsWith(ROUTES.settings))    return t("nav.settings");
-  if (pathname.startsWith(ROUTES.coach))       return t("nav.coach");
+  if (pathname.startsWith(ROUTES.coach))          return t("nav.coach");
+  if (pathname.startsWith(ROUTES.plateCalculator)) return t("nav.plateCalc");
   return "";
 }
 

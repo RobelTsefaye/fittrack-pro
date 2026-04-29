@@ -12,6 +12,7 @@ import {
   Scale,
   Settings,
   Sparkles,
+  Calculator,
   X,
   LogOut,
   ChevronRight,
@@ -33,6 +34,10 @@ const mainNav = [
   { labelKey: "nav.exercises"  as const, href: ROUTES.exercises,  icon: ListChecks },
   { labelKey: "nav.bodyWeight" as const, href: ROUTES.bodyWeight, icon: Scale },
   { labelKey: "nav.coach"      as const, href: ROUTES.coach,      icon: Sparkles },
+];
+
+const toolsNav = [
+  { labelKey: "nav.plateCalc" as const, href: ROUTES.plateCalculator, icon: Calculator },
 ];
 
 const accountNav = [
@@ -144,6 +149,23 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             {t("nav.sectionTraining")}
           </p>
           {mainNav.map((item) => (
+            <NavItem
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={t(item.labelKey)}
+              isActive={isActive(item.href)}
+              onClick={onClose}
+            />
+          ))}
+        </div>
+
+        {/* Tools section */}
+        <div className="space-y-0.5">
+          <p className="mb-1.5 px-2.5 text-[0.65rem] font-semibold uppercase tracking-widest text-sidebar-foreground/35 select-none">
+            {t("nav.sectionTools")}
+          </p>
+          {toolsNav.map((item) => (
             <NavItem
               key={item.href}
               href={item.href}

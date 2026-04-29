@@ -11,7 +11,10 @@
     "settings": "Einstellungen",
     "coach": "KI-Coach",
     "sectionTraining": "Training",
-    "sectionAccount": "Konto"
+    "sectionAccount": "Konto",
+    "coachShort": "Coach",
+    "plateCalc": "Hantelrechner",
+    "sectionTools": "Tools"
   },
   "navbar": {
     "settings": "Einstellungen",
@@ -409,5 +412,49 @@
     "retry": "Nochmal versuchen",
     "disclaimer": "KI kann Fehler machen. Kein medizinischer Rat.",
     "noApiKey": "Kein Anthropic API-Key konfiguriert. ANTHROPIC_API_KEY zur Umgebung hinzufügen."
+  },
+  "plateCalc": {
+    "title": "Hantelrechner",
+    "subtitle": "Schnell die richtigen Scheiben ermitteln",
+    "targetWeight": "Zielgewicht",
+    "barWeight": "Stangengewicht",
+    "barStandard": "Standard (20 kg / 44 lb)",
+    "barWomens": "Damen (15 kg / 33 lb)",
+    "barCustom": "Benutzerdefiniert",
+    "perSide": "Pro Seite",
+    "totalWeight": "Gesamtgewicht",
+    "noPlatesNeeded": "Nur die Stange — keine Scheiben nötig.",
+    "notAchievable": "Nicht erreichbar. Nächster Wert: {nearest}",
+    "unit": "Einheit",
+    "plateLabel": "× {count}",
+    "emptyHint": "Zielgewicht eingeben, um Scheiben zu berechnen."
+  },
+  "share": {
+    "shareWorkout": "Training teilen",
+    "copied": "Link kopiert!",
+    "copyFailed": "Kopieren fehlgeschlagen",
+    "shareText": "„{name}\" abgeschlossen — {sets} Sätze, {volume} Gesamtvolumen. Getrackt mit FitTrack Pro.",
+    "downloadHint": "Screenshot erstellen und in sozialen Medien teilen.",
+    "close": "Schließen"
+  },
+  "muscleMap": {
+    "title": "Muskelkarte",
+    "subtitle": "Letzte 7 Tage",
+    "front": "Vorne",
+    "back": "Hinten",
+    "noData": "Schließe ein Training ab, um deine Muskelkarte zu sehen.",
+    "CHEST": "Brust",
+    "BACK": "Rücken",
+    "SHOULDERS": "Schultern",
+    "BICEPS": "Bizeps",
+    "TRICEPS": "Trizeps",
+    "LEGS": "Beine",
+    "GLUTES": "Gesäß",
+    "CORE": "Rumpf",
+    "FOREARMS": "Unterarme",
+    "CALVES": "Waden",
+    "FULL_BODY": "Ganzkörper",
+    "CARDIO": "Cardio",
+    "OTHER": "Sonstiges"
   }
 }

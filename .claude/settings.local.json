@@ -102,7 +102,22 @@
       "Bash(curl -s https://fittrack-pro.vercel.app/api/mcp)",
       "Bash(npx vercel:*)",
       "Bash(curl -s https://fittrack-pro-ashen.vercel.app/api/mcp)",
-      "Bash(curl -s -X POST -H \"Content-Type: application/json\" -d '{\"\"\"\"jsonrpc\"\"\"\":\"\"\"\"2.0\"\"\"\",\"\"\"\"id\"\"\"\":1,\"\"\"\"method\"\"\"\":\"\"\"\"initialize\"\"\"\",\"\"\"\"params\"\"\"\":{\"\"\"\"protocolVersion\"\"\"\":\"\"\"\"2024-11-05\"\"\"\",\"\"\"\"capabilities\"\"\"\":{},\"\"\"\"clientInfo\"\"\"\":{\"\"\"\"name\"\"\"\":\"\"\"\"test\"\"\"\",\"\"\"\"version\"\"\"\":\"\"\"\"1.0\"\"\"\"}}}' \"https://fittrack-pro-ashen.vercel.app/api/mcp?token=test_invalid\" -w \"\\\\nHTTP: %{http_code}\")"
+      "Bash(curl -s -X POST -H \"Content-Type: application/json\" -d '{\"\"\"\"jsonrpc\"\"\"\":\"\"\"\"2.0\"\"\"\",\"\"\"\"id\"\"\"\":1,\"\"\"\"method\"\"\"\":\"\"\"\"initialize\"\"\"\",\"\"\"\"params\"\"\"\":{\"\"\"\"protocolVersion\"\"\"\":\"\"\"\"2024-11-05\"\"\"\",\"\"\"\"capabilities\"\"\"\":{},\"\"\"\"clientInfo\"\"\"\":{\"\"\"\"name\"\"\"\":\"\"\"\"test\"\"\"\",\"\"\"\"version\"\"\"\":\"\"\"\"1.0\"\"\"\"}}}' \"https://fittrack-pro-ashen.vercel.app/api/mcp?token=test_invalid\" -w \"\\\\nHTTP: %{http_code}\")",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" https://fittrack-pro-ashen.vercel.app/.well-known/oauth-authorization-server)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" https://fittrack-pro-ashen.vercel.app/.well-known/oauth-protected-resource)",
+      "Bash(curl -s -X POST -H \"Content-Type: application/json\" -d '{\"\"client_name\"\":\"\"test\"\",\"\"redirect_uris\"\":[\"\"https://claude.ai/cb\"\"]}' -w \"\\\\nHTTP %{http_code}\\\\n\" https://fittrack-pro-ashen.vercel.app/api/mcp/oauth/register)",
+      "Bash(npx next:*)",
+      "Bash(xattr -dr com.apple.quarantine \"/Users/robeltsefaye/MyWebsite 2/node_modules\")",
+      "Bash(npm init:*)",
+      "Bash(node --check \"/Users/robeltsefaye/Own Game/server.js\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); deps={**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}; [print\\(k,v\\) for k,v in deps.items\\(\\) if any\\(x in k for x in ['ai','anthropic','openai','stream']\\)]\")",
+      "Bash(node -e \"const pkg = require\\('/Users/robeltsefaye/FitnessApp/node_modules/ai/package.json'\\); console.log\\('ai:', pkg.version\\)\")",
+      "Bash(node -e \"const pkg = require\\('/Users/robeltsefaye/FitnessApp/node_modules/@ai-sdk/anthropic/package.json'\\); console.log\\('@ai-sdk/anthropic:', pkg.version\\)\")",
+      "Bash(node -e \"const ai = require\\('/Users/robeltsefaye/FitnessApp/node_modules/ai'\\); console.log\\(Object.keys\\(ai\\).filter\\(k => k.includes\\('ata'\\) || k.includes\\('Stream'\\) || k.includes\\('Text'\\)\\)\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const ai = require\\('/Users/robeltsefaye/FitnessApp/node_modules/ai'\\); console.log\\('useChat' in ai\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(list\\(d.keys\\(\\)\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); d['nav']['coachShort']='Coach'; d['nav']['plateCalc']='Hantelrechner'; d['nav']['sectionTools']='Tools'; d['plateCalc']={'title':'Hantelrechner','subtitle':'Schnell die richtigen Scheiben ermitteln','targetWeight':'Zielgewicht','barWeight':'Stangengewicht','barStandard':'Standard \\(20 kg / 44 lb\\)','barWomens':'Damen \\(15 kg / 33 lb\\)','barCustom':'Benutzerdefiniert','perSide':'Pro Seite','totalWeight':'Gesamtgewicht','noPlatesNeeded':'Nur die Stange — keine Scheiben nötig.','notAchievable':'Nicht erreichbar mit Standard-Scheiben. Nächster Wert: {nearest}','unit':'Einheit','plateLabel':'× {count}','emptyHint':'Zielgewicht eingeben, um Scheiben zu berechnen.'}; d['share']={'shareWorkout':'Training teilen','copied':'Link kopiert!','copyFailed':'Kopieren fehlgeschlagen','shareText':'„{name}\" abgeschlossen — {sets} Sätze, {volume} Gesamtvolumen. Getrackt mit FitTrack Pro.','downloadHint':'Screenshot erstellen und in sozialen Medien teilen.','close':'Schließen'}; d['muscleMap']={'title':'Muskelkarte','subtitle':'Letzte 7 Tage','front':'Vorne','back':'Hinten','noData':'Schließe ein Training ab, um deine Muskelkarte zu sehen.','CHEST':'Brust','BACK':'Rücken','SHOULDERS':'Schultern','BICEPS':'Bizeps','TRICEPS':'Trizeps','LEGS':'Beine','GLUTES':'Gesäß','CORE':'Rumpf','FOREARMS':'Unterarme','CALVES':'Waden','FULL_BODY':'Ganzkörper','CARDIO':'Cardio','OTHER':'Sonstiges'}; print\\(json.dumps\\(d, ensure_ascii=False, indent=2\\)\\)\" > /tmp/de_updated.json && mv /tmp/de_updated.json /Users/robeltsefaye/FitnessApp/src/messages/de.json)"
     ]
   }
 }

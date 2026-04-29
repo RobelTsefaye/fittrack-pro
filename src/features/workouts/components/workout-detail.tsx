@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, CheckCircle2, Clock, GripVertical, Plus, Timer, Trash2 } from "lucide-react";
+import { WorkoutShareButton } from "./workout-share-button";
 import {
   DndContext,
   closestCenter,
@@ -1024,6 +1025,9 @@ export function WorkoutDetail({
           </Button>
         ) : workout.completedAt ? (
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            {/* Share button */}
+            <WorkoutShareButton workout={workout} weightUnit={weightLabel} />
+
             {!useLocalWrites ? (
               <Button
                 variant="secondary"

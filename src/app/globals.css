@@ -204,9 +204,34 @@
   padding-left:  env(safe-area-inset-left,  0px);
   padding-right: env(safe-area-inset-right, 0px);
 }
+/* ─── Bottom tab bar height tokens ──────────────────────────────────────── */
+:root {
+  --tab-bar-h: 49px; /* iOS tab bar standard height (without safe area) */
+}
+
+/* Extra bottom padding on mobile to clear the fixed tab bar */
+.tab-bar-safe {
+  padding-bottom: calc(var(--tab-bar-h) + max(0.75rem, env(safe-area-inset-bottom, 0px)));
+}
+@media (min-width: 1024px) {
+  /* On desktop there is no tab bar — revert to normal safe area padding */
+  .tab-bar-safe { padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px)); }
+}
+
+/* Coach chat / any full-bleed page that must fill exactly the visible area */
+.fill-mobile-viewport {
+  /* full dvh minus: mobile top bar (3.5rem) + tab bar + safe areas */
+  height: calc(100dvh - 3.5rem - var(--tab-bar-h) - env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 1024px) {
+  /* desktop: sidebar is 60px + no tab bar */
+  .fill-mobile-viewport { height: calc(100dvh - 2rem); }
+}
+
 .main-scroll {
   -webkit-overflow-scrolling: touch;
   contain: layout style;
+  overscroll-behavior-y: contain;
 }
 
 /* ─── Sidebar glass ──────────────────────────────────────────────────────── */

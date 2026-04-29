@@ -10,7 +10,10 @@
     "plans": "Plans",
     "settings": "Settings",
     "coach": "AI Coach",
+    "coachShort": "Coach",
+    "plateCalc": "Plate Calculator",
     "sectionTraining": "Training",
+    "sectionTools": "Tools",
     "sectionAccount": "Account"
   },
   "navbar": {
@@ -409,5 +412,49 @@
     "retry": "Retry",
     "disclaimer": "AI can make mistakes. Not medical advice.",
     "noApiKey": "No Anthropic API key configured. Add ANTHROPIC_API_KEY to your environment."
+  },
+  "plateCalc": {
+    "title": "Plate Calculator",
+    "subtitle": "Load your barbell in seconds",
+    "targetWeight": "Target weight",
+    "barWeight": "Bar weight",
+    "barStandard": "Standard (20 kg / 44 lb)",
+    "barWomens": "Women's (15 kg / 33 lb)",
+    "barCustom": "Custom",
+    "perSide": "Per side",
+    "totalWeight": "Total on bar",
+    "noPlatesNeeded": "Bar weight only — no plates needed.",
+    "notAchievable": "Not achievable with standard plates. Nearest: {nearest}",
+    "unit": "Unit",
+    "plateLabel": "× {count}",
+    "emptyHint": "Enter a target weight to calculate plates."
+  },
+  "share": {
+    "shareWorkout": "Share workout",
+    "copied": "Link copied!",
+    "copyFailed": "Could not copy",
+    "shareText": "Completed \"{name}\" — {sets} sets, {volume} total volume. Tracked with FitTrack Pro.",
+    "downloadHint": "Screenshot to share on social media.",
+    "close": "Close"
+  },
+  "muscleMap": {
+    "title": "Muscle Map",
+    "subtitle": "Last 7 days",
+    "front": "Front",
+    "back": "Back",
+    "noData": "Complete a workout to see your muscle map.",
+    "CHEST": "Chest",
+    "BACK": "Back",
+    "SHOULDERS": "Shoulders",
+    "BICEPS": "Biceps",
+    "TRICEPS": "Triceps",
+    "LEGS": "Legs",
+    "GLUTES": "Glutes",
+    "CORE": "Core",
+    "FOREARMS": "Forearms",
+    "CALVES": "Calves",
+    "FULL_BODY": "Full Body",
+    "CARDIO": "Cardio",
+    "OTHER": "Other"
   }
 }

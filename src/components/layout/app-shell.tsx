@@ -6,6 +6,7 @@ import { ActiveWorkoutBanner } from "@/components/layout/active-workout-banner";
 import { RestTimerProvider } from "@/features/workouts/rest-timer-context";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileTopBar } from "@/components/layout/navbar";
+import { BottomTabBar } from "@/components/layout/bottom-tab-bar";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -46,12 +47,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {/* Scrollable content */}
           <main
             id="main-content"
-            className="main-scroll flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background px-4 py-5 sm:px-6 md:px-8 md:py-7 safe-bottom-pad"
+            className="main-scroll flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background px-4 py-5 sm:px-6 md:px-8 md:py-7 safe-bottom-pad tab-bar-safe"
           >
             <div className="mx-auto w-full max-w-5xl">
               {children}
             </div>
           </main>
+
+          {/* Bottom tab bar — mobile only */}
+          <BottomTabBar />
 
         </RestTimerProvider>
       </div>

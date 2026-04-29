@@ -71,7 +71,7 @@ export function CoachChat() {
   const isEmpty = messages.length === 0;
 
   return (
-    <div className="flex h-[calc(100dvh-4rem)] flex-col lg:h-[calc(100dvh-2rem)]">
+    <div className="fill-mobile-viewport flex flex-col">
 
       {/* ── Header ──────────────────────────────────── */}
       <div className="shrink-0 pb-4">
