@@ -102,10 +102,10 @@ export async function POST(req: Request) {
   const systemPrompt = buildSystemPrompt(coachCtx, trainingSummary);
 
   const result = streamText({
-    model: google("gemini-2.5-flash"),
+    model: google("gemini-2.0-flash"),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
-    maxOutputTokens: 1024,
+    maxOutputTokens: 512,
   });
 
   return result.toUIMessageStreamResponse();
