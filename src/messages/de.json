@@ -14,6 +14,7 @@
     "sectionAccount": "Konto",
     "coachShort": "Coach",
     "plateCalc": "Hantelrechner",
+    "records": "Persönliche Rekorde",
     "sectionTools": "Tools"
   },
   "navbar": {
@@ -458,5 +459,41 @@
     "OTHER": "Sonstiges",
     "none": "–",
     "high": "hoch"
+  },
+  "records": {
+    "title": "Persönliche Rekorde",
+    "subtitle": "Deine persönlichen Bestleistungen",
+    "noRecords": "Noch keine Rekorde. Schließe ein Training ab!",
+    "estimated1RM": "Gesch. 1WH",
+    "weight": "Gewicht",
+    "reps": "Wdh.",
+    "achievedOn": "Erreicht",
+    "allGroups": "Alle",
+    "viewExercise": "Übung ansehen",
+    "recordCount": "{count} Rekorde"
+  },
+  "achievements": {
+    "title": "Erfolge",
+    "firstWorkout": "Erster Schritt",
+    "firstWorkoutDesc": "Erstes Training abgeschlossen",
+    "tenWorkouts": "Auf Kurs",
+    "tenWorkoutsDesc": "10 Trainings abgeschlossen",
+    "fiftyWorkouts": "Zielstrebig",
+    "fiftyWorkoutsDesc": "50 Trainings abgeschlossen",
+    "hundredWorkouts": "Eisenwille",
+    "hundredWorkoutsDesc": "100 Trainings abgeschlossen",
+    "firstPR": "Rekordjäger",
+    "firstPRDesc": "Ersten persönlichen Rekord aufgestellt",
+    "tenPRs": "Rekordbrecher",
+    "tenPRsDesc": "10 persönliche Rekorde aufgestellt",
+    "streak3": "Gewohnheitsbildung",
+    "streak3Desc": "3-tägige Trainingsserie",
+    "streak7": "Wochenkämpfer",
+    "streak7Desc": "7-tägige Trainingsserie",
+    "streak30": "Unaufhaltsam",
+    "streak30Desc": "30-tägige Trainingsserie",
+    "earlyBird": "Frühaufsteher",
+    "earlyBirdDesc": "Training vor 7 Uhr morgens",
+    "locked": "Gesperrt"
   }
 }

@@ -12,6 +12,7 @@
     "coach": "AI Coach",
     "coachShort": "Coach",
     "plateCalc": "Plate Calculator",
+    "records": "Personal Records",
     "sectionTraining": "Training",
     "sectionTools": "Tools",
     "sectionAccount": "Account"
@@ -458,5 +459,41 @@
     "OTHER": "Other",
     "none": "none",
     "high": "high"
+  },
+  "records": {
+    "title": "Personal Records",
+    "subtitle": "Your all-time bests",
+    "noRecords": "No personal records yet. Complete a workout to get started!",
+    "estimated1RM": "Est. 1RM",
+    "weight": "Weight",
+    "reps": "Reps",
+    "achievedOn": "Achieved",
+    "allGroups": "All",
+    "viewExercise": "View exercise",
+    "recordCount": "{count} PRs"
+  },
+  "achievements": {
+    "title": "Achievements",
+    "firstWorkout": "First Rep",
+    "firstWorkoutDesc": "Completed your first workout",
+    "tenWorkouts": "On a Roll",
+    "tenWorkoutsDesc": "Completed 10 workouts",
+    "fiftyWorkouts": "Dedicated",
+    "fiftyWorkoutsDesc": "Completed 50 workouts",
+    "hundredWorkouts": "Iron Will",
+    "hundredWorkoutsDesc": "Completed 100 workouts",
+    "firstPR": "Breaking Records",
+    "firstPRDesc": "Earned your first personal record",
+    "tenPRs": "Record Breaker",
+    "tenPRsDesc": "Earned 10 personal records",
+    "streak3": "Habit Forming",
+    "streak3Desc": "3-day workout streak",
+    "streak7": "Week Warrior",
+    "streak7Desc": "7-day workout streak",
+    "streak30": "Unstoppable",
+    "streak30Desc": "30-day workout streak",
+    "earlyBird": "Early Bird",
+    "earlyBirdDesc": "Logged a workout before 7am",
+    "locked": "Locked"
   }
 }

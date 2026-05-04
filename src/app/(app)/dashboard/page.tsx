@@ -6,6 +6,7 @@ import { APP_NAME } from "@/lib/constants";
 import { getDashboardClientPayload } from "@/features/dashboard/queries";
 import { DashboardAnalytics } from "@/features/dashboard/components/dashboard-analytics";
 import { MuscleHeatmapCard } from "@/features/dashboard/components/muscle-heatmap-card";
+import { AchievementsCard } from "@/features/dashboard/components/achievements-card";
 import { DashboardPageSkeleton } from "./dashboard-page-skeleton";
 
 export const metadata = { title: `Dashboard — ${APP_NAME}` };
@@ -45,6 +46,9 @@ async function DashboardData({
         weightUnit={settings?.weightUnit ?? "KG"}
         payload={payload}
       />
+      {/* Achievements — streamed */}
+      <AchievementsCard userId={userId} />
+
       {/* Muscle heatmap — streamed in separately so it doesn't block dashboard */}
       <Suspense fallback={
         <div className="ios-group px-4 py-4 animate-pulse">

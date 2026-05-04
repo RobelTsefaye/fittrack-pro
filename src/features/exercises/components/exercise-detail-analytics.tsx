@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n-provider";
+import { OneRMCalculator } from "./one-rm-calculator";
 import type { ProgressPoint, VolumePoint } from "@/features/exercises/progress-types";
 
 const ExerciseProgressChart = dynamic(
@@ -105,6 +106,13 @@ export function ExerciseDetailAnalytics({
           <ExerciseVolumeChart data={volumeBySession} />
         </CardContent>
       </Card>
+
+      {/* 1RM Calculator */}
+      <OneRMCalculator
+        initialWeight={bestPr?.weight ?? 0}
+        initialReps={bestPr?.reps ?? 5}
+        weightUnit={weightUnit}
+      />
 
       <Card>
         <CardHeader>

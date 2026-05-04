@@ -13,6 +13,7 @@ import {
   Settings,
   Sparkles,
   Calculator,
+  Trophy,
   X,
   LogOut,
   ChevronRight,
@@ -33,6 +34,7 @@ const mainNav = [
   { labelKey: "nav.plans"      as const, href: ROUTES.plans,      icon: ClipboardList },
   { labelKey: "nav.exercises"  as const, href: ROUTES.exercises,  icon: ListChecks },
   { labelKey: "nav.bodyWeight" as const, href: ROUTES.bodyWeight, icon: Scale },
+  { labelKey: "nav.records"    as const, href: ROUTES.records,    icon: Trophy },
   { labelKey: "nav.coach"      as const, href: ROUTES.coach,      icon: Sparkles },
 ];
 
