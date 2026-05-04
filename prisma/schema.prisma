@@ -65,8 +65,9 @@ model User {
   exercises       Exercise[]
   workouts        Workout[]
   workoutPlans    WorkoutPlan[]
-  bodyWeights     BodyWeight[]
-  personalRecords PersonalRecord[]
+  bodyWeights      BodyWeight[]
+  bodyMeasurements BodyMeasurement[]
+  personalRecords  PersonalRecord[]
   settings        UserSettings?
   apiTokens       ApiToken[]
 
@@ -242,6 +243,28 @@ model BodyWeight {
 
   @@unique([userId, date])
   @@map("body_weights")
+}
+
+model BodyMeasurement {
+  id         String   @id @default(uuid())
+  userId     String
+  date       DateTime @db.Date
+  // All values in cm (or inches — same unit preference as weightUnit)
+  neck       Float?
+  chest      Float?
+  leftArm    Float?
+  rightArm   Float?
+  waist      Float?
+  hips       Float?
+  leftThigh  Float?
+  rightThigh Float?
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("body_measurements")
 }
 
 model PersonalRecord {

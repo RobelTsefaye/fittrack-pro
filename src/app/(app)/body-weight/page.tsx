@@ -2,9 +2,9 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { APP_NAME } from "@/lib/constants";
-import { BodyWeightTracker } from "@/features/tracking/components/body-weight-tracker";
+import { BodyTrackingShell } from "@/features/tracking/components/body-tracking-shell";
 
-export const metadata = { title: `Body Weight — ${APP_NAME}` };
+export const metadata = { title: `Body Tracking — ${APP_NAME}` };
 
 export default async function BodyWeightPage() {
   const session = await auth();
@@ -14,5 +14,5 @@ export default async function BodyWeightPage() {
     where: { userId: session.user.id },
   });
 
-  return <BodyWeightTracker weightUnit={settings?.weightUnit ?? "KG"} />;
+  return <BodyTrackingShell weightUnit={settings?.weightUnit ?? "KG"} />;
 }
