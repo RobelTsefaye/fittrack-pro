@@ -212,13 +212,9 @@
   --tab-bar-h: 76px; /* floating pill (58px) + top padding (10px) + breathing room */
 }
 
-/* Extra bottom padding on mobile to clear the fixed tab bar */
+/* Extra bottom padding to clear the fixed tab bar */
 .tab-bar-safe {
   padding-bottom: calc(var(--tab-bar-h) + max(0.75rem, env(safe-area-inset-bottom, 0px)));
-}
-@media (min-width: 1024px) {
-  /* On desktop there is no tab bar — revert to normal safe area padding */
-  .tab-bar-safe { padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px)); }
 }
 
 /* Coach chat / any full-bleed page that must fill exactly the visible area */
@@ -227,8 +223,8 @@
   height: calc(100dvh - 3.5rem - var(--tab-bar-h) - env(safe-area-inset-bottom, 0px));
 }
 @media (min-width: 1024px) {
-  /* desktop: sidebar is 60px + no tab bar */
-  .fill-mobile-viewport { height: calc(100dvh - 2rem); }
+  /* desktop: no top bar (lg:hidden) */
+  .fill-mobile-viewport { height: calc(100dvh - var(--tab-bar-h) - env(safe-area-inset-bottom, 0px)); }
 }
 
 .main-scroll {

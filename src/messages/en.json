@@ -15,7 +15,8 @@
     "records": "Personal Records",
     "sectionTraining": "Training",
     "sectionTools": "Tools",
-    "sectionAccount": "Account"
+    "sectionAccount": "Account",
+    "more": "More"
   },
   "navbar": {
     "settings": "Settings",

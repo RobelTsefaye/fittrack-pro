@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Menu, WifiOff } from "lucide-react";
+import { WifiOff } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -23,15 +23,12 @@ function usePageTitle() {
   if (pathname.startsWith(ROUTES.coach))           return t("nav.coach");
   if (pathname.startsWith(ROUTES.plateCalculator)) return t("nav.plateCalc");
   if (pathname.startsWith(ROUTES.records))         return t("nav.records");
+  if (pathname === ROUTES.more)                    return t("nav.more");
   return "";
 }
 
-interface MobileTopBarProps {
-  onMenuClick: () => void;
-}
-
-/** Visible only on mobile (< lg). Desktop shows the sidebar instead. */
-export function MobileTopBar({ onMenuClick }: MobileTopBarProps) {
+/** Visible only on mobile (< lg). */
+export function MobileTopBar() {
   const { t } = useI18n();
   const { data: session } = useSession();
   const [isOnline, setIsOnline] = useState(true);
@@ -72,16 +69,6 @@ export function MobileTopBar({ onMenuClick }: MobileTopBarProps) {
           WebkitBackdropFilter: "blur(16px)",
         }}
       >
-        <button
-          type="button"
-          onClick={onMenuClick}
-          aria-label="Menü öffnen"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-white/5"
-          style={{ color: "#9A9AA2" }}
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-
         <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold tracking-tight text-white">
           {title}
         </span>
