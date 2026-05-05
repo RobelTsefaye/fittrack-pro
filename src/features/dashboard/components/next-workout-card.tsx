@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Play } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Play } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
 import type { NextPlanSession } from "@/features/dashboard/queries";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
@@ -37,33 +35,56 @@ export function NextWorkoutCard({ nextSession }: NextWorkoutCardProps) {
   }
 
   return (
-    <Card className="border-primary/30 bg-primary/5 dark:bg-primary/10">
-      <CardHeader className="pb-2">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+    <div
+      className="relative overflow-hidden rounded-[22px] p-[18px]"
+      style={{
+        background: "linear-gradient(140deg, #1B2207 0%, #121214 70%)",
+        border: "1px solid rgba(255,255,255,0.14)",
+      }}
+    >
+      {/* Glow orb */}
+      <div
+        className="pointer-events-none absolute -right-12 -top-12 h-[220px] w-[220px] rounded-full"
+        style={{ background: "rgba(212,255,58,0.12)", filter: "blur(50px)" }}
+      />
+
+      <div className="relative">
+        {/* Volt tag */}
+        <span
+          className="inline-flex items-center gap-1 rounded-md px-2 py-[3px] text-[11px] font-semibold uppercase tracking-[0.04em]"
+          style={{ background: "rgba(212,255,58,0.14)", color: "#D4FF3A" }}
+        >
+          {t("dashboard.nextWorkoutTitle")} · Today
+        </span>
+
+        {/* Plan name */}
+        <p className="mt-1.5 text-[13px]" style={{ color: "#9A9AA2" }}>
           {nextSession.planName}
         </p>
-        <CardTitle className="text-base">{t("dashboard.nextWorkoutTitle")}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-2 mb-4">
-          {nextSession.lastSessionName && (
-            <>
-              <span className="text-sm text-muted-foreground">{nextSession.lastSessionName}</span>
-              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </>
-          )}
-          <span className="text-sm font-semibold">{nextSession.sessionName}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
-            {t("dashboard.exerciseCount", { count: nextSession.exerciseCount })}
-          </p>
-          <Button onClick={handleStart} disabled={loading} size="sm">
-            <Play className="mr-1.5 h-3.5 w-3.5" />
+
+        {/* Session name */}
+        <h2 className="mt-0.5 text-[22px] font-bold tracking-tight leading-tight text-white">
+          {nextSession.sessionName}
+        </h2>
+
+        {/* Meta */}
+        <p className="mt-1 text-[13px]" style={{ color: "#9A9AA2" }}>
+          {t("dashboard.exerciseCount", { count: nextSession.exerciseCount })}
+        </p>
+
+        {/* CTA */}
+        <div className="mt-4">
+          <button
+            onClick={handleStart}
+            disabled={loading}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] font-bold text-[15px] transition-opacity active:opacity-80 disabled:opacity-60"
+            style={{ background: "#D4FF3A", color: "#0A1300" }}
+          >
+            <Play className="h-[1.125rem] w-[1.125rem] fill-current" />
             {loading ? t("dashboard.nextWorkoutStarting") : t("dashboard.nextWorkoutStart")}
-          </Button>
+          </button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

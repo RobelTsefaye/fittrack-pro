@@ -134,7 +134,7 @@ export const SetRow = memo(function SetRow({
       className={cn(
         "rounded-lg px-2 py-2 transition-colors sm:px-2 sm:py-1.5",
         set.isCompleted
-          ? "bg-green-500/10 ring-1 ring-green-500/20 dark:bg-green-500/8 dark:ring-green-500/15"
+          ? "dark:bg-primary/8 dark:ring-1 dark:ring-primary/20 bg-green-500/10 ring-1 ring-green-500/20"
           : "bg-muted/50"
       )}
     >
@@ -186,7 +186,7 @@ export const SetRow = memo(function SetRow({
               variant="ghost"
               onClick={() => saveSet(true)}
               disabled={saving}
-              className="h-11 w-11 text-green-600 hover:bg-green-500/10 hover:text-green-700 sm:h-7 sm:w-7"
+              className="h-11 w-11 sm:h-7 sm:w-7 text-primary hover:bg-primary/10"
             >
               <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
             </Button>
@@ -201,7 +201,7 @@ export const SetRow = memo(function SetRow({
             </Button>
           </div>
         ) : (
-          <Check className="ml-auto h-5 w-5 shrink-0 text-green-600 sm:ml-0 sm:h-4 sm:w-4" />
+          <Check className="ml-auto h-5 w-5 shrink-0 text-primary sm:ml-0 sm:h-4 sm:w-4" />
         )}
       </div>
       {previousHint ? (

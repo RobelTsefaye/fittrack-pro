@@ -24,7 +24,8 @@ export function RestTimerBar({ timer }: RestTimerBarProps) {
 
   return (
     <div
-      className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-50 w-[min(100%-2rem,20rem)] rounded-xl border border-border/60 bg-card/98 p-3 shadow-xl ring-1 ring-foreground/5 backdrop-blur supports-[backdrop-filter]:bg-card/92 lg:right-8 lg:bottom-6"
+      className="fixed right-4 z-50 w-[min(100%-2rem,20rem)] rounded-xl border border-border/60 bg-card/98 p-3 shadow-xl ring-1 ring-foreground/5 backdrop-blur supports-[backdrop-filter]:bg-card/92 lg:right-8 lg:bottom-6"
+      style={{ bottom: "calc(var(--tab-bar-h) + max(0.75rem, env(safe-area-inset-bottom, 0px)))" }}
       role="status"
       aria-live="polite"
     >

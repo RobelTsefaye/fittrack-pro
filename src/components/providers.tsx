@@ -9,7 +9,7 @@ import { OfflineSyncProvider } from "@/components/offline-sync-provider";
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider refetchOnWindowFocus={false} refetchWhenOffline={false}>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
         <PwaRegister />
         <OfflineSyncProvider />
         {children}

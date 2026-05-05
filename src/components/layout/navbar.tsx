@@ -63,22 +63,34 @@ export function MobileTopBar({ onMenuClick }: MobileTopBarProps) {
       )}
 
       {/* Top bar */}
-      <div className="flex h-12 items-center gap-3 border-b border-border/60 bg-card/80 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-card/70">
+      <div
+        className="flex h-12 items-center gap-3 px-4"
+        style={{
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          background: "rgba(7,7,8,0.92)",
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+        }}
+      >
         <button
           type="button"
           onClick={onMenuClick}
           aria-label="Menü öffnen"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-white/5"
+          style={{ color: "#9A9AA2" }}
         >
           <Menu className="h-5 w-5" />
         </button>
 
-        <span className="min-w-0 flex-1 text-[0.9375rem] font-semibold tracking-tight text-foreground truncate">
+        <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold tracking-tight text-white">
           {title}
         </span>
 
         <Avatar className="h-8 w-8 shrink-0">
-          <AvatarFallback className="bg-primary text-primary-foreground text-[0.65rem] font-semibold">
+          <AvatarFallback
+            className="text-[0.65rem] font-semibold"
+            style={{ background: "#26262B", color: "#D4FF3A" }}
+          >
             {initials}
           </AvatarFallback>
         </Avatar>
