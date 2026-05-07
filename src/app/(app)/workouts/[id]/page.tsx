@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { WorkoutDetail } from "@/features/workouts/components/workout-detail";
+import { SettingsCacher } from "./settings-cacher";
 
 export default async function WorkoutPage({
   params,
@@ -16,12 +17,18 @@ export default async function WorkoutPage({
   });
 
   const { id } = await params;
+  const weightUnit = settings?.weightUnit ?? "KG";
+  const restTimerDefault = settings?.restTimerDefault ?? 90;
 
   return (
-    <WorkoutDetail
-      workoutId={id}
-      defaultRestSeconds={settings?.restTimerDefault ?? 90}
-      weightUnit={settings?.weightUnit ?? "KG"}
-    />
+    <>
+      {/* Cache settings in localStorage so offline workout start can read them */}
+      <SettingsCacher weightUnit={weightUnit} restTimerDefault={restTimerDefault} />
+      <WorkoutDetail
+        workoutId={id}
+        defaultRestSeconds={restTimerDefault}
+        weightUnit={weightUnit}
+      />
+    </>
   );
 }

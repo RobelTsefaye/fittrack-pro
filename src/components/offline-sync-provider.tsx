@@ -34,7 +34,12 @@ export function OfflineSyncProvider() {
           }
           if (result.ok && result.newServerWorkoutId) {
             const prefix = `/workouts/${routeId}`;
-            if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+            if (
+              pathname === prefix ||
+              pathname.startsWith(`${prefix}/`) ||
+              // Offline workouts render inline on /workouts/new
+              pathname === "/workouts/new"
+            ) {
               router.replace(`/workouts/${result.newServerWorkoutId}`);
             }
             toast.success("Offline workout saved to your account.");

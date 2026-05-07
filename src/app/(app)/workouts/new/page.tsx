@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -12,8 +12,28 @@ import { Label } from "@/components/ui/label";
 import { ROUTES } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
 import type { WorkoutData } from "@/features/workouts/workout-types";
-import { enqueueWorkoutOp, saveWorkoutSnapshot } from "@/lib/offline/workout-offline-store";
+import {
+  distinctQueuedWorkoutIds,
+  enqueueWorkoutOp,
+  loadWorkoutSnapshot,
+  saveWorkoutSnapshot,
+} from "@/lib/offline/workout-offline-store";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
+import { WorkoutDetail } from "@/features/workouts/components/workout-detail";
+
+// ── Cached user settings (offline-safe) ─────────────────────────────────────
+const SETTINGS_KEY = "fittrack-cached-settings";
+type CachedSettings = { weightUnit: "KG" | "LB"; restTimerDefault: number };
+
+function readCachedSettings(): CachedSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) return JSON.parse(raw) as CachedSettings;
+  } catch {
+    /* ignore */
+  }
+  return { weightUnit: "KG", restTimerDefault: 90 };
+}
 
 export default function NewWorkoutPage() {
   const { t } = useI18n();
@@ -22,7 +42,57 @@ export default function NewWorkoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function startOffline() {
+  // When set, render WorkoutDetail inline instead of the form
+  const [offlineWorkoutId, setOfflineWorkoutId] = useState<string | null>(null);
+  const [settings, setSettings] = useState<CachedSettings>({
+    weightUnit: "KG",
+    restTimerDefault: 90,
+  });
+
+  // ── On mount: resume active offline workout + cache settings ────────────
+  useEffect(() => {
+    setSettings(readCachedSettings());
+
+    // Fetch + cache settings if online
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      fetch("/api/settings", { credentials: "include" })
+        .then((r) => r.json())
+        .then((json: { data?: { weightUnit?: string; restTimerDefault?: number } }) => {
+          if (json.data) {
+            const s: CachedSettings = {
+              weightUnit: (json.data.weightUnit as "KG" | "LB") ?? "KG",
+              restTimerDefault: json.data.restTimerDefault ?? 90,
+            };
+            setSettings(s);
+            try {
+              localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+            } catch {
+              /* ignore */
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
+    // Check for existing active offline workout → resume it
+    void (async () => {
+      try {
+        const ids = await distinctQueuedWorkoutIds();
+        for (const id of ids) {
+          const snap = await loadWorkoutSnapshot(id);
+          if (snap && !snap.data.completedAt) {
+            setOfflineWorkoutId(id);
+            return;
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
+
+  // ── Start offline: save to IndexedDB, show inline ──────────────────────
+  const startOffline = useCallback(async () => {
     const trimmed = name.trim();
     const id = crypto.randomUUID();
     const startedAt = new Date().toISOString();
@@ -39,10 +109,9 @@ export default function NewWorkoutPage() {
     await saveWorkoutSnapshot(id, data, true);
     await enqueueWorkoutOp(id, { t: "post_workout", name: data.name });
     notifyActiveWorkoutChanged();
-    // Use a full-page navigation so the SW can serve the cached HTML shell
-    // for this new (never-cached) URL. RSC navigation would fail offline.
-    window.location.href = `/workouts/${id}`;
-  }
+    // Render WorkoutDetail inline — stay on /workouts/new (cached by SW)
+    setOfflineWorkoutId(id);
+  }, [name]);
 
   async function handleStart(e: React.FormEvent) {
     e.preventDefault();
@@ -72,7 +141,9 @@ export default function NewWorkoutPage() {
       const json = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(typeof json.error === "string" ? json.error : t("workouts.couldNotStart"));
+        setError(
+          typeof json.error === "string" ? json.error : t("workouts.couldNotStart")
+        );
         setSubmitting(false);
         return;
       }
@@ -81,8 +152,7 @@ export default function NewWorkoutPage() {
       if (id) {
         notifyActiveWorkoutChanged();
         router.push(`/workouts/${id}`);
-      }
-      else {
+      } else {
         setError(t("workouts.invalidResponse"));
         setSubmitting(false);
       }
@@ -107,11 +177,26 @@ export default function NewWorkoutPage() {
     }
   }
 
+  // ── Inline offline workout view ────────────────────────────────────────
+  if (offlineWorkoutId) {
+    return (
+      <WorkoutDetail
+        workoutId={offlineWorkoutId}
+        defaultRestSeconds={settings.restTimerDefault}
+        weightUnit={settings.weightUnit}
+      />
+    );
+  }
+
+  // ── New workout form ───────────────────────────────────────────────────
   return (
     <div className="mx-auto max-w-md space-y-6">
       <Link
         href={ROUTES.workouts}
-        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "inline-flex gap-1 -ml-2 px-2")}
+        className={cn(
+          buttonVariants({ variant: "ghost", size: "sm" }),
+          "inline-flex gap-1 -ml-2 px-2"
+        )}
       >
         <ArrowLeft className="h-4 w-4" />
         {t("workouts.backToWorkouts")}
@@ -135,7 +220,9 @@ export default function NewWorkoutPage() {
                 disabled={submitting}
               />
             </div>
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            {error ? (
+              <p className="text-sm text-destructive">{error}</p>
+            ) : null}
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting ? t("workouts.starting") : t("workouts.begin")}
             </Button>
@@ -148,7 +235,9 @@ export default function NewWorkoutPage() {
             >
               {t("workouts.startOffline")}
             </Button>
-            <p className="text-center text-xs text-muted-foreground">{t("workouts.startOfflineHint")}</p>
+            <p className="text-center text-xs text-muted-foreground">
+              {t("workouts.startOfflineHint")}
+            </p>
           </form>
         </CardContent>
       </Card>

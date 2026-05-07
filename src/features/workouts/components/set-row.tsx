@@ -220,5 +220,7 @@ export const SetRow = memo(function SetRow({
   prev.set.isWarmup === next.set.isWarmup &&
   prev.disabled === next.disabled &&
   prev.previousHint === next.previousHint &&
-  prev.unlockCompleted === next.unlockCompleted
+  prev.unlockCompleted === next.unlockCompleted &&
+  // Track online↔offline transition so offlineHandlers are picked up
+  !!prev.offlineHandlers === !!next.offlineHandlers
 );
