@@ -120,7 +120,15 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); d['nav']['coachShort']='Coach'; d['nav']['plateCalc']='Hantelrechner'; d['nav']['sectionTools']='Tools'; d['plateCalc']={'title':'Hantelrechner','subtitle':'Schnell die richtigen Scheiben ermitteln','targetWeight':'Zielgewicht','barWeight':'Stangengewicht','barStandard':'Standard \\(20 kg / 44 lb\\)','barWomens':'Damen \\(15 kg / 33 lb\\)','barCustom':'Benutzerdefiniert','perSide':'Pro Seite','totalWeight':'Gesamtgewicht','noPlatesNeeded':'Nur die Stange — keine Scheiben nötig.','notAchievable':'Nicht erreichbar mit Standard-Scheiben. Nächster Wert: {nearest}','unit':'Einheit','plateLabel':'× {count}','emptyHint':'Zielgewicht eingeben, um Scheiben zu berechnen.'}; d['share']={'shareWorkout':'Training teilen','copied':'Link kopiert!','copyFailed':'Kopieren fehlgeschlagen','shareText':'„{name}\" abgeschlossen — {sets} Sätze, {volume} Gesamtvolumen. Getrackt mit FitTrack Pro.','downloadHint':'Screenshot erstellen und in sozialen Medien teilen.','close':'Schließen'}; d['muscleMap']={'title':'Muskelkarte','subtitle':'Letzte 7 Tage','front':'Vorne','back':'Hinten','noData':'Schließe ein Training ab, um deine Muskelkarte zu sehen.','CHEST':'Brust','BACK':'Rücken','SHOULDERS':'Schultern','BICEPS':'Bizeps','TRICEPS':'Trizeps','LEGS':'Beine','GLUTES':'Gesäß','CORE':'Rumpf','FOREARMS':'Unterarme','CALVES':'Waden','FULL_BODY':'Ganzkörper','CARDIO':'Cardio','OTHER':'Sonstiges'}; print\\(json.dumps\\(d, ensure_ascii=False, indent=2\\)\\)\" > /tmp/de_updated.json && mv /tmp/de_updated.json /Users/robeltsefaye/FitnessApp/src/messages/de.json)",
       "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_1LpAruThj4ie@ep-odd-frog-agp88t32.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require\" npx prisma db push)",
       "Bash(ping -c 1 ep-odd-frog-agp88t32.c-2.eu-central-1.aws.neon.tech)",
-      "Bash(node -e \"const pg = require\\('pg'\\); const client = new pg.Client\\({connectionString: 'postgresql://neondb_owner:npg_1LpAruThj4ie@ep-odd-frog-agp88t32.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require', connectionTimeoutMillis: 5000}\\); client.connect\\(\\).then\\(\\(\\) => { console.log\\('connected'\\); client.end\\(\\); }\\).catch\\(e => console.log\\('error:', e.message\\)\\);\")"
+      "Bash(node -e \"const pg = require\\('pg'\\); const client = new pg.Client\\({connectionString: 'postgresql://neondb_owner:npg_1LpAruThj4ie@ep-odd-frog-agp88t32.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require', connectionTimeoutMillis: 5000}\\); client.connect\\(\\).then\\(\\(\\) => { console.log\\('connected'\\); client.end\\(\\); }\\).catch\\(e => console.log\\('error:', e.message\\)\\);\")",
+      "Bash(unzip -l Fitapp.zip)",
+      "Bash(mkdir -p /tmp/fitapp-design)",
+      "Bash(unzip -o Fitapp.zip -d /tmp/fitapp-design/)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k+': '+str\\(v\\)[:80]\\) for k,v in {**d.get\\('dashboard',{}\\), **d.get\\('nav',{}\\)}.items\\(\\)]\")",
+      "Bash(npm run *)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(curl *)",
+      "Bash(python3 *)"
     ]
   }
 }

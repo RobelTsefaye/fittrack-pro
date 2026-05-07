@@ -934,6 +934,7 @@ export function WorkoutDetail({
   }
 
   if (error || !workout) {
+    const isOfflineError = !netOnline || error === t("workouts.offlineNoSnapshot");
     return (
       <div className="space-y-4">
         <Link
@@ -944,8 +945,24 @@ export function WorkoutDetail({
           {t("workouts.backNavLong")}
         </Link>
         <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            {error ?? t("workouts.notFound")}
+          <CardContent className="py-10 text-center space-y-4">
+            {isOfflineError ? (
+              <>
+                <p className="text-2xl">📴</p>
+                <p className="text-sm font-medium text-foreground">You&apos;re offline</p>
+                <p className="text-xs text-muted-foreground">
+                  This workout wasn&apos;t cached before you went offline. Start a new offline workout instead.
+                </p>
+                <Link
+                  href={ROUTES.newWorkout}
+                  className={cn(buttonVariants({ variant: "default", size: "sm" }), "inline-flex gap-1")}
+                >
+                  Start offline workout
+                </Link>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">{error ?? t("workouts.notFound")}</p>
+            )}
           </CardContent>
         </Card>
       </div>

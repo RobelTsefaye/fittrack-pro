@@ -5,6 +5,17 @@ import { usePathname, useRouter } from "next/navigation";
 import { flushAllQueues } from "@/lib/offline/flush-all-queues";
 import { toast } from "sonner";
 
+async function warmCurrentRoute(pathname: string) {
+  if (!("serviceWorker" in navigator) || !navigator.onLine) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (!reg.active) return;
+    // Cache the current page and the workout page the user is on
+    const routes = [pathname];
+    reg.active.postMessage({ type: "WARM_CACHE", routes });
+  } catch { /* non-fatal */ }
+}
+
 export function OfflineSyncProvider() {
   const pathname = usePathname();
   const router = useRouter();
@@ -46,7 +57,13 @@ export function OfflineSyncProvider() {
     }
 
     void run();
-    window.addEventListener("online", run);
+
+    // Cache the current page every time we come online
+    if (navigator.onLine) warmCurrentRoute(pathname);
+    window.addEventListener("online", () => {
+      void run();
+      void warmCurrentRoute(pathname);
+    });
     return () => window.removeEventListener("online", run);
   }, [pathname, router]);
 

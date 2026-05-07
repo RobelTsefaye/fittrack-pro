@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>FitTrack Pro — Mobile Redesign</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; background:#0c0c0e; color:#eee; font-family:-apple-system,system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  * { box-sizing: border-box; }
+  /* Hide DC chrome but keep canvas pannable */
+</style>
+</head>
+<body>
+
+<div id="canvas-root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="screens.jsx"></script>
+<script type="text/babel" src="screen-active-workout.jsx"></script>
+<script type="text/babel" src="screen-others.jsx"></script>
+
+<script type="text/babel">
+const { DesignCanvas, DCSection, DCArtboard } = window;
+
+function App() {
+  return (
+    <DesignCanvas>
+      {/* Hero: 5 variants of Active Workout */}
+      <DCSection id="active" title="① Aktives Workout — 5 Varianten" subtitle="Wichtigster Screen. Tracking-Konsole-Vibe.">
+        <DCArtboard id="aw-classic" label="V1 + V4 Hybrid — Hero Card + Set-Liste (FINAL)"  width={VW} height={VH}>
+          <PhoneFrame data-screen-label="01 Active · Hybrid"><ActiveWorkoutScreen variant="classic"/></PhoneFrame>
+        </DCArtboard>
+        <DCArtboard id="aw-console" label="V2 · Console — XL-Stepper für Weight/Reps" width={VW} height={VH}>
+          <PhoneFrame data-screen-label="02 Active · Console"><ActiveWorkoutScreen variant="console"/></PhoneFrame>
+        </DCArtboard>
+        <DCArtboard id="aw-focus" label="V3 · Focus — Riesenzahl, ein Fokus" width={VW} height={VH}>
+          <PhoneFrame data-screen-label="03 Active · Focus"><ActiveWorkoutScreen variant="focus"/></PhoneFrame>
+        </DCArtboard>
+        <DCArtboard id="aw-card" label="V4 · Card Stack — Hero-Card + Liste" width={VW} height={VH}>
+          <PhoneFrame data-screen-label="04 Active · Card Stack"><ActiveWorkoutScreen variant="card-stack"/></PhoneFrame>
+        </DCArtboard>
+        <DCArtboard id="aw-hud" label="V5 · HUD — Stat-Strip + Ring-Timer" width={VW} height={VH}>
+          <PhoneFrame data-screen-label="05 Active · HUD"><ActiveWorkoutScreen variant="hud"/></PhoneFrame>
+        </DCArtboard>
+      </DCSection>
+
+      {/* Other core screens */}
+      <DCSection id="core" title="② Core Screens" subtitle="Dashboard, Workouts, Plans, Library, Records, Coach, Settings">
+        <DCArtboard id="dashboard" label="Dashboard / Home" width={VW} height={VH}>
+          <PhoneFrame data-screen-label="06 Dashboard"><DashboardScreen/></PhoneFrame>
+        </DCArtboard>
+        <DCArtboard id="workouts" label="Workouts — History & Live" width={VW} height={VH}>
+          <PhoneFrame data-screen-label="07 Workouts"><WorkoutsListScreen/></PhoneFrame>
+        </DCArtboard>
+        <DCArtboard id="plans" label="Plans — Active week" width={VW} height={VH}>
+          <PhoneFrame data-screen-label="08 Plans"><PlansScreen/></PhoneFrame>
+        </DCArtboard>
+        <DCArtboard id="exercises" label="Exercises — Library" width={VW} height={VH}>
+          <PhoneFrame data-screen-label="09 Exercises"><ExercisesScreen/></PhoneFrame>
+        </DCArtboard>
+        <DCArtboard id="records" label="Records — PRs & 1RM" width={VW} height={VH}>
+          <PhoneFrame data-screen-label="10 Records"><RecordsScreen/></PhoneFrame>
+        </DCArtboard>
+        <DCArtboard id="coach" label="Coach — AI Chat" width={VW} height={VH}>
+          <PhoneFrame data-screen-label="11 Coach"><CoachScreen/></PhoneFrame>
+        </DCArtboard>
+        <DCArtboard id="settings" label="Settings" width={VW} height={VH}>
+          <PhoneFrame data-screen-label="12 Settings"><SettingsScreen/></PhoneFrame>
+        </DCArtboard>
+      </DCSection>
+
+      {/* System / tab bar reference */}
+      <DCSection id="system" title="③ System — Tab Bar, Tokens" subtitle="Native iOS-Feel: floating glass tab bar, Volt-Akzent nur für Aktiv-States.">
+        <DCArtboard id="tabbar" label="Bottom Tab Bar — alle States" width={VW} height={260}>
+          <div style={{ width: VW, height: 260, background: '#070708', borderRadius: 36, padding: 24, display: 'flex', flexDirection: 'column', gap: 14, justifyContent: 'flex-end', position: 'relative', overflow: 'hidden', fontFamily: TOKENS.font }}>
+            <div style={{ fontSize: 11, color: TOKENS.label3, fontWeight: 700, letterSpacing: '0.08em' }}>STATES</div>
+            {['home','workouts','coach','plans','exercises'].map(a => (
+              <div key={a} style={{ position: 'relative', height: 58 }}>
+                <div style={{ position: 'absolute', inset: 0 }}>
+                  <div style={{ height: 58, display: 'flex', background: 'rgba(28,28,32,0.92)', border: `1px solid ${TOKENS.hairline}`, borderRadius: 22 }}>
+                    {[
+                      { id: 'home', icon: 'home', label: 'Home' },
+                      { id: 'workouts', icon: 'dumbbell', label: 'Train' },
+                      { id: 'coach', icon: 'sparkle', label: 'Coach' },
+                      { id: 'plans', icon: 'clipboard', label: 'Plans' },
+                      { id: 'exercises', icon: 'list', label: 'Library' },
+                    ].map(t => {
+                      const isActive = t.id === a;
+                      return (
+                        <div key={t.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, color: isActive ? TOKENS.accent : TOKENS.label3, position: 'relative' }}>
+                          {isActive && <div style={{ position: 'absolute', top: 6, width: 28, height: 3, borderRadius: 9, background: TOKENS.accent, boxShadow: `0 0 12px ${TOKENS.accent}` }}/>}
+                          <Icon name={t.icon} size={20} color={isActive ? TOKENS.accent : TOKENS.label3}/>
+                          <span style={{ fontSize: 10, fontWeight: 600 }}>{t.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="tokens" label="Color & Type Tokens" width={520} height={400}>
+          <div style={{ width: 520, height: 400, padding: 24, background: '#070708', borderRadius: 24, color: '#fff', fontFamily: TOKENS.font, display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div>
+              <div style={{ fontSize: 11, color: TOKENS.label3, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 8 }}>SURFACES</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[
+                  { c: '#070708', l: 'bg' },
+                  { c: '#121214', l: 'surface' },
+                  { c: '#1B1B1F', l: 'surface2' },
+                  { c: '#26262B', l: 'surface3' },
+                ].map(s => (
+                  <div key={s.l} style={{ flex: 1 }}>
+                    <div style={{ height: 60, borderRadius: 10, background: s.c, border: `1px solid ${TOKENS.hairline}` }}/>
+                    <div style={{ marginTop: 6, fontSize: 11, color: TOKENS.label3 }}>{s.l}</div>
+                    <div style={{ fontSize: 10, color: TOKENS.label3, fontFamily: TOKENS.mono }}>{s.c}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: TOKENS.label3, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 8 }}>ACCENT · VOLT</div>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div style={{ width: 80, height: 80, borderRadius: 16, background: TOKENS.accent, boxShadow: `0 0 30px ${TOKENS.accentDim}` }}/>
+                <div>
+                  <div style={{ fontFamily: TOKENS.display, fontSize: 32, fontWeight: 700, color: TOKENS.accent, lineHeight: 1 }}>D4FF3A</div>
+                  <div style={{ fontSize: 12, color: TOKENS.label2, marginTop: 4 }}>oklch(0.92 0.20 122)</div>
+                  <div style={{ fontSize: 11, color: TOKENS.label3, marginTop: 2 }}>Use only for: active set, primary CTA, PR, live indicator</div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: TOKENS.label3, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 8 }}>TYPE</div>
+              <div style={{ display: 'flex', gap: 24, alignItems: 'baseline' }}>
+                <div>
+                  <div style={{ fontSize: 11, color: TOKENS.label3 }}>Display · Barlow Condensed</div>
+                  <div style={{ fontFamily: TOKENS.display, fontSize: 48, fontWeight: 700, color: TOKENS.label, lineHeight: 1 }}>92.5 kg</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: TOKENS.label3 }}>UI · SF / Inter</div>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>Bench Press</div>
+                  <div style={{ fontSize: 13, color: TOKENS.label2 }}>5 sets · 90 kg</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('canvas-root')).render(<App/>);
+</script>
+
+</body>
+</html>
