@@ -39,7 +39,9 @@ export default function NewWorkoutPage() {
     await saveWorkoutSnapshot(id, data, true);
     await enqueueWorkoutOp(id, { t: "post_workout", name: data.name });
     notifyActiveWorkoutChanged();
-    router.push(`/workouts/${id}`);
+    // Use a full-page navigation so the SW can serve the cached HTML shell
+    // for this new (never-cached) URL. RSC navigation would fail offline.
+    window.location.href = `/workouts/${id}`;
   }
 
   async function handleStart(e: React.FormEvent) {
