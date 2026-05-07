@@ -21,7 +21,13 @@ async function warmSwCache() {
   try {
     const reg = await navigator.serviceWorker.ready;
     if (!reg.active) return;
-    reg.active.postMessage({ type: "WARM_CACHE", routes: OFFLINE_ROUTES });
+    const routes = [...OFFLINE_ROUTES];
+    // Always include the currently active workout page (if any)
+    try {
+      const activeUrl = localStorage.getItem("fittrack-active-workout-url");
+      if (activeUrl) routes.push(activeUrl);
+    } catch { /**/ }
+    reg.active.postMessage({ type: "WARM_CACHE", routes });
   } catch {
     // Non-fatal
   }

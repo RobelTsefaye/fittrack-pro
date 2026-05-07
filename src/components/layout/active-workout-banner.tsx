@@ -23,7 +23,20 @@ export function ActiveWorkoutBanner() {
       const res = await fetch("/api/workouts?status=active&limit=1", { credentials: "include" });
       if (!res.ok) { setActive(null); return; }
       const json = (await res.json()) as { data?: ActiveItem[] };
-      setActive(json.data?.[0] ?? null);
+      const item = json.data?.[0] ?? null;
+      setActive(item);
+
+      // ── Pre-cache the active workout page so it works offline ──────────
+      if (item && navigator.onLine && "serviceWorker" in navigator) {
+        const workoutUrl = `/workouts/${item.id}`;
+        // Store ID in localStorage so other warmers can pick it up
+        try { localStorage.setItem("fittrack-active-workout-url", workoutUrl); } catch { /**/ }
+        navigator.serviceWorker.ready
+          .then((reg) => reg.active?.postMessage({ type: "WARM_CACHE", routes: [workoutUrl] }))
+          .catch(() => { /**/ });
+      } else if (!item) {
+        try { localStorage.removeItem("fittrack-active-workout-url"); } catch { /**/ }
+      }
     } catch {
       setActive(null);
     }
