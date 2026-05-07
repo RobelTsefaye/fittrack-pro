@@ -98,13 +98,6 @@ export async function DELETE(
     return NextResponse.json({ error: "Workout not found" }, { status: 404 });
   }
 
-  if (!workout.completedAt) {
-    return NextResponse.json(
-      { error: "Only completed workouts can be deleted" },
-      { status: 400 }
-    );
-  }
-
   await prisma.workout.delete({ where: { id } });
 
   revalidateTag(dashboardCacheTag(session.user.id), "max");

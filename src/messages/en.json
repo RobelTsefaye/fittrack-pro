@@ -267,7 +267,11 @@
     "deleteCompletedConfirm": "Permanently delete this completed workout? Use this to remove test sessions so your stats stay accurate.",
     "deleteCompletedOffline": "You need an internet connection to delete.",
     "deleteCompletedFailed": "Could not delete workout.",
-    "deletingWorkout": "Deleting…"
+    "deletingWorkout": "Deleting…",
+    "cancelWorkout": "Cancel workout",
+    "cancellingWorkout": "Cancelling…",
+    "cancelWorkoutConfirm": "Cancel and discard this workout? All logged sets will be lost.",
+    "cancelWorkoutFailed": "Could not cancel workout."
   },
   "plans": {
     "title": "Plans",

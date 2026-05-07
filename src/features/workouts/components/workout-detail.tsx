@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle2, Clock, GripVertical, Plus, Timer, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, GripVertical, Plus, Timer, Trash2, X } from "lucide-react";
 import { WorkoutShareButton } from "./workout-share-button";
 import {
   DndContext,
@@ -50,6 +50,7 @@ import {
   enqueueWorkoutOp,
   listQueueForWorkout,
   loadWorkoutSnapshot,
+  removeQueueEntries,
   saveWorkoutSnapshot,
 } from "@/lib/offline/workout-offline-store";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
@@ -333,6 +334,7 @@ export function WorkoutDetail({
   const [nameDraft, setNameDraft] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [deletingWorkout, setDeletingWorkout] = useState(false);
   const [netOnline, setNetOnline] = useState(
     typeof navigator !== "undefined" ? navigator.onLine : true
@@ -923,6 +925,50 @@ export function WorkoutDetail({
     }
   }
 
+  async function cancelWorkout() {
+    if (!workout || workout.completedAt) return;
+    if (!confirm(t("workouts.cancelWorkoutConfirm"))) return;
+
+    setCancelling(true);
+    restTimer.stop();
+
+    // Offline / local-writes path: just wipe IndexedDB and queue, then navigate
+    if (useLocalWrites || offlineOriginSession) {
+      try {
+        const queued = await listQueueForWorkout(workoutId);
+        if (queued.length > 0) await removeQueueEntries(queued.map((q) => q.id));
+        await deleteWorkoutSnapshot(workoutId);
+      } catch {
+        /* ignore IDB errors */
+      }
+      notifyActiveWorkoutChanged();
+      // Full-page nav so SW can serve the cached shell while offline
+      window.location.href = ROUTES.workouts;
+      return;
+    }
+
+    // Online path: delete via API
+    try {
+      const res = await fetch(`/api/workouts/${workoutId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        window.alert(j.error ?? t("workouts.cancelWorkoutFailed"));
+        setCancelling(false);
+        return;
+      }
+      try { await deleteWorkoutSnapshot(workoutId); } catch { /* ignore */ }
+      notifyActiveWorkoutChanged();
+      router.push(ROUTES.workouts);
+      router.refresh();
+    } catch {
+      window.alert(t("workouts.cancelWorkoutFailed"));
+      setCancelling(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -1031,15 +1077,26 @@ export function WorkoutDetail({
         </div>
 
         {isActive ? (
-          <Button
-            className="w-full shrink-0 sm:w-auto font-semibold"
-            size="lg"
-            onClick={completeWorkout}
-            disabled={completing}
-          >
-            <CheckCircle2 className="mr-2 h-4 w-4" />
-            {completing ? t("workouts.finishing") : t("workouts.finishWorkout")}
-          </Button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            <Button
+              className="w-full shrink-0 sm:w-auto font-semibold"
+              size="lg"
+              onClick={completeWorkout}
+              disabled={completing || cancelling}
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              {completing ? t("workouts.finishing") : t("workouts.finishWorkout")}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+              onClick={() => void cancelWorkout()}
+              disabled={completing || cancelling}
+            >
+              <X className="mr-2 h-4 w-4" />
+              {cancelling ? t("workouts.cancellingWorkout") : t("workouts.cancelWorkout")}
+            </Button>
+          </div>
         ) : workout.completedAt ? (
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
             {/* Share button */}

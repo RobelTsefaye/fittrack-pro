@@ -267,7 +267,11 @@
     "deleteCompletedConfirm": "Dieses abgeschlossene Workout dauerhaft löschen? Die Eintragung entfernst du z. B. nach Testläufen, damit Auswertungen stimmen.",
     "deleteCompletedOffline": "Löschen geht nur mit Internetverbindung.",
     "deleteCompletedFailed": "Workout konnte nicht gelöscht werden.",
-    "deletingWorkout": "Löschen…"
+    "deletingWorkout": "Löschen…",
+    "cancelWorkout": "Workout abbrechen",
+    "cancellingWorkout": "Wird abgebrochen…",
+    "cancelWorkoutConfirm": "Workout abbrechen und verwerfen? Alle eingetragenen Sätze gehen verloren.",
+    "cancelWorkoutFailed": "Workout konnte nicht abgebrochen werden."
   },
   "plans": {
     "title": "Pläne",
