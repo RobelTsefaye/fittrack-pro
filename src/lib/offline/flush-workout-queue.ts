@@ -129,7 +129,7 @@ export async function flushWorkoutQueue(
         case "complete_workout": {
           if (!serverWorkoutId) throw new Error("no_server_workout");
           const res = await api(`/api/workouts/${serverWorkoutId}/complete`, { method: "POST" });
-          if (!res.ok) throw new Error(`complete_workout ${res.status}`);
+          if (!res.ok && res.status !== 404) throw new Error(`complete_workout ${res.status}`);
           queueIdsToDelete.push(row.id);
           break;
         }
