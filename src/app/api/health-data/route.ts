@@ -198,6 +198,19 @@ export async function POST(req: NextRequest) {
   // Detect Health Auto Export format and transform
   const records = isHAEPayload(body) ? transformHAE(body) : [body];
 
+  // Diagnostic logging: what dates + metrics are coming in?
+  if (isHAEPayload(body)) {
+    const metricSummary = (body.data?.metrics ?? []).map((m) => {
+      const dates = new Set<string>();
+      for (const e of m.data ?? []) {
+        const k = extractDateKey(e.sleepEnd ?? e.date);
+        if (k) dates.add(k);
+      }
+      return `${m.name}=[${Array.from(dates).sort().join(",")}](${(m.data ?? []).length})`;
+    });
+    console.log(`[health-data] HAE payload received. records=${records.length} dates=[${records.map((r) => r.date).sort().join(",")}] metrics: ${metricSummary.join(" | ")}`);
+  }
+
   const results = [];
   for (const record of records) {
     const parsed = snapshotSchema.safeParse(record);
