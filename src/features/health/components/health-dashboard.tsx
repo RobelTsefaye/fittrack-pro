@@ -9,7 +9,8 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n-provider";
 import { ROUTES } from "@/lib/constants";
-import { type HealthSnapshot, calcRecoveryScore, formatSleepDuration } from "../types";
+import { type HealthSnapshot, formatSleepDuration } from "../types";
+import type { RecoveryBreakdown } from "../recovery";
 import { HealthStatPill } from "./health-stat-pill";
 import { RecoveryRing } from "./recovery-ring";
 import { HealthMetricChart } from "./health-metric-chart";
@@ -19,6 +20,7 @@ type TrendDays = 7 | 30;
 export function HealthDashboard() {
   const { t } = useI18n();
   const [snapshots, setSnapshots] = useState<HealthSnapshot[]>([]);
+  const [recovery, setRecovery] = useState<RecoveryBreakdown | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [trend, setTrend] = useState<TrendDays>(7);
@@ -27,10 +29,17 @@ export function HealthDashboard() {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      const res = await fetch("/api/health-data?limit=30", { credentials: "include" });
-      if (res.ok) {
-        const json = (await res.json()) as { data: HealthSnapshot[] };
+      const [snapsRes, recRes] = await Promise.all([
+        fetch("/api/health-data?limit=30", { credentials: "include" }),
+        fetch("/api/health/recovery", { credentials: "include" }),
+      ]);
+      if (snapsRes.ok) {
+        const json = (await snapsRes.json()) as { data: HealthSnapshot[] };
         setSnapshots(json.data);
+      }
+      if (recRes.ok) {
+        const json = (await recRes.json()) as { data: RecoveryBreakdown };
+        setRecovery(json.data);
       }
     } finally {
       setLoading(false);
@@ -41,7 +50,6 @@ export function HealthDashboard() {
   useEffect(() => { void load(); }, [load]);
 
   const today = snapshots.at(-1) ?? null;
-  const recovery = today ? calcRecoveryScore(today) : null;
 
   if (loading) {
     return (
