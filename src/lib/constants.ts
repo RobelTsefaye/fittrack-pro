@@ -44,6 +44,7 @@ export const ROUTES = {
   coach: "/coach",
   plateCalculator: "/plate-calculator",
   records: "/records",
+  health: "/health",
   more: "/more",
 } as const;
 

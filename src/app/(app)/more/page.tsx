@@ -11,12 +11,14 @@ import {
   Settings,
   LogOut,
   ChevronRight,
+  HeartPulse,
 } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const ITEMS = [
+  { href: ROUTES.health,          icon: HeartPulse,  labelKey: "nav.health"     as const },
   { href: ROUTES.exercises,       icon: ListChecks,  labelKey: "nav.exercises"  as const },
   { href: ROUTES.records,         icon: Trophy,      labelKey: "nav.records"    as const },
   { href: ROUTES.bodyWeight,      icon: Scale,       labelKey: "nav.bodyWeight" as const },
