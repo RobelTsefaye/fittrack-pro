@@ -1,7 +1,9 @@
 "use client";
 
-import { Moon, Heart, Zap, Dumbbell } from "lucide-react";
+import Link from "next/link";
+import { Moon, Heart, Zap, Dumbbell, ChevronRight } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
+import { ROUTES } from "@/lib/constants";
 import type { RecoveryBreakdown } from "../recovery";
 
 
@@ -37,8 +39,9 @@ export function RecoveryRing({ recovery }: RecoveryRingProps) {
     : `Vor ${daysAgo} Tagen trainiert`;
 
   return (
-    <div
-      className="space-y-3 rounded-[22px] p-5"
+    <Link
+      href={`${ROUTES.health}/recovery`}
+      className="block space-y-3 rounded-[22px] p-5 transition-colors active:bg-white/5"
       style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
     >
       <div className="flex items-center gap-4">
@@ -80,6 +83,7 @@ export function RecoveryRing({ recovery }: RecoveryRingProps) {
             {label}
           </p>
         </div>
+        <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#5E5E66" }} />
       </div>
 
       {/* Sub-scores */}
@@ -105,7 +109,7 @@ export function RecoveryRing({ recovery }: RecoveryRingProps) {
           )}
         </div>
       )}
-    </div>
+    </Link>
   );
 }
 
