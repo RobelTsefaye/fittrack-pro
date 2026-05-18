@@ -167,17 +167,15 @@ export async function computeRecovery(userId: string): Promise<RecoveryBreakdown
     },
   });
 
-  type LoggedWorkout = { completedAt: Date; tonnage: number };
+  type LoggedWorkout = { completedAt: Date; tonnage: number | null };
   const loggedWorkouts: LoggedWorkout[] = workouts
+    .filter((w): w is typeof w & { completedAt: Date } => w.completedAt != null)
     .map((w) => {
       const tonnage = w.workoutExercises
         .flatMap((we) => we.sets)
         .reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
-      return w.completedAt && tonnage > 0
-        ? { completedAt: w.completedAt, tonnage }
-        : null;
-    })
-    .filter((w): w is LoggedWorkout => w != null);
+      return { completedAt: w.completedAt, tonnage: tonnage > 0 ? tonnage : null };
+    });
 
   let loadSc: number | null = null;
   let daysSinceLast: number | null = null;
@@ -192,12 +190,16 @@ export async function computeRecovery(userId: string): Promise<RecoveryBreakdown
     lastTonnage = last.tonnage;
 
     const recent7Cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const recent7 = loggedWorkouts.filter((w) => w.completedAt.getTime() >= recent7Cutoff);
-    if (recent7.length > 0) {
+    const recent7 = loggedWorkouts.filter(
+      (w) => w.completedAt.getTime() >= recent7Cutoff && w.tonnage != null,
+    ) as Array<{ completedAt: Date; tonnage: number }>;
+
+    if (recent7.length > 0 && lastTonnage != null) {
       recentAvgTonnage = recent7.reduce((s, w) => s + w.tonnage, 0) / recent7.length;
       const ratio = lastTonnage / recentAvgTonnage;
       intensity = ratio >= 1.15 ? "high" : ratio <= 0.85 ? "low" : "medium";
     } else {
+      // Workout happened but no tonnage data → treat as medium intensity
       intensity = "medium";
     }
 
