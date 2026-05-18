@@ -37,6 +37,10 @@ export function RecoveryRing({ recovery }: RecoveryRingProps) {
     : daysAgo === 0 ? "Heute trainiert"
     : daysAgo === 1 ? "Gestern trainiert"
     : `Vor ${daysAgo} Tagen trainiert`;
+  const consecutiveLabel =
+    trainingLoad.consecutiveDays >= 2
+      ? `${trainingLoad.consecutiveDays} Tage in Folge`
+      : null;
 
   return (
     <Link
@@ -94,18 +98,28 @@ export function RecoveryRing({ recovery }: RecoveryRingProps) {
         <SubScore icon={<Dumbbell className="h-3 w-3" />} label="Last" value={loadScore} accent="#FFB340" />
       </div>
 
-      {/* Training load chip */}
+      {/* Training load chips */}
       {lastTrainingLabel && (
-        <div
-          className="flex items-center gap-1.5 rounded-full px-3 py-1 w-fit text-[11px] font-medium"
-          style={{ background: "rgba(255,255,255,0.06)", color: "#9A9AA2" }}
-        >
-          <Dumbbell className="h-3 w-3" />
-          {lastTrainingLabel}
-          {trainingLoad.intensity && (
-            <span style={{ color: trainingLoad.intensity === "high" ? "#FF453A" : trainingLoad.intensity === "low" ? "#30D158" : "#FFB340" }}>
-              · {trainingLoad.intensity === "high" ? "intensiv" : trainingLoad.intensity === "low" ? "leicht" : "mittel"}
-            </span>
+        <div className="flex flex-wrap gap-1.5">
+          <div
+            className="flex items-center gap-1.5 rounded-full px-3 py-1 w-fit text-[11px] font-medium"
+            style={{ background: "rgba(255,255,255,0.06)", color: "#9A9AA2" }}
+          >
+            <Dumbbell className="h-3 w-3" />
+            {lastTrainingLabel}
+            {trainingLoad.intensity && (
+              <span style={{ color: trainingLoad.intensity === "high" ? "#FF453A" : trainingLoad.intensity === "low" ? "#30D158" : "#FFB340" }}>
+                · {trainingLoad.intensity === "high" ? "intensiv" : trainingLoad.intensity === "low" ? "leicht" : "mittel"}
+              </span>
+            )}
+          </div>
+          {consecutiveLabel && (
+            <div
+              className="flex items-center gap-1 rounded-full px-3 py-1 w-fit text-[11px] font-medium"
+              style={{ background: "rgba(255,69,58,0.12)", color: "#FF453A" }}
+            >
+              {consecutiveLabel}
+            </div>
           )}
         </div>
       )}

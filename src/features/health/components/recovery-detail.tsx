@@ -84,8 +84,9 @@ export function RecoveryDetail() {
           <div>
             <p className="text-[13px] font-semibold text-white">So wird der Score berechnet</p>
             <p className="mt-1 text-[12px] leading-relaxed" style={{ color: "#9A9AA2" }}>
-              Vier Faktoren (Schlaf 30%, Ruhepuls 20%, HRV 30%, Trainingslast 20%) werden zu einem Score von 0-100 kombiniert.
+              Vier Faktoren (Schlaf 25%, Ruhepuls 20%, HRV 25%, Trainingslast 30%) werden zu einem Score von 0-100 kombiniert.
               HRV und Ruhepuls werden gegen deine persönliche 14-Tage-Baseline verglichen — fehlt die Baseline (&lt;7 Tage Daten), greifen feste Schwellen.
+              Mehrere Trainingstage in Folge senken den Load-Score progressiv (−20% pro Tag, min. 35%).
               Fehlende Faktoren werden automatisch ausgeglichen (Gewichte renormalisiert).
             </p>
             <p className="mt-2 text-[12px]" style={{ color: "#9A9AA2" }}>
@@ -252,7 +253,7 @@ function LoadCard({
   load,
 }: {
   score: number | null;
-  load: { daysSinceLast: number | null; lastTonnage: number | null; recentAvgTonnage: number | null; intensity: "high" | "medium" | "low" | null };
+  load: { daysSinceLast: number | null; consecutiveDays: number; lastTonnage: number | null; recentAvgTonnage: number | null; intensity: "high" | "medium" | "low" | null };
 }) {
   let detail: React.ReactNode;
   if (load.daysSinceLast == null) {
@@ -270,12 +271,17 @@ function LoadCard({
       : load.intensity === "low" ? "leicht (≤85%)"
       : "mittel";
 
+    const penaltyPct = load.consecutiveDays >= 2
+      ? Math.round((1 - Math.max(0.35, 1 - (load.consecutiveDays - 1) * 0.2)) * 100)
+      : 0;
+
     detail = (
       <>
         <Row
           k="Letztes Training"
           v={load.daysSinceLast === 0 ? "heute" : load.daysSinceLast === 1 ? "gestern" : `vor ${load.daysSinceLast} Tagen`}
         />
+        <Row k="Tage in Folge" v={`${load.consecutiveDays} Tag${load.consecutiveDays !== 1 ? "e" : ""}`} />
         {load.lastTonnage != null && (
           <Row k="Tonnage" v={`${Math.round(load.lastTonnage).toLocaleString("de-DE")} kg`} />
         )}
@@ -283,13 +289,17 @@ function LoadCard({
           <Row k="Ø 7-Tage-Tonnage" v={`${Math.round(load.recentAvgTonnage).toLocaleString("de-DE")} kg`} />
         )}
         {load.intensity && <Row k="Intensität" v={intensityLabel} />}
+        {penaltyPct > 0 && (
+          <Row k="Müdigkeits-Abzug" v={`−${penaltyPct}%`} />
+        )}
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
-          Score-Matrix (Tage seit letztem Workout × Intensität):
+          Basis-Matrix (Tage seit letztem Workout × Intensität):
           0d → 30/45/60, 1d → 60/75/85, 2d → 85/92/97, 3d+ → 100 (high/med/low).
+          Für jeden weiteren Tag in Folge wird der Score um 20% reduziert (min. 35%).
           Tonnage = Σ(Gewicht × Wiederholungen) aller abgeschlossenen Arbeitssätze.
         </p>
       </>
     );
   }
-  return <Card icon={<Dumbbell className="h-4 w-4" />} title="Trainingslast" accent="#FFB340" score={score} weight={0.2}>{detail}</Card>;
+  return <Card icon={<Dumbbell className="h-4 w-4" />} title="Trainingslast" accent="#FFB340" score={score} weight={0.3}>{detail}</Card>;
 }

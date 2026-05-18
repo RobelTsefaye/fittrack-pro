@@ -15,13 +15,14 @@ export type RecoveryBreakdown = {
   };
   trainingLoad: {
     daysSinceLast: number | null;
+    consecutiveDays: number;
     lastTonnage: number | null;
     recentAvgTonnage: number | null;
     intensity: "high" | "medium" | "low" | null;
   };
 };
 
-const WEIGHTS = { sleep: 0.3, hr: 0.2, hrv: 0.3, load: 0.2 } as const;
+const WEIGHTS = { sleep: 0.25, hr: 0.2, hrv: 0.25, load: 0.3 } as const;
 
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
@@ -84,9 +85,13 @@ const LOAD_MATRIX: Record<number, Record<"high" | "medium" | "low", number>> = {
 function loadScoreFor(
   daysSinceLast: number,
   intensity: "high" | "medium" | "low",
+  consecutiveDays: number,
 ): number {
-  const row = LOAD_MATRIX[Math.min(daysSinceLast, 3)];
-  return row[intensity];
+  const base = LOAD_MATRIX[Math.min(daysSinceLast, 3)][intensity];
+  // Each extra consecutive day beyond 1 applies a fatigue multiplier
+  const penalty = Math.max(0, consecutiveDays - 1);
+  const multiplier = Math.max(0.35, 1 - penalty * 0.2);
+  return Math.round(base * multiplier);
 }
 
 export async function computeRecovery(userId: string): Promise<RecoveryBreakdown> {
@@ -100,6 +105,7 @@ export async function computeRecovery(userId: string): Promise<RecoveryBreakdown
     baseline: { restingHR: null, hrv: null, daysOfData: 0 },
     trainingLoad: {
       daysSinceLast: null,
+      consecutiveDays: 0,
       lastTonnage: null,
       recentAvgTonnage: null,
       intensity: null,
@@ -179,17 +185,28 @@ export async function computeRecovery(userId: string): Promise<RecoveryBreakdown
 
   let loadSc: number | null = null;
   let daysSinceLast: number | null = null;
+  let consecutiveDays = 0;
   let lastTonnage: number | null = null;
   let recentAvgTonnage: number | null = null;
   let intensity: "high" | "medium" | "low" | null = null;
 
   if (loggedWorkouts.length > 0) {
     const last = loggedWorkouts[0];
-    const ms = Date.now() - last.completedAt.getTime();
+    const now = Date.now();
+    const ms = now - last.completedAt.getTime();
     daysSinceLast = Math.floor(ms / (24 * 60 * 60 * 1000));
     lastTonnage = last.tonnage;
 
-    const recent7Cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    // Count consecutive training days ending with the most recent workout
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const workoutDays = new Set(
+      loggedWorkouts.map((w) => Math.floor(w.completedAt.getTime() / DAY_MS)),
+    );
+    const lastDay = Math.floor(last.completedAt.getTime() / DAY_MS);
+    consecutiveDays = 1;
+    while (workoutDays.has(lastDay - consecutiveDays)) consecutiveDays++;
+
+    const recent7Cutoff = now - 7 * DAY_MS;
     const recent7 = loggedWorkouts.filter(
       (w) => w.completedAt.getTime() >= recent7Cutoff && w.tonnage != null,
     ) as Array<{ completedAt: Date; tonnage: number }>;
@@ -203,7 +220,7 @@ export async function computeRecovery(userId: string): Promise<RecoveryBreakdown
       intensity = "medium";
     }
 
-    loadSc = loadScoreFor(daysSinceLast, intensity);
+    loadSc = loadScoreFor(daysSinceLast, intensity, consecutiveDays);
   } else {
     // No recent training → fully rested
     loadSc = 100;
@@ -241,6 +258,7 @@ export async function computeRecovery(userId: string): Promise<RecoveryBreakdown
     },
     trainingLoad: {
       daysSinceLast,
+      consecutiveDays,
       lastTonnage,
       recentAvgTonnage,
       intensity,
