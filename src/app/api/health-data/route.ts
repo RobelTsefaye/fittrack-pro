@@ -130,9 +130,18 @@ function entryValue(e: HAEEntry): number | null {
   return null;
 }
 
-// Transform HAE payload → array of { date, ...fields } records
+// Fields where multiple entries within the same day should be summed (cumulative totals).
+// All other numeric fields are averaged (instantaneous measurements like heart rate, VO2 max).
+const SUM_FIELDS = new Set<string>([
+  "steps", "activeCalories", "calories", "exerciseMinutes",
+  "water", "protein", "carbs", "fat", "standHours", "mindfulMinutes",
+]);
+
+// Transform HAE payload → array of { date, ...fields } records.
+// HAE often sends multiple hourly entries per day; aggregate them correctly
+// (sum cumulative metrics like steps, average instantaneous metrics like HR).
 function transformHAE(payload: HAEPayload): Array<Record<string, unknown>> {
-  const byDate: Map<string, Record<string, unknown>> = new Map();
+  const byDate: Map<string, { sums: Record<string, number>; counts: Record<string, number>; meta: Record<string, unknown> }> = new Map();
 
   for (const metric of payload.data?.metrics ?? []) {
     const field = HAE_METRIC_MAP[metric.name];
@@ -142,22 +151,38 @@ function transformHAE(payload: HAEPayload): Array<Record<string, unknown>> {
     for (const entry of metric.data ?? []) {
       const dateKey = extractDateKey(entry.sleepEnd ?? entry.date);
       if (!dateKey) continue;
-      const rec = byDate.get(dateKey) ?? { date: dateKey };
+      const bucket = byDate.get(dateKey) ?? { sums: {}, counts: {}, meta: {} };
 
       if (isSleep) {
-        if (typeof entry.asleep === "number") rec.sleepDuration = entry.asleep;
-        if (entry.sleepStart) rec.sleepBedtime = entry.sleepStart.slice(11, 16);
-        if (entry.sleepEnd) rec.sleepWakeTime = entry.sleepEnd.slice(11, 16);
+        if (typeof entry.asleep === "number") {
+          bucket.sums.sleepDuration = (bucket.sums.sleepDuration ?? 0) + entry.asleep;
+          bucket.counts.sleepDuration = (bucket.counts.sleepDuration ?? 0) + 1;
+        }
+        if (entry.sleepStart) bucket.meta.sleepBedtime = entry.sleepStart.slice(11, 16);
+        if (entry.sleepEnd) bucket.meta.sleepWakeTime = entry.sleepEnd.slice(11, 16);
       } else if (field) {
         const v = entryValue(entry);
-        if (v != null) rec[field] = v;
+        if (v != null) {
+          bucket.sums[field] = (bucket.sums[field] ?? 0) + v;
+          bucket.counts[field] = (bucket.counts[field] ?? 0) + 1;
+        }
       }
 
-      byDate.set(dateKey, rec);
+      byDate.set(dateKey, bucket);
     }
   }
 
-  return Array.from(byDate.values());
+  return Array.from(byDate.entries()).map(([date, { sums, counts, meta }]) => {
+    const rec: Record<string, unknown> = { date, ...meta };
+    for (const [field, sum] of Object.entries(sums)) {
+      rec[field] = SUM_FIELDS.has(field) ? sum : sum / counts[field];
+    }
+    // Schema expects integers for some fields — round them
+    for (const intField of ["steps", "restingHeartRate", "heartRateAvg", "exerciseMinutes", "standHours", "mindfulMinutes", "sleepDeepMinutes", "sleepRemMinutes"]) {
+      if (typeof rec[intField] === "number") rec[intField] = Math.round(rec[intField] as number);
+    }
+    return rec;
+  });
 }
 
 // POST /api/health-data — upsert (iOS Shortcut, Health Auto Export, or web form)
