@@ -85,7 +85,6 @@ const HAE_METRIC_MAP: Record<string, keyof typeof snapshotSchema.shape> = {
   apple_exercise_time: "exerciseMinutes",
   exercise_time: "exerciseMinutes",
   apple_stand_hour: "standHours",
-  apple_stand_time: "standHours",
 
   vo2_max: "vo2Max",
 
@@ -213,10 +212,17 @@ export async function POST(req: NextRequest) {
 
   const results = [];
   for (const record of records) {
-    const parsed = snapshotSchema.safeParse(record);
-    if (!parsed.success) continue;
+    // Validate each field individually so one bad value doesn't reject the whole record.
+    const cleaned: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(record)) {
+      if (value === undefined || value === null) continue;
+      const fieldSchema = snapshotSchema.shape[key as keyof typeof snapshotSchema.shape];
+      if (!fieldSchema) continue;
+      const parsed = fieldSchema.safeParse(value);
+      if (parsed.success) cleaned[key] = parsed.data;
+    }
 
-    const { date: dateStr, ...fields } = parsed.data;
+    const { date: dateStr, ...fields } = cleaned as { date?: string; [k: string]: unknown };
     const date = dateStr
       ? new Date(dateStr + "T00:00:00.000Z")
       : new Date(new Date().toISOString().slice(0, 10) + "T00:00:00.000Z");
