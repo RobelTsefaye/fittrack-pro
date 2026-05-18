@@ -106,12 +106,14 @@ export function HealthDashboard() {
           </p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <HealthStatPill
+              href={`${ROUTES.health}/sleep`}
               icon={<Moon className="h-3.5 w-3.5" />}
               label={t("health.sleep")}
               value={today.sleepDuration != null ? formatSleepDuration(today.sleepDuration) : null}
               accent="#6E5BFF"
             />
             <HealthStatPill
+              href={`${ROUTES.health}/resting-hr`}
               icon={<Heart className="h-3.5 w-3.5" />}
               label={t("health.restingHR")}
               value={today.restingHeartRate?.toString() ?? null}
@@ -119,12 +121,14 @@ export function HealthDashboard() {
               accent="#FF453A"
             />
             <HealthStatPill
+              href={`${ROUTES.health}/steps`}
               icon={<Footprints className="h-3.5 w-3.5" />}
               label={t("health.steps")}
               value={today.steps != null ? today.steps.toLocaleString() : null}
               accent="#D4FF3A"
             />
             <HealthStatPill
+              href={`${ROUTES.health}/active-calories`}
               icon={<Flame className="h-3.5 w-3.5" />}
               label={t("health.activeCalories")}
               value={today.activeCalories != null ? Math.round(today.activeCalories).toString() : null}
@@ -139,6 +143,7 @@ export function HealthDashboard() {
       {today && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <HealthStatPill
+            href={`${ROUTES.health}/hrv`}
             icon={<Zap className="h-3.5 w-3.5" />}
             label={t("health.hrv")}
             value={today.hrv != null ? today.hrv.toFixed(0) : null}
@@ -146,6 +151,7 @@ export function HealthDashboard() {
             accent="#30D158"
           />
           <HealthStatPill
+            href={`${ROUTES.health}/exercise-minutes`}
             icon={<Timer className="h-3.5 w-3.5" />}
             label={t("health.exerciseMinutes")}
             value={today.exerciseMinutes?.toString() ?? null}
@@ -153,6 +159,7 @@ export function HealthDashboard() {
             accent="#FFB340"
           />
           <HealthStatPill
+            href={`${ROUTES.health}/vo2-max`}
             icon={<Wind className="h-3.5 w-3.5" />}
             label={t("health.vo2Max")}
             value={today.vo2Max != null ? today.vo2Max.toFixed(1) : null}
@@ -160,6 +167,7 @@ export function HealthDashboard() {
             accent="#64D2FF"
           />
           <HealthStatPill
+            href={`${ROUTES.health}/water`}
             icon={<Droplets className="h-3.5 w-3.5" />}
             label={t("health.water")}
             value={today.water != null ? (today.water / 1000).toFixed(1) : null}
