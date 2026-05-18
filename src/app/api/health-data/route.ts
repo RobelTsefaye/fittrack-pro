@@ -63,24 +63,46 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data });
 }
 
-// Map Health Auto Export metric names to our schema fields
+// Map Health Auto Export metric names to our schema fields.
+// HAE uses lowercase snake_case but spellings differ across versions —
+// include all known aliases for robustness.
 const HAE_METRIC_MAP: Record<string, keyof typeof snapshotSchema.shape> = {
   step_count: "steps",
   steps: "steps",
+
   resting_heart_rate: "restingHeartRate",
-  heart_rate_variability: "hrv",
+  walking_heart_rate_average: "heartRateAvg",
   heart_rate: "heartRateAvg",
+
+  heart_rate_variability: "hrv",
+  heart_rate_variability_sdnn: "hrv",
+  hrv: "hrv",
+
   active_energy: "activeCalories",
+  active_energy_burned: "activeCalories",
+  basal_energy_burned: "calories",
+
   apple_exercise_time: "exerciseMinutes",
+  exercise_time: "exerciseMinutes",
   apple_stand_hour: "standHours",
+  apple_stand_time: "standHours",
+
   vo2_max: "vo2Max",
+
   dietary_water: "water",
   water: "water",
+
   dietary_energy: "calories",
+  dietary_energy_consumed: "calories",
   protein: "protein",
+  dietary_protein: "protein",
   carbohydrates: "carbs",
+  dietary_carbohydrates: "carbs",
   total_fat: "fat",
+  dietary_fat_total: "fat",
+
   mindful_minutes: "mindfulMinutes",
+  mindful_session: "mindfulMinutes",
 };
 
 type HAEEntry = { date?: string; qty?: number; Avg?: number; avg?: number; asleep?: number; value?: number; sleepStart?: string; sleepEnd?: string };
