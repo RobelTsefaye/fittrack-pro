@@ -104,7 +104,7 @@ const HAE_METRIC_MAP: Record<string, keyof typeof snapshotSchema.shape> = {
   mindful_session: "mindfulMinutes",
 };
 
-type HAEEntry = { date?: string; qty?: number; Avg?: number; avg?: number; asleep?: number; value?: number; sleepStart?: string; sleepEnd?: string };
+type HAEEntry = { date?: string; qty?: number; Avg?: number; avg?: number; asleep?: number; inBed?: number; value?: number; sleepStart?: string; sleepEnd?: string };
 type HAEMetric = { name: string; units?: string; data?: HAEEntry[] };
 type HAEPayload = { data?: { metrics?: HAEMetric[] } };
 
@@ -134,6 +134,7 @@ function entryValue(e: HAEEntry): number | null {
 const SUM_FIELDS = new Set<string>([
   "steps", "activeCalories", "calories", "exerciseMinutes",
   "water", "protein", "carbs", "fat", "standHours", "mindfulMinutes",
+  "sleepDuration",
 ]);
 
 // Transform HAE payload → array of { date, ...fields } records.
@@ -153,8 +154,16 @@ function transformHAE(payload: HAEPayload): Array<Record<string, unknown>> {
       const bucket = byDate.get(dateKey) ?? { sums: {}, counts: {}, meta: {} };
 
       if (isSleep) {
-        if (typeof entry.asleep === "number") {
-          bucket.sums.sleepDuration = (bucket.sums.sleepDuration ?? 0) + entry.asleep;
+        // Try asleep, then inBed, then compute from sleepStart/sleepEnd timestamps
+        let hours: number | null = null;
+        if (typeof entry.asleep === "number" && entry.asleep > 0) hours = entry.asleep;
+        else if (typeof entry.inBed === "number" && entry.inBed > 0) hours = entry.inBed;
+        else if (entry.sleepStart && entry.sleepEnd) {
+          const ms = new Date(entry.sleepEnd).getTime() - new Date(entry.sleepStart).getTime();
+          if (ms > 0) hours = ms / 3_600_000;
+        }
+        if (hours != null) {
+          bucket.sums.sleepDuration = (bucket.sums.sleepDuration ?? 0) + hours;
           bucket.counts.sleepDuration = (bucket.counts.sleepDuration ?? 0) + 1;
         }
         if (entry.sleepStart) bucket.meta.sleepBedtime = entry.sleepStart.slice(11, 16);
