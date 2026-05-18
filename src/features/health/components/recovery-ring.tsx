@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Moon, Heart, Zap, Dumbbell, ChevronRight } from "lucide-react";
+import { Moon, Heart, Zap, Dumbbell, ChevronRight, Footprints } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
 import { ROUTES } from "@/lib/constants";
 import type { RecoveryBreakdown } from "../recovery";
-
 
 interface RecoveryRingProps {
   recovery: RecoveryBreakdown;
@@ -13,7 +12,7 @@ interface RecoveryRingProps {
 
 export function RecoveryRing({ recovery }: RecoveryRingProps) {
   const { t } = useI18n();
-  const { score, level, sleepScore, hrScore, hrvScore, loadScore, trainingLoad } = recovery;
+  const { score, level, sleepScore, hrScore, hrvScore, loadScore, activityScore, trainingLoad, trends } = recovery;
 
   if (level === "none") return null;
 
@@ -37,6 +36,7 @@ export function RecoveryRing({ recovery }: RecoveryRingProps) {
     : daysAgo === 0 ? "Heute trainiert"
     : daysAgo === 1 ? "Gestern trainiert"
     : `Vor ${daysAgo} Tagen trainiert`;
+
   const consecutiveLabel =
     trainingLoad.consecutiveDays >= 2
       ? `${trainingLoad.consecutiveDays} Tage in Folge`
@@ -52,18 +52,10 @@ export function RecoveryRing({ recovery }: RecoveryRingProps) {
         {/* Ring */}
         <div className="relative shrink-0">
           <svg width="100" height="100" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
             <circle
               cx="50" cy="50" r={radius}
-              fill="none"
-              stroke="rgba(255,255,255,0.06)"
-              strokeWidth="8"
-            />
-            <circle
-              cx="50" cy="50" r={radius}
-              fill="none"
-              stroke={color}
-              strokeWidth="8"
-              strokeLinecap="round"
+              fill="none" stroke={color} strokeWidth="8" strokeLinecap="round"
               strokeDasharray={`${dash} ${circumference - dash}`}
               strokeDashoffset={circumference / 4}
               style={{ transition: "stroke-dasharray 0.8s ease" }}
@@ -91,11 +83,18 @@ export function RecoveryRing({ recovery }: RecoveryRingProps) {
       </div>
 
       {/* Sub-scores */}
-      <div className="grid grid-cols-4 gap-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="grid grid-cols-5 gap-1.5 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <SubScore icon={<Moon className="h-3 w-3" />} label="Schlaf" value={sleepScore} accent="#6E5BFF" />
-        <SubScore icon={<Heart className="h-3 w-3" />} label="HR" value={hrScore} accent="#FF453A" />
-        <SubScore icon={<Zap className="h-3 w-3" />} label="HRV" value={hrvScore} accent="#30D158" />
+        <SubScore
+          icon={<Heart className="h-3 w-3" />} label="HR" value={hrScore} accent="#FF453A"
+          trend={trends.hrTrend} trendInvert
+        />
+        <SubScore
+          icon={<Zap className="h-3 w-3" />} label="HRV" value={hrvScore} accent="#30D158"
+          trend={trends.hrvTrend}
+        />
         <SubScore icon={<Dumbbell className="h-3 w-3" />} label="Last" value={loadScore} accent="#FFB340" />
+        <SubScore icon={<Footprints className="h-3 w-3" />} label="Aktiv" value={activityScore} accent="#64D2FF" />
       </div>
 
       {/* Training load chips */}
@@ -121,20 +120,57 @@ export function RecoveryRing({ recovery }: RecoveryRingProps) {
               {consecutiveLabel}
             </div>
           )}
+          {trainingLoad.acwr != null && (
+            <div
+              className="flex items-center gap-1 rounded-full px-3 py-1 w-fit text-[11px] font-medium"
+              style={{
+                background: trainingLoad.acwr > 1.3 ? "rgba(255,69,58,0.12)" : "rgba(255,255,255,0.06)",
+                color: trainingLoad.acwr > 1.3 ? "#FF453A" : "#9A9AA2",
+              }}
+            >
+              ACWR {trainingLoad.acwr.toFixed(2)}
+            </div>
+          )}
         </div>
       )}
     </Link>
   );
 }
 
-function SubScore({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: number | null; accent: string }) {
+function SubScore({
+  icon, label, value, accent, trend, trendInvert,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number | null;
+  accent: string;
+  trend?: "rising" | "stable" | "falling" | null;
+  trendInvert?: boolean; // for HR: rising = bad, falling = good
+}) {
+  const trendSymbol =
+    trend == null ? null
+    : trend === "rising" ? "↑"
+    : trend === "falling" ? "↓"
+    : null;
+
+  const trendColor =
+    trend == null ? null
+    : trendInvert
+      ? (trend === "rising" ? "#FF453A" : trend === "falling" ? "#30D158" : null)
+      : (trend === "rising" ? "#30D158" : trend === "falling" ? "#FF453A" : null);
+
   return (
     <div className="flex flex-col items-center gap-0.5">
       <span style={{ color: accent }}>{icon}</span>
-      <span className="text-[10px] uppercase tracking-wide" style={{ color: "#5E5E66" }}>{label}</span>
-      <span className="text-[13px] font-semibold text-white">
-        {value != null ? Math.round(value) : "—"}
-      </span>
+      <span className="text-[9px] uppercase tracking-wide" style={{ color: "#5E5E66" }}>{label}</span>
+      <div className="flex items-center gap-0.5">
+        <span className="text-[12px] font-semibold text-white">
+          {value != null ? Math.round(value) : "—"}
+        </span>
+        {trendSymbol && trendColor && (
+          <span className="text-[9px] font-bold" style={{ color: trendColor }}>{trendSymbol}</span>
+        )}
+      </div>
     </div>
   );
 }

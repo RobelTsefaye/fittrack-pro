@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Moon, Heart, Zap, Dumbbell, Info } from "lucide-react";
+import { ArrowLeft, Moon, Heart, Zap, Dumbbell, Info, Footprints } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import type { RecoveryBreakdown } from "../recovery";
 
@@ -14,15 +14,9 @@ export function RecoveryDetail() {
     let cancelled = false;
     (async () => {
       const res = await fetch("/api/health/recovery", { credentials: "include" });
-      if (!res.ok) {
-        if (!cancelled) setLoading(false);
-        return;
-      }
+      if (!res.ok) { if (!cancelled) setLoading(false); return; }
       const json = (await res.json()) as { data: RecoveryBreakdown };
-      if (!cancelled) {
-        setRecovery(json.data);
-        setLoading(false);
-      }
+      if (!cancelled) { setRecovery(json.data); setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -41,10 +35,7 @@ export function RecoveryDetail() {
     return (
       <div className="space-y-4">
         <Back />
-        <div
-          className="rounded-[22px] p-8 text-center"
-          style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
-        >
+        <div className="rounded-[22px] p-8 text-center" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
           <p className="text-[14px]" style={{ color: "#9A9AA2" }}>
             Noch keine Recovery-Daten verfügbar. Trage Schlaf, HRV oder Ruhepuls in Apple Health ein.
           </p>
@@ -62,7 +53,6 @@ export function RecoveryDetail() {
     <div className="space-y-4 pb-8">
       <Back />
 
-      {/* Headline */}
       <div>
         <h1 className="text-[28px] font-bold text-white">Recovery-Score</h1>
         <p className="mt-1 text-[15px]" style={{ color: "#9A9AA2" }}>
@@ -75,51 +65,53 @@ export function RecoveryDetail() {
       </div>
 
       {/* Method explainer */}
-      <div
-        className="rounded-[18px] p-4"
-        style={{ background: "rgba(212,255,58,0.05)", border: "1px solid rgba(212,255,58,0.15)" }}
-      >
+      <div className="rounded-[18px] p-4" style={{ background: "rgba(212,255,58,0.05)", border: "1px solid rgba(212,255,58,0.15)" }}>
         <div className="flex items-start gap-2">
           <Info className="h-4 w-4 mt-0.5 shrink-0" style={{ color: "#D4FF3A" }} />
           <div>
             <p className="text-[13px] font-semibold text-white">So wird der Score berechnet</p>
             <p className="mt-1 text-[12px] leading-relaxed" style={{ color: "#9A9AA2" }}>
-              Vier Faktoren (Schlaf 25%, Ruhepuls 20%, HRV 25%, Trainingslast 30%) werden zu einem Score von 0-100 kombiniert.
-              HRV und Ruhepuls werden gegen deine persönliche 14-Tage-Baseline verglichen — fehlt die Baseline (&lt;7 Tage Daten), greifen feste Schwellen.
-              Mehrere Trainingstage in Folge senken den Load-Score progressiv (−20% pro Tag, min. 35%).
-              Fehlende Faktoren werden automatisch ausgeglichen (Gewichte renormalisiert).
+              Fünf Faktoren werden zu einem Score von 0–100 kombiniert:
+              Schlaf 20%, Ruhepuls 15%, HRV 25%, Trainingslast 30%, Tagesaktivität 10%.
+              HRV und Ruhepuls werden gegen deine persönliche 14-Tage-Baseline verglichen
+              und durch einen 3-Tage-Trendindikator angepasst.
+              Die Trainingslast basiert auf dem sportwissenschaftlichen ACWR-Modell
+              (7-Tage-Last ÷ 28-Tage-Wochenschnitt). Fehlende Faktoren werden automatisch
+              renormalisiert.
             </p>
             <p className="mt-2 text-[12px]" style={{ color: "#9A9AA2" }}>
-              Stufen: <span className="text-white font-semibold">≥75 = Ready</span> · 50-74 = Moderate · &lt;50 = Rest Day
+              Stufen: <span className="text-white font-semibold">≥75 = Ready</span> · 50–74 = Moderate · &lt;50 = Rest Day
             </p>
           </div>
         </div>
       </div>
 
-      {/* Sub-score sections */}
+      {/* Sub-score cards */}
       <SleepCard score={recovery.sleepScore} />
       <HRCard
         score={recovery.hrScore}
         baseline={recovery.baseline.restingHR}
         daysOfData={recovery.baseline.daysOfData}
+        trend={recovery.trends.hrTrend}
       />
       <HRVCard
         score={recovery.hrvScore}
         baseline={recovery.baseline.hrv}
         daysOfData={recovery.baseline.daysOfData}
+        trend={recovery.trends.hrvTrend}
       />
       <LoadCard score={recovery.loadScore} load={recovery.trainingLoad} />
+      <ActivityCard
+        score={recovery.activityScore}
+        baseline={recovery.baseline}
+      />
     </div>
   );
 }
 
 function Back() {
   return (
-    <Link
-      href={ROUTES.health}
-      className="inline-flex items-center gap-1 text-[14px]"
-      style={{ color: "#9A9AA2" }}
-    >
+    <Link href={ROUTES.health} className="inline-flex items-center gap-1 text-[14px]" style={{ color: "#9A9AA2" }}>
       <ArrowLeft className="h-4 w-4" />
       Gesundheit
     </Link>
@@ -135,10 +127,7 @@ function Card({ icon, title, accent, children, score, weight }: {
   weight: number;
 }) {
   return (
-    <div
-      className="rounded-[22px] p-4"
-      style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
-    >
+    <div className="rounded-[22px] p-4" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <span style={{ color: accent }}>{icon}</span>
@@ -161,14 +150,31 @@ function Card({ icon, title, accent, children, score, weight }: {
   );
 }
 
-function Row({ k, v }: { k: string; v: string }) {
+function Row({ k, v, vColor }: { k: string; v: string; vColor?: string }) {
   return (
     <div className="flex items-center justify-between">
       <span>{k}</span>
-      <span className="font-medium text-white">{v}</span>
+      <span className="font-medium" style={{ color: vColor ?? "white" }}>{v}</span>
     </div>
   );
 }
+
+function TrendBadge({ trend, invert }: { trend: "rising" | "stable" | "falling" | null; invert?: boolean }) {
+  if (!trend || trend === "stable") return null;
+  const rising = trend === "rising";
+  const good = invert ? !rising : rising;
+  const color = good ? "#30D158" : "#FF453A";
+  const label = rising
+    ? (invert ? "↑ steigend (Warnsignal)" : "↑ steigend (positiv)")
+    : (invert ? "↓ sinkend (positiv)" : "↓ sinkend (Warnsignal)");
+  return (
+    <span className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: `${color}22`, color }}>
+      {label}
+    </span>
+  );
+}
+
+// ── Sleep ───────────────────────────────────────────────────────────────────
 
 function SleepCard({ score }: { score: number | null }) {
   let detail: React.ReactNode;
@@ -177,102 +183,157 @@ function SleepCard({ score }: { score: number | null }) {
   } else {
     const band =
       score === 100 ? "≥ 8 Std." :
-      score === 85  ? "7-8 Std." :
-      score === 65  ? "6-7 Std." :
-      score === 40  ? "5-6 Std." :
-                      "< 5 Std.";
+      score >= 85  ? "7–8 Std." :
+      score >= 65  ? "6–7 Std." :
+      score >= 40  ? "5–6 Std." :
+                     "< 5 Std.";
     detail = (
       <>
-        <Row k="Heute" v={`${band} → ${score}`} />
+        <Row k="Heute" v={band} />
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
-          Schlaf wird absolut bewertet — 7-8 Stunden sind das objektive Optimum für Regeneration.
+          Schlaf wird absolut bewertet (Dauer + Qualität wenn verfügbar).
           Schwellen: ≥8h → 100, ≥7h → 85, ≥6h → 65, ≥5h → 40, sonst 15.
+          Wenn Apple Health eine Schlafqualität meldet: 60% Dauer + 40% Qualität.
         </p>
       </>
     );
   }
-  return <Card icon={<Moon className="h-4 w-4" />} title="Schlaf" accent="#6E5BFF" score={score} weight={0.3}>{detail}</Card>;
+  return <Card icon={<Moon className="h-4 w-4" />} title="Schlaf" accent="#6E5BFF" score={score} weight={0.20}>{detail}</Card>;
 }
 
-function HRCard({ score, baseline, daysOfData }: { score: number | null; baseline: number | null; daysOfData: number }) {
+// ── Resting HR ───────────────────────────────────────────────────────────────
+
+function HRCard({
+  score, baseline, daysOfData, trend,
+}: {
+  score: number | null;
+  baseline: number | null;
+  daysOfData: number;
+  trend: "rising" | "stable" | "falling" | null;
+}) {
   let detail: React.ReactNode;
   if (score == null) {
     detail = <p>Kein Ruhepuls für heute verfügbar.</p>;
   } else if (baseline != null) {
     detail = (
       <>
-        <Row k="Baseline (14 Tage Median)" v={`${baseline.toFixed(0)} bpm`} />
+        <div className="flex items-center">
+          <span>Baseline (14-Tage-Median)</span>
+          <TrendBadge trend={trend} invert />
+        </div>
+        <Row k="" v={`${baseline.toFixed(0)} bpm`} />
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
           Niedriger Ruhepuls = bessere Erholung. Verhältnis zu deiner Baseline:
           ≤0.95 → 100, ≤1.0 → 85, ≤1.05 → 65, ≤1.1 → 40, sonst 20.
+          Ein 3-Tage-Aufwärtstrend (↑) zieht den Score um 8–15 Punkte runter;
+          ein Abwärtstrend (↓) gibt 5 Punkte bonus.
         </p>
       </>
     );
   } else {
     detail = (
       <>
-        <p>Nur <span className="text-white font-medium">{daysOfData} Tage</span> Daten — Baseline braucht ≥7. Fallback auf feste Schwellen.</p>
+        <div className="flex items-center">
+          <p>Nur <span className="text-white font-medium">{daysOfData} Tage</span> Daten — Baseline braucht ≥7. Fallback auf feste Schwellen.</p>
+          <TrendBadge trend={trend} invert />
+        </div>
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
           Schwellen: ≤50 → 100, ≤60 → 85, ≤70 → 65, ≤80 → 40, sonst 20.
         </p>
       </>
     );
   }
-  return <Card icon={<Heart className="h-4 w-4" />} title="Ruhepuls" accent="#FF453A" score={score} weight={0.2}>{detail}</Card>;
+  return <Card icon={<Heart className="h-4 w-4" />} title="Ruhepuls" accent="#FF453A" score={score} weight={0.15}>{detail}</Card>;
 }
 
-function HRVCard({ score, baseline, daysOfData }: { score: number | null; baseline: number | null; daysOfData: number }) {
+// ── HRV ─────────────────────────────────────────────────────────────────────
+
+function HRVCard({
+  score, baseline, daysOfData, trend,
+}: {
+  score: number | null;
+  baseline: number | null;
+  daysOfData: number;
+  trend: "rising" | "stable" | "falling" | null;
+}) {
   let detail: React.ReactNode;
   if (score == null) {
     detail = <p>Keine HRV für heute verfügbar.</p>;
   } else if (baseline != null) {
     detail = (
       <>
-        <Row k="Baseline (14 Tage Median)" v={`${baseline.toFixed(0)} ms`} />
+        <div className="flex items-center">
+          <span>Baseline (14-Tage-Median)</span>
+          <TrendBadge trend={trend} />
+        </div>
+        <Row k="" v={`${baseline.toFixed(0)} ms`} />
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
           Höhere HRV = bessere Erholung. Verhältnis zu deiner Baseline:
           ≥1.1 → 100, ≥1.0 → 85, ≥0.9 → 65, ≥0.8 → 40, sonst 20.
+          Ein 3-Tage-Abwärtstrend (↓) senkt den Score um 8–15 Punkte (Übertraining-Signal);
+          ein Aufwärtstrend (↑) gibt 8 Punkte bonus.
         </p>
       </>
     );
   } else {
     detail = (
       <>
-        <p>Nur <span className="text-white font-medium">{daysOfData} Tage</span> Daten — Baseline braucht ≥7. Fallback auf feste Schwellen.</p>
+        <div className="flex items-center">
+          <p>Nur <span className="text-white font-medium">{daysOfData} Tage</span> Daten — Baseline braucht ≥7. Fallback auf feste Schwellen.</p>
+          <TrendBadge trend={trend} />
+        </div>
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
           Schwellen: ≥80 → 100, ≥60 → 85, ≥40 → 65, ≥25 → 40, sonst 20.
         </p>
       </>
     );
   }
-  return <Card icon={<Zap className="h-4 w-4" />} title="HRV" accent="#30D158" score={score} weight={0.3}>{detail}</Card>;
+  return <Card icon={<Zap className="h-4 w-4" />} title="HRV" accent="#30D158" score={score} weight={0.25}>{detail}</Card>;
 }
 
+// ── Training Load ─────────────────────────────────────────────────────────────
+
 function LoadCard({
-  score,
-  load,
+  score, load,
 }: {
   score: number | null;
-  load: { daysSinceLast: number | null; consecutiveDays: number; lastTonnage: number | null; recentAvgTonnage: number | null; intensity: "high" | "medium" | "low" | null };
+  load: RecoveryBreakdown["trainingLoad"];
 }) {
   let detail: React.ReactNode;
+
   if (load.daysSinceLast == null) {
     detail = (
       <>
-        <p>Kein Workout in den letzten 14 Tagen — voll erholt.</p>
+        <p>Kein Workout in den letzten 28 Tagen — voll erholt.</p>
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
-          Score 100 weil keine Trainingsbelastung.
+          Score 100 da keine Trainingsbelastung vorhanden.
         </p>
       </>
     );
   } else {
+    const acwrColor =
+      load.acwr == null ? "#9A9AA2"
+      : load.acwr < 0.8 ? "#FFB340"
+      : load.acwr < 1.3 ? "#30D158"
+      : load.acwr < 1.5 ? "#FFB340"
+      : "#FF453A";
+
+    const acwrLabel =
+      load.acwr == null ? null
+      : load.acwr < 0.5 ? "Untertraining"
+      : load.acwr < 0.8 ? "Leicht untertrainiert"
+      : load.acwr < 1.0 ? "Optimaler Bereich"
+      : load.acwr < 1.3 ? "Leicht erhöht"
+      : load.acwr < 1.5 ? "Spike — Verletzungsrisiko"
+      : "Gefahrenzone";
+
     const intensityLabel =
-      load.intensity === "high" ? "intensiv (≥115% des 7-Tage-Schnitts)"
-      : load.intensity === "low" ? "leicht (≤85%)"
+      load.intensity === "high" ? "intensiv (≥130% des Tagesschnitts)"
+      : load.intensity === "low" ? "leicht (≤70%)"
       : "mittel";
 
-    const penaltyPct = load.consecutiveDays >= 2
-      ? Math.round((1 - Math.max(0.35, 1 - (load.consecutiveDays - 1) * 0.2)) * 100)
+    const consPenalty = load.consecutiveDays >= 2
+      ? Math.round((1 - Math.max(0.60, 1 - (load.consecutiveDays - 1) * 0.15)) * 100)
       : 0;
 
     detail = (
@@ -282,24 +343,60 @@ function LoadCard({
           v={load.daysSinceLast === 0 ? "heute" : load.daysSinceLast === 1 ? "gestern" : `vor ${load.daysSinceLast} Tagen`}
         />
         <Row k="Tage in Folge" v={`${load.consecutiveDays} Tag${load.consecutiveDays !== 1 ? "e" : ""}`} />
-        {load.lastTonnage != null && (
-          <Row k="Tonnage" v={`${Math.round(load.lastTonnage).toLocaleString("de-DE")} kg`} />
+        {load.acwr != null && (
+          <Row k="ACWR" v={`${load.acwr.toFixed(2)}${acwrLabel ? ` — ${acwrLabel}` : ""}`} vColor={acwrColor} />
         )}
-        {load.recentAvgTonnage != null && (
-          <Row k="Ø 7-Tage-Tonnage" v={`${Math.round(load.recentAvgTonnage).toLocaleString("de-DE")} kg`} />
+        {load.acute7dTonnage != null && (
+          <Row k="Akutlast (7 Tage)" v={`${Math.round(load.acute7dTonnage).toLocaleString("de-DE")} kg`} />
+        )}
+        {load.chronic28dAvgTonnage != null && (
+          <Row k="Chronische Last (28d Ø/Woche)" v={`${Math.round(load.chronic28dAvgTonnage).toLocaleString("de-DE")} kg`} />
+        )}
+        {load.lastTonnage != null && (
+          <Row k="Letztes Workout Tonnage" v={`${Math.round(load.lastTonnage).toLocaleString("de-DE")} kg`} />
         )}
         {load.intensity && <Row k="Intensität" v={intensityLabel} />}
-        {penaltyPct > 0 && (
-          <Row k="Müdigkeits-Abzug" v={`−${penaltyPct}%`} />
-        )}
+        {consPenalty > 0 && <Row k="Folgetage-Abzug" v={`−${consPenalty}%`} vColor="#FF453A" />}
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
-          Basis-Matrix (Tage seit letztem Workout × Intensität):
-          0d → 30/45/60, 1d → 60/75/85, 2d → 85/92/97, 3d+ → 100 (high/med/low).
-          Für jeden weiteren Tag in Folge wird der Score um 20% reduziert (min. 35%).
-          Tonnage = Σ(Gewicht × Wiederholungen) aller abgeschlossenen Arbeitssätze.
+          ACWR = 7-Tage-Last ÷ 28-Tage-Wochenschnitt. Sweet Spot: 0.8–1.3.
+          Score: &lt;0.8 → 90–95 (erholt), 0.8–1.0 → 100, 1.0–1.3 → 80, 1.3–1.5 → 50, &gt;1.5 → 25.
+          Jeder weitere Tag in Folge senkt den Score zusätzlich um 15% (min. 60%).
+          Wenn kein Gewicht geloggt ist, wird die Anzahl der Workouts als Proxy verwendet.
         </p>
       </>
     );
   }
-  return <Card icon={<Dumbbell className="h-4 w-4" />} title="Trainingslast" accent="#FFB340" score={score} weight={0.3}>{detail}</Card>;
+  return <Card icon={<Dumbbell className="h-4 w-4" />} title="Trainingslast (ACWR)" accent="#FFB340" score={score} weight={0.30}>{detail}</Card>;
+}
+
+// ── Activity ──────────────────────────────────────────────────────────────────
+
+function ActivityCard({
+  score, baseline,
+}: {
+  score: number | null;
+  baseline: RecoveryBreakdown["baseline"];
+}) {
+  let detail: React.ReactNode;
+  if (score == null) {
+    detail = <p>Keine Schritte oder aktive Kalorien für heute verfügbar.</p>;
+  } else {
+    detail = (
+      <>
+        {baseline.steps != null && (
+          <Row k="Persönlicher Ø Schritte (14d)" v={Math.round(baseline.steps).toLocaleString("de-DE")} />
+        )}
+        {baseline.activeCalories != null && (
+          <Row k="Persönlicher Ø Aktivkalorien (14d)" v={`${Math.round(baseline.activeCalories)} kcal`} />
+        )}
+        <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
+          Hohe Tagesaktivität (Schritte + aktive Kalorien deutlich über dem Schnitt)
+          bedeutet zusätzliche Belastung. Score: &lt;70% des Ø → 100, bis 100% → 88,
+          bis 130% → 75, bis 160% → 58, darüber → 40.
+          Wird mit deinem persönlichen 14-Tage-Median verglichen.
+        </p>
+      </>
+    );
+  }
+  return <Card icon={<Footprints className="h-4 w-4" />} title="Tagesaktivität" accent="#64D2FF" score={score} weight={0.10}>{detail}</Card>;
 }
