@@ -163,11 +163,18 @@ function transformHAE(payload: HAEPayload): Array<Record<string, unknown>> {
           if (ms > 0) hours = ms / 3_600_000;
         }
         if (hours != null) {
-          bucket.sums.sleepDuration = (bucket.sums.sleepDuration ?? 0) + hours;
-          bucket.counts.sleepDuration = (bucket.counts.sleepDuration ?? 0) + 1;
+          // Take the MAX (longest sleep session of the day), not the sum.
+          // HAE may emit multiple entries per day (sleep stages, naps, brief wake periods).
+          // Summing them double-counts; Apple Health shows the main sleep session.
+          const existing = bucket.sums.sleepDuration ?? 0;
+          bucket.sums.sleepDuration = Math.max(existing, hours);
+          bucket.counts.sleepDuration = 1;
+          // Only record bedtime/waketime from the LONGEST sleep entry
+          if (hours > existing) {
+            if (entry.sleepStart) bucket.meta.sleepBedtime = entry.sleepStart.slice(11, 16);
+            if (entry.sleepEnd) bucket.meta.sleepWakeTime = entry.sleepEnd.slice(11, 16);
+          }
         }
-        if (entry.sleepStart) bucket.meta.sleepBedtime = entry.sleepStart.slice(11, 16);
-        if (entry.sleepEnd) bucket.meta.sleepWakeTime = entry.sleepEnd.slice(11, 16);
       } else if (field) {
         const v = entryValue(entry);
         if (v != null) {

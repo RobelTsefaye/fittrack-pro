@@ -263,7 +263,11 @@ export async function computeRecovery(userId: string): Promise<RecoveryBreakdown
 
   if (loggedWorkouts.length > 0) {
     const last = loggedWorkouts[0]!;
-    daysSinceLast = Math.floor((now - last.completedAt.getTime()) / DAY_MS);
+    // Calendar-day difference, not elapsed-hours difference.
+    // Math.floor(now/DAY_MS) gives the day index since epoch (UTC midnight buckets);
+    // subtracting last workout's day index yields whole calendar days between them.
+    daysSinceLast =
+      Math.floor(now / DAY_MS) - Math.floor(last.completedAt.getTime() / DAY_MS);
     lastTonnage = last.tonnage;
 
     // Consecutive training days
