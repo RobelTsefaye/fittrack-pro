@@ -270,8 +270,9 @@ function SleepCard({ score }: { score: number | null }) {
         <Row k="Heute" v={band} />
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
           Schlaf wird absolut bewertet (Dauer + Qualität wenn verfügbar).
-          Schwellen: ≥8h → 100, ≥7h → 85, ≥6h → 65, ≥5h → 40, sonst 15.
-          Wenn Apple Health eine Schlafqualität meldet: 60% Dauer + 40% Qualität.
+          Richtwerte: 8h → 100, 7h → 85, 6h → 65, 5h → 40. Werte dazwischen
+          werden linear interpoliert (7.5h ≈ 92). Wenn Apple Health eine
+          Schlafqualität meldet: 60% Dauer + 40% Qualität.
         </p>
       </>
     );
@@ -302,9 +303,10 @@ function HRCard({
         <Row k="" v={`${baseline.toFixed(0)} bpm`} />
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
           Niedriger Ruhepuls = bessere Erholung. Verhältnis zu deiner Baseline:
-          ≤0.95 → 100, ≤1.0 → 85, ≤1.05 → 65, ≤1.1 → 40, sonst 20.
-          Ein 3-Tage-Aufwärtstrend (↑) zieht den Score um 8–15 Punkte runter;
-          ein Abwärtstrend (↓) gibt 5 Punkte bonus.
+          0.95 → 100, 1.0 → 85, 1.05 → 65, 1.10 → 40, 1.20 → 20.
+          Werte dazwischen werden linear interpoliert.
+          Zusätzlich: pro 1 bpm/Tag Anstieg im 3-Tage-Trend −10 Punkte
+          (max. −15), pro 1 bpm/Tag Abfall +10 (max. +5).
         </p>
       </>
     );
@@ -316,7 +318,8 @@ function HRCard({
           <TrendBadge trend={trend} invert />
         </div>
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
-          Schwellen: ≤50 → 100, ≤60 → 85, ≤70 → 65, ≤80 → 40, sonst 20.
+          Richtwerte: 50 → 100, 60 → 85, 70 → 65, 80 → 40, 95 → 20.
+          Werte dazwischen werden linear interpoliert.
         </p>
       </>
     );
@@ -347,9 +350,10 @@ function HRVCard({
         <Row k="" v={`${baseline.toFixed(0)} ms`} />
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
           Höhere HRV = bessere Erholung. Verhältnis zu deiner Baseline:
-          ≥1.1 → 100, ≥1.0 → 85, ≥0.9 → 65, ≥0.8 → 40, sonst 20.
-          Ein 3-Tage-Abwärtstrend (↓) senkt den Score um 8–15 Punkte (Übertraining-Signal);
-          ein Aufwärtstrend (↑) gibt 8 Punkte bonus.
+          1.10 → 100, 1.0 → 85, 0.9 → 65, 0.8 → 40, 0.5 → 20.
+          Werte dazwischen werden linear interpoliert.
+          Zusätzlich: pro 1 ms/Tag Abfall im 3-Tage-Trend −5 Punkte
+          (max. −15), pro 1 ms/Tag Anstieg +5 (max. +8).
         </p>
       </>
     );
@@ -361,7 +365,8 @@ function HRVCard({
           <TrendBadge trend={trend} />
         </div>
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
-          Schwellen: ≥80 → 100, ≥60 → 85, ≥40 → 65, ≥25 → 40, sonst 20.
+          Richtwerte: 80 → 100, 60 → 85, 40 → 65, 25 → 40, 5 → 20.
+          Werte dazwischen werden linear interpoliert.
         </p>
       </>
     );
@@ -436,8 +441,9 @@ function LoadCard({
         {load.intensity && <Row k="Intensität" v={intensityLabel} />}
         {consPenalty > 0 && <Row k="Folgetage-Abzug" v={`−${consPenalty}%`} vColor="#FF453A" />}
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
-          ACWR = 7-Tage-Last ÷ 28-Tage-Wochenschnitt. Sweet Spot: 0.8–1.3.
-          Score: &lt;0.8 → 90–95 (erholt), 0.8–1.0 → 100, 1.0–1.3 → 80, 1.3–1.5 → 50, &gt;1.5 → 25.
+          ACWR = 7-Tage-Last ÷ 28-Tage-Wochenschnitt. Sweet Spot: 0.85–1.0.
+          Richtwerte: 0.5 → 92, 0.85 → 100, 1.15 → 90, 1.30 → 65, 1.50 → 35, 1.70 → 25.
+          Werte dazwischen werden linear interpoliert.
           Jeder weitere Tag in Folge senkt den Score zusätzlich um 15% (min. 60%).
           Wenn kein Gewicht geloggt ist, wird die Anzahl der Workouts als Proxy verwendet.
         </p>
@@ -469,9 +475,9 @@ function ActivityCard({
         )}
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
           Hohe Tagesaktivität (Schritte + aktive Kalorien deutlich über dem Schnitt)
-          bedeutet zusätzliche Belastung. Score: &lt;70% des Ø → 100, bis 100% → 88,
-          bis 130% → 75, bis 160% → 58, darüber → 40.
-          Wird mit deinem persönlichen 14-Tage-Median verglichen.
+          bedeutet zusätzliche Belastung. Richtwerte (Anteil vom 14-Tage-Median):
+          ≤70% → 100, 100% → 88, 130% → 75, 160% → 58, ≥200% → 40.
+          Werte dazwischen werden linear interpoliert.
         </p>
       </>
     );

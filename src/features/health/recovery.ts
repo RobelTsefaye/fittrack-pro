@@ -68,65 +68,95 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
+/**
+ * Piecewise-linear interpolation between (x, y) anchor points.
+ * Anchors must be sorted by x ascending. Values outside the range
+ * clamp to the nearest edge anchor.
+ */
+function interpolate(x: number, anchors: ReadonlyArray<readonly [number, number]>): number {
+  if (anchors.length === 0) return 0;
+  if (x <= anchors[0]![0]) return anchors[0]![1];
+  if (x >= anchors[anchors.length - 1]![0]) return anchors[anchors.length - 1]![1];
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const [x0, y0] = anchors[i]!;
+    const [x1, y1] = anchors[i + 1]!;
+    if (x >= x0 && x <= x1) {
+      const t = (x - x0) / (x1 - x0);
+      return y0 + t * (y1 - y0);
+    }
+  }
+  return anchors[anchors.length - 1]![1];
+}
+
 // ── Sub-score functions ─────────────────────────────────────────────────────
+// Each function uses continuous linear interpolation between physiologically
+// meaningful anchor points instead of discrete bands. Small differences in
+// input now produce small differences in output (no step changes between
+// adjacent days with similar data).
+
+const SLEEP_ANCHORS = [
+  [0,  0], [4,  10], [5, 40], [6, 65], [7, 85], [8, 100], [10, 100],
+] as const;
 
 function sleepScore(hours: number, quality: number | null): number {
-  let base: number;
-  if (hours >= 8) base = 100;
-  else if (hours >= 7) base = 85;
-  else if (hours >= 6) base = 65;
-  else if (hours >= 5) base = 40;
-  else base = 15;
-  return quality != null ? Math.round(base * 0.6 + quality * 0.4) : base;
+  const base = interpolate(hours, SLEEP_ANCHORS);
+  return quality != null
+    ? Math.round(base * 0.6 + quality * 0.4)
+    : Math.round(base);
 }
+
+// Resting-HR ratio (today / 14d baseline). Lower = better.
+const HR_RATIO_ANCHORS = [
+  [0.80, 100], [0.95, 100], [1.0, 85], [1.05, 65], [1.10, 40], [1.20, 20], [1.50, 20],
+] as const;
 
 function hrRatioScore(ratio: number): number {
-  if (ratio <= 0.95) return 100;
-  if (ratio <= 1.0) return 85;
-  if (ratio <= 1.05) return 65;
-  if (ratio <= 1.1) return 40;
-  return 20;
+  return Math.round(interpolate(ratio, HR_RATIO_ANCHORS));
 }
+
+// Absolute resting HR (bpm). Fallback when no personal baseline yet.
+const HR_ABS_ANCHORS = [
+  [35, 100], [50, 100], [60, 85], [70, 65], [80, 40], [95, 20], [120, 20],
+] as const;
 
 function hrAbsoluteScore(hr: number): number {
-  if (hr <= 50) return 100;
-  if (hr <= 60) return 85;
-  if (hr <= 70) return 65;
-  if (hr <= 80) return 40;
-  return 20;
+  return Math.round(interpolate(hr, HR_ABS_ANCHORS));
 }
+
+// HRV ratio (today / 14d baseline). Higher = better.
+const HRV_RATIO_ANCHORS = [
+  [0.50, 20], [0.80, 40], [0.90, 65], [1.0, 85], [1.10, 100], [1.40, 100],
+] as const;
 
 function hrvRatioScore(ratio: number): number {
-  if (ratio >= 1.1) return 100;
-  if (ratio >= 1.0) return 85;
-  if (ratio >= 0.9) return 65;
-  if (ratio >= 0.8) return 40;
-  return 20;
+  return Math.round(interpolate(ratio, HRV_RATIO_ANCHORS));
 }
+
+// Absolute HRV (ms RMSSD). Fallback when no personal baseline yet.
+const HRV_ABS_ANCHORS = [
+  [5, 20], [25, 40], [40, 65], [60, 85], [80, 100], [150, 100],
+] as const;
 
 function hrvAbsoluteScore(hrv: number): number {
-  if (hrv >= 80) return 100;
-  if (hrv >= 60) return 85;
-  if (hrv >= 40) return 65;
-  if (hrv >= 25) return 40;
-  return 20;
+  return Math.round(interpolate(hrv, HRV_ABS_ANCHORS));
 }
+
+// ACWR (acute / chronic). Inverted-U curve — sweet spot ~0.8-1.0.
+const ACWR_ANCHORS = [
+  [0.0, 85], [0.5, 92], [0.85, 100], [1.0, 100], [1.15, 90], [1.30, 65], [1.40, 50], [1.50, 35], [1.70, 25], [3.0, 20],
+] as const;
 
 function acwrScore(acwr: number): number {
-  if (acwr < 0.5) return 90;
-  if (acwr < 0.8) return 95;
-  if (acwr < 1.0) return 100;
-  if (acwr < 1.3) return 80;
-  if (acwr < 1.5) return 50;
-  return 25;
+  return Math.round(interpolate(acwr, ACWR_ANCHORS));
 }
 
+// Activity load ratio (today / 14d median). Higher daily activity = more fatigue.
+const ACTIVITY_ANCHORS = [
+  [0.0, 100], [0.70, 100], [1.0, 88], [1.30, 75], [1.60, 58], [2.0, 40], [4.0, 40],
+] as const;
+
 function activityLoadScore(ratio: number): number {
-  if (ratio < 0.7) return 100;
-  if (ratio < 1.0) return 88;
-  if (ratio < 1.3) return 75;
-  if (ratio < 1.6) return 58;
-  return 40;
+  return Math.round(interpolate(ratio, ACTIVITY_ANCHORS));
 }
 
 // ── Data shapes (decoupled from Prisma so the pure scorer is testable) ─────
@@ -209,30 +239,28 @@ export function scoreFromData(
     ? sleepScore(today.sleepDuration, today.sleepQuality)
     : null;
 
-  // HR (ratio + trend adjustment)
+  // HR (ratio + trend adjustment). Adjustment is proportional to the slope:
+  // rising HR over days is bad (penalty), falling is good (small bonus).
+  // Clamped so a single noisy day can't swing the score wildly.
   let hrSc: number | null = null;
   if (today.restingHeartRate != null) {
     const base = hrBaseline != null
       ? hrRatioScore(today.restingHeartRate / hrBaseline)
       : hrAbsoluteScore(today.restingHeartRate);
-    const trendAdj =
-      hrTrend === "rising" ? (hrSlope > 1.5 ? -15 : -8)
-      : hrTrend === "falling" ? 5
-      : 0;
-    hrSc = clamp(base + trendAdj, 5, 100);
+    const trendAdj = clamp(-hrSlope * 10, -15, 5);
+    hrSc = Math.round(clamp(base + trendAdj, 5, 100));
   }
 
-  // HRV (ratio + trend adjustment)
+  // HRV (ratio + trend adjustment). Mirror logic: falling HRV is bad,
+  // rising HRV is good. Asymmetric scaling matches the physiological
+  // reality that a sudden HRV drop is a stronger signal than a slow rise.
   let hrvSc: number | null = null;
   if (today.hrv != null) {
     const base = hrvBaseline != null
       ? hrvRatioScore(today.hrv / hrvBaseline)
       : hrvAbsoluteScore(today.hrv);
-    const trendAdj =
-      hrvTrend === "falling" ? (hrvSlope < -3 ? -15 : -8)
-      : hrvTrend === "rising" ? 8
-      : 0;
-    hrvSc = clamp(base + trendAdj, 5, 100);
+    const trendAdj = clamp(hrvSlope * 5, -15, 8);
+    hrvSc = Math.round(clamp(base + trendAdj, 5, 100));
   }
 
   // Workouts ≤ asOf, within last 28 days
