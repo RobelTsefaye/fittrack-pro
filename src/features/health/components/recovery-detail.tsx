@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Moon, Heart, Zap, Dumbbell, Info, Footprints } from "lucide-react";
+import { ArrowLeft, Moon, Heart, Zap, Dumbbell, Footprints } from "lucide-react";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
+} from "recharts";
 import { ROUTES } from "@/lib/constants";
-import type { RecoveryBreakdown } from "../recovery";
+import type { RecoveryBreakdown, RecoveryHistoryPoint } from "../recovery";
 
 export function RecoveryDetail() {
   const [recovery, setRecovery] = useState<RecoveryBreakdown | null>(null);
+  const [history, setHistory] = useState<RecoveryHistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -15,8 +19,12 @@ export function RecoveryDetail() {
     (async () => {
       const res = await fetch("/api/health/recovery", { credentials: "include" });
       if (!res.ok) { if (!cancelled) setLoading(false); return; }
-      const json = (await res.json()) as { data: RecoveryBreakdown };
-      if (!cancelled) { setRecovery(json.data); setLoading(false); }
+      const json = (await res.json()) as { data: RecoveryBreakdown; history: RecoveryHistoryPoint[] };
+      if (!cancelled) {
+        setRecovery(json.data);
+        setHistory(json.history ?? []);
+        setLoading(false);
+      }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -64,27 +72,8 @@ export function RecoveryDetail() {
         </p>
       </div>
 
-      {/* Method explainer */}
-      <div className="rounded-[18px] p-4" style={{ background: "rgba(212,255,58,0.05)", border: "1px solid rgba(212,255,58,0.15)" }}>
-        <div className="flex items-start gap-2">
-          <Info className="h-4 w-4 mt-0.5 shrink-0" style={{ color: "#D4FF3A" }} />
-          <div>
-            <p className="text-[13px] font-semibold text-white">So wird der Score berechnet</p>
-            <p className="mt-1 text-[12px] leading-relaxed" style={{ color: "#9A9AA2" }}>
-              Fünf Faktoren werden zu einem Score von 0–100 kombiniert:
-              Schlaf 20%, Ruhepuls 15%, HRV 25%, Trainingslast 30%, Tagesaktivität 10%.
-              HRV und Ruhepuls werden gegen deine persönliche 14-Tage-Baseline verglichen
-              und durch einen 3-Tage-Trendindikator angepasst.
-              Die Trainingslast basiert auf dem sportwissenschaftlichen ACWR-Modell
-              (7-Tage-Last ÷ 28-Tage-Wochenschnitt). Fehlende Faktoren werden automatisch
-              renormalisiert.
-            </p>
-            <p className="mt-2 text-[12px]" style={{ color: "#9A9AA2" }}>
-              Stufen: <span className="text-white font-semibold">≥75 = Ready</span> · 50–74 = Moderate · &lt;50 = Rest Day
-            </p>
-          </div>
-        </div>
-      </div>
+      {/* History chart */}
+      <HistoryChart history={history} />
 
       {/* Sub-score cards */}
       <SleepCard score={recovery.sleepScore} />
@@ -105,6 +94,95 @@ export function RecoveryDetail() {
         score={recovery.activityScore}
         baseline={recovery.baseline}
       />
+    </div>
+  );
+}
+
+function HistoryChart({ history }: { history: RecoveryHistoryPoint[] }) {
+  if (history.length < 2) {
+    return (
+      <div
+        className="rounded-[22px] p-5 text-center"
+        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9A9AA2" }}>
+          Verlauf
+        </p>
+        <p className="mt-2 text-[13px]" style={{ color: "#5E5E66" }}>
+          Noch zu wenig Daten — Verlauf erscheint nach einigen Tagen.
+        </p>
+      </div>
+    );
+  }
+
+  const avg = Math.round(history.reduce((s, p) => s + p.score, 0) / history.length);
+
+  return (
+    <div
+      className="rounded-[22px] p-4"
+      style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9A9AA2" }}>
+            Verlauf · letzte {history.length} Tage
+          </p>
+          <p className="mt-0.5 text-[13px]" style={{ color: "#9A9AA2" }}>
+            Durchschnitt:{" "}
+            <span className="font-semibold text-white">{avg} / 100</span>
+          </p>
+        </div>
+      </div>
+
+      <div className="h-44 -ml-3">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={history} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <defs>
+              <linearGradient id="grad-recovery" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#D4FF3A" stopOpacity={0.4} />
+                <stop offset="100%" stopColor="#D4FF3A" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+            <XAxis
+              dataKey="date"
+              stroke="#5E5E66"
+              fontSize={10}
+              tickFormatter={(d) => {
+                const dt = new Date(d as string);
+                return `${dt.getDate()}.${dt.getMonth() + 1}.`;
+              }}
+            />
+            <YAxis
+              stroke="#5E5E66"
+              fontSize={10}
+              width={28}
+              domain={[0, 100]}
+              ticks={[0, 50, 75, 100]}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "#1C1C1E",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 10,
+                fontSize: 12,
+                color: "#fff",
+              }}
+              labelFormatter={(d) => new Date(d as string).toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "short" })}
+              formatter={(v) => [`${v} / 100`, "Recovery"]}
+            />
+            <ReferenceLine y={75} stroke="rgba(48,209,88,0.3)" strokeDasharray="3 3" />
+            <ReferenceLine y={50} stroke="rgba(255,179,64,0.3)" strokeDasharray="3 3" />
+            <Area
+              type="monotone"
+              dataKey="score"
+              stroke="#D4FF3A"
+              strokeWidth={2}
+              fill="url(#grad-recovery)"
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }

@@ -113,6 +113,19 @@ export function MetricDetail({ slug }: { slug: MetricSlug }) {
         )}
       </div>
 
+      {/* About this metric */}
+      <div
+        className="rounded-[18px] p-4"
+        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: config.color }}>
+          Was bedeutet das?
+        </p>
+        <p className="text-[13px] leading-relaxed" style={{ color: "#C0C0C8" }}>
+          {config.description}
+        </p>
+      </div>
+
       {/* Trend badge */}
       {trend && trendIsGood != null && (
         <div
