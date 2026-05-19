@@ -104,7 +104,22 @@ const HAE_METRIC_MAP: Record<string, keyof typeof snapshotSchema.shape> = {
   mindful_session: "mindfulMinutes",
 };
 
-type HAEEntry = { date?: string; qty?: number; Avg?: number; avg?: number; asleep?: number; inBed?: number; value?: number; sleepStart?: string; sleepEnd?: string };
+type HAEEntry = {
+  date?: string;
+  qty?: number;
+  Avg?: number;
+  avg?: number;
+  value?: number;
+  // Sleep-specific fields (all in hours)
+  asleep?: number;
+  inBed?: number;
+  awake?: number;
+  deep?: number;
+  core?: number;
+  rem?: number;
+  sleepStart?: string;
+  sleepEnd?: string;
+};
 type HAEMetric = { name: string; units?: string; data?: HAEEntry[] };
 type HAEPayload = { data?: { metrics?: HAEMetric[] } };
 
@@ -154,22 +169,45 @@ function transformHAE(payload: HAEPayload): Array<Record<string, unknown>> {
       const bucket = byDate.get(dateKey) ?? { sums: {}, counts: {}, meta: {} };
 
       if (isSleep) {
-        // Try asleep, then inBed, then compute from sleepStart/sleepEnd timestamps
+        // Prefer ACTUAL sleep time (excludes wake periods) over time-in-bed.
+        // Priority order (most → least accurate):
+        //   1. Sum of sleep stages (deep + core + REM) — direct measurement of asleep time
+        //   2. asleep field (HAE-provided total asleep time)
+        //   3. inBed minus awake time
+        //   4. asleep alone (older HAE versions may have it without awake)
+        //   5. inBed alone (overestimates by including wake periods)
+        //   6. sleepEnd - sleepStart (worst — pure time-in-bed)
         let hours: number | null = null;
-        if (typeof entry.asleep === "number" && entry.asleep > 0) hours = entry.asleep;
-        else if (typeof entry.inBed === "number" && entry.inBed > 0) hours = entry.inBed;
-        else if (entry.sleepStart && entry.sleepEnd) {
+        const stageSum =
+          (entry.deep ?? 0) + (entry.core ?? 0) + (entry.rem ?? 0);
+        if (stageSum > 0) {
+          hours = stageSum;
+        } else if (
+          typeof entry.asleep === "number" && entry.asleep > 0 &&
+          typeof entry.awake === "number" && entry.awake >= 0
+        ) {
+          // If asleep already excludes awake, this is the right value;
+          // some HAE versions report asleep == inBed, in which case we still want
+          // to subtract awake. Use the smaller of (asleep, inBed - awake) when both available.
+          hours = entry.asleep;
+          if (typeof entry.inBed === "number" && entry.inBed > 0) {
+            hours = Math.min(hours, entry.inBed - entry.awake);
+          }
+        } else if (typeof entry.asleep === "number" && entry.asleep > 0) {
+          hours = entry.asleep;
+        } else if (typeof entry.inBed === "number" && entry.inBed > 0) {
+          hours = entry.inBed - (entry.awake ?? 0);
+        } else if (entry.sleepStart && entry.sleepEnd) {
           const ms = new Date(entry.sleepEnd).getTime() - new Date(entry.sleepStart).getTime();
-          if (ms > 0) hours = ms / 3_600_000;
+          if (ms > 0) hours = (ms / 3_600_000) - (entry.awake ?? 0);
         }
-        if (hours != null) {
-          // Take the MAX (longest sleep session of the day), not the sum.
-          // HAE may emit multiple entries per day (sleep stages, naps, brief wake periods).
-          // Summing them double-counts; Apple Health shows the main sleep session.
+
+        if (hours != null && hours > 0) {
+          // Take MAX (longest sleep session of the day), not sum, because
+          // HAE may emit multiple entries per day (naps, brief wake/sleep cycles).
           const existing = bucket.sums.sleepDuration ?? 0;
           bucket.sums.sleepDuration = Math.max(existing, hours);
           bucket.counts.sleepDuration = 1;
-          // Only record bedtime/waketime from the LONGEST sleep entry
           if (hours > existing) {
             if (entry.sleepStart) bucket.meta.sleepBedtime = entry.sleepStart.slice(11, 16);
             if (entry.sleepEnd) bucket.meta.sleepWakeTime = entry.sleepEnd.slice(11, 16);
@@ -224,6 +262,14 @@ export async function POST(req: NextRequest) {
       return `${m.name}=[${Array.from(dates).sort().join(",")}](${(m.data ?? []).length})`;
     });
     console.log(`[health-data] HAE payload received. records=${records.length} dates=[${records.map((r) => r.date).sort().join(",")}] metrics: ${metricSummary.join(" | ")}`);
+
+    // Sleep diagnostics: dump raw fields so we know what HAE actually provides
+    const sleepMetric = (body.data?.metrics ?? []).find((m) => m.name === "sleep_analysis");
+    if (sleepMetric) {
+      for (const e of sleepMetric.data ?? []) {
+        console.log(`[health-data] sleep_entry date=${extractDateKey(e.sleepEnd ?? e.date)} asleep=${e.asleep} inBed=${e.inBed} awake=${e.awake} deep=${e.deep} core=${e.core} rem=${e.rem} sleepStart=${e.sleepStart} sleepEnd=${e.sleepEnd}`);
+      }
+    }
   }
 
   const results = [];
