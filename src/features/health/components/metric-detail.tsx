@@ -7,7 +7,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { ROUTES } from "@/lib/constants";
-import { METRICS, type MetricSlug } from "../metric-config";
+import { METRICS, type MetricSlug, type ScaleBand } from "../metric-config";
 import type { HealthSnapshot } from "../types";
 
 type Range = 7 | 30 | 90;
@@ -125,6 +125,15 @@ export function MetricDetail({ slug }: { slug: MetricSlug }) {
           {config.description}
         </p>
       </div>
+
+      {/* Athlete-targeted reference scale */}
+      <AthleteScale
+        currentValue={stats?.latest ?? null}
+        scale={config.athleteScale}
+        accent={config.color}
+        formatValue={config.format}
+        unit={config.unit}
+      />
 
       {/* Trend badge */}
       {trend && trendIsGood != null && (
@@ -256,6 +265,104 @@ export function MetricDetail({ slug }: { slug: MetricSlug }) {
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function AthleteScale({
+  currentValue,
+  scale,
+  accent,
+  formatValue,
+  unit,
+}: {
+  currentValue: number | null;
+  scale: ScaleBand[];
+  accent: string;
+  formatValue: (v: number) => string;
+  unit: string;
+}) {
+  const activeIdx =
+    currentValue == null
+      ? -1
+      : scale.findIndex(
+          (b) =>
+            (b.min == null || currentValue >= b.min) &&
+            (b.max == null || currentValue < b.max),
+        );
+
+  const unitSuffix = unit ? ` ${unit}` : "";
+  const fmtRange = (band: ScaleBand) => {
+    if (band.min == null && band.max != null) return `< ${formatValue(band.max)}${unitSuffix}`;
+    if (band.max == null && band.min != null) return `≥ ${formatValue(band.min)}${unitSuffix}`;
+    if (band.min != null && band.max != null) return `${formatValue(band.min)}–${formatValue(band.max)}${unitSuffix}`;
+    return "";
+  };
+
+  return (
+    <div
+      className="rounded-[18px] p-4"
+      style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: accent }}>
+        Sportler-Referenz
+      </p>
+      <p className="mt-0.5 text-[11px]" style={{ color: "#5E5E66" }}>
+        Skala für trainierte Erwachsene — nicht für die Allgemeinbevölkerung.
+      </p>
+
+      {/* Gradient segments */}
+      <div className="mt-3 flex h-2 overflow-hidden rounded-full">
+        {scale.map((band, i) => (
+          <div
+            key={i}
+            className="flex-1 transition-opacity"
+            style={{
+              background: band.color,
+              opacity: activeIdx === -1 ? 0.55 : activeIdx === i ? 1 : 0.35,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Labeled bands */}
+      <div className="mt-3 space-y-1">
+        {scale.map((band, i) => {
+          const isActive = activeIdx === i;
+          return (
+            <div
+              key={i}
+              className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[12px]"
+              style={{
+                background: isActive ? `${band.color}1F` : "transparent",
+                border: `1px solid ${isActive ? band.color : "transparent"}`,
+              }}
+            >
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ background: band.color }}
+              />
+              <span
+                className="shrink-0 font-semibold tabular-nums"
+                style={{ color: isActive ? "#fff" : "#C0C0C8", minWidth: 78 }}
+              >
+                {fmtRange(band)}
+              </span>
+              <span className="flex-1 leading-snug" style={{ color: isActive ? "#fff" : "#9A9AA2" }}>
+                {band.label}
+              </span>
+              {isActive && (
+                <span
+                  className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                  style={{ background: band.color, color: "#0A1300" }}
+                >
+                  Du
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
