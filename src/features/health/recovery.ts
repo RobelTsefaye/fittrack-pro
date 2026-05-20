@@ -19,6 +19,11 @@ export type RecoveryBreakdown = {
     steps: number | null;
     activeCalories: number | null;
     daysOfData: number;
+    /** Per-metric day counts so the UI can show the real basis instead of a fixed "14d" label */
+    hrDays: number;
+    hrvDays: number;
+    stepsDays: number;
+    calDays: number;
   };
   trainingLoad: {
     acwr: number | null;
@@ -177,7 +182,7 @@ const EMPTY_BREAKDOWN: RecoveryBreakdown = {
   score: 0, level: "none",
   sleepScore: null, hrScore: null, hrvScore: null, loadScore: null, activityScore: null,
   trends: { hrTrend: null, hrvTrend: null },
-  baseline: { restingHR: null, hrv: null, steps: null, activeCalories: null, daysOfData: 0 },
+  baseline: { restingHR: null, hrv: null, steps: null, activeCalories: null, daysOfData: 0, hrDays: 0, hrvDays: 0, stepsDays: 0, calDays: 0 },
   trainingLoad: {
     acwr: null, daysSinceLast: null, consecutiveDays: 0,
     acute7dTonnage: null, chronic28dAvgTonnage: null, lastTonnage: null, intensity: null,
@@ -381,6 +386,10 @@ export function scoreFromData(
       restingHR: hrBaseline, hrv: hrvBaseline,
       steps: stepsBaseline, activeCalories: calBaseline,
       daysOfData: Math.max(hrValues.length, hrvValues.length),
+      hrDays: hrValues.length,
+      hrvDays: hrvValues.length,
+      stepsDays: stepsValues.length,
+      calDays: calValues.length,
     },
     trainingLoad: {
       acwr, daysSinceLast, consecutiveDays,

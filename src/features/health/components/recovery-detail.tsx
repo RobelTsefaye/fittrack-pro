@@ -80,13 +80,13 @@ export function RecoveryDetail() {
       <HRCard
         score={recovery.hrScore}
         baseline={recovery.baseline.restingHR}
-        daysOfData={recovery.baseline.daysOfData}
+        daysOfData={recovery.baseline.hrDays}
         trend={recovery.trends.hrTrend}
       />
       <HRVCard
         score={recovery.hrvScore}
         baseline={recovery.baseline.hrv}
-        daysOfData={recovery.baseline.daysOfData}
+        daysOfData={recovery.baseline.hrvDays}
         trend={recovery.trends.hrvTrend}
       />
       <LoadCard score={recovery.loadScore} load={recovery.trainingLoad} />
@@ -297,7 +297,7 @@ function HRCard({
     detail = (
       <>
         <div className="flex items-center">
-          <span>Baseline (14-Tage-Median)</span>
+          <span>Baseline (Median aus {daysOfData} Tag{daysOfData !== 1 ? "en" : ""})</span>
           <TrendBadge trend={trend} invert />
         </div>
         <Row k="" v={`${baseline.toFixed(0)} bpm`} />
@@ -314,7 +314,12 @@ function HRCard({
     detail = (
       <>
         <div className="flex items-center">
-          <p>Nur <span className="text-white font-medium">{daysOfData} Tage</span> Daten — Baseline braucht ≥7. Fallback auf feste Schwellen.</p>
+          <p>
+            {daysOfData === 0
+              ? "Noch keine Ruhepuls-Daten gesammelt."
+              : <>Erst <span className="text-white font-medium">{daysOfData} Tag{daysOfData !== 1 ? "e" : ""}</span> Daten — Baseline braucht ≥7. Fallback auf feste Schwellen.</>
+            }
+          </p>
           <TrendBadge trend={trend} invert />
         </div>
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
@@ -344,7 +349,7 @@ function HRVCard({
     detail = (
       <>
         <div className="flex items-center">
-          <span>Baseline (14-Tage-Median)</span>
+          <span>Baseline (Median aus {daysOfData} Tag{daysOfData !== 1 ? "en" : ""})</span>
           <TrendBadge trend={trend} />
         </div>
         <Row k="" v={`${baseline.toFixed(0)} ms`} />
@@ -361,7 +366,12 @@ function HRVCard({
     detail = (
       <>
         <div className="flex items-center">
-          <p>Nur <span className="text-white font-medium">{daysOfData} Tage</span> Daten — Baseline braucht ≥7. Fallback auf feste Schwellen.</p>
+          <p>
+            {daysOfData === 0
+              ? "Noch keine HRV-Daten gesammelt."
+              : <>Erst <span className="text-white font-medium">{daysOfData} Tag{daysOfData !== 1 ? "e" : ""}</span> Daten — Baseline braucht ≥7. Fallback auf feste Schwellen.</>
+            }
+          </p>
           <TrendBadge trend={trend} />
         </div>
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
@@ -387,7 +397,7 @@ function LoadCard({
   if (load.daysSinceLast == null) {
     detail = (
       <>
-        <p>Kein Workout in den letzten 28 Tagen — voll erholt.</p>
+        <p>Keine Workouts im ACWR-Fenster (letzte 28 Tage) — voll erholt.</p>
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
           Score 100 da keine Trainingsbelastung vorhanden.
         </p>
@@ -463,19 +473,25 @@ function ActivityCard({
 }) {
   let detail: React.ReactNode;
   if (score == null) {
-    detail = <p>Keine Schritte oder aktive Kalorien für heute verfügbar.</p>;
+    detail = <p>Keine Schritte oder aktive Kalorien für heute verfügbar — oder noch zu wenig Vergleichsdaten (≥5 Tage nötig).</p>;
   } else {
     detail = (
       <>
         {baseline.steps != null && (
-          <Row k="Persönlicher Ø Schritte (14d)" v={Math.round(baseline.steps).toLocaleString("de-DE")} />
+          <Row
+            k={`Persönlicher Ø Schritte (Ø aus ${baseline.stepsDays} Tag${baseline.stepsDays !== 1 ? "en" : ""})`}
+            v={Math.round(baseline.steps).toLocaleString("de-DE")}
+          />
         )}
         {baseline.activeCalories != null && (
-          <Row k="Persönlicher Ø Aktivkalorien (14d)" v={`${Math.round(baseline.activeCalories)} kcal`} />
+          <Row
+            k={`Persönlicher Ø Aktivkalorien (Ø aus ${baseline.calDays} Tag${baseline.calDays !== 1 ? "en" : ""})`}
+            v={`${Math.round(baseline.activeCalories)} kcal`}
+          />
         )}
         <p className="pt-1 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
           Hohe Tagesaktivität (Schritte + aktive Kalorien deutlich über dem Schnitt)
-          bedeutet zusätzliche Belastung. Richtwerte (Anteil vom 14-Tage-Median):
+          bedeutet zusätzliche Belastung. Richtwerte (Anteil vom persönlichen Median):
           ≤70% → 100, 100% → 88, 130% → 75, 160% → 58, ≥200% → 40.
           Werte dazwischen werden linear interpoliert.
         </p>
