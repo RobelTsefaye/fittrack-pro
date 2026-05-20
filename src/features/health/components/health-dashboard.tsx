@@ -17,12 +17,22 @@ import { HealthMetricChart } from "./health-metric-chart";
 
 type TrendDays = 7 | 30;
 
+// Name of the iOS Shortcut that runs HAE's REST-API backup.
+// Must match exactly what the user named it in the Shortcuts app.
+const HAE_SHORTCUT_NAME = "HAE Sync";
+
+function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
 export function HealthDashboard() {
   const { t } = useI18n();
   const [snapshots, setSnapshots] = useState<HealthSnapshot[]>([]);
   const [recovery, setRecovery] = useState<RecoveryBreakdown | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [waitingForShortcut, setWaitingForShortcut] = useState(false);
   const [trend, setTrend] = useState<TrendDays>(7);
 
   const load = useCallback(async (silent = false) => {
@@ -48,6 +58,37 @@ export function HealthDashboard() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  // When the user returns from the Shortcuts app via x-callback-url,
+  // re-fetch the data so the freshly-uploaded snapshots show up.
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible" && waitingForShortcut) {
+        setWaitingForShortcut(false);
+        // Small delay so HAE has time to finish the upload after returning
+        const timer = setTimeout(() => { void load(true); }, 1200);
+        return () => clearTimeout(timer);
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [load, waitingForShortcut]);
+
+  const handleRefresh = useCallback(() => {
+    if (isIOS()) {
+      // Trigger the user's "HAE Sync" iOS Shortcut, then auto-return here.
+      // x-callback-url makes the Shortcuts app come back to this exact URL
+      // when the shortcut finishes, so the visibilitychange handler can reload.
+      setWaitingForShortcut(true);
+      setRefreshing(true);
+      const returnUrl = encodeURIComponent(window.location.href);
+      const name = encodeURIComponent(HAE_SHORTCUT_NAME);
+      window.location.href =
+        `shortcuts://x-callback-url/run-shortcut?name=${name}&x-success=${returnUrl}&x-error=${returnUrl}&x-cancel=${returnUrl}`;
+    } else {
+      void load(true);
+    }
+  }, [load]);
 
   const today = snapshots.at(-1) ?? null;
 
@@ -89,10 +130,11 @@ export function HealthDashboard() {
         </div>
         <button
           type="button"
-          onClick={() => void load(true)}
+          onClick={handleRefresh}
           disabled={refreshing}
           className="flex h-9 w-9 items-center justify-center rounded-full transition-colors"
           style={{ background: "rgba(255,255,255,0.06)" }}
+          aria-label="Sync via Health Auto Export Kurzbefehl auslösen"
         >
           <RefreshCw
             className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
