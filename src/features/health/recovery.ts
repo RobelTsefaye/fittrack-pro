@@ -385,11 +385,14 @@ export function scoreFromData(
     baseline: {
       restingHR: hrBaseline, hrv: hrvBaseline,
       steps: stepsBaseline, activeCalories: calBaseline,
-      daysOfData: Math.max(hrValues.length, hrvValues.length),
-      hrDays: hrValues.length,
-      hrvDays: hrvValues.length,
-      stepsDays: stepsValues.length,
-      calDays: calValues.length,
+      // Total days the user has data for each metric (incl. today if today has it).
+      // The baseline kicks in once total ≥ 8 (= 7 baseline days + today).
+      daysOfData: Math.max(hrValues.length, hrvValues.length)
+        + (today.restingHeartRate != null || today.hrv != null ? 1 : 0),
+      hrDays: hrValues.length + (today.restingHeartRate != null ? 1 : 0),
+      hrvDays: hrvValues.length + (today.hrv != null ? 1 : 0),
+      stepsDays: stepsValues.length + (today.steps != null ? 1 : 0),
+      calDays: calValues.length + (today.activeCalories != null ? 1 : 0),
     },
     trainingLoad: {
       acwr, daysSinceLast, consecutiveDays,

@@ -317,7 +317,7 @@ function HRCard({
           <p>
             {daysOfData === 0
               ? "Noch keine Ruhepuls-Daten gesammelt."
-              : <>Erst <span className="text-white font-medium">{daysOfData} Tag{daysOfData !== 1 ? "e" : ""}</span> Daten — Baseline braucht ≥7. Fallback auf feste Schwellen.</>
+              : <>Erst <span className="text-white font-medium">{daysOfData} Tag{daysOfData !== 1 ? "e" : ""}</span> Daten — Baseline braucht ≥8 Tage gesamt. Fallback auf feste Schwellen.</>
             }
           </p>
           <TrendBadge trend={trend} invert />
@@ -369,7 +369,7 @@ function HRVCard({
           <p>
             {daysOfData === 0
               ? "Noch keine HRV-Daten gesammelt."
-              : <>Erst <span className="text-white font-medium">{daysOfData} Tag{daysOfData !== 1 ? "e" : ""}</span> Daten — Baseline braucht ≥7. Fallback auf feste Schwellen.</>
+              : <>Erst <span className="text-white font-medium">{daysOfData} Tag{daysOfData !== 1 ? "e" : ""}</span> Daten — Baseline braucht ≥8 Tage gesamt. Fallback auf feste Schwellen.</>
             }
           </p>
           <TrendBadge trend={trend} />
@@ -473,7 +473,7 @@ function ActivityCard({
 }) {
   let detail: React.ReactNode;
   if (score == null) {
-    detail = <p>Keine Schritte oder aktive Kalorien für heute verfügbar — oder noch zu wenig Vergleichsdaten (≥5 Tage nötig).</p>;
+    detail = <p>Keine Schritte oder aktive Kalorien für heute verfügbar — oder noch zu wenig Vergleichsdaten (≥6 Tage gesamt nötig).</p>;
   } else {
     detail = (
       <>
