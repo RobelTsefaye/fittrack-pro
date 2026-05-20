@@ -26,24 +26,6 @@ function isIOS(): boolean {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
-function isChromeIOS(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return /CriOS/.test(navigator.userAgent);
-}
-
-/**
- * Build an x-callback return URL that opens the current page in the SAME
- * browser the user was using. Without this, iOS routes the return through
- * its default browser (Safari) regardless of where the user started.
- */
-function buildReturnUrl(currentUrl: string): string {
-  if (isChromeIOS()) {
-    // Chrome on iOS exposes an x-callback scheme that opens a URL in Chrome itself
-    return `googlechrome-x-callback://x-callback-url/open?url=${encodeURIComponent(currentUrl)}`;
-  }
-  return currentUrl;
-}
-
 export function HealthDashboard() {
   const { t } = useI18n();
   const [snapshots, setSnapshots] = useState<HealthSnapshot[]>([]);
@@ -94,16 +76,13 @@ export function HealthDashboard() {
 
   const handleRefresh = useCallback(() => {
     if (isIOS()) {
-      // Trigger the user's "HAE Sync" iOS Shortcut, then auto-return here.
-      // buildReturnUrl picks the right scheme so we come back to the same
-      // browser (Chrome stays in Chrome, Safari stays in Safari) instead of
-      // defaulting to whichever app iOS treats as the system browser.
+      // Trigger the user's "HAE Sync" iOS Shortcut without x-callback-url —
+      // Shortcuts runs the export and stops there. The user manually returns
+      // to the browser; visibilitychange detects that and refreshes the data.
       setWaitingForShortcut(true);
       setRefreshing(true);
-      const returnUrl = encodeURIComponent(buildReturnUrl(window.location.href));
       const name = encodeURIComponent(HAE_SHORTCUT_NAME);
-      window.location.href =
-        `shortcuts://x-callback-url/run-shortcut?name=${name}&x-success=${returnUrl}&x-error=${returnUrl}&x-cancel=${returnUrl}`;
+      window.location.href = `shortcuts://run-shortcut?name=${name}`;
     } else {
       void load(true);
     }
