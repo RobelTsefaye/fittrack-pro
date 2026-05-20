@@ -13,6 +13,7 @@ import { type HealthSnapshot, formatSleepDuration } from "../types";
 import type { RecoveryBreakdown } from "../recovery";
 import { HealthStatPill } from "./health-stat-pill";
 import { RecoveryRing } from "./recovery-ring";
+import { NutritionCard } from "./nutrition-card";
 import { HealthMetricChart } from "./health-metric-chart";
 
 type TrendDays = 7 | 30;
@@ -145,6 +146,9 @@ export function HealthDashboard() {
       {recovery && recovery.level !== "none" && (
         <RecoveryRing recovery={recovery} />
       )}
+
+      {/* Nutrition card */}
+      {today && <NutritionCard snapshot={today} />}
 
       {/* Today's Summary Grid */}
       {today && (

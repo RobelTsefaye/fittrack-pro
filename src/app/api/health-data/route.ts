@@ -25,11 +25,27 @@ const snapshotSchema = z.object({
 
   vo2Max: z.number().min(0).max(100).optional().nullable(),
 
+  // Energy expenditure (Apple Health "basal")
   calories: z.number().min(0).optional().nullable(),
+
+  // Nutrition intake (what you ate / drank)
+  dietaryCalories: z.number().min(0).optional().nullable(),
   protein: z.number().min(0).optional().nullable(),
   carbs: z.number().min(0).optional().nullable(),
   fat: z.number().min(0).optional().nullable(),
+  fiber: z.number().min(0).optional().nullable(),
+  sugar: z.number().min(0).optional().nullable(),
+  sodium: z.number().min(0).optional().nullable(),
+  caffeine: z.number().min(0).optional().nullable(),
   water: z.number().min(0).optional().nullable(),
+
+  // Micronutrients
+  vitaminD: z.number().min(0).optional().nullable(),
+  vitaminC: z.number().min(0).optional().nullable(),
+  calcium: z.number().min(0).optional().nullable(),
+  iron: z.number().min(0).optional().nullable(),
+  potassium: z.number().min(0).optional().nullable(),
+  magnesium: z.number().min(0).optional().nullable(),
 
   mindfulMinutes: z.number().int().min(0).optional().nullable(),
 });
@@ -91,14 +107,40 @@ const HAE_METRIC_MAP: Record<string, keyof typeof snapshotSchema.shape> = {
   dietary_water: "water",
   water: "water",
 
-  dietary_energy: "calories",
-  dietary_energy_consumed: "calories",
+  // Intake — these go to dietaryCalories, NOT the basal "calories" field
+  dietary_energy: "dietaryCalories",
+  dietary_energy_consumed: "dietaryCalories",
+  dietary_calories: "dietaryCalories",
+
+  // Macros
   protein: "protein",
   dietary_protein: "protein",
   carbohydrates: "carbs",
   dietary_carbohydrates: "carbs",
   total_fat: "fat",
   dietary_fat_total: "fat",
+  fiber: "fiber",
+  dietary_fiber: "fiber",
+  sugar: "sugar",
+  dietary_sugar: "sugar",
+  sodium: "sodium",
+  dietary_sodium: "sodium",
+  caffeine: "caffeine",
+  dietary_caffeine: "caffeine",
+
+  // Micros — Apple Health units: D=mcg, C=mg, Ca/Fe/K/Mg=mg
+  vitamin_d: "vitaminD",
+  dietary_vitamin_d: "vitaminD",
+  vitamin_c: "vitaminC",
+  dietary_vitamin_c: "vitaminC",
+  calcium: "calcium",
+  dietary_calcium: "calcium",
+  iron: "iron",
+  dietary_iron: "iron",
+  potassium: "potassium",
+  dietary_potassium: "potassium",
+  magnesium: "magnesium",
+  dietary_magnesium: "magnesium",
 
   mindful_minutes: "mindfulMinutes",
   mindful_session: "mindfulMinutes",
@@ -148,8 +190,11 @@ function entryValue(e: HAEEntry): number | null {
 // All other numeric fields are averaged (instantaneous measurements like heart rate, VO2 max).
 const SUM_FIELDS = new Set<string>([
   "steps", "activeCalories", "calories", "exerciseMinutes",
-  "water", "protein", "carbs", "fat", "standHours", "mindfulMinutes",
-  "sleepDuration",
+  "standHours", "mindfulMinutes", "sleepDuration",
+  // Nutrition intake: each food entry adds up across the day
+  "dietaryCalories", "protein", "carbs", "fat", "fiber", "sugar",
+  "sodium", "caffeine", "water",
+  "vitaminD", "vitaminC", "calcium", "iron", "potassium", "magnesium",
 ]);
 
 // Transform HAE payload → array of { date, ...fields } records.

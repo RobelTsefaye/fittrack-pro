@@ -295,12 +295,27 @@ model HealthSnapshot {
   // Cardio fitness
   vo2Max Float? // ml/kg/min
 
-  // Nutrition
-  calories Float? // kcal
-  protein  Float? // g
-  carbs    Float? // g
-  fat      Float? // g
-  water    Float? // ml
+  // Nutrition — energy expenditure
+  calories Float? // kcal basal energy burned (Apple Health basal)
+
+  // Nutrition — intake (food consumed)
+  dietaryCalories Float? // kcal consumed
+  protein         Float? // g
+  carbs           Float? // g
+  fat             Float? // g
+  fiber           Float? // g
+  sugar           Float? // g
+  sodium          Float? // mg
+  caffeine        Float? // mg
+  water           Float? // ml
+
+  // Micronutrients
+  vitaminD  Float? // mcg
+  vitaminC  Float? // mg
+  calcium   Float? // mg
+  iron      Float? // mg
+  potassium Float? // mg
+  magnesium Float? // mg
 
   // Mindfulness
   mindfulMinutes Int?
