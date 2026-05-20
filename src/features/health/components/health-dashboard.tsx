@@ -35,10 +35,12 @@ export function HealthDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [waitingForShortcut, setWaitingForShortcut] = useState(false);
   const [trend, setTrend] = useState<TrendDays>(7);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
+    setFetchError(null);
     try {
       const [snapsRes, recRes] = await Promise.all([
         fetch("/api/health-data?limit=30", { credentials: "include" }),
@@ -47,11 +49,17 @@ export function HealthDashboard() {
       if (snapsRes.ok) {
         const json = (await snapsRes.json()) as { data: HealthSnapshot[] };
         setSnapshots(json.data);
+      } else {
+        // Surface the real reason instead of silently rendering the empty state.
+        // 500s here usually mean the DB schema is out of sync with Prisma.
+        setFetchError(`Gesundheitsdaten konnten nicht geladen werden (${snapsRes.status})`);
       }
       if (recRes.ok) {
         const json = (await recRes.json()) as { data: RecoveryBreakdown };
         setRecovery(json.data);
       }
+    } catch (err) {
+      setFetchError(`Verbindungsfehler: ${err instanceof Error ? err.message : "unbekannt"}`);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -102,6 +110,32 @@ export function HealthDashboard() {
   }
 
   if (snapshots.length === 0) {
+    if (fetchError) {
+      return (
+        <div
+          className="flex flex-col items-center gap-4 rounded-[22px] p-8 text-center"
+          style={{ background: "#121214", border: "1px solid rgba(255,69,58,0.3)" }}
+        >
+          <span className="text-4xl">⚠️</span>
+          <div>
+            <p className="text-[16px] font-semibold text-white">Fehler beim Laden</p>
+            <p className="mt-1 text-[13px]" style={{ color: "#FF9F0A" }}>{fetchError}</p>
+            <p className="mt-2 text-[12px]" style={{ color: "#9A9AA2" }}>
+              Häufige Ursache: DB-Schema ist veraltet — der Admin muss <code className="text-white">npm run db:push</code> ausführen.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="rounded-full px-4 py-1.5 text-[13px] font-semibold"
+            style={{ background: "rgba(255,255,255,0.06)", color: "#fff" }}
+          >
+            Erneut versuchen
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div
         className="flex flex-col items-center gap-4 rounded-[22px] p-8 text-center"
