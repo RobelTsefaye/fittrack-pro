@@ -186,6 +186,26 @@ function entryValue(e: HAEEntry): number | null {
   return null;
 }
 
+// Fields that store kcal in our schema. When HAE reports them in kJ
+// (common in EU/metric locales — e.g. de_FR), convert: 1 kcal = 4.184 kJ.
+const KCAL_FIELDS = new Set<string>([
+  "calories", "activeCalories", "dietaryCalories",
+]);
+
+/**
+ * Normalize an energy value to kcal. HAE includes a `units` string on each
+ * metric — "kcal", "Cal", "kJ", "kj". Anything kJ-shaped → divide by 4.184.
+ */
+function normalizeEnergyValue(value: number, units: string | undefined): number {
+  if (!units) return value;
+  const u = units.toLowerCase();
+  // kJ but NOT kcal (kcal also contains "k")
+  if (u === "kj" || u === "kilojoule" || u === "kilojoules") {
+    return value / 4.184;
+  }
+  return value;
+}
+
 // Fields where multiple entries within the same day should be summed (cumulative totals).
 // All other numeric fields are averaged (instantaneous measurements like heart rate, VO2 max).
 const SUM_FIELDS = new Set<string>([
@@ -259,8 +279,12 @@ function transformHAE(payload: HAEPayload): Array<Record<string, unknown>> {
           }
         }
       } else if (field) {
-        const v = entryValue(entry);
-        if (v != null) {
+        const raw = entryValue(entry);
+        if (raw != null) {
+          // Convert kJ → kcal when HAE reports energy in kJ (common in EU/metric locales)
+          const v = KCAL_FIELDS.has(field)
+            ? normalizeEnergyValue(raw, metric.units)
+            : raw;
           bucket.sums[field] = (bucket.sums[field] ?? 0) + v;
           bucket.counts[field] = (bucket.counts[field] ?? 0) + 1;
         }
@@ -304,7 +328,8 @@ export async function POST(req: NextRequest) {
         const k = extractDateKey(e.sleepEnd ?? e.date);
         if (k) dates.add(k);
       }
-      return `${m.name}=[${Array.from(dates).sort().join(",")}](${(m.data ?? []).length})`;
+      const u = m.units ? `[${m.units}]` : "";
+      return `${m.name}${u}=[${Array.from(dates).sort().join(",")}](${(m.data ?? []).length})`;
     });
     console.log(`[health-data] HAE payload received. records=${records.length} dates=[${records.map((r) => r.date).sort().join(",")}] metrics: ${metricSummary.join(" | ")}`);
 
