@@ -14,7 +14,15 @@ import type { RecoveryBreakdown } from "../recovery";
 import { HealthStatPill } from "./health-stat-pill";
 import { RecoveryRing } from "./recovery-ring";
 import { NutritionCard } from "./nutrition-card";
-import { HealthMetricChart } from "./health-metric-chart";
+import dynamic from "next/dynamic";
+
+const HealthMetricChart = dynamic(
+  () => import("./health-metric-chart").then((m) => m.HealthMetricChart),
+  {
+    ssr: false,
+    loading: () => <div className="h-44 w-full animate-pulse rounded-xl bg-white/5" />,
+  }
+);
 
 type TrendDays = 7 | 30;
 
@@ -27,11 +35,19 @@ function isIOS(): boolean {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
-export function HealthDashboard() {
+export function HealthDashboard({
+  initialSnapshots,
+  initialRecovery,
+}: {
+  /** Server-prefetched data — renders instantly without the client fetch waterfall. */
+  initialSnapshots?: HealthSnapshot[];
+  initialRecovery?: RecoveryBreakdown | null;
+} = {}) {
   const { t } = useI18n();
-  const [snapshots, setSnapshots] = useState<HealthSnapshot[]>([]);
-  const [recovery, setRecovery] = useState<RecoveryBreakdown | null>(null);
-  const [loading, setLoading] = useState(true);
+  const hasInitialData = initialSnapshots != null;
+  const [snapshots, setSnapshots] = useState<HealthSnapshot[]>(initialSnapshots ?? []);
+  const [recovery, setRecovery] = useState<RecoveryBreakdown | null>(initialRecovery ?? null);
+  const [loading, setLoading] = useState(!hasInitialData);
   const [refreshing, setRefreshing] = useState(false);
   const [waitingForShortcut, setWaitingForShortcut] = useState(false);
   const [trend, setTrend] = useState<TrendDays>(7);
@@ -66,7 +82,10 @@ export function HealthDashboard() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    // Server already provided fresh data — no mount fetch needed then.
+    if (!hasInitialData) void load();
+  }, [load, hasInitialData]);
 
   // When the user returns from the Shortcuts app via x-callback-url,
   // re-fetch the data so the freshly-uploaded snapshots show up.

@@ -58,46 +58,56 @@ export async function GET(
     weight: { not: null },
   } as const;
 
-  const entries = await Promise.all(
-    exerciseIds.map(async (exerciseId) => {
-      const prevWorkout = await prisma.workout.findFirst({
-        where: {
-          userId: session.user!.id,
-          completedAt: { not: null },
-          id: { not: workoutId },
-          workoutExercises: {
-            some: {
-              exerciseId,
-              sets: { some: validSetFilter },
-            },
-          },
-        },
-        orderBy: { startedAt: "desc" },
-        select: {
-          workoutExercises: {
-            where: { exerciseId },
-            select: { id: true },
-            take: 1,
-          },
-        },
-      });
+  // One DISTINCT ON query finds the newest qualifying workout-exercise per
+  // exercise (instead of two queries per exercise).
+  const latestWes = await prisma.$queryRaw<
+    Array<{ id: string; exerciseId: string }>
+  >`
+    SELECT DISTINCT ON (we."exerciseId") we.id, we."exerciseId"
+    FROM "workout_exercises" we
+    JOIN "workouts" w ON w.id = we."workoutId"
+    WHERE w."userId" = ${session.user.id}
+      AND w."completedAt" IS NOT NULL
+      AND w.id <> ${workoutId}
+      AND we."exerciseId" = ANY(${exerciseIds})
+      AND EXISTS (
+        SELECT 1 FROM "sets" s
+        WHERE s."workoutExerciseId" = we.id
+          AND s."isWarmup" = false
+          AND s.reps > 0
+          AND s.weight IS NOT NULL
+      )
+    ORDER BY we."exerciseId", w."startedAt" DESC
+  `;
 
-      const weId = prevWorkout?.workoutExercises[0]?.id;
-      if (!weId) return [exerciseId, null] as const;
+  const exerciseByWeId = new Map(latestWes.map((we) => [we.id, we.exerciseId]));
 
-      const sets = await prisma.set.findMany({
-        where: { workoutExerciseId: weId, ...validSetFilter },
-        orderBy: { setNumber: "asc" },
-        select: { setNumber: true, weight: true, reps: true, rpe: true },
-      });
+  const sets = await prisma.set.findMany({
+    where: {
+      workoutExerciseId: { in: latestWes.map((we) => we.id) },
+      ...validSetFilter,
+    },
+    orderBy: { setNumber: "asc" },
+    select: {
+      workoutExerciseId: true,
+      setNumber: true,
+      weight: true,
+      reps: true,
+      rpe: true,
+    },
+  });
 
-      if (sets.length === 0) return [exerciseId, null] as const;
-
-      return [exerciseId, sets] as const;
-    })
+  const data: Record<string, PreviousLogEntry> = Object.fromEntries(
+    exerciseIds.map((id) => [id, null])
   );
-
-  const data = Object.fromEntries(entries) as Record<string, PreviousLogEntry>;
+  for (const s of sets) {
+    const exerciseId = exerciseByWeId.get(s.workoutExerciseId);
+    if (!exerciseId) continue;
+    const entry = { setNumber: s.setNumber, weight: s.weight, reps: s.reps, rpe: s.rpe };
+    const existing = data[exerciseId];
+    if (existing) existing.push(entry);
+    else data[exerciseId] = [entry];
+  }
 
   return NextResponse.json({ data });
 }

@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-} from "recharts";
+import dynamic from "next/dynamic";
 import { Plus, Trash2, ChevronDown, ChevronUp, Ruler } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -40,6 +38,14 @@ const FIELDS: { key: FieldKey; label: string; emoji: string }[] = [
   { key: "rightThigh", label: "Right Thigh", emoji: "🦵" },
 ];
 
+const MeasurementLineChart = dynamic(
+  () => import("./measurement-line-chart").then((m) => m.MeasurementLineChart),
+  {
+    ssr: false,
+    loading: () => <div className="h-[180px] w-full animate-pulse rounded-xl bg-[var(--sys-fill)]" />,
+  }
+);
+
 const CHART_COLORS: Record<FieldKey, string> = {
   neck:       "#6366f1",
   chest:      "#0ea5e9",
@@ -71,24 +77,6 @@ function getDelta(entries: Entry[], key: FieldKey): string | null {
   const diff  = last - first;
   const sign  = diff > 0 ? "+" : "";
   return `${sign}${diff.toFixed(1)} cm`;
-}
-
-// ─── Custom chart tooltip ─────────────────────────────────────────────────────
-
-function CustomTooltip({ active, payload, label }: {
-  active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-xl bg-[var(--card)] px-3 py-2 shadow-lg ring-1 ring-[var(--sys-separator)] text-xs">
-      <p className="font-semibold mb-1">{label}</p>
-      {payload.map((p) => (
-        <p key={p.name} style={{ color: p.color }}>
-          {p.name}: {p.value} cm
-        </p>
-      ))}
-    </div>
-  );
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -365,22 +353,11 @@ export function BodyMeasurementsTracker() {
                 ))}
               </div>
 
-              <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--sys-separator)" strokeOpacity={0.5} />
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="var(--sys-label3)" />
-                  <YAxis tick={{ fontSize: 10 }} stroke="var(--sys-label3)" domain={["auto", "auto"]} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Line
-                    type="monotone"
-                    dataKey={FIELDS.find((f) => f.key === activeChart)!.label}
-                    stroke={CHART_COLORS[activeChart]}
-                    strokeWidth={2.5}
-                    dot={{ r: 3.5, fill: CHART_COLORS[activeChart] }}
-                    activeDot={{ r: 5 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <MeasurementLineChart
+                data={chartData}
+                dataKey={FIELDS.find((f) => f.key === activeChart)!.label}
+                color={CHART_COLORS[activeChart]}
+              />
             </div>
           )}
 

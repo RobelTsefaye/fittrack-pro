@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -16,9 +16,11 @@ export function ActiveWorkoutBanner() {
   const pathname = usePathname();
   const { status } = useSession();
   const [active, setActive] = useState<ActiveItem | null>(null);
+  const lastFetchedAt = useRef(0);
 
   const fetchActive = useCallback(async () => {
     if (status !== "authenticated") { setActive(null); return; }
+    lastFetchedAt.current = Date.now();
     try {
       const res = await fetch("/api/workouts?status=active&limit=1", { credentials: "include" });
       if (!res.ok) { setActive(null); return; }
@@ -42,7 +44,12 @@ export function ActiveWorkoutBanner() {
     }
   }, [status]);
 
-  useEffect(() => { void fetchActive(); }, [fetchActive, pathname]);
+  // Route changes only refetch when the data is stale — without the guard
+  // every tab switch fires an extra API call before the page can settle.
+  useEffect(() => {
+    if (Date.now() - lastFetchedAt.current < 10_000) return;
+    void fetchActive();
+  }, [fetchActive, pathname]);
 
   useEffect(() => {
     const onChanged = () => void fetchActive();

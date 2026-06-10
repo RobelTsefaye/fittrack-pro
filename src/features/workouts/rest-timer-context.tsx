@@ -75,10 +75,27 @@ export type RestTimerApi = {
 
 const RestTimerContext = createContext<RestTimerApi | null>(null);
 
+/** Stable action callbacks — consuming only these avoids the 1-second
+ *  re-render that the full state context causes while a timer runs. */
+export type RestTimerActions = Pick<
+  RestTimerApi,
+  "start" | "stop" | "pause" | "resume" | "adjustTime"
+>;
+
+const RestTimerActionsContext = createContext<RestTimerActions | null>(null);
+
 export function useRestTimer(): RestTimerApi {
   const ctx = useContext(RestTimerContext);
   if (!ctx) {
     throw new Error("useRestTimer must be used within RestTimerProvider");
+  }
+  return ctx;
+}
+
+export function useRestTimerActions(): RestTimerActions {
+  const ctx = useContext(RestTimerActionsContext);
+  if (!ctx) {
+    throw new Error("useRestTimerActions must be used within RestTimerProvider");
   }
   return ctx;
 }
@@ -149,7 +166,10 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     }
   }, [endsAt, pausedRemaining, duration, doneVisible]);
 
+  /** Tick only while a timer is actually counting down — an unconditional
+   *  interval would re-render the provider every second app-wide. */
   useEffect(() => {
+    if (endsAt == null || pausedRemaining != null) return;
     const id = setInterval(() => setTick((n) => n + 1), 1000);
     const onVis = () => setTick((n) => n + 1);
     document.addEventListener("visibilitychange", onVis);
@@ -157,7 +177,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, []);
+  }, [endsAt, pausedRemaining]);
 
   const isRunning = endsAt != null && pausedRemaining == null && remaining > 0;
   const isPaused = pausedRemaining != null && pausedRemaining > 0;
@@ -308,10 +328,17 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [endsAt, pausedRemaining, requestWakeLock]);
 
+  const actions = useMemo<RestTimerActions>(
+    () => ({ start, stop, pause, resume, adjustTime }),
+    [start, stop, pause, resume, adjustTime]
+  );
+
   return (
-    <RestTimerContext.Provider value={api}>
-      {children}
-      <RestTimerBar timer={api} />
-    </RestTimerContext.Provider>
+    <RestTimerActionsContext.Provider value={actions}>
+      <RestTimerContext.Provider value={api}>
+        {children}
+        <RestTimerBar timer={api} />
+      </RestTimerContext.Provider>
+    </RestTimerActionsContext.Provider>
   );
 }

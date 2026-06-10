@@ -1,24 +1,39 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowLeft, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-} from "recharts";
 import { ROUTES } from "@/lib/constants";
 import { METRICS, type MetricSlug, type ScaleBand } from "../metric-config";
 import type { HealthSnapshot } from "../types";
 
+const MetricAreaChart = dynamic(
+  () => import("./metric-area-chart").then((m) => m.MetricAreaChart),
+  {
+    ssr: false,
+    loading: () => <div className="h-full w-full animate-pulse rounded-xl bg-white/5" />,
+  }
+);
+
 type Range = 7 | 30 | 90;
 
-export function MetricDetail({ slug }: { slug: MetricSlug }) {
+export function MetricDetail({
+  slug,
+  initialSnapshots,
+}: {
+  slug: MetricSlug;
+  /** Server-prefetched data — skips the client fetch when provided. */
+  initialSnapshots?: HealthSnapshot[];
+}) {
   const config = METRICS[slug];
-  const [snapshots, setSnapshots] = useState<HealthSnapshot[]>([]);
-  const [loading, setLoading] = useState(true);
+  const hasInitialData = initialSnapshots != null;
+  const [snapshots, setSnapshots] = useState<HealthSnapshot[]>(initialSnapshots ?? []);
+  const [loading, setLoading] = useState(!hasInitialData);
   const [range, setRange] = useState<Range>(30);
 
   useEffect(() => {
+    if (hasInitialData) return;
     let cancelled = false;
     (async () => {
       const res = await fetch("/api/health-data?limit=90", { credentials: "include" });
@@ -30,7 +45,7 @@ export function MetricDetail({ slug }: { slug: MetricSlug }) {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [hasInitialData]);
 
   const series = useMemo(() => {
     return snapshots
@@ -181,51 +196,14 @@ export function MetricDetail({ slug }: { slug: MetricSlug }) {
           </p>
         ) : (
           <div className="h-56 -ml-3">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={ranged} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-                <defs>
-                  <linearGradient id={`grad-${slug}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={config.color} stopOpacity={0.4} />
-                    <stop offset="100%" stopColor={config.color} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  stroke="#5E5E66"
-                  fontSize={10}
-                  tickFormatter={(d) => {
-                    const dt = new Date(d);
-                    return `${dt.getDate()}.${dt.getMonth() + 1}.`;
-                  }}
-                />
-                <YAxis stroke="#5E5E66" fontSize={10} width={40} />
-                <Tooltip
-                  contentStyle={{
-                    background: "#1C1C1E",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: 10,
-                    fontSize: 12,
-                    color: "#fff",
-                  }}
-                  labelFormatter={(d) => {
-                    const dt = new Date(d as string);
-                    return dt.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "short" });
-                  }}
-                  formatter={(v) => [
-                    `${config.format(Number(v))} ${config.unit}`.trim(),
-                    config.label,
-                  ]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke={config.color}
-                  strokeWidth={2}
-                  fill={`url(#grad-${slug})`}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <MetricAreaChart
+              data={ranged}
+              slug={slug}
+              color={config.color}
+              unit={config.unit}
+              label={config.label}
+              format={config.format}
+            />
           </div>
         )}
       </div>

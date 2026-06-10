@@ -1,8 +1,22 @@
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
 import { APP_NAME } from "@/lib/constants";
 import { HealthDashboard } from "@/features/health/components/health-dashboard";
+import { getHealthSnapshots } from "@/features/health/health-data";
+import { computeRecovery } from "@/features/health/recovery";
 
 export const metadata = { title: `Health — ${APP_NAME}` };
 
-export default function HealthPage() {
-  return <HealthDashboard />;
+export default async function HealthPage() {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
+
+  const [snapshots, recovery] = await Promise.all([
+    getHealthSnapshots(session.user.id, 30),
+    computeRecovery(session.user.id),
+  ]);
+
+  return (
+    <HealthDashboard initialSnapshots={snapshots} initialRecovery={recovery} />
+  );
 }

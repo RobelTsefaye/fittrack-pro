@@ -95,6 +95,29 @@ export async function getRecentPersonalRecords(userId: string, take = 6) {
   });
 }
 
+/**
+ * Volume per completed workout since `since`, aggregated in SQL — transfers
+ * one row per workout instead of one row per set.
+ */
+async function getWorkoutVolumesSince(
+  userId: string,
+  since: Date
+): Promise<Array<{ completedAt: Date; volume: number }>> {
+  return prisma.$queryRaw<Array<{ completedAt: Date; volume: number }>>`
+    SELECT w."completedAt", SUM(s.reps * s.weight)::float AS volume
+    FROM "sets" s
+    JOIN "workout_exercises" we ON we.id = s."workoutExerciseId"
+    JOIN "workouts" w ON w.id = we."workoutId"
+    WHERE w."userId" = ${userId}
+      AND w."completedAt" IS NOT NULL
+      AND w."completedAt" >= ${since}
+      AND s."isWarmup" = false
+      AND s.reps > 0
+      AND s.weight > 0
+    GROUP BY w.id
+  `;
+}
+
 export async function getVolumeBucketsWeekly(userId: string, weekCount = 10) {
   const now = new Date();
   const intervalStart = startOfWeek(subWeeks(now, weekCount - 1), { weekStartsOn: 1 });
@@ -103,40 +126,17 @@ export async function getVolumeBucketsWeekly(userId: string, weekCount = 10) {
     { weekStartsOn: 1 }
   );
 
-  const sets = await prisma.set.findMany({
-    where: {
-      isWarmup: false,
-      reps: { gt: 0 },
-      weight: { gt: 0 },
-      workoutExercise: {
-        workout: {
-          userId,
-          completedAt: { not: null, gte: intervalStart },
-        },
-      },
-    },
-    select: {
-      reps: true,
-      weight: true,
-      workoutExercise: {
-        select: {
-          workout: { select: { completedAt: true } },
-        },
-      },
-    },
-  });
+  const workoutVolumes = await getWorkoutVolumesSince(userId, intervalStart);
 
   const volByWeekStart = new Map<string, number>();
   for (const ws of weekStarts) {
     volByWeekStart.set(utcDayKey(startOfWeek(ws, { weekStartsOn: 1 })), 0);
   }
 
-  for (const s of sets) {
-    const completed = s.workoutExercise.workout.completedAt!;
-    const wk = startOfWeek(completed, { weekStartsOn: 1 });
+  for (const w of workoutVolumes) {
+    const wk = startOfWeek(w.completedAt, { weekStartsOn: 1 });
     const key = utcDayKey(wk);
-    const v = (s.reps ?? 0) * (s.weight ?? 0);
-    volByWeekStart.set(key, (volByWeekStart.get(key) ?? 0) + v);
+    volByWeekStart.set(key, (volByWeekStart.get(key) ?? 0) + w.volume);
   }
 
   return weekStarts.map((ws) => {
@@ -154,39 +154,16 @@ export async function getVolumeBucketsMonthly(userId: string, monthCount = 6) {
   const intervalStart = startOfMonth(subMonths(now, monthCount - 1));
   const months = eachMonthOfInterval({ start: intervalStart, end: now });
 
-  const sets = await prisma.set.findMany({
-    where: {
-      isWarmup: false,
-      reps: { gt: 0 },
-      weight: { gt: 0 },
-      workoutExercise: {
-        workout: {
-          userId,
-          completedAt: { not: null, gte: intervalStart },
-        },
-      },
-    },
-    select: {
-      reps: true,
-      weight: true,
-      workoutExercise: {
-        select: {
-          workout: { select: { completedAt: true } },
-        },
-      },
-    },
-  });
+  const workoutVolumes = await getWorkoutVolumesSince(userId, intervalStart);
 
   const volByMonth = new Map<string, number>();
   for (const m of months) {
     volByMonth.set(utcDayKey(startOfMonth(m)), 0);
   }
 
-  for (const s of sets) {
-    const completed = s.workoutExercise.workout.completedAt!;
-    const mk = utcDayKey(startOfMonth(completed));
-    const v = (s.reps ?? 0) * (s.weight ?? 0);
-    volByMonth.set(mk, (volByMonth.get(mk) ?? 0) + v);
+  for (const w of workoutVolumes) {
+    const mk = utcDayKey(startOfMonth(w.completedAt));
+    volByMonth.set(mk, (volByMonth.get(mk) ?? 0) + w.volume);
   }
 
   return months.map((m) => {
@@ -305,12 +282,36 @@ export async function getBodyWeightTrend(userId: string, take = 14) {
 }
 
 export async function getNextPlanSession(userId: string) {
-  // Strategy 1: last completed workout directly linked to a plan session
-  const lastPlanned = await prisma.workout.findFirst({
-    where: { userId, completedAt: { not: null }, planSessionId: { not: null } },
-    orderBy: { completedAt: "desc" },
-    select: { planSessionId: true, name: true },
-  });
+  // Strategy 1 lookup + Strategy 2 fallback data fetched in parallel — the
+  // fallback queries are cheap and this avoids a sequential waterfall.
+  const [lastPlanned, plan, lastWorkout] = await Promise.all([
+    prisma.workout.findFirst({
+      where: { userId, completedAt: { not: null }, planSessionId: { not: null } },
+      orderBy: { completedAt: "desc" },
+      select: { planSessionId: true, name: true },
+    }),
+    prisma.workoutPlan.findFirst({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        name: true,
+        sessions: {
+          orderBy: { order: "asc" },
+          select: {
+            id: true,
+            name: true,
+            order: true,
+            _count: { select: { exercises: true } },
+          },
+        },
+      },
+    }),
+    prisma.workout.findFirst({
+      where: { userId, completedAt: { not: null } },
+      orderBy: { completedAt: "desc" },
+      select: { name: true },
+    }),
+  ]);
 
   if (lastPlanned?.planSessionId) {
     const planSession = await prisma.planSession.findUnique({
@@ -355,30 +356,7 @@ export async function getNextPlanSession(userId: string) {
   // Strategy 2: fall back to the user's most recently updated plan.
   // Try to match the last workout's name against a session name to determine
   // position; if no match, default to the first session.
-  const plan = await prisma.workoutPlan.findFirst({
-    where: { userId },
-    orderBy: { updatedAt: "desc" },
-    select: {
-      name: true,
-      sessions: {
-        orderBy: { order: "asc" },
-        select: {
-          id: true,
-          name: true,
-          order: true,
-          _count: { select: { exercises: true } },
-        },
-      },
-    },
-  });
-
   if (!plan || plan.sessions.length === 0) return null;
-
-  const lastWorkout = await prisma.workout.findFirst({
-    where: { userId, completedAt: { not: null } },
-    orderBy: { completedAt: "desc" },
-    select: { name: true },
-  });
 
   let nextIdx = 0;
   if (lastWorkout?.name) {
@@ -422,44 +400,25 @@ export async function getTopExercisesByVolume(
   const take = options.take ?? 5;
   const since = subDays(new Date(), days);
 
-  const sets = await prisma.set.findMany({
-    where: {
-      isWarmup: false,
-      reps: { gt: 0 },
-      weight: { gt: 0 },
-      workoutExercise: {
-        workout: {
-          userId,
-          completedAt: { not: null, gte: since },
-        },
-      },
-    },
-    select: {
-      reps: true,
-      weight: true,
-      workoutExercise: {
-        select: {
-          exerciseId: true,
-          exercise: { select: { name: true } },
-        },
-      },
-    },
-  });
-
-  const byExercise = new Map<string, { name: string; volume: number }>();
-  for (const s of sets) {
-    const id = s.workoutExercise.exerciseId;
-    const name = s.workoutExercise.exercise.name;
-    const add = (s.reps ?? 0) * (s.weight ?? 0);
-    const cur = byExercise.get(id);
-    if (cur) cur.volume += add;
-    else byExercise.set(id, { name, volume: add });
-  }
-
-  return [...byExercise.entries()]
-    .map(([exerciseId, v]) => ({ exerciseId, ...v }))
-    .sort((a, b) => b.volume - a.volume)
-    .slice(0, take);
+  // Aggregated in SQL — one row per exercise instead of one per set.
+  return prisma.$queryRaw<
+    Array<{ exerciseId: string; name: string; volume: number }>
+  >`
+    SELECT we."exerciseId", e.name, SUM(s.reps * s.weight)::float AS volume
+    FROM "sets" s
+    JOIN "workout_exercises" we ON we.id = s."workoutExerciseId"
+    JOIN "workouts" w ON w.id = we."workoutId"
+    JOIN "exercises" e ON e.id = we."exerciseId"
+    WHERE w."userId" = ${userId}
+      AND w."completedAt" IS NOT NULL
+      AND w."completedAt" >= ${since}
+      AND s."isWarmup" = false
+      AND s.reps > 0
+      AND s.weight > 0
+    GROUP BY we."exerciseId", e.name
+    ORDER BY volume DESC
+    LIMIT ${take}
+  `;
 }
 
 export type HeatmapDay = {

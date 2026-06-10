@@ -1,20 +1,35 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowLeft, Moon, Heart, Zap, Dumbbell, Footprints } from "lucide-react";
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
-} from "recharts";
 import { ROUTES } from "@/lib/constants";
 import type { RecoveryBreakdown, RecoveryHistoryPoint } from "../recovery";
 
-export function RecoveryDetail() {
-  const [recovery, setRecovery] = useState<RecoveryBreakdown | null>(null);
-  const [history, setHistory] = useState<RecoveryHistoryPoint[]>([]);
-  const [loading, setLoading] = useState(true);
+const RecoveryHistoryChart = dynamic(
+  () => import("./recovery-history-chart").then((m) => m.RecoveryHistoryChart),
+  {
+    ssr: false,
+    loading: () => <div className="h-full w-full animate-pulse rounded-xl bg-white/5" />,
+  }
+);
+
+export function RecoveryDetail({
+  initialRecovery,
+  initialHistory,
+}: {
+  /** Server-prefetched data — skips the client fetch when provided. */
+  initialRecovery?: RecoveryBreakdown | null;
+  initialHistory?: RecoveryHistoryPoint[];
+} = {}) {
+  const hasInitialData = initialRecovery !== undefined;
+  const [recovery, setRecovery] = useState<RecoveryBreakdown | null>(initialRecovery ?? null);
+  const [history, setHistory] = useState<RecoveryHistoryPoint[]>(initialHistory ?? []);
+  const [loading, setLoading] = useState(!hasInitialData);
 
   useEffect(() => {
+    if (hasInitialData) return;
     let cancelled = false;
     (async () => {
       const res = await fetch("/api/health/recovery", { credentials: "include" });
@@ -27,7 +42,7 @@ export function RecoveryDetail() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [hasInitialData]);
 
   if (loading) {
     return (
@@ -128,53 +143,7 @@ function HistoryChart({ history }: { history: RecoveryHistoryPoint[] }) {
       </div>
 
       <div className="h-44 -ml-3">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={history} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-            <defs>
-              <linearGradient id="grad-recovery" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#D4FF3A" stopOpacity={0.4} />
-                <stop offset="100%" stopColor="#D4FF3A" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-            <XAxis
-              dataKey="date"
-              stroke="#5E5E66"
-              fontSize={10}
-              tickFormatter={(d) => {
-                const dt = new Date(d as string);
-                return `${dt.getDate()}.${dt.getMonth() + 1}.`;
-              }}
-            />
-            <YAxis
-              stroke="#5E5E66"
-              fontSize={10}
-              width={28}
-              domain={[0, 100]}
-              ticks={[0, 50, 75, 100]}
-            />
-            <Tooltip
-              contentStyle={{
-                background: "#1C1C1E",
-                border: "1px solid rgba(255,255,255,0.1)",
-                borderRadius: 10,
-                fontSize: 12,
-                color: "#fff",
-              }}
-              labelFormatter={(d) => new Date(d as string).toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "short" })}
-              formatter={(v) => [`${v} / 100`, "Recovery"]}
-            />
-            <ReferenceLine y={75} stroke="rgba(48,209,88,0.3)" strokeDasharray="3 3" />
-            <ReferenceLine y={50} stroke="rgba(255,179,64,0.3)" strokeDasharray="3 3" />
-            <Area
-              type="monotone"
-              dataKey="score"
-              stroke="#D4FF3A"
-              strokeWidth={2}
-              fill="url(#grad-recovery)"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        <RecoveryHistoryChart history={history} />
       </div>
     </div>
   );

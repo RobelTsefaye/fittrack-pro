@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { MUSCLE_GROUPS, EQUIPMENT_TYPES } from "@/lib/constants";
 import { Search } from "lucide-react";
-import { useCallback, useTransition } from "react";
+import { useCallback } from "react";
 import { useI18n } from "@/lib/i18n-provider";
 
 function formatLabel(value: string) {
@@ -16,27 +16,29 @@ function formatLabel(value: string) {
 
 export function ExerciseFilters() {
   const { t } = useI18n();
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
 
   const muscleGroup = searchParams.get("muscleGroup") ?? "ALL";
   const equipment = searchParams.get("equipment") ?? "ALL";
   const search = searchParams.get("search") ?? "";
 
+  // Shallow URL update — the list filters via client fetch, so a server
+  // round-trip per keystroke/filter click is wasted work. replaceState for
+  // typing (no history spam), pushState for discrete filter choices.
   const updateParam = useCallback(
-    (key: string, value: string) => {
+    (key: string, value: string, opts: { replace?: boolean } = {}) => {
       const params = new URLSearchParams(searchParams.toString());
       if (value && value !== "ALL") {
         params.set(key, value);
       } else {
         params.delete(key);
       }
-      startTransition(() => {
-        router.push(`/exercises?${params.toString()}`);
-      });
+      const qs = params.toString();
+      const url = qs ? `/exercises?${qs}` : "/exercises";
+      if (opts.replace) window.history.replaceState(null, "", url);
+      else window.history.pushState(null, "", url);
     },
-    [router, searchParams, startTransition]
+    [searchParams]
   );
 
   return (
@@ -49,7 +51,7 @@ export function ExerciseFilters() {
           className="pl-9"
           onChange={(e) => {
             const val = (e.target as HTMLInputElement).value;
-            updateParam("search", val);
+            updateParam("search", val, { replace: true });
           }}
         />
       </div>

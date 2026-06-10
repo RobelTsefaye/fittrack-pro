@@ -40,7 +40,7 @@ import { ROUTES, exercisePath } from "@/lib/constants";
 import type { PreviousLogEntry, PreviousSetEntry } from "@/app/api/workouts/[id]/previous-logs/route";
 import { ExercisePickerDialog, type ExercisePickerExercise } from "./exercise-picker-dialog";
 import { SetRow } from "./set-row";
-import { useRestTimer } from "../rest-timer-context";
+import { useRestTimerActions } from "../rest-timer-context";
 import { useWorkoutTimer } from "../hooks/use-workout-timer";
 import { sortSetsForDisplay } from "../set-sort";
 import { useI18n } from "@/lib/i18n-provider";
@@ -317,17 +317,21 @@ interface WorkoutDetailProps {
   workoutId: string;
   defaultRestSeconds: number;
   weightUnit: "KG" | "LB";
+  /** Server-prefetched workout — renders instantly; the client refresh
+   *  (offline queue check + revalidation) still runs silently on mount. */
+  initialWorkout?: WorkoutData | null;
 }
 
 export function WorkoutDetail({
   workoutId,
   defaultRestSeconds,
   weightUnit,
+  initialWorkout = null,
 }: WorkoutDetailProps) {
   const { t } = useI18n();
   const router = useRouter();
-  const [workout, setWorkout] = useState<WorkoutData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [workout, setWorkout] = useState<WorkoutData | null>(initialWorkout);
+  const [loading, setLoading] = useState(initialWorkout == null);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [addingExercise, setAddingExercise] = useState(false);
@@ -351,7 +355,7 @@ export function WorkoutDetail({
     volumeDeltaPct: number | null;
   } | null>(null);
 
-  const restTimer = useRestTimer();
+  const restTimer = useRestTimerActions();
 
   const fireRestDone = useCallback(() => {
     toast.success(t("workouts.restDoneToast"), { duration: 8000 });
@@ -569,8 +573,11 @@ export function WorkoutDetail({
     }
   }, [workoutId, t]);
 
+  const hasInitialData = useRef(initialWorkout != null);
   useEffect(() => {
-    void loadWorkout();
+    // With server-prefetched data, refresh silently (still picks up the
+    // offline queue/snapshot state); otherwise do a full visible load.
+    void loadWorkout({ silent: hasInitialData.current });
   }, [loadWorkout]);
 
   useEffect(() => {

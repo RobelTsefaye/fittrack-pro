@@ -72,9 +72,12 @@ export async function GET(req: NextRequest) {
           }
         : {}),
     },
-    orderBy: { date: "asc" },
+    // Newest N first, then reversed — `asc` + take would return the OLDEST
+    // rows once more than `limit` snapshots exist.
+    orderBy: { date: "desc" },
     take: limit,
   });
+  data.reverse();
 
   return NextResponse.json({ data });
 }

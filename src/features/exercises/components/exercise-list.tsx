@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Dumbbell, Plus, TrendingUp } from "lucide-react";
@@ -13,11 +13,18 @@ import { useI18n } from "@/lib/i18n-provider";
 import { ROUTES } from "@/lib/constants";
 import { saveExerciseCatalog } from "@/lib/offline/workout-offline-store";
 
-export function ExerciseList() {
+export function ExerciseList({
+  initialExercises,
+  initialQuery = "",
+}: {
+  /** Server-prefetched list matching `initialQuery` — skips the first client fetch. */
+  initialExercises?: ExerciseData[];
+  initialQuery?: string;
+} = {}) {
   const { t } = useI18n();
   const searchParams = useSearchParams();
-  const [exercises, setExercises] = useState<ExerciseData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [exercises, setExercises] = useState<ExerciseData[]>(initialExercises ?? []);
+  const [loading, setLoading] = useState(initialExercises == null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingExercise, setEditingExercise] = useState<ExerciseData | null>(null);
   const [deletingExercise, setDeletingExercise] = useState<ExerciseData | null>(null);
@@ -43,7 +50,28 @@ export function ExerciseList() {
     }
   }, [searchParams]);
 
-  useEffect(() => { void fetchExercises(); }, [fetchExercises]);
+  // Skip the first fetch when the server already provided the matching list.
+  const skipNextFetch = useRef(
+    initialExercises != null && searchParams.toString() === initialQuery
+  );
+  useEffect(() => {
+    if (skipNextFetch.current) {
+      skipNextFetch.current = false;
+      return;
+    }
+    void fetchExercises();
+  }, [fetchExercises]);
+
+  // Keep the offline exercise catalog fresh even when the fetch was skipped.
+  useEffect(() => {
+    if (initialExercises == null || initialQuery !== "") return;
+    void saveExerciseCatalog(
+      initialExercises.map((e) => ({
+        id: e.id, name: e.name, muscleGroup: e.muscleGroup, equipment: e.equipment,
+      }))
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleEdit(exercise: ExerciseData) { setEditingExercise(exercise); setFormOpen(true); }
   function handleDelete(exercise: ExerciseData) { setDeletingExercise(exercise); }

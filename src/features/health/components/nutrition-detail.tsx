@@ -13,11 +13,18 @@ import {
   type NutrientTarget,
 } from "../nutrition-config";
 
-export function NutritionDetail() {
-  const [snapshot, setSnapshot] = useState<HealthSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
+export function NutritionDetail({
+  initialSnapshot,
+}: {
+  /** Server-prefetched data — skips the client fetch when provided. */
+  initialSnapshot?: HealthSnapshot | null;
+} = {}) {
+  const hasInitialData = initialSnapshot !== undefined;
+  const [snapshot, setSnapshot] = useState<HealthSnapshot | null>(initialSnapshot ?? null);
+  const [loading, setLoading] = useState(!hasInitialData);
 
   useEffect(() => {
+    if (hasInitialData) return;
     let cancelled = false;
     (async () => {
       const res = await fetch("/api/health-data?limit=1", { credentials: "include" });
@@ -29,7 +36,7 @@ export function NutritionDetail() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [hasInitialData]);
 
   if (loading) {
     return (
