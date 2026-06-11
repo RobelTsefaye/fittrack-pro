@@ -92,6 +92,14 @@ export async function POST(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+    // Plain text — the chat transport surfaces the body as error.message.
+    return new Response(
+      "Kein Gemini-API-Key konfiguriert. Kostenlosen Key auf aistudio.google.com/apikey erstellen und als GOOGLE_GENERATIVE_AI_API_KEY in .env (lokal) bzw. in den Vercel-Umgebungsvariablen setzen.",
+      { status: 503 }
+    );
+  }
+
   const { messages } = await req.json() as { messages: Parameters<typeof convertToModelMessages>[0] };
 
   const [coachCtx, trainingSummary] = await Promise.all([
@@ -102,7 +110,8 @@ export async function POST(req: Request) {
   const systemPrompt = buildSystemPrompt(coachCtx, trainingSummary);
 
   const result = streamText({
-    model: google("gemini-2.0-flash"),
+    // -latest alias: survives Google model deprecations (2.0-flash is EOL'd)
+    model: google("gemini-flash-latest"),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
     maxOutputTokens: 512,

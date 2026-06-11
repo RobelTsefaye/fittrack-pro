@@ -173,13 +173,13 @@ export function ShortcutGuide() {
       >
         <p className="font-semibold text-white">Shortcut Actions (in order)</p>
         {[
-          { n: "1", action: "Find Health Samples", detail: "Type: Steps, Aggregation: Sum, Last 1 Day" },
-          { n: "2", action: "Find Health Samples", detail: "Type: Resting Heart Rate, Last 1 Day" },
-          { n: "3", action: "Find Health Samples", detail: "Type: Heart Rate Variability, Last 1 Day" },
-          { n: "4", action: "Find Health Samples", detail: "Type: Sleep Analysis, Last 1 Day" },
-          { n: "5", action: "Find Health Samples", detail: "Type: Active Energy Burned, Last 1 Day" },
-          { n: "6", action: "Dictionary", detail: 'Keys: date (Current Date → "YYYY-MM-DD"), steps, restingHeartRate, hrv, sleepDuration, activeCalories …' },
-          { n: "7", action: "Get Contents of URL", detail: `URL: ${apiUrl}\nMethod: POST\nHeaders: Authorization: Bearer [your token]\nBody: Dictionary from step 6` },
+          { n: "1", action: "Find Health Samples → Calculate Statistics", detail: "Type: Steps · Today · Statistik: Summe → als Variable \"steps\" sichern" },
+          { n: "2", action: "Find Health Samples → Calculate Statistics", detail: "Type: Resting Heart Rate · Today · Statistik: Durchschnitt → \"restingHeartRate\"" },
+          { n: "3", action: "Find Health Samples → Calculate Statistics", detail: "Type: Heart Rate Variability · Today · Statistik: Durchschnitt → \"hrv\"" },
+          { n: "4", action: "Find Health Samples → Calculate Statistics", detail: "Type: Sleep Analysis (Asleep) · letzte 24 h · Statistik: Summe der Dauer, in Stunden → \"sleepDuration\"" },
+          { n: "5", action: "Find Health Samples → Calculate Statistics", detail: "Type: Active Energy Burned · Today · Statistik: Summe → \"activeCalories\"" },
+          { n: "6", action: "Dictionary", detail: 'Keys: date (Aktuelles Datum, Format "YYYY-MM-DD"), steps, restingHeartRate, hrv, sleepDuration, activeCalories — Werte = Variablen aus Schritt 1–5. Felder ohne Daten einfach weglassen.' },
+          { n: "7", action: "Get Contents of URL", detail: `URL: ${apiUrl}\nMethode: POST · Anfragetext: JSON (Dictionary aus Schritt 6)\nHeader: Authorization = Bearer [dein Token]` },
         ].map(({ n, action, detail }) => (
           <div key={n} className="flex gap-3">
             <span
@@ -203,6 +203,12 @@ export function ShortcutGuide() {
       >
         <p className="text-[14px] font-semibold" style={{ color: "#D4FF3A" }}>✓ {t("health.shortcutGuide.done")}</p>
       </div>
+
+      {/* HAE fallback note */}
+      <p className="px-2 text-center text-[11px]" style={{ color: "#5E5E66" }}>
+        Alternativ funktioniert weiterhin die App „Health Auto Export" (REST-API-Export an dieselbe URL) —
+        der native Kurzbefehl oben kommt aber ohne Zusatz-App und ohne Kosten aus.
+      </p>
     </div>
   );
 }

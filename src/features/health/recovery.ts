@@ -207,9 +207,22 @@ export function scoreFromData(
     .slice(-29); // 28 baseline + 1 current
   if (snapshots.length === 0) return EMPTY_BREAKDOWN;
 
-  // "Today" = the most recent snapshot on or before asOf (some users skip days)
-  const today = snapshots[snapshots.length - 1]!;
-  const baselineWindow = snapshots.slice(0, -1);
+  // "Today" = the most recent snapshot on or before asOf (some users skip days).
+  // If that snapshot is older than 1 day it must not masquerade as today's
+  // physiology — sleep/HR/HRV/activity then count as "no data" and the score
+  // falls back to training load alone (which is date-based and always current).
+  const latest = snapshots[snapshots.length - 1]!;
+  const latestAgeDays = asOfDayIdx - Math.floor(latest.date.getTime() / DAY_MS);
+  const stale = latestAgeDays > 1;
+  const today: SnapshotLike = stale
+    ? {
+        date: latest.date,
+        sleepDuration: null, sleepQuality: null,
+        restingHeartRate: null, hrv: null,
+        steps: null, activeCalories: null,
+      }
+    : latest;
+  const baselineWindow = stale ? snapshots : snapshots.slice(0, -1);
   const baseline14 = baselineWindow.slice(-14);
 
   const hrValues = baseline14.map((s) => s.restingHeartRate).filter((v): v is number => v != null);

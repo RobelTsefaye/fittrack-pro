@@ -192,7 +192,12 @@ export function CoachChat() {
           {error && (
             <div className="flex items-center gap-3 rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
               <AlertCircle className="h-4 w-4 shrink-0" />
-              <span className="flex-1">{t("coach.error")}</span>
+              <span className="flex-1 break-words">
+                {/* Server sends actionable messages (e.g. missing API key) — show them. */}
+                {error.message && error.message.length < 400 && !error.message.startsWith("{")
+                  ? error.message
+                  : t("coach.error")}
+              </span>
               <button
                 type="button"
                 onClick={() => void regenerate()}

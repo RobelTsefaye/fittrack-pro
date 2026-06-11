@@ -26,9 +26,10 @@ const HealthMetricChart = dynamic(
 
 type TrendDays = 7 | 30;
 
-// Name of the iOS Shortcut that runs HAE's REST-API backup.
+// Name of the iOS Shortcut that posts Health data to /api/health-data.
 // Must match exactly what the user named it in the Shortcuts app.
-const HAE_SHORTCUT_NAME = "HAE Sync";
+// (Native Apple-Shortcuts flow — see /health/shortcut for the setup guide.)
+const SYNC_SHORTCUT_NAME = "FitTrack Sync";
 
 function isIOS(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -109,7 +110,7 @@ export function HealthDashboard({
       // to the browser; visibilitychange detects that and refreshes the data.
       setWaitingForShortcut(true);
       setRefreshing(true);
-      const name = encodeURIComponent(HAE_SHORTCUT_NAME);
+      const name = encodeURIComponent(SYNC_SHORTCUT_NAME);
       window.location.href = `shortcuts://run-shortcut?name=${name}`;
     } else {
       void load(true);
