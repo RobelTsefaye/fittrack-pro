@@ -7,9 +7,9 @@
 @theme inline {
   --color-background:              var(--background);
   --color-foreground:              var(--foreground);
-  --font-sans:                     var(--font-sans);
+  --font-sans:                     var(--font-geist-sans);
   --font-mono:                     var(--font-geist-mono);
-  --font-heading:                  var(--font-sans);
+  --font-heading:                  var(--font-geist-sans);
   --color-sidebar-ring:            var(--sidebar-ring);
   --color-sidebar-border:          var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -232,6 +232,37 @@
   contain: layout style;
   overscroll-behavior-y: contain;
 }
+/* Ambient volt glow at the top of the canvas — gives the flat dark page a
+   sense of depth without touching any component. */
+.dark .main-scroll {
+  background-image:
+    radial-gradient(
+      120% 320px at 50% -120px,
+      oklch(0.937 0.267 131 / 5.5%) 0%,
+      transparent 70%
+    );
+  background-repeat: no-repeat;
+  background-attachment: local;
+}
+
+/* ─── Press feedback (native-app feel) ───────────────────────────────────── */
+@media (hover: none) {
+  button:not(:disabled):active,
+  [role="button"]:not([aria-disabled="true"]):active {
+    transform: scale(0.97);
+    transition: transform 80ms var(--ease-out);
+  }
+}
+
+/* ─── Metric numerals ────────────────────────────────────────────────────── */
+.tabular-nums, [data-metric] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Volt selection */
+::selection {
+  background: color-mix(in oklch, var(--primary) 30%, transparent);
+}
 
 /* ─── Sidebar glass ──────────────────────────────────────────────────────── */
 .sidebar-glass {
@@ -255,6 +286,19 @@
   border-radius: var(--radius-xl);
   background-color: var(--card);
   box-shadow: 0 1px 0 0 var(--sys-separator);
+}
+/* Dark mode: cards read as lit from above — hairline top highlight plus a
+   soft layered drop shadow for depth on the near-black canvas. */
+.dark .ios-group {
+  background-image: linear-gradient(
+    to bottom,
+    oklch(1 0 0 / 4.5%) 0,
+    transparent 2.25rem
+  );
+  box-shadow:
+    inset 0 1px 0 0 oklch(1 0 0 / 7%),
+    0 8px 24px -12px oklch(0 0 0 / 55%),
+    0 1px 0 0 var(--sys-separator);
 }
 .ios-group > * + * {
   border-top: 1px solid var(--sys-separator);
