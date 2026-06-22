@@ -235,9 +235,16 @@ export function scoreFromData(
   const stepsBaseline = stepsValues.length >= 5 ? median(stepsValues) : null;
   const calBaseline = calValues.length >= 5 ? median(calValues) : null;
 
-  // 3-day trends
-  const trend3hr = baseline14.slice(-3).map((s) => s.restingHeartRate).filter((v): v is number => v != null);
-  const trend3hrv = baseline14.slice(-3).map((s) => s.hrv).filter((v): v is number => v != null);
+  // 3-day trends. Use CALENDAR days, not "last 3 snapshots" — otherwise a
+  // user with sparse data (gaps) gets a trend computed across 5+ days, which
+  // distorts the slope. We need the snapshots that fall in the last 3 days
+  // BEFORE today (today itself is the value being compared against the trend).
+  const trendCutoffDayIdx = asOfDayIdx - 3;
+  const trend3 = baselineWindow.filter(
+    (s) => Math.floor(s.date.getTime() / DAY_MS) > trendCutoffDayIdx,
+  );
+  const trend3hr = trend3.map((s) => s.restingHeartRate).filter((v): v is number => v != null);
+  const trend3hrv = trend3.map((s) => s.hrv).filter((v): v is number => v != null);
   const hrSlope = linearSlope(trend3hr);
   const hrvSlope = linearSlope(trend3hrv);
 
@@ -312,12 +319,23 @@ export function scoreFromData(
     const withTonnage = loggedWorkouts.filter((w) => w.tonnage != null) as Array<{ completedAt: Date; tonnage: number }>;
     const hasTonnage = withTonnage.length > 0;
 
+    // ── Chronic window divisor — actual data span, NOT a fixed 4 weeks ──
+    // The ACWR formula's "chronic average" must reflect the user's typical
+    // weekly load, not a fictional 28-day baseline padded with implicit zeros.
+    // Use the days from the EARLIEST workout in the chronic window (or 28d,
+    // whichever is shorter) as the actual data span. Cap at 28 days so a
+    // mature user with full history still gets the standard 4-week chronic.
+    // Minimum 7 days (1 week) so a single-week-old user gets a sane number.
+    const earliestWorkoutMs = loggedWorkouts[loggedWorkouts.length - 1]!.completedAt.getTime();
+    const chronicSpanDays = Math.min(28, Math.max(7, Math.ceil((asOfMs - earliestWorkoutMs) / DAY_MS) + 1));
+    const chronicSpanWeeks = chronicSpanDays / 7;
+
     if (hasTonnage) {
       const acute7 = withTonnage
         .filter((w) => w.completedAt.getTime() >= cutoff7)
         .reduce((s, w) => s + w.tonnage, 0);
       const chronic28Sum = withTonnage.reduce((s, w) => s + w.tonnage, 0);
-      const chronic28Avg = chronic28Sum / 4;
+      const chronic28Avg = chronic28Sum / chronicSpanWeeks;
       acute7dTonnage = acute7;
       chronic28dAvgTonnage = chronic28Avg;
 
@@ -342,7 +360,7 @@ export function scoreFromData(
       }
     } else {
       const acute7Count = loggedWorkouts.filter((w) => w.completedAt.getTime() >= cutoff7).length;
-      const chronic28AvgCount = loggedWorkouts.length / 4;
+      const chronic28AvgCount = loggedWorkouts.length / chronicSpanWeeks;
       if (chronic28AvgCount > 0) {
         acwr = acute7Count / chronic28AvgCount;
         let base = acwrScore(acwr);
@@ -362,16 +380,20 @@ export function scoreFromData(
     loadSc = 100;
   }
 
-  // Activity
+  // Activity score represents NON-training daily movement (commuting, walking,
+  // errands). Workout fatigue is already counted by the load score — including
+  // active calories here would double-penalize workout days, since a workout
+  // simultaneously raises active calories AND triggers the load score's ACWR
+  // penalty. Steps are the cleaner signal for general daily activity, with
+  // active calories only as a fallback when steps aren't available.
   let actSc: number | null = null;
   const stepsRatio = today.steps != null && stepsBaseline != null && stepsBaseline > 0
     ? today.steps / stepsBaseline : null;
   const calRatio = today.activeCalories != null && calBaseline != null && calBaseline > 0
     ? today.activeCalories / calBaseline : null;
-  if (stepsRatio != null || calRatio != null) {
-    const ratios = [stepsRatio, calRatio].filter((v): v is number => v != null);
-    const avgRatio = ratios.reduce((s, v) => s + v, 0) / ratios.length;
-    actSc = activityLoadScore(avgRatio);
+  const activityRatio = stepsRatio ?? calRatio;
+  if (activityRatio != null) {
+    actSc = activityLoadScore(activityRatio);
   }
 
   // Composite
