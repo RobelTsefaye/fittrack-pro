@@ -438,11 +438,20 @@ export function scoreFromData(
 
 // ── Data fetching ───────────────────────────────────────────────────────────
 
+/**
+ * Cardio active-kcal → strength-tonnage-equivalent conversion. Rough heuristic:
+ * a moderate 60-min strength session (~5000 kg tonnage) burns ~300 kcal, so
+ * 1 kcal ≈ 17 kg. Use 15 for a slightly conservative cardio load. Lets the
+ * existing ACWR machinery treat cardio and strength as a single load stream
+ * instead of needing two separate analyses.
+ */
+const CARDIO_KCAL_TO_TONNAGE = 15;
+
 async function fetchSnapshotsAndWorkouts(userId: string, sinceMs: number) {
   const since = new Date(sinceMs);
   since.setUTCHours(0, 0, 0, 0);
 
-  const [snapshots, workouts] = await Promise.all([
+  const [snapshots, workouts, appleWorkouts] = await Promise.all([
     prisma.healthSnapshot.findMany({
       where: { userId, date: { gte: since } },
       orderBy: { date: "asc" },
@@ -461,9 +470,20 @@ async function fetchSnapshotsAndWorkouts(userId: string, sinceMs: number) {
         },
       },
     }),
+    // Cardio from Apple Health — exclude "Strength Training" types so we don't
+    // double-count with the user-logged Workout records above.
+    prisma.appleWorkout.findMany({
+      where: {
+        userId,
+        startedAt: { gte: since },
+        NOT: { type: { contains: "Strength" } },
+      },
+      orderBy: { startedAt: "desc" },
+      select: { startedAt: true, activeCalories: true, durationSec: true },
+    }),
   ]);
 
-  const workoutsLike: WorkoutLike[] = workouts
+  const strengthLoads: WorkoutLike[] = workouts
     .filter((w): w is typeof w & { completedAt: Date } => w.completedAt != null)
     .map((w) => {
       const t = w.workoutExercises
@@ -472,7 +492,21 @@ async function fetchSnapshotsAndWorkouts(userId: string, sinceMs: number) {
       return { completedAt: w.completedAt, tonnage: t > 0 ? t : null };
     });
 
-  return { snapshots: snapshots as SnapshotLike[], workouts: workoutsLike };
+  // Convert each cardio session to a strength-tonnage equivalent so ACWR works
+  // uniformly. Fall back to a duration-based estimate when active kcal aren't
+  // logged (e.g. yoga sessions from older watchOS versions).
+  const cardioLoads: WorkoutLike[] = appleWorkouts.map((w) => {
+    const fromKcal = w.activeCalories != null ? w.activeCalories * CARDIO_KCAL_TO_TONNAGE : null;
+    // 1 min ≈ 5 kcal of moderate effort × 15 kg/kcal = 75 kg/min
+    const fromDuration = fromKcal == null ? (w.durationSec / 60) * 75 : null;
+    const tonnage = fromKcal ?? fromDuration;
+    return { completedAt: w.startedAt, tonnage: tonnage != null && tonnage > 0 ? tonnage : null };
+  });
+
+  return {
+    snapshots: snapshots as SnapshotLike[],
+    workouts: [...strengthLoads, ...cardioLoads],
+  };
 }
 
 // ── Public API ──────────────────────────────────────────────────────────────

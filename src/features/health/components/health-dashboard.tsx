@@ -14,6 +14,8 @@ import type { RecoveryBreakdown } from "../recovery";
 import { HealthStatPill } from "./health-stat-pill";
 import { RecoveryRing } from "./recovery-ring";
 import { NutritionCard } from "./nutrition-card";
+import { CardioCard } from "./cardio-card";
+import type { CardioSummary } from "../cardio";
 import dynamic from "next/dynamic";
 
 const HealthMetricChart = dynamic(
@@ -39,15 +41,18 @@ function isIOS(): boolean {
 export function HealthDashboard({
   initialSnapshots,
   initialRecovery,
+  initialCardio,
 }: {
   /** Server-prefetched data — renders instantly without the client fetch waterfall. */
   initialSnapshots?: HealthSnapshot[];
   initialRecovery?: RecoveryBreakdown | null;
+  initialCardio?: CardioSummary | null;
 } = {}) {
   const { t } = useI18n();
   const hasInitialData = initialSnapshots != null;
   const [snapshots, setSnapshots] = useState<HealthSnapshot[]>(initialSnapshots ?? []);
   const [recovery, setRecovery] = useState<RecoveryBreakdown | null>(initialRecovery ?? null);
+  const [cardio, setCardio] = useState<CardioSummary | null>(initialCardio ?? null);
   const [loading, setLoading] = useState(!hasInitialData);
   const [refreshing, setRefreshing] = useState(false);
   const [waitingForShortcut, setWaitingForShortcut] = useState(false);
@@ -59,9 +64,10 @@ export function HealthDashboard({
     else setRefreshing(true);
     setFetchError(null);
     try {
-      const [snapsRes, recRes] = await Promise.all([
+      const [snapsRes, recRes, cardioRes] = await Promise.all([
         fetch("/api/health-data?limit=30", { credentials: "include" }),
         fetch("/api/health/recovery", { credentials: "include" }),
+        fetch("/api/health/cardio", { credentials: "include" }),
       ]);
       if (snapsRes.ok) {
         const json = (await snapsRes.json()) as { data: HealthSnapshot[] };
@@ -74,6 +80,10 @@ export function HealthDashboard({
       if (recRes.ok) {
         const json = (await recRes.json()) as { data: RecoveryBreakdown };
         setRecovery(json.data);
+      }
+      if (cardioRes.ok) {
+        const json = (await cardioRes.json()) as { data: CardioSummary };
+        setCardio(json.data);
       }
     } catch (err) {
       setFetchError(`Verbindungsfehler: ${err instanceof Error ? err.message : "unbekannt"}`);
@@ -203,6 +213,9 @@ export function HealthDashboard({
 
       {/* Nutrition card */}
       {today && <NutritionCard snapshot={today} />}
+
+      {/* Cardio card */}
+      {cardio && <CardioCard summary={cardio} />}
 
       {/* Today's Summary Grid */}
       {today && (
