@@ -470,13 +470,20 @@ async function fetchSnapshotsAndWorkouts(userId: string, sinceMs: number) {
         },
       },
     }),
-    // Cardio from Apple Health — exclude "Strength Training" types so we don't
-    // double-count with the user-logged Workout records above.
+    // Cardio from Apple Health — exclude strength-training so we don't
+    // double-count with the user-logged Workout records above. HAE may emit
+    // either the English Apple Health name or the localized German
+    // "Krafttraining" depending on device locale. Match both.
     prisma.appleWorkout.findMany({
       where: {
         userId,
         startedAt: { gte: since },
-        NOT: { type: { contains: "Strength" } },
+        NOT: {
+          OR: [
+            { type: { contains: "Strength", mode: "insensitive" } },
+            { type: { contains: "Krafttraining", mode: "insensitive" } },
+          ],
+        },
       },
       orderBy: { startedAt: "desc" },
       select: { startedAt: true, activeCalories: true, durationSec: true },

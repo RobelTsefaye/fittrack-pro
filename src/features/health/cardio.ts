@@ -78,14 +78,20 @@ export async function getCardioSummary(userId: string): Promise<CardioSummary> {
   const since = new Date(thisWeekStart.getTime() - 7 * 7 * DAY_MS); // 7 weeks before this week
 
   // Exclude strength-training types — they're not cardio and are already
-  // captured separately (either via user-logged Workout records or, if only
-  // present in Apple Health, still surfaced in the user's strength history).
-  // Mirrors the same filter used in recovery.ts so both views stay consistent.
+  // captured separately. HAE may emit either the English Apple Health name
+  // ("Strength Training", "Traditional Strength Training", "Functional
+  // Strength Training") OR the localized display name (German: "Krafttraining"),
+  // depending on the device locale at export time. Match both, case-insensitive.
   const rows = await prisma.appleWorkout.findMany({
     where: {
       userId,
       startedAt: { gte: since },
-      NOT: { type: { contains: "Strength" } },
+      NOT: {
+        OR: [
+          { type: { contains: "Strength", mode: "insensitive" } },
+          { type: { contains: "Krafttraining", mode: "insensitive" } },
+        ],
+      },
     },
     orderBy: { startedAt: "desc" },
   });
