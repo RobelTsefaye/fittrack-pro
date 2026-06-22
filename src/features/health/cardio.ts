@@ -77,8 +77,16 @@ export async function getCardioSummary(userId: string): Promise<CardioSummary> {
   const thisWeekStart = startOfIsoWeek(now);
   const since = new Date(thisWeekStart.getTime() - 7 * 7 * DAY_MS); // 7 weeks before this week
 
+  // Exclude strength-training types — they're not cardio and are already
+  // captured separately (either via user-logged Workout records or, if only
+  // present in Apple Health, still surfaced in the user's strength history).
+  // Mirrors the same filter used in recovery.ts so both views stay consistent.
   const rows = await prisma.appleWorkout.findMany({
-    where: { userId, startedAt: { gte: since } },
+    where: {
+      userId,
+      startedAt: { gte: since },
+      NOT: { type: { contains: "Strength" } },
+    },
     orderBy: { startedAt: "desc" },
   });
 
