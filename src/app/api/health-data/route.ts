@@ -220,6 +220,13 @@ const SUM_FIELDS = new Set<string>([
   "vitaminD", "vitaminC", "calcium", "iron", "potassium", "magnesium",
 ]);
 
+// Fields where we want the day's PEAK value, not the average.
+// HRV varies wildly throughout the day (drops during stress/exercise, peaks
+// during deep rest/sleep). The peak — typically captured during sleep — is
+// the most representative measure of recovery capacity and what Apple Health
+// itself surfaces as "Heart Rate Variability".
+const MAX_FIELDS = new Set<string>(["hrv"]);
+
 // Transform HAE payload → array of { date, ...fields } records.
 // HAE often sends multiple hourly entries per day; aggregate them correctly
 // (sum cumulative metrics like steps, average instantaneous metrics like HR).
@@ -288,8 +295,15 @@ function transformHAE(payload: HAEPayload): Array<Record<string, unknown>> {
           const v = KCAL_FIELDS.has(field)
             ? normalizeEnergyValue(raw, metric.units)
             : raw;
-          bucket.sums[field] = (bucket.sums[field] ?? 0) + v;
-          bucket.counts[field] = (bucket.counts[field] ?? 0) + 1;
+          if (MAX_FIELDS.has(field)) {
+            // Track the day's peak instead of accumulating
+            const existing = bucket.sums[field];
+            bucket.sums[field] = existing == null ? v : Math.max(existing, v);
+            bucket.counts[field] = 1;
+          } else {
+            bucket.sums[field] = (bucket.sums[field] ?? 0) + v;
+            bucket.counts[field] = (bucket.counts[field] ?? 0) + 1;
+          }
         }
       }
 
@@ -300,7 +314,11 @@ function transformHAE(payload: HAEPayload): Array<Record<string, unknown>> {
   return Array.from(byDate.entries()).map(([date, { sums, counts, meta }]) => {
     const rec: Record<string, unknown> = { date, ...meta };
     for (const [field, sum] of Object.entries(sums)) {
-      rec[field] = SUM_FIELDS.has(field) ? sum : sum / counts[field];
+      // SUM and MAX fields store the final value directly; everything else
+      // is an instantaneous-reading average (sum ÷ count).
+      rec[field] = SUM_FIELDS.has(field) || MAX_FIELDS.has(field)
+        ? sum
+        : sum / counts[field];
     }
     // Schema expects integers for some fields — round them
     for (const intField of ["steps", "restingHeartRate", "heartRateAvg", "exerciseMinutes", "standHours", "mindfulMinutes", "sleepDeepMinutes", "sleepRemMinutes"]) {
