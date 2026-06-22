@@ -166,12 +166,39 @@ type HAEEntry = {
   sleepEnd?: string;
 };
 type HAEMetric = { name: string; units?: string; data?: HAEEntry[] };
-type HAEPayload = { data?: { metrics?: HAEMetric[] } };
+
+/**
+ * One HAE workout entry. Field shapes vary by HAE version — some report
+ * primitives ({ qty, units } objects) and some report plain numbers, so we
+ * defensively coerce in extractWorkoutNumber below.
+ */
+type HAEWorkoutValue = number | { qty?: number; units?: string };
+type HAEWorkout = {
+  id?: string;
+  name?: string;
+  start?: string;
+  end?: string;
+  startDate?: string;
+  endDate?: string;
+  duration?: number; // seconds
+  distance?: HAEWorkoutValue;
+  activeEnergyBurned?: HAEWorkoutValue;
+  totalEnergyBurned?: HAEWorkoutValue;
+  heartRateAvg?: HAEWorkoutValue;
+  heartRateMax?: HAEWorkoutValue;
+  avgHeartRate?: HAEWorkoutValue;
+  maxHeartRate?: HAEWorkoutValue;
+  elevationAscended?: HAEWorkoutValue;
+  source?: string;
+};
+
+type HAEPayload = { data?: { metrics?: HAEMetric[]; workouts?: HAEWorkout[] } };
 
 function isHAEPayload(body: unknown): body is HAEPayload {
-  return !!body && typeof body === "object" && "data" in body
-    && !!(body as HAEPayload).data?.metrics
-    && Array.isArray((body as HAEPayload).data!.metrics);
+  if (!body || typeof body !== "object" || !("data" in body)) return false;
+  const data = (body as HAEPayload).data;
+  if (!data) return false;
+  return Array.isArray(data.metrics) || Array.isArray(data.workouts);
 }
 
 function extractDateKey(d?: string): string | null {
@@ -194,6 +221,44 @@ function entryValue(e: HAEEntry): number | null {
 const KCAL_FIELDS = new Set<string>([
   "calories", "activeCalories", "dietaryCalories",
 ]);
+
+/**
+ * Extract a numeric value from HAE's varying field shapes:
+ *   - number (legacy HAE)
+ *   - { qty: number, units: string } (modern HAE)
+ * Returns null if the value can't be coerced.
+ */
+function extractWorkoutNumber(v: HAEWorkoutValue | undefined): { qty: number; units: string | null } | null {
+  if (v == null) return null;
+  if (typeof v === "number") return { qty: v, units: null };
+  if (typeof v === "object" && typeof v.qty === "number") {
+    return { qty: v.qty, units: v.units ?? null };
+  }
+  return null;
+}
+
+/**
+ * Distance can arrive in km, m, miles. Normalize to meters.
+ */
+function distanceToMeters(qty: number, units: string | null): number {
+  if (!units) return qty; // assume meters when unitless
+  const u = units.toLowerCase();
+  if (u === "km" || u === "kilometer" || u === "kilometers") return qty * 1000;
+  if (u === "mi" || u === "mile" || u === "miles") return qty * 1609.344;
+  // m, meter, meters → identity
+  return qty;
+}
+
+/**
+ * Normalize an energy value to kcal (matches normalizeEnergyValue but takes
+ * a nullable units string — workouts have it nested rather than top-level).
+ */
+function calToKcal(qty: number, units: string | null): number {
+  if (!units) return qty;
+  const u = units.toLowerCase();
+  if (u === "kj" || u === "kilojoule" || u === "kilojoules") return qty / 4.184;
+  return qty;
+}
 
 /**
  * Normalize an energy value to kcal. HAE includes a `units` string on each
@@ -328,6 +393,69 @@ function transformHAE(payload: HAEPayload): Array<Record<string, unknown>> {
   });
 }
 
+/**
+ * Map an HAE workout entry → AppleWorkout row, or null if the entry can't
+ * be uniquely identified (missing id + missing start/end timestamps).
+ * Units are normalized: distance → meters, energy → kcal.
+ */
+function transformHAEWorkout(w: HAEWorkout): {
+  externalId: string;
+  type: string;
+  startedAt: Date;
+  endedAt: Date;
+  durationSec: number;
+  distanceMeters: number | null;
+  activeCalories: number | null;
+  totalCalories: number | null;
+  avgHeartRate: number | null;
+  maxHeartRate: number | null;
+  elevationGainM: number | null;
+  source: string | null;
+} | null {
+  const startStr = w.start ?? w.startDate;
+  const endStr = w.end ?? w.endDate;
+  if (!startStr || !endStr) return null;
+
+  const startedAt = new Date(startStr);
+  const endedAt = new Date(endStr);
+  if (Number.isNaN(startedAt.getTime()) || Number.isNaN(endedAt.getTime())) return null;
+
+  // Synthesize a deterministic external ID when HAE doesn't provide one,
+  // so re-syncs of the same workout still dedupe via the unique constraint.
+  const externalId = w.id ?? `${w.name ?? "workout"}-${startedAt.toISOString()}`;
+
+  const durationSec = typeof w.duration === "number"
+    ? Math.round(w.duration)
+    : Math.round((endedAt.getTime() - startedAt.getTime()) / 1000);
+
+  const dist = extractWorkoutNumber(w.distance);
+  const distanceMeters = dist ? distanceToMeters(dist.qty, dist.units) : null;
+
+  const ace = extractWorkoutNumber(w.activeEnergyBurned);
+  const activeCalories = ace ? calToKcal(ace.qty, ace.units) : null;
+  const tce = extractWorkoutNumber(w.totalEnergyBurned);
+  const totalCalories = tce ? calToKcal(tce.qty, tce.units) : null;
+
+  const hrAvg = extractWorkoutNumber(w.heartRateAvg ?? w.avgHeartRate);
+  const hrMax = extractWorkoutNumber(w.heartRateMax ?? w.maxHeartRate);
+  const elev = extractWorkoutNumber(w.elevationAscended);
+
+  return {
+    externalId,
+    type: w.name ?? "Workout",
+    startedAt,
+    endedAt,
+    durationSec,
+    distanceMeters: distanceMeters != null && distanceMeters > 0 ? distanceMeters : null,
+    activeCalories,
+    totalCalories,
+    avgHeartRate: hrAvg ? Math.round(hrAvg.qty) : null,
+    maxHeartRate: hrMax ? Math.round(hrMax.qty) : null,
+    elevationGainM: elev ? elev.qty : null,
+    source: w.source ?? null,
+  };
+}
+
 // POST /api/health-data — upsert (iOS Shortcut, Health Auto Export, or web form)
 export async function POST(req: NextRequest) {
   const userId = await resolveUserIdForDataApi();
@@ -394,7 +522,34 @@ export async function POST(req: NextRequest) {
     results.push(snapshot);
   }
 
-  return NextResponse.json({ data: results, count: results.length });
+  // ── Workouts (from a separate HAE automation with Data Type = Workouts) ──
+  let workoutsImported = 0;
+  if (isHAEPayload(body)) {
+    const workouts = body.data?.workouts ?? [];
+    if (workouts.length > 0) {
+      const types = new Set<string>();
+      for (const w of workouts) {
+        const row = transformHAEWorkout(w);
+        if (!row) continue;
+        types.add(row.type);
+        await prisma.appleWorkout.upsert({
+          where: { userId_externalId: { userId, externalId: row.externalId } },
+          create: { userId, ...row },
+          update: {
+            type: row.type, startedAt: row.startedAt, endedAt: row.endedAt,
+            durationSec: row.durationSec, distanceMeters: row.distanceMeters,
+            activeCalories: row.activeCalories, totalCalories: row.totalCalories,
+            avgHeartRate: row.avgHeartRate, maxHeartRate: row.maxHeartRate,
+            elevationGainM: row.elevationGainM, source: row.source,
+          },
+        });
+        workoutsImported++;
+      }
+      console.log(`[health-data] HAE workouts imported: ${workoutsImported}/${workouts.length} (types: ${Array.from(types).join(", ")})`);
+    }
+  }
+
+  return NextResponse.json({ data: results, count: results.length, workoutsImported });
 }
 
 // DELETE /api/health-data?date=YYYY-MM-DD

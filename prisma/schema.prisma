@@ -68,6 +68,7 @@ model User {
   bodyWeights      BodyWeight[]
   bodyMeasurements BodyMeasurement[]
   healthSnapshots  HealthSnapshot[]
+  appleWorkouts    AppleWorkout[]
   personalRecords  PersonalRecord[]
   settings        UserSettings?
   apiTokens       ApiToken[]
@@ -328,6 +329,38 @@ model HealthSnapshot {
   @@unique([userId, date])
   @@index([userId, date])
   @@map("health_snapshots")
+}
+
+// Cardio / workout sessions imported from Apple Health via HAE.
+// Distinct from the user-logged `Workout` model (strength training).
+// Stores one row per Apple-Health-recorded session.
+model AppleWorkout {
+  id         String   @id @default(uuid())
+  userId     String
+  externalId String   // HAE/Apple Health UUID — used to dedupe re-syncs
+
+  type       String   // "Running", "Cycling", "Swimming", "Strength Training", "HIIT", ...
+  startedAt  DateTime
+  endedAt    DateTime
+  durationSec Int
+
+  // Optional metrics — many depend on workout type & device
+  distanceMeters Float?
+  activeCalories Float? // kcal
+  totalCalories  Float? // kcal (includes basal)
+  avgHeartRate   Int?   // bpm
+  maxHeartRate   Int?   // bpm
+  elevationGainM Float?
+  source         String? // "Apple Watch Series 10", "iPhone", ...
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, externalId])
+  @@index([userId, startedAt])
+  @@map("apple_workouts")
 }
 
 model PersonalRecord {
