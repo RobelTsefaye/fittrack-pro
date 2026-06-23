@@ -530,8 +530,12 @@ export async function POST(req: NextRequest) {
       const types = new Set<string>();
       for (const w of workouts) {
         const row = transformHAEWorkout(w);
-        if (!row) continue;
+        if (!row) {
+          console.warn(`[health-data] HAE workout skipped (missing start/end): name=${w.name} id=${w.id} start=${w.start ?? w.startDate} end=${w.end ?? w.endDate}`);
+          continue;
+        }
         types.add(row.type);
+        console.log(`[health-data] HAE workout: type="${row.type}" start=${row.startedAt.toISOString()} dur=${row.durationSec}s dist=${row.distanceMeters ?? "null"}m kcal=${row.activeCalories ?? "null"}`);
         await prisma.appleWorkout.upsert({
           where: { userId_externalId: { userId, externalId: row.externalId } },
           create: { userId, ...row },

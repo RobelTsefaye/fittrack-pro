@@ -61,27 +61,53 @@ export type CardioSummary = {
 const INDOOR_TYPE_KEYWORDS = [
   "Indoor", "Pool", "Elliptical", "Stair", "HIIT",
   "Yoga", "Rowing", "Core", "Functional", "Pilates", "Mind",
-  "Step", "Cooldown", "Flexibility",
+  "Step", "Cooldown", "Flexibility", "Drinnen",
 ] as const;
 
-function isIndoorType(type: string): boolean {
-  const t = type.toLowerCase();
-  return INDOOR_TYPE_KEYWORDS.some((k) => t.includes(k.toLowerCase()));
+// Explicit outdoor markers in the type name (English + German Apple Health labels).
+const OUTDOOR_TYPE_KEYWORDS = [
+  "Outdoor", "Im Freien", "Open Water", "Freiwasser",
+] as const;
+
+// Types Apple defaults to OUTDOOR even without an explicit qualifier. The
+// Apple Watch "Run", "Cycle", "Walk", "Hike" workout types map to these.
+// German display names from Apple Health Watch app included.
+const OUTDOOR_DEFAULT_TYPES = [
+  "Running", "Cycling", "Walking", "Hiking", "Skiing", "Snowboarding",
+  "Skating", "Surfing", "Sailing", "Golf",
+  "Laufen", "Radfahren", "Gehen", "Wandern", "Skifahren", "Snowboarden",
+] as const;
+
+function containsAny(haystack: string, needles: readonly string[]): boolean {
+  const h = haystack.toLowerCase();
+  return needles.some((n) => h.includes(n.toLowerCase()));
+}
+
+function isExactly(type: string, list: readonly string[]): boolean {
+  const t = type.trim().toLowerCase();
+  return list.some((n) => n.toLowerCase() === t);
 }
 
 /**
  * Categorize a workout as outdoor (distance/pace-focused) or indoor
- * (time/intensity-focused). Type name takes precedence over distance —
- * an outdoor run with zero GPS distance is still outdoor. Indoor types
- * with non-zero distance (e.g. rowing meters) stay indoor because the
- * user's mental model maps them that way.
+ * (time/intensity-focused).
+ *
+ * Priority order:
+ *   1. Explicit indoor marker in the name ("Indoor Cycle", "Pool Swim") → indoor
+ *   2. Explicit outdoor marker in the name ("Laufen Outdoor", "Open Water") → outdoor
+ *   3. Bare type matches a known outdoor default ("Running", "Cycling") → outdoor
+ *   4. Distance > 0 → outdoor
+ *   5. Otherwise → indoor (treadmill/Other/Mixed Cardio etc.)
+ *
+ * The earlier version put steps 3 and 4 swapped, so an outdoor run that lost
+ * GPS (no distance recorded) was misclassified as indoor.
  */
 function categorize(type: string, distanceMeters: number | null): CardioCategory {
-  if (isIndoorType(type)) return "indoor";
-  // If no explicit indoor marker AND no distance was recorded → fall to indoor
-  // (mostly catches "Other"/"Mixed Cardio" sessions done on a treadmill etc.)
-  if (distanceMeters == null || distanceMeters === 0) return "indoor";
-  return "outdoor";
+  if (containsAny(type, INDOOR_TYPE_KEYWORDS)) return "indoor";
+  if (containsAny(type, OUTDOOR_TYPE_KEYWORDS)) return "outdoor";
+  if (isExactly(type, OUTDOOR_DEFAULT_TYPES)) return "outdoor";
+  if (distanceMeters != null && distanceMeters > 0) return "outdoor";
+  return "indoor";
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
