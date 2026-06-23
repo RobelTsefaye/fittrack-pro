@@ -61,7 +61,9 @@ export type CardioSummary = {
 const INDOOR_TYPE_KEYWORDS = [
   "Indoor", "Pool", "Elliptical", "Stair", "HIIT",
   "Yoga", "Rowing", "Core", "Functional", "Pilates", "Mind",
-  "Step", "Cooldown", "Flexibility", "Drinnen",
+  "Step", "Cooldown", "Flexibility",
+  // German Apple Health labels
+  "Drinnen", "Innenräume",
 ] as const;
 
 // Explicit outdoor markers in the type name (English + German Apple Health labels).

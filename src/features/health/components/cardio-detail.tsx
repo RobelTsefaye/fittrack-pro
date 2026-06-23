@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
   ArrowLeft, Activity, Clock, Route, Flame, TrendingUp, TrendingDown,
-  Heart, MapPin, Mountain, Sun, Home,
+  Heart, MapPin, Mountain, Sun, Home, ChevronDown,
 } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import type {
@@ -132,13 +132,18 @@ function CategoryBlock({
       )}
 
       {recentSessions.length > 0 && (
-        <Section title="Verlauf" subtitle={`${recentSessions.length} Session${recentSessions.length === 1 ? "" : "s"} · letzte 30 Tage`}>
+        <CollapsibleSection
+          title="Verlauf"
+          subtitle={`${recentSessions.length} Session${recentSessions.length === 1 ? "" : "s"} · letzte 30 Tage`}
+          // Auto-expand when there are very few sessions, otherwise keep tight.
+          defaultOpen={recentSessions.length <= 3}
+        >
           <div className="space-y-2">
             {recentSessions.map((s) => (
               <SessionRow key={s.id} session={s} metric={metric} />
             ))}
           </div>
-        </Section>
+        </CollapsibleSection>
       )}
     </section>
   );
@@ -173,6 +178,41 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
         {subtitle && <p className="text-[11px]" style={{ color: "#5E5E66" }}>{subtitle}</p>}
       </div>
       {children}
+    </div>
+  );
+}
+
+function CollapsibleSection({
+  title, subtitle, children, defaultOpen = false,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-[22px]" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 rounded-[22px] p-4 text-left transition-colors active:bg-white/5"
+      >
+        <div>
+          <p className="text-[15px] font-semibold text-white">{title}</p>
+          {subtitle && <p className="text-[11px]" style={{ color: "#5E5E66" }}>{subtitle}</p>}
+        </div>
+        <ChevronDown
+          className="h-4 w-4 shrink-0 transition-transform"
+          style={{ color: "#9A9AA2", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+        />
+      </button>
+      {open && (
+        <div className="px-4 pb-4 pt-1">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

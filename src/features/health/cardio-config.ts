@@ -29,18 +29,22 @@ const TYPE_MAP: Record<string, WorkoutTypeMeta> = {
   "Outdoor Run":             RUN,
   "Outdoor Running":         RUN,
   "Running Outdoor":         RUN,
+  "Outdoor Ausführen":       RUN, // Apple's quirky German translation of 'Run'
   "Laufen":                  RUN,
   "Laufen Outdoor":          RUN,
   "Laufen im Freien":        RUN,
   "Indoor Run":              { label: "Laufband",   icon: Footprints, color: "#FF9F0A" },
   "Indoor Running":          { label: "Laufband",   icon: Footprints, color: "#FF9F0A" },
+  "Innenräume Ausführen":    { label: "Laufband",   icon: Footprints, color: "#FF9F0A" },
   "Laufen Drinnen":          { label: "Laufband",   icon: Footprints, color: "#FF9F0A" },
 
   // Walking
   Walking:                   WALK,
   "Outdoor Walk":            WALK,
+  "Outdoor Spaziergang":     WALK,
   "Gehen":                   WALK,
   "Gehen im Freien":         WALK,
+  "Spaziergang":             WALK,
 
   // Cycling variants
   Cycling:                   BIKE,
@@ -52,6 +56,7 @@ const TYPE_MAP: Record<string, WorkoutTypeMeta> = {
   "Radfahren im Freien":     BIKE,
   "Indoor Cycle":            BIKE_IN,
   "Indoor Cycling":          BIKE_IN,
+  "Innenräume Radfahren":    BIKE_IN,
   "Radfahren Drinnen":       BIKE_IN,
   "Ergometer":               BIKE_IN,
 
