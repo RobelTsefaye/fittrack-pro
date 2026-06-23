@@ -5,26 +5,30 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
   ArrowLeft, Activity, Clock, Route, Flame, TrendingUp, TrendingDown,
-  Heart, MapPin, Mountain,
+  Heart, MapPin, Mountain, Sun, Home,
 } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
-import type { CardioSummary, CardioSession } from "../cardio";
+import type {
+  CardioSummary, CardioSession, CardioCategoryGroup, CardioWeekPoint,
+} from "../cardio";
 import { getWorkoutTypeMeta } from "../cardio-config";
 
-const WeeklyVolumeChart = dynamic(
+const VolumeChart = dynamic(
   () => import("./cardio-volume-chart").then((m) => m.CardioVolumeChart),
   { ssr: false, loading: () => <div className="h-44 animate-pulse rounded-xl bg-white/5" /> },
 );
 
 export function CardioDetail({ summary }: { summary: CardioSummary }) {
-  const { thisWeek, lastWeek, weeklyHistory, typeBreakdown, recentSessions } = summary;
+  const { outdoor, indoor } = summary;
 
-  const deltaDist = thisWeek.distanceKm - lastWeek.distanceKm;
-  const deltaDistPct = lastWeek.distanceKm > 0 ? (deltaDist / lastWeek.distanceKm) * 100 : null;
-  const deltaTime = thisWeek.durationMin - lastWeek.durationMin;
-  const deltaTimePct = lastWeek.durationMin > 0 ? (deltaTime / lastWeek.durationMin) * 100 : null;
-
-  const hasAnyData = recentSessions.length > 0 || thisWeek.sessions > 0 || lastWeek.sessions > 0;
+  const hasOutdoor =
+    outdoor.thisWeek.sessions > 0 ||
+    outdoor.lastWeek.sessions > 0 ||
+    outdoor.recentSessions.length > 0;
+  const hasIndoor =
+    indoor.thisWeek.sessions > 0 ||
+    indoor.lastWeek.sessions > 0 ||
+    indoor.recentSessions.length > 0;
 
   return (
     <div className="space-y-4 pb-8">
@@ -37,44 +41,28 @@ export function CardioDetail({ summary }: { summary: CardioSummary }) {
         </p>
       </div>
 
-      {!hasAnyData ? (
+      {!hasOutdoor && !hasIndoor ? (
         <EmptyState />
       ) : (
         <>
-          {/* Hero — this week summary */}
-          <HeroCard
-            thisWeek={thisWeek}
-            deltaDistPct={deltaDistPct}
-            deltaTimePct={deltaTimePct}
-          />
-
-          {/* Weekly volume chart */}
-          <Section title="Wochenvolumen" subtitle="Distanz pro Woche · letzte 8 Wochen">
-            <div className="h-44 -ml-2">
-              <WeeklyVolumeChart data={weeklyHistory} />
-            </div>
-          </Section>
-
-          {/* Type breakdown for current week */}
-          {typeBreakdown.length > 0 && (
-            <Section title="Diese Woche" subtitle={`${typeBreakdown.length} Sportart${typeBreakdown.length === 1 ? "" : "en"}`}>
-              <div className="space-y-2.5">
-                {typeBreakdown.map((t) => (
-                  <TypeRow key={t.type} type={t.type} count={t.count} distanceKm={t.distanceKm} durationMin={t.durationMin} />
-                ))}
-              </div>
-            </Section>
+          {hasOutdoor && (
+            <CategoryBlock
+              label="Outdoor"
+              accentColor="#30D158"
+              icon={<Sun className="h-4 w-4" />}
+              metric="distance"
+              group={outdoor}
+            />
           )}
 
-          {/* Recent sessions list */}
-          {recentSessions.length > 0 && (
-            <Section title="Verlauf" subtitle={`${recentSessions.length} Session${recentSessions.length === 1 ? "" : "s"} · letzte 30 Tage`}>
-              <div className="space-y-2">
-                {recentSessions.map((s) => (
-                  <SessionRow key={s.id} session={s} />
-                ))}
-              </div>
-            </Section>
+          {hasIndoor && (
+            <CategoryBlock
+              label="Indoor"
+              accentColor="#64D2FF"
+              icon={<Home className="h-4 w-4" />}
+              metric="time"
+              group={indoor}
+            />
           )}
         </>
       )}
@@ -82,7 +70,91 @@ export function CardioDetail({ summary }: { summary: CardioSummary }) {
   );
 }
 
-// ── Components ───────────────────────────────────────────────────────────────
+// ── Category block (Outdoor or Indoor) ───────────────────────────────────────
+
+function CategoryBlock({
+  label, accentColor, icon, metric, group,
+}: {
+  label: string;
+  accentColor: string;
+  icon: React.ReactNode;
+  /** Which metric is the headline KPI — distance for outdoor, time for indoor */
+  metric: "distance" | "time";
+  group: CardioCategoryGroup;
+}) {
+  const { thisWeek, lastWeek, weeklyHistory, typeBreakdown, recentSessions } = group;
+
+  const deltaDistPct = lastWeek.distanceKm > 0
+    ? ((thisWeek.distanceKm - lastWeek.distanceKm) / lastWeek.distanceKm) * 100
+    : null;
+  const deltaTimePct = lastWeek.durationMin > 0
+    ? ((thisWeek.durationMin - lastWeek.durationMin) / lastWeek.durationMin) * 100
+    : null;
+  const deltaSessionsPct = lastWeek.sessions > 0
+    ? ((thisWeek.sessions - lastWeek.sessions) / lastWeek.sessions) * 100
+    : null;
+
+  return (
+    <section className="space-y-3">
+      <CategoryHeader label={label} icon={icon} color={accentColor} />
+
+      <Hero
+        accentColor={accentColor}
+        metric={metric}
+        thisWeek={thisWeek}
+        deltaDistPct={deltaDistPct}
+        deltaTimePct={deltaTimePct}
+        deltaSessionsPct={deltaSessionsPct}
+      />
+
+      <Section title={metric === "distance" ? "Wochenvolumen" : "Wochenzeit"}
+               subtitle={`${metric === "distance" ? "Distanz" : "Trainingszeit"} · letzte 8 Wochen`}>
+        <div className="h-44 -ml-2">
+          <VolumeChart data={weeklyHistory} metric={metric} accent={accentColor} />
+        </div>
+      </Section>
+
+      {typeBreakdown.length > 0 && (
+        <Section title="Diese Woche" subtitle={`${typeBreakdown.length} Sportart${typeBreakdown.length === 1 ? "" : "en"}`}>
+          <div className="space-y-2.5">
+            {typeBreakdown.map((t) => (
+              <TypeRow
+                key={t.type}
+                type={t.type}
+                count={t.count}
+                distanceKm={t.distanceKm}
+                durationMin={t.durationMin}
+                showDistance={metric === "distance"}
+              />
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {recentSessions.length > 0 && (
+        <Section title="Verlauf" subtitle={`${recentSessions.length} Session${recentSessions.length === 1 ? "" : "s"} · letzte 30 Tage`}>
+          <div className="space-y-2">
+            {recentSessions.map((s) => (
+              <SessionRow key={s.id} session={s} metric={metric} />
+            ))}
+          </div>
+        </Section>
+      )}
+    </section>
+  );
+}
+
+function CategoryHeader({ label, icon, color }: { label: string; icon: React.ReactNode; color: string }) {
+  return (
+    <div className="flex items-center gap-2 px-1">
+      <span style={{ color }}>{icon}</span>
+      <h2 className="text-[18px] font-bold text-white">{label}</h2>
+      <div className="ml-2 h-px flex-1" style={{ background: `linear-gradient(to right, ${color}40, transparent)` }} />
+    </div>
+  );
+}
+
+// ── Reusable atoms ───────────────────────────────────────────────────────────
 
 function Back() {
   return (
@@ -125,47 +197,71 @@ function EmptyState() {
   );
 }
 
-function HeroCard({
-  thisWeek, deltaDistPct, deltaTimePct,
+// ── Hero ─────────────────────────────────────────────────────────────────────
+
+function Hero({
+  accentColor, metric, thisWeek, deltaDistPct, deltaTimePct, deltaSessionsPct,
 }: {
-  thisWeek: CardioSummary["thisWeek"];
+  accentColor: string;
+  metric: "distance" | "time";
+  thisWeek: CardioSummary["outdoor"]["thisWeek"];
   deltaDistPct: number | null;
   deltaTimePct: number | null;
+  deltaSessionsPct: number | null;
 }) {
+  // For indoor we hide distance entirely (it's not meaningful without GPS)
+  const showDistance = metric === "distance";
+
   return (
     <div
       className="overflow-hidden rounded-[22px] p-5"
       style={{
-        background: "linear-gradient(135deg, #0F1A24 0%, #121214 60%)",
-        border: "1px solid rgba(100,210,255,0.18)",
+        background: `linear-gradient(135deg, ${accentColor}14 0%, #121214 60%)`,
+        border: `1px solid ${accentColor}30`,
       }}
     >
-      <div className="flex items-center gap-2 mb-3">
-        <Activity className="h-4 w-4" style={{ color: "#64D2FF" }} />
-        <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#64D2FF" }}>
-          Diese Woche
-        </p>
-      </div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide mb-3" style={{ color: accentColor }}>
+        Diese Woche
+      </p>
 
-      <div className="grid grid-cols-3 gap-4">
-        <HeroStat icon={<Activity className="h-3.5 w-3.5" />} label="Sessions" value={thisWeek.sessions.toString()} />
+      <div className={`grid gap-4 ${showDistance ? "grid-cols-3" : "grid-cols-3"}`}>
         <HeroStat
-          icon={<Route className="h-3.5 w-3.5" />}
-          label="Distanz"
-          value={thisWeek.distanceKm.toFixed(1)}
-          unit="km"
-          delta={deltaDistPct}
+          icon={<Activity className="h-3.5 w-3.5" />}
+          label="Sessions"
+          value={thisWeek.sessions.toString()}
+          delta={deltaSessionsPct}
+          accentColor={accentColor}
         />
+        {showDistance ? (
+          <HeroStat
+            icon={<Route className="h-3.5 w-3.5" />}
+            label="Distanz"
+            value={thisWeek.distanceKm.toFixed(1)}
+            unit="km"
+            delta={deltaDistPct}
+            accentColor={accentColor}
+          />
+        ) : (
+          <HeroStat
+            icon={<Flame className="h-3.5 w-3.5" />}
+            label="Kalorien"
+            value={Math.round(thisWeek.activeCalories).toLocaleString("de-DE")}
+            unit="kcal"
+            accentColor={accentColor}
+          />
+        )}
         <HeroStat
           icon={<Clock className="h-3.5 w-3.5" />}
           label="Zeit"
           value={Math.round(thisWeek.durationMin).toString()}
           unit="min"
           delta={deltaTimePct}
+          accentColor={accentColor}
         />
       </div>
 
-      {thisWeek.activeCalories > 0 && (
+      {/* For outdoor: also show calories as a footer chip. For indoor: distance is hidden everywhere. */}
+      {showDistance && thisWeek.activeCalories > 0 && (
         <div className="mt-4 flex items-center gap-2 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <Flame className="h-3.5 w-3.5" style={{ color: "#FF9F0A" }} />
           <span className="text-[12px]" style={{ color: "#9A9AA2" }}>
@@ -181,19 +277,20 @@ function HeroCard({
 }
 
 function HeroStat({
-  icon, label, value, unit, delta,
+  icon, label, value, unit, delta, accentColor,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   unit?: string;
   delta?: number | null;
+  accentColor: string;
 }) {
-  const showDelta = delta !== null && delta !== undefined && Math.abs(delta) >= 1;
+  const showDelta = delta != null && Math.abs(delta) >= 1;
   return (
     <div>
       <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide" style={{ color: "#5E5E66" }}>
-        <span style={{ color: "#64D2FF" }}>{icon}</span>
+        <span style={{ color: accentColor }}>{icon}</span>
         {label}
       </div>
       <p className="mt-1 flex items-baseline gap-1">
@@ -203,21 +300,23 @@ function HeroStat({
       {showDelta && (
         <p
           className="mt-1 flex items-center gap-0.5 text-[10px] font-semibold tabular-nums"
-          style={{ color: delta! > 0 ? "#30D158" : "#FF9F0A" }}
+          style={{ color: delta > 0 ? "#30D158" : "#FF9F0A" }}
         >
-          {delta! > 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
-          {delta! > 0 ? "+" : ""}
-          {delta!.toFixed(0)}%
+          {delta > 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+          {delta > 0 ? "+" : ""}
+          {delta.toFixed(0)}%
         </p>
       )}
     </div>
   );
 }
 
+// ── Type breakdown row ───────────────────────────────────────────────────────
+
 function TypeRow({
-  type, count, distanceKm, durationMin,
+  type, count, distanceKm, durationMin, showDistance,
 }: {
-  type: string; count: number; distanceKm: number; durationMin: number;
+  type: string; count: number; distanceKm: number; durationMin: number; showDistance: boolean;
 }) {
   const meta = getWorkoutTypeMeta(type);
   const Icon = meta.icon;
@@ -233,22 +332,26 @@ function TypeRow({
         <p className="text-[14px] font-semibold text-white">{meta.label}</p>
         <p className="text-[11px] tabular-nums" style={{ color: "#9A9AA2" }}>
           {count}× · {Math.round(durationMin)} min
-          {distanceKm > 0 && ` · ${distanceKm.toFixed(1)} km`}
+          {showDistance && distanceKm > 0 && ` · ${distanceKm.toFixed(1)} km`}
         </p>
       </div>
     </div>
   );
 }
 
-function SessionRow({ session }: { session: CardioSession }) {
+// ── Session row ──────────────────────────────────────────────────────────────
+
+function SessionRow({ session, metric }: { session: CardioSession; metric: "distance" | "time" }) {
   const meta = getWorkoutTypeMeta(session.type);
   const Icon = meta.icon;
   const date = useMemo(() => new Date(session.startedAt), [session.startedAt]);
 
-  // Pace (min/km) — only for distance-based workouts
   const pace = session.distanceKm && session.distanceKm > 0
     ? session.durationMin / session.distanceKm
     : null;
+
+  // Indoor sessions don't get distance/pace fields rendered (mostly noise).
+  const showDistanceFields = metric === "distance" && session.distanceKm != null && session.distanceKm > 0;
 
   return (
     <div
@@ -276,13 +379,13 @@ function SessionRow({ session }: { session: CardioSession }) {
             <Clock className="h-3 w-3" />
             {Math.round(session.durationMin)} min
           </span>
-          {session.distanceKm != null && session.distanceKm > 0 && (
+          {showDistanceFields && (
             <span className="flex items-center gap-1">
               <Route className="h-3 w-3" />
-              {session.distanceKm.toFixed(2)} km
+              {session.distanceKm!.toFixed(2)} km
             </span>
           )}
-          {pace != null && pace > 0 && pace < 30 && (
+          {showDistanceFields && pace != null && pace > 0 && pace < 30 && (
             <span className="flex items-center gap-1">
               <MapPin className="h-3 w-3" />
               {formatPace(pace)} /km
@@ -301,7 +404,7 @@ function SessionRow({ session }: { session: CardioSession }) {
               {Math.round(session.activeCalories)} kcal
             </span>
           )}
-          {session.elevationGainM != null && session.elevationGainM > 5 && (
+          {showDistanceFields && session.elevationGainM != null && session.elevationGainM > 5 && (
             <span className="flex items-center gap-1">
               <Mountain className="h-3 w-3" />
               {Math.round(session.elevationGainM)} m

@@ -5,8 +5,20 @@ import {
 } from "recharts";
 import type { CardioWeekPoint } from "../cardio";
 
-export function CardioVolumeChart({ data }: { data: CardioWeekPoint[] }) {
-  const maxDist = Math.max(...data.map((d) => d.distanceKm), 1);
+export function CardioVolumeChart({
+  data,
+  metric = "distance",
+  accent = "#64D2FF",
+}: {
+  data: CardioWeekPoint[];
+  /** Which metric to plot: distance (km) for outdoor, time (min) for indoor */
+  metric?: "distance" | "time";
+  accent?: string;
+}) {
+  const dataKey: keyof CardioWeekPoint = metric === "distance" ? "distanceKm" : "durationMin";
+
+  const values = data.map((d) => Number(d[dataKey] ?? 0));
+  const maxVal = Math.max(...values, 0);
 
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -25,7 +37,7 @@ export function CardioVolumeChart({ data }: { data: CardioWeekPoint[] }) {
           width={28}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(v) => v === 0 ? "" : `${v}`}
+          tickFormatter={(v) => v === 0 ? "" : metric === "distance" ? `${v}` : `${Math.round(v)}`}
         />
         <Tooltip
           cursor={{ fill: "rgba(255,255,255,0.04)" }}
@@ -44,20 +56,23 @@ export function CardioVolumeChart({ data }: { data: CardioWeekPoint[] }) {
           }}
           formatter={(_v, _name, item) => {
             const p = item?.payload as CardioWeekPoint;
+            const headline = metric === "distance"
+              ? `${p.distanceKm.toFixed(1)} km`
+              : `${Math.round(p.durationMin)} min`;
             return [
               <span key="v" style={{ color: "#fff" }}>
-                {p.distanceKm.toFixed(1)} km · {p.sessions}× · {Math.round(p.durationMin)} min
+                {headline} · {p.sessions}×{metric === "distance" && ` · ${Math.round(p.durationMin)} min`}
               </span>,
               "",
             ];
           }}
         />
-        <Bar dataKey="distanceKm" radius={[4, 4, 0, 0]}>
-          {data.map((d, i) => (
+        <Bar dataKey={dataKey} radius={[4, 4, 0, 0]}>
+          {values.map((v, i) => (
             <Cell
               key={i}
-              fill={d.distanceKm > 0 ? "#64D2FF" : "rgba(255,255,255,0.06)"}
-              fillOpacity={d.distanceKm === maxDist && maxDist > 0 ? 1 : 0.75}
+              fill={v > 0 ? accent : "rgba(255,255,255,0.06)"}
+              fillOpacity={v === maxVal && maxVal > 0 ? 1 : 0.7}
             />
           ))}
         </Bar>
@@ -65,3 +80,4 @@ export function CardioVolumeChart({ data }: { data: CardioWeekPoint[] }) {
     </ResponsiveContainer>
   );
 }
+
