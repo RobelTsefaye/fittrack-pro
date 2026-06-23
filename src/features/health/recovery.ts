@@ -330,6 +330,21 @@ export function scoreFromData(
     const chronicSpanDays = Math.min(28, Math.max(7, Math.ceil((asOfMs - earliestWorkoutMs) / DAY_MS) + 1));
     const chronicSpanWeeks = chronicSpanDays / 7;
 
+    // ACWR is only meaningful once we have a real chronic baseline. Before
+    // ~3 weeks of training history the acute window can easily contain a
+    // larger share of total load than the implied weekly average — so e.g.
+    // someone who just started cardio gets flagged as "Gefahrenzone" even
+    // though they're training consistently. When sparse, fall back to a
+    // days-since-last score and keep the BETTER of the two. Mature users
+    // (≥3 weeks) get the pure ACWR result, unchanged.
+    const TRUSTWORTHY_ACWR_DAYS = 21;
+    const trustACWR = chronicSpanDays >= TRUSTWORTHY_ACWR_DAYS;
+    const daysFallback =
+      daysSinceLast === 0 ? 45 :
+      daysSinceLast === 1 ? 75 :
+      daysSinceLast === 2 ? 90 : 100;
+    const consMul = Math.max(0.60, 1 - Math.max(0, consecutiveDays - 1) * 0.15);
+
     if (hasTonnage) {
       const acute7 = withTonnage
         .filter((w) => w.completedAt.getTime() >= cutoff7)
@@ -341,11 +356,10 @@ export function scoreFromData(
 
       if (chronic28Avg > 0) {
         acwr = acute7 / chronic28Avg;
-        let base = acwrScore(acwr);
-        if (consecutiveDays >= 2) {
-          const mul = Math.max(0.60, 1 - (consecutiveDays - 1) * 0.15);
-          base = Math.round(base * mul);
-        }
+        const acwrBase = acwrScore(acwr);
+        // Sparse-data benefit-of-the-doubt: max of ACWR and days-based
+        let base = trustACWR ? acwrBase : Math.max(acwrBase, daysFallback);
+        if (consecutiveDays >= 2) base = Math.round(base * consMul);
         loadSc = base;
         const dailyChronicAvg = chronic28Avg / 7;
         if (lastTonnage != null && dailyChronicAvg > 0) {
@@ -353,9 +367,7 @@ export function scoreFromData(
           intensity = r >= 1.3 ? "high" : r <= 0.7 ? "low" : "medium";
         }
       } else {
-        const base = daysSinceLast === 0 ? 45 : daysSinceLast === 1 ? 75 : daysSinceLast === 2 ? 90 : 100;
-        const mul = Math.max(0.60, 1 - Math.max(0, consecutiveDays - 1) * 0.15);
-        loadSc = Math.round(base * mul);
+        loadSc = Math.round(daysFallback * consMul);
         intensity = "medium";
       }
     } else {
@@ -363,16 +375,12 @@ export function scoreFromData(
       const chronic28AvgCount = loggedWorkouts.length / chronicSpanWeeks;
       if (chronic28AvgCount > 0) {
         acwr = acute7Count / chronic28AvgCount;
-        let base = acwrScore(acwr);
-        if (consecutiveDays >= 2) {
-          const mul = Math.max(0.60, 1 - (consecutiveDays - 1) * 0.15);
-          base = Math.round(base * mul);
-        }
+        const acwrBase = acwrScore(acwr);
+        let base = trustACWR ? acwrBase : Math.max(acwrBase, daysFallback);
+        if (consecutiveDays >= 2) base = Math.round(base * consMul);
         loadSc = base;
       } else {
-        const base = daysSinceLast === 0 ? 45 : daysSinceLast === 1 ? 75 : daysSinceLast === 2 ? 90 : 100;
-        const mul = Math.max(0.60, 1 - Math.max(0, consecutiveDays - 1) * 0.15);
-        loadSc = Math.round(base * mul);
+        loadSc = Math.round(daysFallback * consMul);
       }
       intensity = "medium";
     }
@@ -439,13 +447,18 @@ export function scoreFromData(
 // ── Data fetching ───────────────────────────────────────────────────────────
 
 /**
- * Cardio active-kcal → strength-tonnage-equivalent conversion. Rough heuristic:
- * a moderate 60-min strength session (~5000 kg tonnage) burns ~300 kcal, so
- * 1 kcal ≈ 17 kg. Use 15 for a slightly conservative cardio load. Lets the
- * existing ACWR machinery treat cardio and strength as a single load stream
- * instead of needing two separate analyses.
+ * Cardio active-kcal → strength-tonnage-equivalent conversion.
+ *
+ * Earlier value of 15 was based on raw work output (1 strength kcal ≈ 17 kg
+ * tonnage) but that overstates *systemic* fatigue from cardio. A 60-min
+ * moderate cycle (~450 kcal) would have been counted as 6.750 kg tonnage —
+ * the equivalent of a heavy compound strength session, which it definitely
+ * is not in terms of CNS load and recovery cost.
+ *
+ * 8 maps the same 60-min cycle to ~3.600 kg equivalent (≈ a light/moderate
+ * strength session) which matches subjective fatigue much better.
  */
-const CARDIO_KCAL_TO_TONNAGE = 15;
+const CARDIO_KCAL_TO_TONNAGE = 8;
 
 async function fetchSnapshotsAndWorkouts(userId: string, sinceMs: number) {
   const since = new Date(sinceMs);
