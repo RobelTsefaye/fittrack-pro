@@ -189,6 +189,85 @@ const EMPTY_BREAKDOWN: RecoveryBreakdown = {
   },
 };
 
+// ── Per-stream ACWR helper ──────────────────────────────────────────────────
+
+/**
+ * Computes ACWR-derived load metrics for a SINGLE training stream
+ * (e.g. just strength, or just cardio). Used twice from scoreFromData
+ * so each domain gets its own chronic baseline rather than being mixed
+ * into one combined stream (which previously caused a fresh cardio
+ * routine to crater the score of an established lifter).
+ *
+ * The sparse-data threshold (≥21d to fully trust ACWR) is applied
+ * per-stream too — a stream with no history yet contributes nothing
+ * to the final blended score.
+ */
+type StreamLoad = {
+  /** Final score for this stream, null when the stream has no workouts */
+  score: number | null;
+  /** Days of training history within the 28d chronic window */
+  spanDays: number;
+  /** acute7 / chronicAvg ratio, null when no data or no chronic baseline */
+  acwr: number | null;
+  acuteTonnage: number;
+  chronicAvgTonnage: number;
+};
+
+function computeStreamLoad(
+  stream: WorkoutLike[],
+  asOfMs: number,
+  daysFallback: number,
+): StreamLoad {
+  const cutoff28 = asOfMs - 28 * DAY_MS;
+  const cutoff7 = asOfMs - 7 * DAY_MS;
+  const workouts = stream
+    .filter((w) => w.completedAt.getTime() <= asOfMs && w.completedAt.getTime() >= cutoff28)
+    .sort((a, b) => b.completedAt.getTime() - a.completedAt.getTime());
+
+  if (workouts.length === 0) {
+    return { score: null, spanDays: 0, acwr: null, acuteTonnage: 0, chronicAvgTonnage: 0 };
+  }
+
+  const earliestMs = workouts[workouts.length - 1]!.completedAt.getTime();
+  const spanDays = Math.min(28, Math.max(7, Math.ceil((asOfMs - earliestMs) / DAY_MS) + 1));
+  const spanWeeks = spanDays / 7;
+
+  const TRUSTWORTHY_ACWR_DAYS = 21;
+  const trustACWR = spanDays >= TRUSTWORTHY_ACWR_DAYS;
+
+  const withTonnage = workouts.filter((w) => w.tonnage != null) as Array<{ completedAt: Date; tonnage: number }>;
+
+  let acwr: number | null = null;
+  let acute = 0;
+  let chronicAvg = 0;
+  let acwrBase: number;
+
+  if (withTonnage.length > 0) {
+    acute = withTonnage.filter((w) => w.completedAt.getTime() >= cutoff7).reduce((s, w) => s + w.tonnage, 0);
+    const chronicSum = withTonnage.reduce((s, w) => s + w.tonnage, 0);
+    chronicAvg = chronicSum / spanWeeks;
+    if (chronicAvg > 0) {
+      acwr = acute / chronicAvg;
+      acwrBase = acwrScore(acwr);
+    } else {
+      acwrBase = daysFallback;
+    }
+  } else {
+    // Count-based ACWR when no tonnage data is logged (e.g. bodyweight sessions)
+    const acute7Count = workouts.filter((w) => w.completedAt.getTime() >= cutoff7).length;
+    const chronicCount = workouts.length / spanWeeks;
+    if (chronicCount > 0) {
+      acwr = acute7Count / chronicCount;
+      acwrBase = acwrScore(acwr);
+    } else {
+      acwrBase = daysFallback;
+    }
+  }
+
+  const score = trustACWR ? acwrBase : Math.max(acwrBase, daysFallback);
+  return { score, spanDays, acwr, acuteTonnage: acute, chronicAvgTonnage: chronicAvg };
+}
+
 // ── Pure scoring function ───────────────────────────────────────────────────
 // Computes a recovery breakdown for a given moment in time, given the data
 // available up to that point. Used by both the live endpoint and the history
@@ -197,8 +276,12 @@ const EMPTY_BREAKDOWN: RecoveryBreakdown = {
 export function scoreFromData(
   asOfMs: number,
   allSnapshots: SnapshotLike[],
-  allWorkouts: WorkoutLike[],
+  allStrength: WorkoutLike[],
+  allCardio: WorkoutLike[] = [],
 ): RecoveryBreakdown {
+  // Combined stream is used for daysSinceLast / consecutiveDays — those care
+  // about whether the user touched ANY training, not which kind.
+  const allWorkouts: WorkoutLike[] = [...allStrength, ...allCardio];
   const asOfDayIdx = Math.floor(asOfMs / DAY_MS);
 
   // Snapshots ≤ asOf, sorted ascending
@@ -288,7 +371,12 @@ export function scoreFromData(
     hrvSc = Math.round(clamp(base + trendAdj, 5, 100));
   }
 
-  // Workouts ≤ asOf, within last 28 days
+  // ── Per-domain ACWR streams ────────────────────────────────────────────────
+  // Strength and cardio are scored independently so introducing a new training
+  // type (e.g. starting cardio with no prior history) doesn't crater the load
+  // score for someone whose strength routine is steady. Each stream gets its
+  // own chronic baseline, ACWR ratio, score, and sparse-data fallback. The
+  // final loadScore blends them weighted by how much history each has.
   const cutoff28 = asOfMs - 28 * DAY_MS;
   const loggedWorkouts = allWorkouts
     .filter((w) => w.completedAt.getTime() <= asOfMs && w.completedAt.getTime() >= cutoff28)
@@ -315,73 +403,42 @@ export function scoreFromData(
     consecutiveDays = 1;
     while (workoutDaySet.has(lastDay - consecutiveDays)) consecutiveDays++;
 
-    const cutoff7 = asOfMs - 7 * DAY_MS;
-    const withTonnage = loggedWorkouts.filter((w) => w.tonnage != null) as Array<{ completedAt: Date; tonnage: number }>;
-    const hasTonnage = withTonnage.length > 0;
-
-    // ── Chronic window divisor — actual data span, NOT a fixed 4 weeks ──
-    // The ACWR formula's "chronic average" must reflect the user's typical
-    // weekly load, not a fictional 28-day baseline padded with implicit zeros.
-    // Use the days from the EARLIEST workout in the chronic window (or 28d,
-    // whichever is shorter) as the actual data span. Cap at 28 days so a
-    // mature user with full history still gets the standard 4-week chronic.
-    // Minimum 7 days (1 week) so a single-week-old user gets a sane number.
-    const earliestWorkoutMs = loggedWorkouts[loggedWorkouts.length - 1]!.completedAt.getTime();
-    const chronicSpanDays = Math.min(28, Math.max(7, Math.ceil((asOfMs - earliestWorkoutMs) / DAY_MS) + 1));
-    const chronicSpanWeeks = chronicSpanDays / 7;
-
-    // ACWR is only meaningful once we have a real chronic baseline. Before
-    // ~3 weeks of training history the acute window can easily contain a
-    // larger share of total load than the implied weekly average — so e.g.
-    // someone who just started cardio gets flagged as "Gefahrenzone" even
-    // though they're training consistently. When sparse, fall back to a
-    // days-since-last score and keep the BETTER of the two. Mature users
-    // (≥3 weeks) get the pure ACWR result, unchanged.
-    const TRUSTWORTHY_ACWR_DAYS = 21;
-    const trustACWR = chronicSpanDays >= TRUSTWORTHY_ACWR_DAYS;
     const daysFallback =
       daysSinceLast === 0 ? 45 :
       daysSinceLast === 1 ? 75 :
       daysSinceLast === 2 ? 90 : 100;
     const consMul = Math.max(0.60, 1 - Math.max(0, consecutiveDays - 1) * 0.15);
 
-    if (hasTonnage) {
-      const acute7 = withTonnage
-        .filter((w) => w.completedAt.getTime() >= cutoff7)
-        .reduce((s, w) => s + w.tonnage, 0);
-      const chronic28Sum = withTonnage.reduce((s, w) => s + w.tonnage, 0);
-      const chronic28Avg = chronic28Sum / chronicSpanWeeks;
-      acute7dTonnage = acute7;
-      chronic28dAvgTonnage = chronic28Avg;
+    const strengthStream = computeStreamLoad(allStrength, asOfMs, daysFallback);
+    const cardioStream = computeStreamLoad(allCardio, asOfMs, daysFallback);
 
-      if (chronic28Avg > 0) {
-        acwr = acute7 / chronic28Avg;
-        const acwrBase = acwrScore(acwr);
-        // Sparse-data benefit-of-the-doubt: max of ACWR and days-based
-        let base = trustACWR ? acwrBase : Math.max(acwrBase, daysFallback);
-        if (consecutiveDays >= 2) base = Math.round(base * consMul);
-        loadSc = base;
-        const dailyChronicAvg = chronic28Avg / 7;
-        if (lastTonnage != null && dailyChronicAvg > 0) {
-          const r = lastTonnage / dailyChronicAvg;
-          intensity = r >= 1.3 ? "high" : r <= 0.7 ? "low" : "medium";
-        }
-      } else {
-        loadSc = Math.round(daysFallback * consMul);
-        intensity = "medium";
-      }
+    // Blend per-stream scores weighted by data span (capped at 21 = full weight).
+    // A stream with no recent data contributes nothing. If only one stream has
+    // data, the other is excluded entirely so it doesn't drag the average down.
+    const streams = [strengthStream, cardioStream].filter((s) => s.score != null);
+    if (streams.length === 0) {
+      loadSc = Math.round(daysFallback * consMul);
     } else {
-      const acute7Count = loggedWorkouts.filter((w) => w.completedAt.getTime() >= cutoff7).length;
-      const chronic28AvgCount = loggedWorkouts.length / chronicSpanWeeks;
-      if (chronic28AvgCount > 0) {
-        acwr = acute7Count / chronic28AvgCount;
-        const acwrBase = acwrScore(acwr);
-        let base = trustACWR ? acwrBase : Math.max(acwrBase, daysFallback);
-        if (consecutiveDays >= 2) base = Math.round(base * consMul);
-        loadSc = base;
-      } else {
-        loadSc = Math.round(daysFallback * consMul);
-      }
+      const totalWeight = streams.reduce((s, x) => s + Math.min(1, x.spanDays / 21), 0);
+      const weighted = streams.reduce((s, x) => s + x.score! * Math.min(1, x.spanDays / 21), 0);
+      let base = totalWeight > 0 ? Math.round(weighted / totalWeight) : daysFallback;
+      if (consecutiveDays >= 2) base = Math.round(base * consMul);
+      loadSc = base;
+    }
+
+    // Display values — sum the two streams into a combined view so the existing
+    // UI fields stay meaningful. The PER-DOMAIN ratios are exposed separately
+    // via trainingLoad.strengthAcwr / cardioAcwr for cards that want the split.
+    acute7dTonnage = strengthStream.acuteTonnage + cardioStream.acuteTonnage;
+    chronic28dAvgTonnage = strengthStream.chronicAvgTonnage + cardioStream.chronicAvgTonnage;
+    acwr = chronic28dAvgTonnage > 0 ? acute7dTonnage / chronic28dAvgTonnage : null;
+
+    // Intensity from the most recent session's tonnage vs daily chronic avg.
+    const dailyChronicAvg = chronic28dAvgTonnage / 7;
+    if (lastTonnage != null && dailyChronicAvg > 0) {
+      const r = lastTonnage / dailyChronicAvg;
+      intensity = r >= 1.3 ? "high" : r <= 0.7 ? "low" : "medium";
+    } else {
       intensity = "medium";
     }
   } else {
@@ -525,7 +582,8 @@ async function fetchSnapshotsAndWorkouts(userId: string, sinceMs: number) {
 
   return {
     snapshots: snapshots as SnapshotLike[],
-    workouts: [...strengthLoads, ...cardioLoads],
+    strengthLoads,
+    cardioLoads,
   };
 }
 
@@ -533,8 +591,8 @@ async function fetchSnapshotsAndWorkouts(userId: string, sinceMs: number) {
 
 export async function computeRecovery(userId: string): Promise<RecoveryBreakdown> {
   const now = Date.now();
-  const { snapshots, workouts } = await fetchSnapshotsAndWorkouts(userId, now - 28 * DAY_MS);
-  return scoreFromData(now, snapshots, workouts);
+  const { snapshots, strengthLoads, cardioLoads } = await fetchSnapshotsAndWorkouts(userId, now - 28 * DAY_MS);
+  return scoreFromData(now, snapshots, strengthLoads, cardioLoads);
 }
 
 // Returns one score per day for the last `days` days (ending today).
@@ -545,7 +603,7 @@ export async function computeRecoveryHistory(
 ): Promise<RecoveryHistoryPoint[]> {
   const now = Date.now();
   // Need 28 days of context BEFORE the earliest history day
-  const { snapshots, workouts } = await fetchSnapshotsAndWorkouts(userId, now - (28 + days) * DAY_MS);
+  const { snapshots, strengthLoads, cardioLoads } = await fetchSnapshotsAndWorkouts(userId, now - (28 + days) * DAY_MS);
   if (snapshots.length === 0) return [];
 
   // Set of days the user actually has a snapshot for
@@ -559,7 +617,7 @@ export async function computeRecoveryHistory(
     if (!snapshotDays.has(dayIdx)) continue;
     // Anchor "now" at end of that calendar day so the scorer treats it as the current day
     const asOfMs = (dayIdx + 1) * DAY_MS - 1;
-    const breakdown = scoreFromData(asOfMs, snapshots, workouts);
+    const breakdown = scoreFromData(asOfMs, snapshots, strengthLoads, cardioLoads);
     if (breakdown.level === "none") continue;
     const date = new Date(dayIdx * DAY_MS).toISOString().slice(0, 10);
     points.push({ date, score: breakdown.score, level: breakdown.level });
