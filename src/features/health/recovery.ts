@@ -407,7 +407,14 @@ export function scoreFromData(
       daysSinceLast === 0 ? 45 :
       daysSinceLast === 1 ? 75 :
       daysSinceLast === 2 ? 90 : 100;
-    const consMul = Math.max(0.60, 1 - Math.max(0, consecutiveDays - 1) * 0.15);
+    // The consecutive-day penalty represents cumulative fatigue from a
+    // training streak. That fatigue DECAYS with each rest day — a streak
+    // that ended 3 days ago shouldn't punish today's score as if the user
+    // were still mid-streak. Subtract daysSinceLast from the streak length
+    // so the penalty diminishes day-by-day after rest, hitting 1.0 (no
+    // penalty) once the user has rested for ≥ streak-length days.
+    const effectiveStreak = Math.max(0, consecutiveDays - (daysSinceLast ?? 0));
+    const consMul = Math.max(0.60, 1 - Math.max(0, effectiveStreak - 1) * 0.15);
 
     const strengthStream = computeStreamLoad(allStrength, asOfMs, daysFallback);
     const cardioStream = computeStreamLoad(allCardio, asOfMs, daysFallback);
