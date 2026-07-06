@@ -174,7 +174,7 @@ export async function getCardioSummary(userId: string): Promise<CardioSummary> {
 
   // Strength training is captured separately — keep this list in sync with
   // the same filter used in recovery.ts.
-  const rows = await prisma.appleWorkout.findMany({
+  const allRows = await prisma.appleWorkout.findMany({
     where: {
       userId,
       startedAt: { gte: since },
@@ -187,6 +187,13 @@ export async function getCardioSummary(userId: string): Promise<CardioSummary> {
     },
     orderBy: { startedAt: "desc" },
   });
+
+  // Drop junk micro-sessions (accidental watch starts: ~1 min, ~10 kcal).
+  // Same threshold as recovery.ts so session counts and load stay consistent:
+  // a session counts if it ran ≥5 min OR burned ≥50 kcal.
+  const rows = allRows.filter(
+    (w) => w.durationSec >= 300 || (w.activeCalories ?? 0) >= 50,
+  );
 
   // Combined buckets (for dashboard card)
   const combinedThisWeek = emptyStats();

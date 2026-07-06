@@ -325,8 +325,11 @@ export function scoreFromData(
   // is part of "the trend", not just the thing being compared against it.
   // Require ≥3 points (not 2) — a 2-point slope is just the raw day-to-day
   // diff and reacts to single-day noise; 3 points smooths that out.
+  // When today's physiology is unknown (stale), skip trends entirely — the
+  // HR/HRV scores are null in that case, and showing a "rising/falling" badge
+  // computed from days-old data next to a "—" score is misleading.
   const trendCutoffDayIdx = asOfDayIdx - 3;
-  const trend3 = snapshots.filter(
+  const trend3 = stale ? [] : snapshots.filter(
     (s) => Math.floor(s.date.getTime() / DAY_MS) > trendCutoffDayIdx,
   );
   const trend3hr = trend3.map((s) => s.restingHeartRate).filter((v): v is number => v != null);
@@ -436,7 +439,10 @@ export function scoreFromData(
       const totalWeight = streams.reduce((s, x) => s + Math.min(1, x.spanDays / 21), 0);
       const weighted = streams.reduce((s, x) => s + x.score! * Math.min(1, x.spanDays / 21), 0);
       let base = totalWeight > 0 ? Math.round(weighted / totalWeight) : daysFallback;
-      if (consecutiveDays >= 2) base = Math.round(base * consMul);
+      // Guard on effectiveStreak (the decayed value that consMul is built
+      // from), not the raw consecutiveDays — a streak that already decayed
+      // to ≤1 has consMul 1.0 anyway, but the guard should say what it means.
+      if (effectiveStreak >= 2) base = Math.round(base * consMul);
       loadSc = base;
     }
 
@@ -583,13 +589,23 @@ async function fetchSnapshotsAndWorkouts(userId: string, sinceMs: number) {
       return { completedAt: w.completedAt, tonnage: t > 0 ? t : null };
     });
 
+  // Ignore junk micro-sessions (accidental watch starts — real data shows
+  // 1-minute, 10-15 kcal entries). Left in, they'd count as full training
+  // days: daysSinceLast drops to 0, streaks extend, and the ACWR acute
+  // window gains phantom sessions. A session counts only if it ran ≥5 min
+  // OR burned ≥50 kcal (short-but-real HIIT bursts pass the kcal test).
+  const realCardio = appleWorkouts.filter(
+    (w) => w.durationSec >= 300 || (w.activeCalories ?? 0) >= 50,
+  );
+
   // Convert each cardio session to a strength-tonnage equivalent so ACWR works
   // uniformly. Fall back to a duration-based estimate when active kcal aren't
   // logged (e.g. yoga sessions from older watchOS versions).
-  const cardioLoads: WorkoutLike[] = appleWorkouts.map((w) => {
+  const cardioLoads: WorkoutLike[] = realCardio.map((w) => {
     const fromKcal = w.activeCalories != null ? w.activeCalories * CARDIO_KCAL_TO_TONNAGE : null;
-    // 1 min ≈ 5 kcal of moderate effort × 15 kg/kcal = 75 kg/min
-    const fromDuration = fromKcal == null ? (w.durationSec / 60) * 75 : null;
+    // ~5 kcal/min of moderate effort × the same kcal→tonnage factor, so the
+    // duration fallback stays consistent if CARDIO_KCAL_TO_TONNAGE changes.
+    const fromDuration = fromKcal == null ? (w.durationSec / 60) * 5 * CARDIO_KCAL_TO_TONNAGE : null;
     const tonnage = fromKcal ?? fromDuration;
     return { completedAt: w.startedAt, tonnage: tonnage != null && tonnage > 0 ? tonnage : null };
   });
