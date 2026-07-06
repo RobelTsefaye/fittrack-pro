@@ -318,12 +318,15 @@ export function scoreFromData(
   const stepsBaseline = stepsValues.length >= 5 ? median(stepsValues) : null;
   const calBaseline = calValues.length >= 5 ? median(calValues) : null;
 
-  // 3-day trends. Use CALENDAR days, not "last 3 snapshots" — otherwise a
-  // user with sparse data (gaps) gets a trend computed across 5+ days, which
-  // distorts the slope. We need the snapshots that fall in the last 3 days
-  // BEFORE today (today itself is the value being compared against the trend).
+  // 3-day trends. Use CALENDAR days, INCLUDING today — a trend that only looks
+  // at the days BEFORE today can't see a rebound: if HRV dropped for 2 days
+  // then spiked back up today, excluding today makes the slope look like a
+  // continued fall and penalizes what is actually a great day. Today's value
+  // is part of "the trend", not just the thing being compared against it.
+  // Require ≥3 points (not 2) — a 2-point slope is just the raw day-to-day
+  // diff and reacts to single-day noise; 3 points smooths that out.
   const trendCutoffDayIdx = asOfDayIdx - 3;
-  const trend3 = baselineWindow.filter(
+  const trend3 = snapshots.filter(
     (s) => Math.floor(s.date.getTime() / DAY_MS) > trendCutoffDayIdx,
   );
   const trend3hr = trend3.map((s) => s.restingHeartRate).filter((v): v is number => v != null);
@@ -332,12 +335,12 @@ export function scoreFromData(
   const hrvSlope = linearSlope(trend3hrv);
 
   const hrTrend: RecoveryBreakdown["trends"]["hrTrend"] =
-    trend3hr.length < 2 ? null
+    trend3hr.length < 3 ? null
     : hrSlope > 0.5 ? "rising"
     : hrSlope < -0.5 ? "falling"
     : "stable";
   const hrvTrend: RecoveryBreakdown["trends"]["hrvTrend"] =
-    trend3hrv.length < 2 ? null
+    trend3hrv.length < 3 ? null
     : hrvSlope > 1.0 ? "rising"
     : hrvSlope < -1.0 ? "falling"
     : "stable";
@@ -349,25 +352,29 @@ export function scoreFromData(
 
   // HR (ratio + trend adjustment). Adjustment is proportional to the slope:
   // rising HR over days is bad (penalty), falling is good (small bonus).
-  // Clamped so a single noisy day can't swing the score wildly.
+  // Clamped so a single noisy day can't swing the score wildly. Only applied
+  // with ≥3 data points — same threshold as hrTrend display — so a 2-point
+  // slope (which is just the raw day-to-day diff and reacts to single-day
+  // noise) can't silently swing the score while the UI shows no trend badge.
   let hrSc: number | null = null;
   if (today.restingHeartRate != null) {
     const base = hrBaseline != null
       ? hrRatioScore(today.restingHeartRate / hrBaseline)
       : hrAbsoluteScore(today.restingHeartRate);
-    const trendAdj = clamp(-hrSlope * 10, -15, 5);
+    const trendAdj = trend3hr.length >= 3 ? clamp(-hrSlope * 10, -15, 5) : 0;
     hrSc = Math.round(clamp(base + trendAdj, 5, 100));
   }
 
   // HRV (ratio + trend adjustment). Mirror logic: falling HRV is bad,
   // rising HRV is good. Asymmetric scaling matches the physiological
   // reality that a sudden HRV drop is a stronger signal than a slow rise.
+  // Same ≥3-point guard as above.
   let hrvSc: number | null = null;
   if (today.hrv != null) {
     const base = hrvBaseline != null
       ? hrvRatioScore(today.hrv / hrvBaseline)
       : hrvAbsoluteScore(today.hrv);
-    const trendAdj = clamp(hrvSlope * 5, -15, 8);
+    const trendAdj = trend3hrv.length >= 3 ? clamp(hrvSlope * 5, -15, 8) : 0;
     hrvSc = Math.round(clamp(base + trendAdj, 5, 100));
   }
 
