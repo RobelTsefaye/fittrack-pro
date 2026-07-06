@@ -299,7 +299,7 @@ function SleepCard({ score, sleep }: { score: number | null; sleep: RecoveryBrea
       accent="#6E5BFF"
       score={score}
       weight={0.20}
-      href={hasStages ? `${ROUTES.health}/sleep-stages` : undefined}
+      href={`${ROUTES.health}/sleep`}
       hint={hasStages
         ? "Dauer (60%) + Tiefschlaf-/REM-Anteil (40%). Ziel: ~15–20% Tiefschlaf, ~20–25% REM."
         : "7–8 Std. sind der Sweet Spot für Muskelregeneration und Hormonbalance."}

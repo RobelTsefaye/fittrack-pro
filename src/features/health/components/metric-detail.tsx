@@ -250,7 +250,7 @@ export function MetricDetail({
   );
 }
 
-function AthleteScale({
+export function AthleteScale({
   currentValue,
   scale,
   accent,

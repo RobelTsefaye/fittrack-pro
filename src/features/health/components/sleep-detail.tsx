@@ -5,6 +5,8 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowLeft, Moon } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
+import { METRICS } from "../metric-config";
+import { AthleteScale } from "./metric-detail";
 import type { HealthSnapshot } from "../types";
 
 const MetricAreaChart = dynamic(
@@ -17,6 +19,7 @@ const MetricAreaChart = dynamic(
 
 type Range = 7 | 30 | 90;
 
+const SLEEP = METRICS.sleep;
 const DEEP_COLOR = "#6E5BFF";
 const REM_COLOR = "#64D2FF";
 
@@ -46,9 +49,11 @@ function bandFor(value: number | null, bands: StageBand[]): StageBand | null {
   );
 }
 
-type Night = { date: string; deepPct: number | null; remPct: number | null };
+const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
 
-export function SleepStagesDetail({
+type Night = { date: string; duration: number | null; deepPct: number | null; remPct: number | null };
+
+export function SleepDetail({
   initialSnapshots,
 }: {
   initialSnapshots?: HealthSnapshot[];
@@ -74,20 +79,22 @@ export function SleepStagesDetail({
   }, [hasInitialData]);
 
   const nights = useMemo<Night[]>(() => {
-    return snapshots
-      .map((s) => {
-        const totalMin = s.sleepDuration != null ? s.sleepDuration * 60 : null;
-        const deepPct =
-          totalMin && s.sleepDeepMinutes != null ? (s.sleepDeepMinutes / totalMin) * 100 : null;
-        const remPct =
-          totalMin && s.sleepRemMinutes != null ? (s.sleepRemMinutes / totalMin) * 100 : null;
-        return { date: s.date.slice(0, 10), deepPct, remPct };
-      })
-      .filter((n) => n.deepPct != null || n.remPct != null);
+    return snapshots.map((s) => {
+      const totalMin = s.sleepDuration != null ? s.sleepDuration * 60 : null;
+      const deepPct =
+        totalMin && s.sleepDeepMinutes != null ? (s.sleepDeepMinutes / totalMin) * 100 : null;
+      const remPct =
+        totalMin && s.sleepRemMinutes != null ? (s.sleepRemMinutes / totalMin) * 100 : null;
+      return { date: s.date.slice(0, 10), duration: s.sleepDuration, deepPct, remPct };
+    });
   }, [snapshots]);
 
   const ranged = useMemo(() => nights.slice(-range), [nights, range]);
 
+  const durationSeries = useMemo(
+    () => ranged.filter((n) => n.duration != null).map((n) => ({ date: n.date, value: n.duration as number })),
+    [ranged]
+  );
   const deepSeries = useMemo(
     () => ranged.filter((n) => n.deepPct != null).map((n) => ({ date: n.date, value: n.deepPct as number })),
     [ranged]
@@ -97,11 +104,17 @@ export function SleepStagesDetail({
     [ranged]
   );
 
-  const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+  const durationAvg = useMemo(() => avg(durationSeries.map((p) => p.value)), [durationSeries]);
   const deepAvg = useMemo(() => avg(deepSeries.map((p) => p.value)), [deepSeries]);
   const remAvg = useMemo(() => avg(remSeries.map((p) => p.value)), [remSeries]);
+
+  const latestDuration = useMemo(
+    () => nights.filter((n) => n.duration != null).at(-1)?.duration ?? null,
+    [nights]
+  );
   const latestDeep = deepSeries.at(-1)?.value ?? null;
   const latestRem = remSeries.at(-1)?.value ?? null;
+  const hasStages = latestDeep != null || latestRem != null;
 
   if (loading) {
     return (
@@ -123,17 +136,23 @@ export function SleepStagesDetail({
       <div>
         <div className="flex items-center gap-2">
           <Moon className="h-6 w-6" style={{ color: DEEP_COLOR }} />
-          <h1 className="text-[28px] font-bold text-white">Schlafphasen</h1>
+          <h1 className="text-[28px] font-bold text-white">Schlaf</h1>
         </div>
-        {(latestDeep != null || latestRem != null) && (
+        {(latestDuration != null || hasStages) && (
           <p className="mt-1 text-[15px]" style={{ color: "#9A9AA2" }}>
             Letzte Nacht:{" "}
-            {latestDeep != null && (
-              <span className="font-semibold" style={{ color: DEEP_COLOR }}>
-                {Math.round(latestDeep)}% Tiefschlaf
+            {latestDuration != null && (
+              <span className="font-semibold" style={{ color: SLEEP.color }}>
+                {SLEEP.format(latestDuration)} Std.
               </span>
             )}
-            {latestDeep != null && latestRem != null && " · "}
+            {latestDuration != null && latestDeep != null && " · "}
+            {latestDeep != null && (
+              <span className="font-semibold" style={{ color: DEEP_COLOR }}>
+                {Math.round(latestDeep)}% Tief
+              </span>
+            )}
+            {latestRem != null && " · "}
             {latestRem != null && (
               <span className="font-semibold" style={{ color: REM_COLOR }}>
                 {Math.round(latestRem)}% REM
@@ -149,11 +168,12 @@ export function SleepStagesDetail({
           Was bedeutet das?
         </p>
         <p className="text-[13px] leading-relaxed" style={{ color: "#C0C0C8" }}>
-          Dein Schlaf durchläuft mehrere Zyklen aus Leicht-, Tief- und REM-Schlaf. <strong className="text-white">Tiefschlaf</strong> ist
-          die körperlich erholsamste Phase: Wachstumshormone werden ausgeschüttet, Muskelgewebe repariert und Herz-Kreislauf heruntergefahren —
-          Ziel sind etwa 15–20% der Schlafzeit. <strong className="text-white">REM-Schlaf</strong> dient der geistigen Erholung (Gedächtnis,
-          Lernen, emotionale Verarbeitung) — Ziel etwa 20–25%. Tiefschlaf ist in der ersten Nachthälfte am höchsten, REM zur zweiten. Zu kurzer
-          Schlaf und Alkohol kürzen vor allem den REM-Anteil.
+          Erholung hängt an <strong className="text-white">Dauer</strong> und <strong className="text-white">Qualität</strong> des
+          Schlafs. 7–9 Stunden gelten als optimal. Innerhalb der Nacht durchläufst du Zyklen aus Leicht-, Tief- und REM-Schlaf:{" "}
+          <strong className="text-white">Tiefschlaf</strong> ist körperlich am erholsamsten (Wachstumshormone, Muskelreparatur) —
+          Ziel ~15–20%. <strong className="text-white">REM</strong> dient der geistigen Erholung (Gedächtnis, emotionale Verarbeitung)
+          — Ziel ~20–25%. Tiefschlaf ist in der ersten Nachthälfte am höchsten, REM zur zweiten. Zu kurzer Schlaf und Alkohol kürzen
+          vor allem den REM-Anteil.
         </p>
       </div>
 
@@ -176,6 +196,27 @@ export function SleepStagesDetail({
         ))}
       </div>
 
+      {/* Duration */}
+      <ChartCard
+        title="Dauer"
+        color={SLEEP.color}
+        slug="sleep"
+        unit="Std."
+        format={SLEEP.format}
+        series={durationSeries}
+        avgLabel={durationAvg != null ? `${SLEEP.format(durationAvg)} Std.` : null}
+      />
+      {SLEEP.athleteScale && (
+        <AthleteScale
+          currentValue={latestDuration}
+          scale={SLEEP.athleteScale}
+          accent={SLEEP.color}
+          formatValue={SLEEP.format}
+          unit={SLEEP.unit}
+        />
+      )}
+
+      {/* Stages */}
       <StageSection
         title="Tiefschlaf"
         color={DEEP_COLOR}
@@ -194,6 +235,40 @@ export function SleepStagesDetail({
         currentPct={latestRem}
         bands={REM_BANDS}
       />
+    </div>
+  );
+}
+
+function ChartCard({
+  title, color, slug, unit, format, series, avgLabel,
+}: {
+  title: string;
+  color: string;
+  slug: string;
+  unit: string;
+  format: (v: number) => string;
+  series: Array<{ date: string; value: number }>;
+  avgLabel: string | null;
+}) {
+  return (
+    <div className="rounded-[22px] p-4" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="flex items-baseline justify-between mb-1">
+        <p className="text-[15px] font-semibold text-white">{title}</p>
+        {avgLabel && (
+          <p className="text-[12px]" style={{ color: "#9A9AA2" }}>
+            Ø <span className="font-semibold" style={{ color }}>{avgLabel}</span>
+          </p>
+        )}
+      </div>
+      {series.length === 0 ? (
+        <p className="py-10 text-center text-[13px]" style={{ color: "#5E5E66" }}>
+          Keine Daten im gewählten Zeitraum
+        </p>
+      ) : (
+        <div className="h-44 -ml-3">
+          <MetricAreaChart data={series} slug={slug} color={color} unit={unit} label={title} format={format} />
+        </div>
+      )}
     </div>
   );
 }
