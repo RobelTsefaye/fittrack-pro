@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ArrowLeft, Moon, Heart, Zap, Dumbbell, Footprints, Wind, Thermometer, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Moon, Heart, Zap, Dumbbell, Footprints, Wind, Thermometer, AlertTriangle, ChevronRight } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import type { RecoveryBreakdown, RecoveryHistoryPoint } from "../recovery";
 
@@ -202,7 +202,7 @@ function Back() {
   );
 }
 
-function Card({ icon, title, accent, children, score, weight, hint }: {
+function Card({ icon, title, accent, children, score, weight, hint, href }: {
   icon: React.ReactNode;
   title: string;
   accent: string;
@@ -210,9 +210,11 @@ function Card({ icon, title, accent, children, score, weight, hint }: {
   score: number | null;
   weight: number;
   hint?: string;
+  /** when set, the whole card links to a metric detail page */
+  href?: string;
 }) {
-  return (
-    <div className="rounded-[22px] p-4" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+  const body = (
+    <>
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <span style={{ color: accent }}>{icon}</span>
@@ -223,11 +225,14 @@ function Card({ icon, title, accent, children, score, weight, hint }: {
             </p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-[20px] font-bold leading-none" style={{ color: score != null ? accent : "#5E5E66" }}>
-            {score != null ? Math.round(score) : "—"}
-          </p>
-          <p className="text-[10px]" style={{ color: "#5E5E66" }}>/100</p>
+        <div className="flex items-center gap-2">
+          <div className="text-right">
+            <p className="text-[20px] font-bold leading-none" style={{ color: score != null ? accent : "#5E5E66" }}>
+              {score != null ? Math.round(score) : "—"}
+            </p>
+            <p className="text-[10px]" style={{ color: "#5E5E66" }}>/100</p>
+          </div>
+          {href && <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#5E5E66" }} />}
         </div>
       </div>
       <div className="space-y-1.5 text-[13px]" style={{ color: "#9A9AA2" }}>
@@ -238,6 +243,22 @@ function Card({ icon, title, accent, children, score, weight, hint }: {
           {hint}
         </p>
       )}
+    </>
+  );
+
+  const style = { background: "#121214", border: "1px solid rgba(255,255,255,0.08)" };
+
+  if (href) {
+    return (
+      <Link href={href} className="block rounded-[22px] p-4 transition-colors active:bg-white/5" style={style}>
+        {body}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="rounded-[22px] p-4" style={style}>
+      {body}
     </div>
   );
 }
@@ -314,6 +335,7 @@ function RespiratoryCard({ vitals }: { vitals: RecoveryBreakdown["vitals"] }) {
       accent="#64D2FF"
       score={null}
       weight={0}
+      href={`${ROUTES.health}/respiratory-rate`}
       hint="Nachts gemessen. Anstieg über deiner Baseline ist eines der frühesten Krankheits-/Übertraining-Signale."
     >
       {respiratoryRate == null ? (
@@ -344,6 +366,7 @@ function TemperatureCard({ vitals }: { vitals: RecoveryBreakdown["vitals"] }) {
       accent="#FF9F0A"
       score={null}
       weight={0}
+      href={`${ROUTES.health}/wrist-temperature`}
       hint="Nächtliche Abweichung von deiner Baseline. Erhöht = Infekt, Stress oder Übertraining (Apple Watch Series 8+)."
     >
       {wristTemperature == null ? (

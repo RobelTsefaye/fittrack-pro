@@ -2,7 +2,8 @@ import type { HealthSnapshot } from "./types";
 
 export type MetricSlug =
   | "sleep" | "resting-hr" | "hrv" | "steps"
-  | "active-calories" | "exercise-minutes" | "vo2-max" | "water";
+  | "active-calories" | "exercise-minutes" | "vo2-max" | "water"
+  | "respiratory-rate" | "wrist-temperature";
 
 /**
  * Reference band on an athlete-targeted scale.
@@ -31,8 +32,13 @@ export type MetricConfig = {
   decimals: 0 | 1;
   /** short explainer shown on the detail page */
   description: string;
-  /** athlete-targeted reference scale (not general-population norms) */
-  athleteScale: ScaleBand[];
+  /**
+   * Athlete-targeted reference scale (not general-population norms).
+   * Omitted for metrics where the absolute value has no universal good/bad
+   * interpretation (e.g. wrist temperature, which only matters as a personal
+   * deviation) — the detail page then relies on the description instead.
+   */
+  athleteScale?: ScaleBand[];
 };
 
 export const METRICS: Record<MetricSlug, MetricConfig> = {
@@ -187,6 +193,39 @@ export const METRICS: Record<MetricSlug, MetricConfig> = {
       { min: 3500, max: 5000, label: "Optimal bei intensivem Training",       color: "#D4FF3A" },
       { min: 5000, max: null, label: "Sehr hoch — Wettkampf oder Heißwetter", color: "#64D2FF" },
     ],
+  },
+  "respiratory-rate": {
+    slug: "respiratory-rate",
+    field: "respiratoryRate",
+    label: "Atemfrequenz",
+    unit: "/min",
+    color: "#64D2FF",
+    betterDirection: "lower",
+    format: (v) => v.toFixed(1),
+    decimals: 1,
+    description:
+      "Atemzüge pro Minute, nachts im Schlaf gemessen. In Ruhe ist die Atemfrequenz sehr stabil — ein erholter Körper atmet ruhig und gleichmäßig. Steigt der Wert mehrere Nächte über deine persönliche Baseline, ist das eines der frühesten Signale für einen beginnenden Infekt, Fieber oder Übertraining — oft bevor du dich überhaupt krank fühlst.",
+    athleteScale: [
+      { min: null, max: 12, label: "Sehr niedrig — ausgeprägte Ausdauerfitness", color: "#D4FF3A" },
+      { min: 12,   max: 15, label: "Normal — gut erholt",                        color: "#30D158" },
+      { min: 15,   max: 17, label: "Leicht erhöht",                              color: "#FFB340" },
+      { min: 17,   max: 20, label: "Erhöht — Stress oder Infekt möglich",        color: "#FF9F0A" },
+      { min: 20,   max: null, label: "Hoch — mögliches Krankheitssignal",        color: "#FF453A" },
+    ],
+  },
+  "wrist-temperature": {
+    slug: "wrist-temperature",
+    field: "wristTemperature",
+    label: "Handgelenk-Temperatur",
+    unit: "°C",
+    color: "#FF9F0A",
+    betterDirection: "lower",
+    format: (v) => v.toFixed(1),
+    decimals: 1,
+    description:
+      "Hauttemperatur am Handgelenk, nachts im Schlaf gemessen (Apple Watch Series 8 und neuer). Der Absolutwert schwankt von Person zu Person stark und sagt allein wenig aus — entscheidend ist die Abweichung von deiner persönlichen Baseline. Ein Anstieg von mehr als +0,5 °C über mehrere Nächte deutet auf Infekt, Fieber, Zyklusphase, Alkohol oder Übertraining hin; Schwankungen von ±0,3 °C sind normal. Deine tatsächliche Abweichung siehst du auf der Recovery-Übersicht.",
+    // No fixed good/bad scale: absolute wrist temperature is only meaningful
+    // relative to the individual's own baseline.
   },
 };
 

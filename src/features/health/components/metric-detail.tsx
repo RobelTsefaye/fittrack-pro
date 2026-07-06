@@ -142,13 +142,15 @@ export function MetricDetail({
       </div>
 
       {/* Athlete-targeted reference scale */}
-      <AthleteScale
-        currentValue={stats?.latest ?? null}
-        scale={config.athleteScale}
-        accent={config.color}
-        formatValue={config.format}
-        unit={config.unit}
-      />
+      {config.athleteScale && (
+        <AthleteScale
+          currentValue={stats?.latest ?? null}
+          scale={config.athleteScale}
+          accent={config.color}
+          formatValue={config.format}
+          unit={config.unit}
+        />
+      )}
 
       {/* Trend badge */}
       {trend && trendIsGood != null && (
