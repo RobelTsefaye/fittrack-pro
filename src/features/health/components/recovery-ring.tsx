@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Moon, Heart, Zap, Dumbbell, ChevronRight, Footprints } from "lucide-react";
+import { Moon, Heart, Zap, Dumbbell, ChevronRight, Footprints, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
 import { ROUTES } from "@/lib/constants";
 import type { RecoveryBreakdown } from "../recovery";
@@ -12,7 +12,7 @@ interface RecoveryRingProps {
 
 export function RecoveryRing({ recovery }: RecoveryRingProps) {
   const { t } = useI18n();
-  const { score, level, sleepScore, hrScore, hrvScore, loadScore, activityScore, trainingLoad, trends } = recovery;
+  const { score, level, sleepScore, hrScore, hrvScore, loadScore, activityScore, trainingLoad, trends, illnessWarning } = recovery;
 
   if (level === "none") return null;
 
@@ -81,6 +81,17 @@ export function RecoveryRing({ recovery }: RecoveryRingProps) {
         </div>
         <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#5E5E66" }} />
       </div>
+
+      {/* Illness early warning */}
+      {illnessWarning.active && (
+        <div
+          className="flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-medium"
+          style={{ background: "rgba(255,69,58,0.12)", color: "#FF453A" }}
+        >
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          Mögliches Krankheitssignal — heute besser Pause
+        </div>
+      )}
 
       {/* Sub-scores */}
       <div className="grid grid-cols-5 gap-1.5 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>

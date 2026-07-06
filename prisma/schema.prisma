@@ -287,6 +287,10 @@ model HealthSnapshot {
   heartRateAvg     Int? // bpm
   hrv              Float? // ms (RMSSD)
 
+  // Nightly vitals — early illness / systemic-stress signals
+  respiratoryRate  Float? // breaths/min (nightly average)
+  wristTemperature Float? // °C (nightly wrist temp; deviation computed vs personal baseline)
+
   // Activity
   steps           Int?
   activeCalories  Float? // kcal

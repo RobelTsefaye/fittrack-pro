@@ -10,6 +10,8 @@ export type HealthSnapshot = {
   restingHeartRate: number | null;
   heartRateAvg: number | null;
   hrv: number | null;
+  respiratoryRate: number | null;
+  wristTemperature: number | null;
   steps: number | null;
   activeCalories: number | null;
   exerciseMinutes: number | null;

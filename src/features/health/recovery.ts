@@ -34,7 +34,37 @@ export type RecoveryBreakdown = {
     lastTonnage: number | null;
     intensity: "high" | "medium" | "low" | null;
   };
+  /** Today's sleep-stage breakdown (drives the sleep score's quality component) */
+  sleep: {
+    durationHours: number | null;
+    deepMinutes: number | null;
+    remMinutes: number | null;
+  };
+  /** Nightly vitals — early illness / systemic-stress signals */
+  vitals: {
+    respiratoryRate: number | null;
+    respiratoryBaseline: number | null;
+    respiratoryDays: number;
+    wristTemperature: number | null;
+    wristTempBaseline: number | null;
+    wristTempDays: number;
+    /** today − baseline in °C, null when no baseline yet */
+    tempDelta: number | null;
+    /** points subtracted from the composite score due to elevated vitals */
+    penalty: number;
+  };
+  /**
+   * Fires when multiple recovery signals point at illness (rather than plain
+   * training fatigue). Requires at least one distinctive vital marker
+   * (temperature or respiratory rate) plus ≥2 concurrent signals.
+   */
+  illnessWarning: {
+    active: boolean;
+    signals: IllnessSignal[];
+  };
 };
+
+export type IllnessSignal = "temp" | "respiratory" | "hrv" | "restingHR";
 
 export type RecoveryHistoryPoint = {
   date: string; // YYYY-MM-DD
@@ -103,11 +133,46 @@ const SLEEP_ANCHORS = [
   [0,  0], [4,  10], [5, 40], [6, 65], [7, 85], [8, 100], [10, 100],
 ] as const;
 
-function sleepScore(hours: number, quality: number | null): number {
+// Deep-sleep proportion of total sleep. Physiological target ~13–23%.
+const DEEP_PCT_ANCHORS = [
+  [0, 35], [0.05, 55], [0.10, 75], [0.13, 90], [0.18, 100], [0.25, 100], [0.35, 85],
+] as const;
+
+// REM proportion of total sleep. Physiological target ~20–25%.
+const REM_PCT_ANCHORS = [
+  [0, 35], [0.08, 55], [0.14, 75], [0.20, 100], [0.25, 100], [0.35, 90], [0.45, 75],
+] as const;
+
+/**
+ * Quality of sleep architecture from deep + REM proportions. Deep sleep drives
+ * physical regeneration, REM drives cognitive recovery — 7h with 20% deep beats
+ * 8h with 8%. Averages the two proportion scores. Null when total sleep is 0.
+ */
+function sleepStageScore(deepMinutes: number, remMinutes: number, totalMinutes: number): number | null {
+  if (totalMinutes <= 0) return null;
+  const deepSc = interpolate(deepMinutes / totalMinutes, DEEP_PCT_ANCHORS);
+  const remSc = interpolate(remMinutes / totalMinutes, REM_PCT_ANCHORS);
+  return (deepSc + remSc) / 2;
+}
+
+/**
+ * Sleep score = duration (60%) + architecture (40%). Architecture prefers
+ * measured deep/REM stages; falls back to the sleepQuality field, then to
+ * duration alone when neither is available.
+ */
+function sleepScore(
+  hours: number,
+  quality: number | null,
+  deepMinutes: number | null,
+  remMinutes: number | null,
+): number {
   const base = interpolate(hours, SLEEP_ANCHORS);
-  return quality != null
-    ? Math.round(base * 0.6 + quality * 0.4)
-    : Math.round(base);
+  const stageSc = deepMinutes != null && remMinutes != null
+    ? sleepStageScore(deepMinutes, remMinutes, hours * 60)
+    : null;
+  if (stageSc != null) return Math.round(base * 0.6 + stageSc * 0.4);
+  if (quality != null) return Math.round(base * 0.6 + quality * 0.4);
+  return Math.round(base);
 }
 
 // Resting-HR ratio (today / 14d baseline). Lower = better.
@@ -170,8 +235,12 @@ type SnapshotLike = {
   date: Date;
   sleepDuration: number | null;
   sleepQuality: number | null;
+  sleepDeepMinutes: number | null;
+  sleepRemMinutes: number | null;
   restingHeartRate: number | null;
   hrv: number | null;
+  respiratoryRate: number | null;
+  wristTemperature: number | null;
   steps: number | null;
   activeCalories: number | null;
 };
@@ -187,6 +256,13 @@ const EMPTY_BREAKDOWN: RecoveryBreakdown = {
     acwr: null, daysSinceLast: null, consecutiveDays: 0,
     acute7dTonnage: null, chronic28dAvgTonnage: null, lastTonnage: null, intensity: null,
   },
+  sleep: { durationHours: null, deepMinutes: null, remMinutes: null },
+  vitals: {
+    respiratoryRate: null, respiratoryBaseline: null, respiratoryDays: 0,
+    wristTemperature: null, wristTempBaseline: null, wristTempDays: 0,
+    tempDelta: null, penalty: 0,
+  },
+  illnessWarning: { active: false, signals: [] },
 };
 
 // ── Per-stream ACWR helper ──────────────────────────────────────────────────
@@ -301,7 +377,9 @@ export function scoreFromData(
     ? {
         date: latest.date,
         sleepDuration: null, sleepQuality: null,
+        sleepDeepMinutes: null, sleepRemMinutes: null,
         restingHeartRate: null, hrv: null,
+        respiratoryRate: null, wristTemperature: null,
         steps: null, activeCalories: null,
       }
     : latest;
@@ -313,10 +391,15 @@ export function scoreFromData(
   const stepsValues = baseline14.map((s) => s.steps).filter((v): v is number => v != null);
   const calValues = baseline14.map((s) => s.activeCalories).filter((v): v is number => v != null);
 
+  const respValues = baseline14.map((s) => s.respiratoryRate).filter((v): v is number => v != null);
+  const tempValues = baseline14.map((s) => s.wristTemperature).filter((v): v is number => v != null);
+
   const hrBaseline = hrValues.length >= 7 ? median(hrValues) : null;
   const hrvBaseline = hrvValues.length >= 7 ? median(hrvValues) : null;
   const stepsBaseline = stepsValues.length >= 5 ? median(stepsValues) : null;
   const calBaseline = calValues.length >= 5 ? median(calValues) : null;
+  const respBaseline = respValues.length >= 5 ? median(respValues) : null;
+  const tempBaseline = tempValues.length >= 5 ? median(tempValues) : null;
 
   // 3-day trends. Use CALENDAR days, INCLUDING today — a trend that only looks
   // at the days BEFORE today can't see a rebound: if HRV dropped for 2 days
@@ -350,7 +433,7 @@ export function scoreFromData(
 
   // Sleep
   const sleepSc = today.sleepDuration != null
-    ? sleepScore(today.sleepDuration, today.sleepQuality)
+    ? sleepScore(today.sleepDuration, today.sleepQuality, today.sleepDeepMinutes, today.sleepRemMinutes)
     : null;
 
   // HR (ratio + trend adjustment). Adjustment is proportional to the slope:
@@ -481,6 +564,36 @@ export function scoreFromData(
     actSc = activityLoadScore(activityRatio);
   }
 
+  // ── Nightly vitals: respiratory rate + wrist temperature ────────────────────
+  // Both are compared to a personal baseline, not absolute thresholds — a resting
+  // rate of 16 is normal for one person and elevated for another. Elevation is
+  // an early illness / systemic-stress signal that surfaces 1–2 days before it
+  // is subjectively felt, so it modifies the score rather than being a training
+  // factor of its own.
+  const respRatio = today.respiratoryRate != null && respBaseline != null && respBaseline > 0
+    ? today.respiratoryRate / respBaseline : null;
+  const tempDelta = today.wristTemperature != null && tempBaseline != null
+    ? today.wristTemperature - tempBaseline : null;
+
+  // Penalty applied to the composite. Capped per-signal so a single noisy night
+  // can't tank the score; combined cap keeps a plausible worst case around −24.
+  let vitalsPenalty = 0;
+  if (respRatio != null && respRatio > 1.05) vitalsPenalty += clamp((respRatio - 1.05) * 120, 0, 12);
+  if (tempDelta != null && tempDelta > 0.3) vitalsPenalty += clamp((tempDelta - 0.3) * 15, 0, 12);
+  vitalsPenalty = Math.round(vitalsPenalty);
+
+  // Illness early-warning: fires when a distinctive vital marker (elevated
+  // temperature or respiratory rate) coincides with ≥2 concurrent abnormal
+  // signals. Requiring a vital marker separates *illness* from plain training
+  // fatigue (HRV↓ + RHR↑ alone is overtraining, already handled by the score).
+  const illnessSignals: IllnessSignal[] = [];
+  if (tempDelta != null && tempDelta >= 0.5) illnessSignals.push("temp");
+  if (respRatio != null && respRatio >= 1.05) illnessSignals.push("respiratory");
+  if (hrvBaseline != null && today.hrv != null && today.hrv <= hrvBaseline * 0.85) illnessSignals.push("hrv");
+  if (hrBaseline != null && today.restingHeartRate != null && today.restingHeartRate >= hrBaseline * 1.05) illnessSignals.push("restingHR");
+  const hasVitalMarker = illnessSignals.includes("temp") || illnessSignals.includes("respiratory");
+  const illnessWarning = { active: hasVitalMarker && illnessSignals.length >= 2, signals: illnessSignals };
+
   // Composite
   const factors: Array<{ value: number; weight: number }> = [];
   if (sleepSc != null) factors.push({ value: sleepSc, weight: WEIGHTS.sleep });
@@ -492,9 +605,8 @@ export function scoreFromData(
   if (factors.length === 0) return EMPTY_BREAKDOWN;
 
   const totalWeight = factors.reduce((s, f) => s + f.weight, 0);
-  const score = Math.round(
-    factors.reduce((s, f) => s + (f.value * f.weight) / totalWeight, 0),
-  );
+  const composite = factors.reduce((s, f) => s + (f.value * f.weight) / totalWeight, 0);
+  const score = Math.round(clamp(composite - vitalsPenalty, 0, 100));
   const level: RecoveryLevel = score >= 75 ? "high" : score >= 50 ? "mid" : "low";
 
   return {
@@ -518,6 +630,22 @@ export function scoreFromData(
       acwr, daysSinceLast, consecutiveDays,
       acute7dTonnage, chronic28dAvgTonnage, lastTonnage, intensity,
     },
+    sleep: {
+      durationHours: today.sleepDuration,
+      deepMinutes: today.sleepDeepMinutes,
+      remMinutes: today.sleepRemMinutes,
+    },
+    vitals: {
+      respiratoryRate: today.respiratoryRate,
+      respiratoryBaseline: respBaseline,
+      respiratoryDays: respValues.length + (today.respiratoryRate != null ? 1 : 0),
+      wristTemperature: today.wristTemperature,
+      wristTempBaseline: tempBaseline,
+      wristTempDays: tempValues.length + (today.wristTemperature != null ? 1 : 0),
+      tempDelta,
+      penalty: vitalsPenalty,
+    },
+    illnessWarning,
   };
 }
 

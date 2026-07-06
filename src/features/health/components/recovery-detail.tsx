@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ArrowLeft, Moon, Heart, Zap, Dumbbell, Footprints } from "lucide-react";
+import { ArrowLeft, Moon, Heart, Zap, Dumbbell, Footprints, Wind, Thermometer, AlertTriangle } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import type { RecoveryBreakdown, RecoveryHistoryPoint } from "../recovery";
 
@@ -88,9 +88,11 @@ export function RecoveryDetail({
         </p>
       </div>
 
+      <IllnessBanner warning={recovery.illnessWarning} />
+
       <HistoryChart history={history} />
 
-      <SleepCard score={recovery.sleepScore} />
+      <SleepCard score={recovery.sleepScore} sleep={recovery.sleep} />
       <HRCard
         score={recovery.hrScore}
         baseline={recovery.baseline.restingHR}
@@ -103,11 +105,53 @@ export function RecoveryDetail({
         daysOfData={recovery.baseline.hrvDays}
         trend={recovery.trends.hrvTrend}
       />
+      <RespiratoryCard vitals={recovery.vitals} />
+      <TemperatureCard vitals={recovery.vitals} />
       <LoadCard score={recovery.loadScore} load={recovery.trainingLoad} />
       <ActivityCard
         score={recovery.activityScore}
         baseline={recovery.baseline}
       />
+    </div>
+  );
+}
+
+// ── Illness early warning ─────────────────────────────────────────────────────
+
+const SIGNAL_LABELS: Record<string, string> = {
+  temp: "Temperatur ↑",
+  respiratory: "Atemfrequenz ↑",
+  hrv: "HRV ↓",
+  restingHR: "Ruhepuls ↑",
+};
+
+function IllnessBanner({ warning }: { warning: RecoveryBreakdown["illnessWarning"] }) {
+  if (!warning.active) return null;
+  return (
+    <div
+      className="flex items-start gap-3 rounded-[22px] p-4"
+      style={{ background: "rgba(255,69,58,0.12)", border: "1px solid rgba(255,69,58,0.35)" }}
+    >
+      <AlertTriangle className="h-5 w-5 shrink-0" style={{ color: "#FF453A" }} />
+      <div className="space-y-1">
+        <p className="text-[15px] font-semibold" style={{ color: "#FF453A" }}>
+          Mögliches Krankheitssignal
+        </p>
+        <p className="text-[13px] leading-relaxed" style={{ color: "#E5A5A0" }}>
+          Mehrere Erholungswerte weichen gleichzeitig ab — heute besser Pause statt hartem Training.
+        </p>
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {warning.signals.map((s) => (
+            <span
+              key={s}
+              className="rounded-full px-2 py-0.5 text-[11px] font-medium"
+              style={{ background: "rgba(255,69,58,0.18)", color: "#FF453A" }}
+            >
+              {SIGNAL_LABELS[s] ?? s}
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -174,7 +218,9 @@ function Card({ icon, title, accent, children, score, weight, hint }: {
           <span style={{ color: accent }}>{icon}</span>
           <div>
             <p className="text-[15px] font-semibold text-white">{title}</p>
-            <p className="text-[11px]" style={{ color: "#5E5E66" }}>{Math.round(weight * 100)}% Gewicht</p>
+            <p className="text-[11px]" style={{ color: "#5E5E66" }}>
+              {weight > 0 ? `${Math.round(weight * 100)}% Gewicht` : "Modifikator"}
+            </p>
           </div>
         </div>
         <div className="text-right">
@@ -220,7 +266,11 @@ function TrendBadge({ trend, invert }: { trend: "rising" | "stable" | "falling" 
 
 // ── Sleep ───────────────────────────────────────────────────────────────────
 
-function SleepCard({ score }: { score: number | null }) {
+function SleepCard({ score, sleep }: { score: number | null; sleep: RecoveryBreakdown["sleep"] }) {
+  const totalMin = sleep.durationHours != null ? sleep.durationHours * 60 : null;
+  const deepPct = totalMin && sleep.deepMinutes != null ? Math.round((sleep.deepMinutes / totalMin) * 100) : null;
+  const remPct = totalMin && sleep.remMinutes != null ? Math.round((sleep.remMinutes / totalMin) * 100) : null;
+  const hasStages = deepPct != null || remPct != null;
   return (
     <Card
       icon={<Moon className="h-4 w-4" />}
@@ -228,9 +278,91 @@ function SleepCard({ score }: { score: number | null }) {
       accent="#6E5BFF"
       score={score}
       weight={0.20}
-      hint="7–8 Std. sind der Sweet Spot für Muskelregeneration und Hormonbalance."
+      hint={hasStages
+        ? "Dauer (60%) + Tiefschlaf-/REM-Anteil (40%). Ziel: ~15–20% Tiefschlaf, ~20–25% REM."
+        : "7–8 Std. sind der Sweet Spot für Muskelregeneration und Hormonbalance."}
     >
       {score == null && <p>Keine Schlafdaten für heute.</p>}
+      {sleep.durationHours != null && (
+        <Row k="Dauer" v={formatHours(sleep.durationHours)} />
+      )}
+      {deepPct != null && (
+        <Row k="Tiefschlaf" v={`${deepPct}% · ${sleep.deepMinutes} min`} vColor={deepPct >= 13 ? "#30D158" : "#FFB340"} />
+      )}
+      {remPct != null && (
+        <Row k="REM" v={`${remPct}% · ${sleep.remMinutes} min`} vColor={remPct >= 18 ? "#30D158" : "#FFB340"} />
+      )}
+    </Card>
+  );
+}
+
+function formatHours(hours: number): string {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+// ── Respiratory rate ──────────────────────────────────────────────────────────
+
+function RespiratoryCard({ vitals }: { vitals: RecoveryBreakdown["vitals"] }) {
+  const { respiratoryRate, respiratoryBaseline, respiratoryDays } = vitals;
+  const elevated = respiratoryRate != null && respiratoryBaseline != null && respiratoryRate / respiratoryBaseline >= 1.05;
+  return (
+    <Card
+      icon={<Wind className="h-4 w-4" />}
+      title="Atemfrequenz"
+      accent="#64D2FF"
+      score={null}
+      weight={0}
+      hint="Nachts gemessen. Anstieg über deiner Baseline ist eines der frühesten Krankheits-/Übertraining-Signale."
+    >
+      {respiratoryRate == null ? (
+        <p>Keine Atemfrequenz für heute. In Apple Health „Atemfrequenz&ldquo; aktivieren.</p>
+      ) : (
+        <>
+          <Row k="Heute" v={`${respiratoryRate.toFixed(1)} /min`} vColor={elevated ? "#FF453A" : "white"} />
+          {respiratoryBaseline != null ? (
+            <Row k={`Baseline · Ø ${respiratoryDays}d`} v={`${respiratoryBaseline.toFixed(1)} /min`} />
+          ) : (
+            <p>Baseline ab 5 Tagen Daten.</p>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
+// ── Wrist temperature ─────────────────────────────────────────────────────────
+
+function TemperatureCard({ vitals }: { vitals: RecoveryBreakdown["vitals"] }) {
+  const { wristTemperature, wristTempBaseline, wristTempDays, tempDelta } = vitals;
+  const elevated = tempDelta != null && tempDelta >= 0.5;
+  return (
+    <Card
+      icon={<Thermometer className="h-4 w-4" />}
+      title="Handgelenk-Temperatur"
+      accent="#FF9F0A"
+      score={null}
+      weight={0}
+      hint="Nächtliche Abweichung von deiner Baseline. Erhöht = Infekt, Stress oder Übertraining (Apple Watch Series 8+)."
+    >
+      {wristTemperature == null ? (
+        <p>Keine Temperaturdaten. Nur Apple Watch Series 8+ misst das.</p>
+      ) : wristTempBaseline != null ? (
+        <>
+          <Row k="Heute" v={`${wristTemperature.toFixed(1)} °C`} />
+          <Row k={`Baseline · Ø ${wristTempDays}d`} v={`${wristTempBaseline.toFixed(1)} °C`} />
+          {tempDelta != null && (
+            <Row
+              k="Abweichung"
+              v={`${tempDelta >= 0 ? "+" : ""}${tempDelta.toFixed(1)} °C`}
+              vColor={elevated ? "#FF453A" : "#30D158"}
+            />
+          )}
+        </>
+      ) : (
+        <p>Baseline ab 5 Tagen Daten.</p>
+      )}
     </Card>
   );
 }

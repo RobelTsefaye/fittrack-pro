@@ -18,6 +18,9 @@ const snapshotSchema = z.object({
   heartRateAvg: z.number().int().min(20).max(300).optional().nullable(),
   hrv: z.number().min(0).max(500).optional().nullable(),
 
+  respiratoryRate: z.number().min(3).max(60).optional().nullable(),
+  wristTemperature: z.number().min(10).max(45).optional().nullable(),
+
   steps: z.number().int().min(0).optional().nullable(),
   activeCalories: z.number().min(0).optional().nullable(),
   exerciseMinutes: z.number().int().min(0).optional().nullable(),
@@ -96,6 +99,12 @@ const HAE_METRIC_MAP: Record<string, keyof typeof snapshotSchema.shape> = {
   heart_rate_variability: "hrv",
   heart_rate_variability_sdnn: "hrv",
   hrv: "hrv",
+
+  respiratory_rate: "respiratoryRate",
+  respiratory: "respiratoryRate",
+
+  apple_sleeping_wrist_temperature: "wristTemperature",
+  wrist_temperature: "wristTemperature",
 
   active_energy: "activeCalories",
   active_energy_burned: "activeCalories",
@@ -221,6 +230,23 @@ function entryValue(e: HAEEntry): number | null {
 const KCAL_FIELDS = new Set<string>([
   "calories", "activeCalories", "dietaryCalories",
 ]);
+
+// Fields that store °C in our schema. HAE reports temperature in the device's
+// locale unit, so a US device sends °F — convert to °C for a consistent baseline.
+const TEMP_FIELDS = new Set<string>(["wristTemperature"]);
+
+/**
+ * Normalize a temperature value to °C. HAE units string looks like "degC",
+ * "degF", "°C", "°F". Fahrenheit-shaped → convert, everything else → identity.
+ */
+function normalizeTempValue(value: number, units: string | undefined): number {
+  if (!units) return value;
+  const u = units.toLowerCase();
+  if (u === "degf" || u === "°f" || u === "f" || u.includes("fahrenheit")) {
+    return ((value - 32) * 5) / 9;
+  }
+  return value;
+}
 
 /**
  * Extract a numeric value from HAE's varying field shapes:
@@ -351,14 +377,24 @@ function transformHAE(payload: HAEPayload): Array<Record<string, unknown>> {
           if (hours > existing) {
             if (entry.sleepStart) bucket.meta.sleepBedtime = entry.sleepStart.slice(11, 16);
             if (entry.sleepEnd) bucket.meta.sleepWakeTime = entry.sleepEnd.slice(11, 16);
+            // Persist the stage breakdown of the longest session (HAE reports
+            // deep/core/rem in hours). Deep + REM proportions drive the sleep
+            // score's quality component. Cleared when a stage is absent so a
+            // longer stage-less session doesn't keep a shorter one's stages.
+            bucket.meta.sleepDeepMinutes =
+              typeof entry.deep === "number" && entry.deep > 0 ? Math.round(entry.deep * 60) : undefined;
+            bucket.meta.sleepRemMinutes =
+              typeof entry.rem === "number" && entry.rem > 0 ? Math.round(entry.rem * 60) : undefined;
           }
         }
       } else if (field) {
         const raw = entryValue(entry);
         if (raw != null) {
-          // Convert kJ → kcal when HAE reports energy in kJ (common in EU/metric locales)
+          // Convert kJ → kcal / °F → °C when HAE reports in a non-canonical unit
           const v = KCAL_FIELDS.has(field)
             ? normalizeEnergyValue(raw, metric.units)
+            : TEMP_FIELDS.has(field)
+            ? normalizeTempValue(raw, metric.units)
             : raw;
           if (MAX_FIELDS.has(field)) {
             // Track the day's peak instead of accumulating
