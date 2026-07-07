@@ -17,6 +17,13 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     /// this is set, instead of a separate summary/mirror screen.
     @Published var activeWorkout: WatchActiveWorkout?
 
+    /// Set right before `cancelWorkout` fires, so ContentView's
+    /// `activeWorkout` observer knows the next "workout went away" should
+    /// discard the Watch's own HR session (`WorkoutManager.cancel()`)
+    /// instead of saving it (`.stop()`) — both a finish and a cancel look
+    /// identical from that observer's point of view otherwise.
+    var pendingCancellation = false
+
     /// Strength-training plan catalog pushed from the phone, backing the
     /// standalone Kraft session picker. Empty until the phone app has synced
     /// at least once (see watch-workout-sync.ts on the phone side).
@@ -148,6 +155,20 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
             case .success(let reply):
                 completion(.success(reply["newPersonalRecords"] as? Int ?? 0))
             case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+
+    /// Discards the workout on the phone (deletes it — no partial save).
+    func cancelWorkout(workoutId: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        pendingCancellation = true
+        sendRequest(type: "cancelWorkout", fields: ["workoutId": workoutId]) { result in
+            switch result {
+            case .success:
+                completion(.success(()))
+            case .failure(let error):
+                self.pendingCancellation = false
                 completion(.failure(error))
             }
         }

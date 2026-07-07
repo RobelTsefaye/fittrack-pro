@@ -13,6 +13,7 @@ import Combine
 @MainActor
 final class WorkoutManager: NSObject, ObservableObject {
     @Published var isRunning = false
+    @Published var isPaused = false
     @Published var elapsedSeconds: Int = 0
     @Published var heartRate: Double = 0
     @Published var activeCalories: Double = 0
@@ -24,6 +25,13 @@ final class WorkoutManager: NSObject, ObservableObject {
     private var builder: HKLiveWorkoutBuilder?
     private var timer: Timer?
     private var startDate: Date?
+    private var pauseStartDate: Date?
+    private var totalPausedDuration: TimeInterval = 0
+    /// Set by `cancel()` so the `.ended` delegate callback discards the
+    /// workout instead of saving it — `session.end()` drives both "finish"
+    /// and "cancel" through the same state transition, so this flag is the
+    /// only way to tell them apart once the delegate fires.
+    private var isCancelling = false
 
     private var readTypes: Set<HKObjectType> {
         [
@@ -90,16 +98,32 @@ final class WorkoutManager: NSObject, ObservableObject {
         }
     }
 
+    /// Ends the workout and saves it to HealthKit.
     func stop() {
         session?.end()
         stopTimer()
     }
 
+    /// Ends the workout and discards it — nothing gets saved to HealthKit.
+    func cancel() {
+        isCancelling = true
+        session?.end()
+        stopTimer()
+    }
+
+    func pause() {
+        session?.pause()
+    }
+
+    func resume() {
+        session?.resume()
+    }
+
     private func startTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let start = self?.startDate else { return }
-                self?.elapsedSeconds = Int(Date().timeIntervalSince(start))
+                guard let self, let start = self.startDate else { return }
+                self.elapsedSeconds = Int(Date().timeIntervalSince(start) - self.totalPausedDuration)
             }
         }
     }
@@ -111,10 +135,14 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     private func resetState() {
         isRunning = false
+        isPaused = false
         elapsedSeconds = 0
         heartRate = 0
         activeCalories = 0
         startDate = nil
+        pauseStartDate = nil
+        totalPausedDuration = 0
+        isCancelling = false
         session = nil
         builder = nil
     }
@@ -122,15 +150,38 @@ final class WorkoutManager: NSObject, ObservableObject {
 
 extension WorkoutManager: HKWorkoutSessionDelegate {
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {
-        guard toState == .ended else { return }
         Task { @MainActor in
-            self.builder?.endCollection(withEnd: Date()) { [weak self] _, _ in
-                self?.builder?.finishWorkout { _, error in
-                    Task { @MainActor in
-                        if let error = error { self?.errorMessage = error.localizedDescription }
-                        self?.resetState()
+            switch toState {
+            case .paused:
+                self.isPaused = true
+                self.pauseStartDate = date
+                self.stopTimer()
+
+            case .running:
+                guard fromState == .paused, let pauseStart = self.pauseStartDate else { return }
+                self.totalPausedDuration += date.timeIntervalSince(pauseStart)
+                self.pauseStartDate = nil
+                self.isPaused = false
+                self.startTimer()
+
+            case .ended:
+                self.builder?.endCollection(withEnd: Date()) { [weak self] _, _ in
+                    guard let self else { return }
+                    if self.isCancelling {
+                        self.builder?.discardWorkout()
+                        Task { @MainActor in self.resetState() }
+                    } else {
+                        self.builder?.finishWorkout { _, error in
+                            Task { @MainActor in
+                                if let error = error { self.errorMessage = error.localizedDescription }
+                                self.resetState()
+                            }
+                        }
                     }
                 }
+
+            default:
+                break
             }
         }
     }

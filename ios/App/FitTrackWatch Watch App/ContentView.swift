@@ -38,6 +38,10 @@ struct ContentView: View {
     @StateObject private var workoutManager = WorkoutManager()
     @StateObject private var phoneObserver = PhoneWorkoutObserver()
 
+    /// Which page of the phone-workout TabView is showing. Defaults to the
+    /// logging page (1) — swipe right for controls (0), left for live HR (2).
+    @State private var selectedPage = 1
+
     var body: some View {
         Group {
             if !workoutManager.authorizationGranted {
@@ -45,14 +49,21 @@ struct ContentView: View {
             } else if let activeWorkout = phoneObserver.activeWorkout {
                 // A phone-started workout takes priority: page 1 is the same
                 // logging UI as the Watch-initiated flow (auto-synced sets),
-                // page 2 is the live HR/calorie screen — swipe between them.
-                TabView {
+                // page 0 (swipe right) is pause/finish/cancel controls, page 2
+                // (swipe left) is the live HR/calorie screen.
+                TabView(selection: $selectedPage) {
+                    NavigationStack {
+                        WorkoutControlsView(phoneObserver: phoneObserver, workoutManager: workoutManager, workout: activeWorkout)
+                    }
+                    .tag(0)
                     NavigationStack {
                         KraftLoggingView(phoneObserver: phoneObserver, workout: activeWorkout)
                     }
+                    .tag(1)
                     NavigationStack {
                         LiveWorkoutView(workoutManager: workoutManager, phoneObserver: phoneObserver)
                     }
+                    .tag(2)
                 }
                 .tabViewStyle(.page)
             } else if workoutManager.isRunning {
@@ -67,15 +78,26 @@ struct ContentView: View {
             workoutManager.requestAuthorization()
         }
         .onChange(of: phoneObserver.activeWorkout?.workoutId) { oldId, newId in
-            if newId != nil, !workoutManager.isRunning {
-                // Phone workout just started (or the Watch app just launched
-                // into one already running) — HR/calories track continuously
-                // for the whole session, no manual button needed.
-                workoutManager.start(activityType: .traditionalStrengthTraining)
+            if newId != nil {
+                selectedPage = 1
+                if !workoutManager.isRunning {
+                    // Phone workout just started (or the Watch app just
+                    // launched into one already running) — HR/calories track
+                    // continuously for the whole session, no manual button.
+                    workoutManager.start(activityType: .traditionalStrengthTraining)
+                }
             } else if newId == nil, oldId != nil, workoutManager.isRunning {
-                // Phone workout finished/cancelled — stop and save the
-                // Watch's own session too, so it doesn't keep running unseen.
-                workoutManager.stop()
+                if phoneObserver.pendingCancellation {
+                    // Cancelled via WorkoutControlsView — discard the Watch's
+                    // own HR session too instead of saving a workout the
+                    // user explicitly threw away.
+                    phoneObserver.pendingCancellation = false
+                    workoutManager.cancel()
+                } else {
+                    // Finished normally — save the Watch's own session too,
+                    // so it doesn't keep running unseen.
+                    workoutManager.stop()
+                }
             }
         }
     }
@@ -141,6 +163,119 @@ private struct StartView: View {
                             Label(option.label, systemImage: option.icon)
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Reached by swiping right from KraftLoggingView (page 0 of the phone-
+ * workout TabView). Lets the user pause/resume the Watch's own HR/calorie
+ * tracking, finish the workout (saved on the phone, HR session saved on the
+ * Watch), or cancel it entirely (deleted on the phone, HR session discarded
+ * — see ContentView's onChange for how the two are told apart).
+ */
+private struct WorkoutControlsView: View {
+    @ObservedObject var phoneObserver: PhoneWorkoutObserver
+    @ObservedObject var workoutManager: WorkoutManager
+    let workout: WatchActiveWorkout
+
+    @State private var isFinishing = false
+    @State private var isCancelling = false
+    @State private var errorMessage: String?
+    @State private var showCancelConfirm = false
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                Text(workout.name ?? "Training")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+
+                if workoutManager.isRunning {
+                    Button {
+                        workoutManager.isPaused ? workoutManager.resume() : workoutManager.pause()
+                    } label: {
+                        Label(
+                            workoutManager.isPaused ? "Fortsetzen" : "Pausieren",
+                            systemImage: workoutManager.isPaused ? "play.fill" : "pause.fill"
+                        )
+                    }
+                    .tint(.orange)
+                }
+
+                Button {
+                    finish()
+                } label: {
+                    if isFinishing {
+                        ProgressView()
+                    } else {
+                        Label("Workout beenden", systemImage: "flag.checkered")
+                    }
+                }
+                .tint(.green)
+                .disabled(isFinishing || isCancelling)
+
+                Button(role: .destructive) {
+                    showCancelConfirm = true
+                } label: {
+                    if isCancelling {
+                        ProgressView()
+                    } else {
+                        Label("Workout abbrechen", systemImage: "xmark.circle")
+                    }
+                }
+                .disabled(isFinishing || isCancelling)
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding()
+        }
+        .navigationTitle("Steuerung")
+        .confirmationDialog(
+            "Workout wirklich abbrechen?",
+            isPresented: $showCancelConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Ja, verwerfen", role: .destructive) { cancel() }
+            Button("Zurück", role: .cancel) {}
+        } message: {
+            Text("Das Workout wird nicht gespeichert.")
+        }
+    }
+
+    private func finish() {
+        isFinishing = true
+        errorMessage = nil
+        phoneObserver.finishWorkout(workoutId: workout.workoutId) { result in
+            DispatchQueue.main.async {
+                isFinishing = false
+                // On success, the phone clears the shared state via
+                // updateApplicationContext, which — through ContentView's
+                // onChange — takes us back to StartView and saves the
+                // Watch's own HR session. Nothing else to do here.
+                if case .failure(let error) = result {
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func cancel() {
+        isCancelling = true
+        errorMessage = nil
+        phoneObserver.cancelWorkout(workoutId: workout.workoutId) { result in
+            DispatchQueue.main.async {
+                isCancelling = false
+                if case .failure(let error) = result {
+                    errorMessage = error.localizedDescription
                 }
             }
         }
@@ -250,8 +385,9 @@ private struct MetricView: View {
     manager.activeCalories = 96
     manager.elapsedSeconds = 412
     return TabView {
-        NavigationStack { KraftLoggingView(phoneObserver: observer, workout: observer.activeWorkout!) }
-        NavigationStack { LiveWorkoutView(workoutManager: manager, phoneObserver: observer) }
+        NavigationStack { WorkoutControlsView(phoneObserver: observer, workoutManager: manager, workout: observer.activeWorkout!) }.tag(0)
+        NavigationStack { KraftLoggingView(phoneObserver: observer, workout: observer.activeWorkout!) }.tag(1)
+        NavigationStack { LiveWorkoutView(workoutManager: manager, phoneObserver: observer) }.tag(2)
     }
     .tabViewStyle(.page)
 }
