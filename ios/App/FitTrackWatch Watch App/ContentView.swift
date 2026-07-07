@@ -57,7 +57,7 @@ struct ContentView: View {
                     }
                     .tag(0)
                     NavigationStack {
-                        KraftLoggingView(phoneObserver: phoneObserver, workout: activeWorkout)
+                        KraftLoggingView(phoneObserver: phoneObserver, initialWorkout: activeWorkout)
                     }
                     .tag(1)
                     NavigationStack {
@@ -86,17 +86,23 @@ struct ContentView: View {
                     // continuously for the whole session, no manual button.
                     workoutManager.start(activityType: .traditionalStrengthTraining)
                 }
-            } else if newId == nil, oldId != nil, workoutManager.isRunning {
-                if phoneObserver.pendingCancellation {
-                    // Cancelled via WorkoutControlsView — discard the Watch's
-                    // own HR session too instead of saving a workout the
-                    // user explicitly threw away.
-                    phoneObserver.pendingCancellation = false
-                    workoutManager.cancel()
-                } else {
-                    // Finished normally — save the Watch's own session too,
-                    // so it doesn't keep running unseen.
-                    workoutManager.stop()
+            } else if newId == nil, oldId != nil {
+                // Always consume the flag, even when no HR session is running,
+                // so a stale `true` can't misclassify the *next* workout's
+                // finish as a cancel.
+                let wasCancelled = phoneObserver.pendingCancellation
+                phoneObserver.pendingCancellation = false
+                if workoutManager.isRunning {
+                    if wasCancelled {
+                        // Cancelled via WorkoutControlsView — discard the
+                        // Watch's own HR session instead of saving a workout
+                        // the user explicitly threw away.
+                        workoutManager.cancel()
+                    } else {
+                        // Finished normally — save the Watch's own session
+                        // too, so it doesn't keep running unseen.
+                        workoutManager.stop()
+                    }
                 }
             }
         }
@@ -386,7 +392,7 @@ private struct MetricView: View {
     manager.elapsedSeconds = 412
     return TabView {
         NavigationStack { WorkoutControlsView(phoneObserver: observer, workoutManager: manager, workout: observer.activeWorkout!) }.tag(0)
-        NavigationStack { KraftLoggingView(phoneObserver: observer, workout: observer.activeWorkout!) }.tag(1)
+        NavigationStack { KraftLoggingView(phoneObserver: observer, initialWorkout: observer.activeWorkout!) }.tag(1)
         NavigationStack { LiveWorkoutView(workoutManager: manager, phoneObserver: observer) }.tag(2)
     }
     .tabViewStyle(.page)

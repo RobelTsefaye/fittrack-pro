@@ -14,11 +14,19 @@ import SwiftUI
 
 struct KraftLoggingView: View {
     @ObservedObject var phoneObserver: PhoneWorkoutObserver
-    @State var workout: WatchActiveWorkout
+    /// Fallback for the single frame between finishing and ContentView
+    /// tearing this view down (when `activeWorkout` briefly goes nil).
+    /// Otherwise everything reads from `phoneObserver.activeWorkout` — the
+    /// single source of truth — so phone-side edits and Watch-side logs both
+    /// stay reflected here (see PhoneWorkoutObserver.applyLoggedSet).
+    let initialWorkout: WatchActiveWorkout
 
     @State private var isFinishing = false
     @State private var finishError: String?
-    @State private var didFinish = false
+
+    private var workout: WatchActiveWorkout {
+        phoneObserver.activeWorkout ?? initialWorkout
+    }
 
     var body: some View {
         List {
@@ -32,7 +40,7 @@ struct KraftLoggingView: View {
                                 set: set,
                                 exerciseName: exercise.exercise.name
                             ) { updated, _ in
-                                apply(updated, to: exercise.id)
+                                phoneObserver.applyLoggedSet(exerciseId: exercise.id, updatedSet: updated)
                             }
                         } label: {
                             setRow(set)
@@ -62,9 +70,6 @@ struct KraftLoggingView: View {
             }
         }
         .navigationTitle(workout.name ?? "Training")
-        .alert("Workout beendet", isPresented: $didFinish) {
-            Button("OK") {}
-        }
     }
 
     @ViewBuilder
@@ -90,24 +95,16 @@ struct KraftLoggingView: View {
         return w.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", w) : String(format: "%.1f", w)
     }
 
-    private func apply(_ updated: WatchSet, to exerciseId: String) {
-        guard let exerciseIndex = workout.workoutExercises.firstIndex(where: { $0.id == exerciseId }),
-              let setIndex = workout.workoutExercises[exerciseIndex].sets.firstIndex(where: { $0.id == updated.id }) else {
-            return
-        }
-        workout.workoutExercises[exerciseIndex].sets[setIndex] = updated
-    }
-
     private func finish() {
         isFinishing = true
         finishError = nil
         phoneObserver.finishWorkout(workoutId: workout.workoutId) { result in
             DispatchQueue.main.async {
-                isFinishing = false
-                switch result {
-                case .success:
-                    didFinish = true
-                case .failure(let error):
+                // On success the phone clears the shared context, which routes
+                // ContentView back to StartView (this view is torn down) — so
+                // only the failure branch needs handling here.
+                if case .failure(let error) = result {
+                    isFinishing = false
                     finishError = error.localizedDescription
                 }
             }
@@ -138,7 +135,9 @@ struct KraftLoggingView: View {
             ),
         ]
     )
+    let observer = PhoneWorkoutObserver()
+    observer.activeWorkout = mockWorkout
     return NavigationStack {
-        KraftLoggingView(phoneObserver: PhoneWorkoutObserver(), workout: mockWorkout)
+        KraftLoggingView(phoneObserver: observer, initialWorkout: mockWorkout)
     }
 }

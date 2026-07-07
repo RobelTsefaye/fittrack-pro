@@ -148,6 +148,22 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
         }
     }
 
+    /// Applies a just-logged set to `activeWorkout` — the single source of
+    /// truth every workout view reads from. Keeps the Watch's own optimistic
+    /// update and any later authoritative re-push from the phone flowing
+    /// through the same property, so the logging list, controls page and
+    /// live screen never diverge. Safe to call off the main actor.
+    func applyLoggedSet(exerciseId: String, updatedSet: WatchSet) {
+        DispatchQueue.main.async {
+            guard var workout = self.activeWorkout,
+                  let ei = workout.workoutExercises.firstIndex(where: { $0.id == exerciseId }),
+                  let si = workout.workoutExercises[ei].sets.firstIndex(where: { $0.id == updatedSet.id })
+            else { return }
+            workout.workoutExercises[ei].sets[si] = updatedSet
+            self.activeWorkout = workout
+        }
+    }
+
     /// Marks the workout complete on the phone. Only signals that the
     /// request was accepted — same reasoning as `startSession` above, this
     /// no longer waits on the complete-request to finish before replying, so

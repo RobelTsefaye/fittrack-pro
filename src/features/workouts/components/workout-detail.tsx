@@ -988,6 +988,10 @@ export function WorkoutDetail({
 
     setCancelling(true);
     restTimer.stop();
+    // Clear the paired Watch's mirrored workout too — otherwise cancelling
+    // here strands the Watch in a KraftLoggingView for a workout that no
+    // longer exists (the complete path already does this; cancel didn't).
+    void clearWatchWorkoutState();
 
     // Offline / local-writes path: just wipe IndexedDB and queue, then navigate
     if (useLocalWrites || offlineOriginSession) {

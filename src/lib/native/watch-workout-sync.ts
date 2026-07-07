@@ -92,8 +92,13 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
       // clears phoneObserver.activeWorkout, independent of whether this
       // reply arrives at all.
       void (async () => {
-        const res = await fetch(`/api/workouts/${workoutId}/complete`, { method: "POST" });
-        if (res.ok) await clearWatchWorkoutState();
+        try {
+          const res = await fetch(`/api/workouts/${workoutId}/complete`, { method: "POST" });
+          if (res.ok) await clearWatchWorkoutState();
+        } catch {
+          // Network hiccup — the Watch already left the workout on its side;
+          // the phone stays authoritative and will reconcile on next open.
+        }
       })();
       return { started: true };
     }
@@ -101,8 +106,12 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
     case "cancelWorkout": {
       const workoutId = message.workoutId as string;
       void (async () => {
-        const res = await fetch(`/api/workouts/${workoutId}`, { method: "DELETE" });
-        if (res.ok) await clearWatchWorkoutState();
+        try {
+          const res = await fetch(`/api/workouts/${workoutId}`, { method: "DELETE" });
+          if (res.ok) await clearWatchWorkoutState();
+        } catch {
+          // As above — non-fatal, don't leave an unhandled rejection.
+        }
       })();
       return { started: true };
     }
