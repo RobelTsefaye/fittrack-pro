@@ -113,57 +113,89 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             defer { group.leave() }
             guard let samples = samples as? [HKCategorySample] else { return }
             resultsQueue.sync {
-            // HealthKit returns sleep samples from EVERY source that ever wrote
-            // one for that night — Apple Watch, the iPhone's own sleep
-            // detection, third-party apps (AutoSleep etc.). Naively summing
-            // every sample's duration double- or triple-counts overlapping
-            // nights when more than one source tracked the same sleep. Apple's
-            // own Health app avoids this by picking one "best" source per
-            // night rather than merging all of them — we do the same: group
-            // samples by (day, source), then for each day keep only the
-            // source with actual stage detail (deep/REM present), falling
-            // back to whichever source logged the most total sleep if none
-            // have stage detail.
-            struct DaySource: Hashable { let day: String; let source: String }
-            var byDaySource: [DaySource: (deep: Double, rem: Double, asleep: Double)] = [:]
-
-            for s in samples {
-                // Attribute sleep to the day it ENDS on (matches HAE's dateKey = sleepEnd behavior).
-                let key = DaySource(day: dateKey(s.endDate), source: s.sourceRevision.source.bundleIdentifier)
-                let hours = s.endDate.timeIntervalSince(s.startDate) / 3600.0
-                var entry = byDaySource[key] ?? (0, 0, 0)
-                switch s.value {
-                case HKCategoryValueSleepAnalysis.asleepDeep.rawValue:
-                    entry.deep += hours
-                case HKCategoryValueSleepAnalysis.asleepREM.rawValue:
-                    entry.rem += hours
-                case HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue,
-                     HKCategoryValueSleepAnalysis.asleepCore.rawValue,
-                     HKCategoryValueSleepAnalysis.asleep.rawValue:
-                    entry.asleep += hours
-                default:
-                    break
-                }
-                byDaySource[key] = entry
+            // HealthKit returns many small stage samples per night (one every
+            // few minutes), not one aggregated entry like HAE sends. Two bugs
+            // to avoid here:
+            //
+            // 1. Bucketing each sample independently by ITS OWN end time splits
+            //    one continuous overnight sleep session across midnight — the
+            //    23:11–23:59 portion lands on one calendar day, the 00:00–07:13
+            //    portion on the next, and neither day sees the full night.
+            //    Fix: cluster samples into SESSIONS first (samples close
+            //    together in time belong to the same session, even across
+            //    midnight), then attribute the ENTIRE session to the day of
+            //    its final wake-up — matching how HAE treats a night as one
+            //    entry with a single sleepEnd.
+            //
+            // 2. Multiple sources (Watch + iPhone + third-party apps) can each
+            //    log their own overlapping session for the same night — naively
+            //    merging all of them double-counts. Fix: pick one "best"
+            //    session per night (prefer stage detail, else longest),
+            //    the same way Apple's own Health app picks one source
+            //    per night rather than merging.
+            struct StageSample { let start: Date; let end: Date; let value: Int; let source: String }
+            let stageSamples = samples.map {
+                StageSample(start: $0.startDate, end: $0.endDate, value: $0.value, source: $0.sourceRevision.source.bundleIdentifier)
             }
 
-            // Pick the winning source per day: prefer stage detail (deep+rem > 0),
-            // tie-break by total sleep duration.
-            var bestBySource: [String: (source: String, deep: Double, rem: Double, total: Double, hasStages: Bool)] = [:]
-            for (key, entry) in byDaySource {
-                let total = entry.deep + entry.rem + entry.asleep
+            // Cluster per-source: consecutive samples belong to the same
+            // session if the gap between one sample's end and the next's
+            // start is ≤ 90 min (tolerates brief awakenings mid-night without
+            // merging genuinely separate naps hours apart).
+            let maxGapSeconds: TimeInterval = 90 * 60
+            var sessions: [[StageSample]] = []
+            for source in Set(stageSamples.map(\.source)) {
+                let sorted = stageSamples.filter { $0.source == source }.sorted { $0.start < $1.start }
+                var current: [StageSample] = []
+                for sample in sorted {
+                    if let last = current.last, sample.start.timeIntervalSince(last.end) > maxGapSeconds {
+                        sessions.append(current)
+                        current = []
+                    }
+                    current.append(sample)
+                }
+                if !current.isEmpty { sessions.append(current) }
+            }
+
+            struct SessionTotals { let day: String; let source: String; let deep: Double; let rem: Double; let asleep: Double; let end: Date }
+            let sessionTotals: [SessionTotals] = sessions.compactMap { session in
+                guard let source = session.first?.source, let sessionEnd = session.map(\.end).max() else { return nil }
+                var deep = 0.0, rem = 0.0, asleep = 0.0
+                for s in session {
+                    let hours = s.end.timeIntervalSince(s.start) / 3600.0
+                    switch s.value {
+                    case HKCategoryValueSleepAnalysis.asleepDeep.rawValue: deep += hours
+                    case HKCategoryValueSleepAnalysis.asleepREM.rawValue: rem += hours
+                    case HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue,
+                         HKCategoryValueSleepAnalysis.asleepCore.rawValue,
+                         HKCategoryValueSleepAnalysis.asleep.rawValue: asleep += hours
+                    default: break
+                    }
+                }
+                // The whole session belongs to the day it ENDS on (wake-up day),
+                // not the day any individual sample within it ends on.
+                return SessionTotals(day: dateKey(sessionEnd), source: source, deep: deep, rem: rem, asleep: asleep, end: sessionEnd)
+            }
+
+            // Pick the winning session per day: prefer stage detail (deep+rem > 0),
+            // tie-break by total sleep duration. This also naturally picks the
+            // main overnight session over a same-day nap in the rare case both
+            // end up attributed to the same wake-up day.
+            var bestByDay: [String: (deep: Double, rem: Double, total: Double, hasStages: Bool)] = [:]
+            for session in sessionTotals {
+                let total = session.deep + session.rem + session.asleep
                 guard total > 0 else { continue }
-                let hasStages = entry.deep > 0 || entry.rem > 0
-                let candidate = (source: key.source, deep: entry.deep, rem: entry.rem, total: total, hasStages: hasStages)
-                if let current = bestBySource[key.day] {
+                let hasStages = session.deep > 0 || session.rem > 0
+                let candidate = (deep: session.deep, rem: session.rem, total: total, hasStages: hasStages)
+                if let current = bestByDay[session.day] {
                     let candidateWins = (hasStages && !current.hasStages) || (hasStages == current.hasStages && total > current.total)
-                    if candidateWins { bestBySource[key.day] = candidate }
+                    if candidateWins { bestByDay[session.day] = candidate }
                 } else {
-                    bestBySource[key.day] = candidate
+                    bestByDay[session.day] = candidate
                 }
             }
 
-            for (dayKey, best) in bestBySource {
+            for (dayKey, best) in bestByDay {
                 ensureRecord(dayKey)
                 results[dayKey]?["sleepDuration"] = best.total
                 results[dayKey]?["sleepDeepMinutes"] = Int(best.deep * 60)
