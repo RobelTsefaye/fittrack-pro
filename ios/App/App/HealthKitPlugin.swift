@@ -249,11 +249,50 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             store.execute(q)
         }
 
+        // Cumulative fields (steps, active/basal calories, exercise time) are
+        // each independently tracked by BOTH the iPhone's motion coprocessor
+        // AND the Apple Watch — a plain .cumulativeSum across all sources
+        // adds them together instead of picking one, roughly doubling the
+        // real value whenever the phone was carried while the watch was worn
+        // (the normal case). Fix: use .separateBySource and take ONLY the
+        // source whose name contains "Watch" — the Watch is the single
+        // source of truth here, matching what the Watch's own Fitness app
+        // displays. Days with no Watch-sourced data (e.g. Watch not worn/
+        // charging) are simply skipped rather than falling back to the
+        // phone, so the field stays absent instead of silently showing a
+        // different device's number.
+        func runWatchOnlySumQuery(id: HKQuantityTypeIdentifier, field: String, unit: HKUnit) {
+            guard let type = HKObjectType.quantityType(forIdentifier: id) else { return }
+            group.enter()
+            var interval = DateComponents()
+            interval.day = 1
+            let anchor = calendar.startOfDay(for: startDate)
+            let predicate = HKQuery.predicateForSamples(withStart: startDate, end: now, options: .strictStartDate)
+            let q = HKStatisticsCollectionQuery(quantityType: type, quantitySamplePredicate: predicate, options: [.cumulativeSum, .separateBySource], anchorDate: anchor, intervalComponents: interval)
+            q.initialResultsHandler = { _, collection, _ in
+                defer { group.leave() }
+                var pending: [(String, Double)] = []
+                collection?.enumerateStatistics(from: startDate, to: now) { stats, _ in
+                    guard let sources = stats.sources else { return }
+                    guard let watchSource = sources.first(where: { $0.name.localizedCaseInsensitiveContains("watch") }) else { return }
+                    guard let value = stats.sumQuantity(for: watchSource)?.doubleValue(for: unit) else { return }
+                    pending.append((dateKey(stats.startDate), value))
+                }
+                resultsQueue.sync {
+                    for (key, value) in pending {
+                        ensureRecord(key)
+                        results[key]?[field] = value
+                    }
+                }
+            }
+            store.execute(q)
+        }
+
         for (id, field, unit) in avgFields {
             runStatsQuery(id: id, field: field, unit: unit, option: .discreteAverage) { $0.averageQuantity()?.doubleValue(for: unit) }
         }
         for (id, field, unit) in sumFields {
-            runStatsQuery(id: id, field: field, unit: unit, option: .cumulativeSum) { $0.sumQuantity()?.doubleValue(for: unit) }
+            runWatchOnlySumQuery(id: id, field: field, unit: unit)
         }
         for (id, field, unit) in maxFields {
             runStatsQuery(id: id, field: field, unit: unit, option: .discreteMax) { $0.maximumQuantity()?.doubleValue(for: unit) }
