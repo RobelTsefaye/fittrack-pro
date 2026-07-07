@@ -148,12 +148,15 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
         }
     }
 
-    /// Marks the workout complete on the phone.
-    func finishWorkout(workoutId: String, completion: @escaping (Result<Int, Error>) -> Void) {
+    /// Marks the workout complete on the phone. Only signals that the
+    /// request was accepted — same reasoning as `startSession` above, this
+    /// no longer waits on the complete-request to finish before replying, so
+    /// there's no `newPersonalRecords` count to report anymore either.
+    func finishWorkout(workoutId: String, completion: @escaping (Result<Void, Error>) -> Void) {
         sendRequest(type: "finishWorkout", fields: ["workoutId": workoutId]) { result in
             switch result {
-            case .success(let reply):
-                completion(.success(reply["newPersonalRecords"] as? Int ?? 0))
+            case .success:
+                completion(.success(()))
             case .failure(let error):
                 completion(.failure(error))
             }

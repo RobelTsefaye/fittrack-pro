@@ -84,24 +84,27 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
 
     case "finishWorkout": {
       const workoutId = message.workoutId as string;
-      const res = await fetch(`/api/workouts/${workoutId}/complete`, { method: "POST" });
-      if (!res.ok) return { error: `Abschließen fehlgeschlagen (${res.status})` };
-      const json = (await res.json()) as { newPersonalRecords?: number };
-      // A Watch-initiated finish never runs through workout-detail.tsx's own
-      // complete flow (that page usually isn't open on the phone), so this
-      // is the only place that clears the Watch's mirrored state — without
-      // it, PhoneWorkoutObserver.activeWorkout stays stale and the Watch
-      // never leaves KraftLoggingView.
-      await clearWatchWorkoutState();
-      return { done: true, newPersonalRecords: json.newPersonalRecords ?? 0 };
+      // Ack immediately instead of waiting for the complete-request +
+      // context-clear round trip to finish: the same request/reply timing
+      // issue that made startSession unreliable (see above) applies here
+      // too, and the Watch doesn't actually need this reply for anything —
+      // it leaves KraftLoggingView the moment the application-context push
+      // clears phoneObserver.activeWorkout, independent of whether this
+      // reply arrives at all.
+      void (async () => {
+        const res = await fetch(`/api/workouts/${workoutId}/complete`, { method: "POST" });
+        if (res.ok) await clearWatchWorkoutState();
+      })();
+      return { started: true };
     }
 
     case "cancelWorkout": {
       const workoutId = message.workoutId as string;
-      const res = await fetch(`/api/workouts/${workoutId}`, { method: "DELETE" });
-      if (!res.ok) return { error: `Abbrechen fehlgeschlagen (${res.status})` };
-      await clearWatchWorkoutState();
-      return { done: true };
+      void (async () => {
+        const res = await fetch(`/api/workouts/${workoutId}`, { method: "DELETE" });
+        if (res.ok) await clearWatchWorkoutState();
+      })();
+      return { started: true };
     }
 
     default:
