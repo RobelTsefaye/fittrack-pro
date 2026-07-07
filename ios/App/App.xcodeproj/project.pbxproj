@@ -391,6 +391,11 @@
 					};
 					83B3EA392FFD3C0100CC951E = {
 						CreatedOnToolsVersion = 26.6;
+						SystemCapabilities = {
+							com.apple.HealthKit = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
