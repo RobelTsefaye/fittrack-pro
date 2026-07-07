@@ -10,12 +10,12 @@ import Combine
  * can just mirror it instead of starting a separate session.
  */
 final class PhoneWorkoutObserver: NSObject, ObservableObject {
-    @Published var isPhoneWorkoutActive = false
-    @Published var exerciseName = ""
-    @Published var currentSet = 0
-    @Published var totalSets = 0
-    @Published var weight: Double?
-    @Published var reps: Int?
+    /// The full workout currently running on the paired iPhone, kept in sync
+    /// via `updateApplicationContext` (see WatchConnectivityPlugin.swift on
+    /// the phone side). Non-nil for the whole lifetime of a phone-started
+    /// workout — ContentView routes straight into KraftLoggingView while
+    /// this is set, instead of a separate summary/mirror screen.
+    @Published var activeWorkout: WatchActiveWorkout?
 
     /// Strength-training plan catalog pushed from the phone, backing the
     /// standalone Kraft session picker. Empty until the phone app has synced
@@ -36,13 +36,23 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     private func apply(_ context: [String: Any]) {
         DispatchQueue.main.async {
             let active = context["active"] as? Bool ?? false
-            self.isPhoneWorkoutActive = active
-            if active {
-                self.exerciseName = context["exerciseName"] as? String ?? ""
-                self.currentSet = context["currentSet"] as? Int ?? 0
-                self.totalSets = context["totalSets"] as? Int ?? 0
-                self.weight = context["weight"] as? Double
-                self.reps = context["reps"] as? Int
+            if active, let workoutJSON = context["activeWorkout"] as? String {
+                if let data = workoutJSON.data(using: .utf8) {
+                    do {
+                        self.activeWorkout = try JSONDecoder().decode(WatchActiveWorkout.self, from: data)
+                    } catch {
+                        // A decode failure here otherwise looks identical to
+                        // "no workout active" — log it so a schema mismatch
+                        // is visible in the Watch console instead of silently
+                        // stranding the user on the session picker.
+                        print("PhoneWorkoutObserver: failed to decode activeWorkout: \(error)")
+                        self.activeWorkout = nil
+                    }
+                } else {
+                    self.activeWorkout = nil
+                }
+            } else {
+                self.activeWorkout = nil
             }
 
             if let catalogJSON = context["planCatalog"] as? String,
@@ -93,23 +103,16 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     }
 
     /// Starts a plan session's workout on the phone (creates real
-    /// Workout/WorkoutExercise/Set rows) and returns the fully-detailed
-    /// workout for the logging UI.
-    func startSession(_ session: WatchPlanSession, completion: @escaping (Result<WatchActiveWorkout, Error>) -> Void) {
+    /// Workout/WorkoutExercise/Set rows). Only signals that the request was
+    /// accepted — the actual workout data arrives separately via
+    /// `updateApplicationContext` (see `activeWorkout` above), since the
+    /// phone-side handler does two sequential network calls before it's
+    /// ready, which is too slow to reliably ride the sendMessage reply.
+    func startSession(_ session: WatchPlanSession, completion: @escaping (Result<Void, Error>) -> Void) {
         sendRequest(type: "startSession", fields: ["sessionId": session.id]) { result in
             switch result {
-            case .success(let reply):
-                guard let workoutData = reply["workout"] else {
-                    completion(.failure(RequestError.serverError("Keine Workout-Daten erhalten")))
-                    return
-                }
-                do {
-                    let data = try JSONSerialization.data(withJSONObject: workoutData)
-                    let workout = try JSONDecoder().decode(WatchActiveWorkout.self, from: data)
-                    completion(.success(workout))
-                } catch {
-                    completion(.failure(error))
-                }
+            case .success:
+                completion(.success(()))
             case .failure(let error):
                 completion(.failure(error))
             }

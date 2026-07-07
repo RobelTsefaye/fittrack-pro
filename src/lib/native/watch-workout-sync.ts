@@ -1,6 +1,7 @@
 "use client";
 
-import { pushPlanCatalogToWatch, onWatchRequest } from "@/lib/native/watch-connectivity";
+import { pushPlanCatalogToWatch, onWatchRequest, syncActiveWorkoutToWatch } from "@/lib/native/watch-connectivity";
+import type { WorkoutData } from "@/features/workouts/workout-types";
 
 /**
  * Backs the Watch's standalone strength-training flow (session picker +
@@ -48,8 +49,17 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
 
       const detailRes = await fetch(`/api/workouts/${data.id}`);
       if (!detailRes.ok) return { error: `Laden fehlgeschlagen (${detailRes.status})` };
-      const { data: workout } = (await detailRes.json()) as { data: unknown };
-      return { workout };
+      const { data: workout } = (await detailRes.json()) as { data: WorkoutData };
+
+      // Deliver the workout via application context, not the sendMessage
+      // reply: two sequential network round-trips (start + detail fetch)
+      // are slow enough over a real network that WatchConnectivity can
+      // silently drop a delayed reply, leaving the Watch spinning forever
+      // with no error. application context has no such timeout — the Watch
+      // picks it up via PhoneWorkoutObserver and ContentView routes into
+      // KraftLoggingView as soon as it arrives.
+      await syncActiveWorkoutToWatch(workout);
+      return { started: true };
     }
 
     case "logSet": {

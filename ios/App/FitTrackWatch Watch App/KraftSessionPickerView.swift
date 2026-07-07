@@ -5,9 +5,15 @@
 //  Lets the user pick the upcoming strength-training session (e.g. "Limbs"
 //  or "Torso" — freeform PlanSession names from the phone, not a fixed
 //  enum) straight from the Watch, then starts it on the phone via
-//  WatchConnectivity and navigates into KraftLoggingView. Reached from
-//  ContentView's "Kraft" entry instead of immediately starting an
-//  HKWorkoutSession.
+//  WatchConnectivity. Reached from ContentView's "Kraft" entry instead of
+//  immediately starting an HKWorkoutSession.
+//
+//  Doesn't navigate anywhere itself on success — once the phone finishes
+//  creating the workout, it pushes it via `updateApplicationContext`, which
+//  sets `phoneObserver.activeWorkout` and makes ContentView's top-level
+//  Group switch straight into KraftLoggingView, replacing this whole
+//  picker/NavigationStack. See PhoneWorkoutObserver.swift for why this
+//  doesn't ride the sendMessage reply instead.
 //
 
 import SwiftUI
@@ -17,7 +23,6 @@ struct KraftSessionPickerView: View {
 
     @State private var startingSessionId: String?
     @State private var errorMessage: String?
-    @State private var activeWorkout: WatchActiveWorkout?
 
     var body: some View {
         Group {
@@ -53,9 +58,6 @@ struct KraftSessionPickerView: View {
         } message: {
             Text(errorMessage ?? "")
         }
-        .navigationDestination(item: $activeWorkout) { workout in
-            KraftLoggingView(phoneObserver: phoneObserver, workout: workout)
-        }
     }
 
     private var emptyState: some View {
@@ -79,13 +81,30 @@ struct KraftSessionPickerView: View {
         phoneObserver.startSession(session) { result in
             DispatchQueue.main.async {
                 startingSessionId = nil
-                switch result {
-                case .success(let workout):
-                    activeWorkout = workout
-                case .failure(let error):
+                if case .failure(let error) = result {
                     errorMessage = error.localizedDescription
                 }
+                // On success, ContentView routes away from this view once
+                // phoneObserver.activeWorkout arrives — nothing to do here.
             }
         }
+    }
+}
+
+#Preview("Sessions geladen") {
+    let observer = PhoneWorkoutObserver()
+    observer.planSessions = [
+        WatchPlanSession(id: "s1", name: "Push", order: 0, exercises: []),
+        WatchPlanSession(id: "s2", name: "Pull", order: 1, exercises: []),
+        WatchPlanSession(id: "s3", name: "Legs", order: 2, exercises: []),
+    ]
+    return NavigationStack {
+        KraftSessionPickerView(phoneObserver: observer)
+    }
+}
+
+#Preview("Kein Plan geladen") {
+    NavigationStack {
+        KraftSessionPickerView(phoneObserver: PhoneWorkoutObserver())
     }
 }

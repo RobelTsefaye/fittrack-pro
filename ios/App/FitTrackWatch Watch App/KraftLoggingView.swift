@@ -61,7 +61,7 @@ struct KraftLoggingView: View {
                 }
             }
         }
-        .navigationTitle(workout.name)
+        .navigationTitle(workout.name ?? "Training")
         .alert("Workout beendet", isPresented: $didFinish) {
             Button("OK") {}
         }
@@ -112,5 +112,33 @@ struct KraftLoggingView: View {
                 }
             }
         }
+    }
+}
+
+#Preview {
+    let mockWorkout = WatchActiveWorkout(
+        workoutId: "preview-workout-1",
+        name: "Push",
+        workoutExercises: [
+            WatchWorkoutExercise(
+                id: "we1",
+                exercise: WatchExerciseInfo(id: "e1", name: "Bankdrücken", muscleGroup: "Brust"),
+                sets: [
+                    WatchSet(id: "set1", setNumber: 1, reps: 10, weight: 60, isCompleted: true),
+                    WatchSet(id: "set2", setNumber: 2, reps: nil, weight: nil, isCompleted: false),
+                    WatchSet(id: "set3", setNumber: 3, reps: nil, weight: nil, isCompleted: false),
+                ]
+            ),
+            WatchWorkoutExercise(
+                id: "we2",
+                exercise: WatchExerciseInfo(id: "e2", name: "Schulterdrücken", muscleGroup: "Schultern"),
+                sets: [
+                    WatchSet(id: "set4", setNumber: 1, reps: nil, weight: nil, isCompleted: false),
+                ]
+            ),
+        ]
+    )
+    return NavigationStack {
+        KraftLoggingView(phoneObserver: PhoneWorkoutObserver(), workout: mockWorkout)
     }
 }

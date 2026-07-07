@@ -1,16 +1,11 @@
 "use client";
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import type { WorkoutData } from "@/features/workouts/workout-types";
 
 interface WatchConnectivityPlugin {
   isSupported(): Promise<{ supported: boolean }>;
-  updateWorkoutState(options: {
-    exerciseName: string;
-    currentSet: number;
-    totalSets: number;
-    weight?: number;
-    reps?: number;
-  }): Promise<void>;
+  syncActiveWorkout(options: { workoutJSON: string }): Promise<void>;
   clearWorkoutState(): Promise<void>;
   pushPlanCatalog(options: { catalog: string }): Promise<void>;
   respondToRequest(options: { requestId: string; payload: Record<string, unknown> }): Promise<void>;
@@ -23,21 +18,49 @@ interface WatchConnectivityPlugin {
 const WatchConnectivity = registerPlugin<WatchConnectivityPlugin>("WatchConnectivity");
 
 /**
- * Pushes the current exercise/set to the paired Apple Watch so the Watch app
- * can mirror "what's happening on the phone" instead of only offering its
- * own standalone workout. No-ops on web/PWA and on iPhones without a paired
- * Watch (the native plugin checks WCSession.isSupported() itself).
+ * Trims a full `WorkoutData` down to the fields the Watch's
+ * `WatchActiveWorkout`/`WatchWorkoutExercise`/`WatchSet` Codable structs
+ * decode — shared between the phone-initiated sync (workout-detail.tsx) and
+ * the Watch-initiated one (watch-workout-sync.ts's `startSession` handler)
+ * so both push the exact same shape.
  */
-export async function updateWatchWorkoutState(state: {
-  exerciseName: string;
-  currentSet: number;
-  totalSets: number;
-  weight?: number;
-  reps?: number;
-}): Promise<void> {
+export function toWatchWorkoutPayload(workout: WorkoutData) {
+  return {
+    id: workout.id,
+    name: workout.name,
+    workoutExercises: workout.workoutExercises.map((we) => ({
+      id: we.id,
+      exercise: {
+        id: we.exercise.id,
+        name: we.exercise.name,
+        muscleGroup: we.exercise.muscleGroup,
+      },
+      sets: we.sets.map((s) => ({
+        id: s.id,
+        setNumber: s.setNumber,
+        reps: s.reps,
+        weight: s.weight,
+        isCompleted: s.isCompleted,
+      })),
+    })),
+  };
+}
+
+/**
+ * Pushes the full active workout (exercises + sets) to the paired Apple
+ * Watch, so the Watch app can jump straight into the same logging UI used
+ * for Watch-initiated workouts instead of a separate summary screen.
+ * No-ops on web/PWA and on iPhones without a paired Watch (the native plugin
+ * checks WCSession.isSupported() itself). Also the reliable channel for
+ * "watch started a workout" — `updateApplicationContext` doesn't have the
+ * reply-handler timeout risk that made syncing the fresh workout back
+ * through the Watch's own `startSession` sendMessage reply unreliable over
+ * real network latency; see PhoneWorkoutObserver.swift on the Watch side.
+ */
+export async function syncActiveWorkoutToWatch(workout: WorkoutData): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
-    await WatchConnectivity.updateWorkoutState(state);
+    await WatchConnectivity.syncActiveWorkout({ workoutJSON: JSON.stringify(toWatchWorkoutPayload(workout)) });
   } catch {
     // Non-fatal — Watch mirroring is a nice-to-have, never block the workout UI on it.
   }

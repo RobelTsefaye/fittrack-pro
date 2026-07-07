@@ -9,10 +9,11 @@
 //  from the Watch itself.
 //
 //  Also mirrors whatever workout is currently active on the paired iPhone
-//  (via PhoneWorkoutObserver / WatchConnectivity) — if the phone has a
-//  workout going, that takes priority over the manual type-picker so the
-//  Watch shows "what's happening right now" instead of asking the user to
-//  redundantly pick a type it could already infer.
+//  (via PhoneWorkoutObserver / WatchConnectivity): starting a workout on the
+//  phone jumps the Watch straight into the same logging UI used for
+//  Watch-initiated sessions (KraftLoggingView), auto-starts HR/calorie
+//  tracking, and pages over to the live HR screen with a swipe — no manual
+//  "start tracking" tap needed.
 //
 
 import SwiftUI
@@ -41,16 +42,41 @@ struct ContentView: View {
         Group {
             if !workoutManager.authorizationGranted {
                 AuthorizationView(workoutManager: workoutManager)
+            } else if let activeWorkout = phoneObserver.activeWorkout {
+                // A phone-started workout takes priority: page 1 is the same
+                // logging UI as the Watch-initiated flow (auto-synced sets),
+                // page 2 is the live HR/calorie screen — swipe between them.
+                TabView {
+                    NavigationStack {
+                        KraftLoggingView(phoneObserver: phoneObserver, workout: activeWorkout)
+                    }
+                    NavigationStack {
+                        LiveWorkoutView(workoutManager: workoutManager, phoneObserver: phoneObserver)
+                    }
+                }
+                .tabViewStyle(.page)
             } else if workoutManager.isRunning {
-                LiveWorkoutView(workoutManager: workoutManager, phoneObserver: phoneObserver)
-            } else if phoneObserver.isPhoneWorkoutActive {
-                PhoneMirrorView(phoneObserver: phoneObserver, workoutManager: workoutManager)
+                NavigationStack {
+                    LiveWorkoutView(workoutManager: workoutManager, phoneObserver: phoneObserver)
+                }
             } else {
                 StartView(workoutManager: workoutManager, phoneObserver: phoneObserver)
             }
         }
         .onAppear {
             workoutManager.requestAuthorization()
+        }
+        .onChange(of: phoneObserver.activeWorkout?.workoutId) { oldId, newId in
+            if newId != nil, !workoutManager.isRunning {
+                // Phone workout just started (or the Watch app just launched
+                // into one already running) — HR/calories track continuously
+                // for the whole session, no manual button needed.
+                workoutManager.start(activityType: .traditionalStrengthTraining)
+            } else if newId == nil, oldId != nil, workoutManager.isRunning {
+                // Phone workout finished/cancelled — stop and save the
+                // Watch's own session too, so it doesn't keep running unseen.
+                workoutManager.stop()
+            }
         }
     }
 }
@@ -83,7 +109,7 @@ private struct AuthorizationView: View {
 /** Shown before every workout — including after a finished one ends and
  *  `ContentView` falls back to StartView, so the user always re-picks the
  *  type rather than the last choice sticking around. Only reached when no
- *  phone workout is active (see PhoneMirrorView otherwise). */
+ *  phone workout is active (see ContentView's TabView otherwise). */
 private struct StartView: View {
     @ObservedObject var workoutManager: WorkoutManager
     @ObservedObject var phoneObserver: PhoneWorkoutObserver
@@ -121,78 +147,18 @@ private struct StartView: View {
     }
 }
 
-/**
- * Shown while a workout is running on the paired iPhone and the Watch
- * hasn't started its own HKWorkoutSession yet — mirrors the current
- * exercise/set instead of asking the user to manually pick a type the app
- * already knows. Offers a one-tap button to also start HR/calorie tracking
- * on the Watch itself (phone workouts are strength-focused, so that's the
- * activity type used).
- */
-private struct PhoneMirrorView: View {
-    @ObservedObject var phoneObserver: PhoneWorkoutObserver
-    @ObservedObject var workoutManager: WorkoutManager
-
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "iphone.gen3")
-                .font(.system(size: 20))
-                .foregroundStyle(.secondary)
-
-            Text(phoneObserver.exerciseName.isEmpty ? "Workout aktiv" : phoneObserver.exerciseName)
-                .font(.headline)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-
-            if phoneObserver.totalSets > 0 {
-                Text("Satz \(phoneObserver.currentSet) / \(phoneObserver.totalSets)")
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-            }
-
-            if let weight = phoneObserver.weight, let reps = phoneObserver.reps {
-                Text("\(formattedWeight(weight)) kg × \(reps)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Button {
-                workoutManager.start(activityType: .traditionalStrengthTraining)
-            } label: {
-                Label("HF tracken", systemImage: "heart.fill")
-            }
-            .tint(.red)
-            .padding(.top, 4)
-        }
-        .padding()
-    }
-
-    private func formattedWeight(_ w: Double) -> String {
-        w.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", w) : String(format: "%.1f", w)
-    }
-}
-
 private struct LiveWorkoutView: View {
     @ObservedObject var workoutManager: WorkoutManager
     @ObservedObject var phoneObserver: PhoneWorkoutObserver
 
     var body: some View {
         VStack(spacing: 6) {
-            // Phone exercise/set banner — shown alongside the Watch's own
-            // HR/calorie session when both are active at once (the common
-            // case: user starts HR tracking after already logging a set).
-            if phoneObserver.isPhoneWorkoutActive {
-                VStack(spacing: 1) {
-                    Text(phoneObserver.exerciseName)
-                        .font(.caption)
-                        .lineLimit(1)
-                    if phoneObserver.totalSets > 0 {
-                        Text("Satz \(phoneObserver.currentSet)/\(phoneObserver.totalSets)")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                }
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 2)
+            if let workout = phoneObserver.activeWorkout {
+                Text(workout.name ?? "Training")
+                    .font(.caption)
+                    .lineLimit(1)
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 2)
             }
 
             Text(formattedTime)
@@ -214,13 +180,19 @@ private struct LiveWorkoutView: View {
                 )
             }
 
-            Button(role: .destructive) {
-                workoutManager.stop()
-            } label: {
-                Label("Beenden", systemImage: "stop.fill")
+            if phoneObserver.activeWorkout == nil {
+                // Only offer a manual stop for Watch-only sessions — phone-
+                // mirrored workouts stop automatically when finished on the
+                // phone (see ContentView's onChange), avoiding two different
+                // "end workout" actions that could disagree with each other.
+                Button(role: .destructive) {
+                    workoutManager.stop()
+                } label: {
+                    Label("Beenden", systemImage: "stop.fill")
+                }
+                .tint(.red)
+                .padding(.top, 4)
             }
-            .tint(.red)
-            .padding(.top, 4)
         }
         .padding()
     }
@@ -252,6 +224,45 @@ private struct MetricView: View {
     }
 }
 
-#Preview {
+#Preview("Start") {
     ContentView()
+}
+
+#Preview("Phone-Workout (Paging)") {
+    let observer = PhoneWorkoutObserver()
+    observer.activeWorkout = WatchActiveWorkout(
+        workoutId: "preview-workout-1",
+        name: "Push",
+        workoutExercises: [
+            WatchWorkoutExercise(
+                id: "we1",
+                exercise: WatchExerciseInfo(id: "e1", name: "Bankdrücken", muscleGroup: "Brust"),
+                sets: [
+                    WatchSet(id: "set1", setNumber: 1, reps: 10, weight: 60, isCompleted: true),
+                    WatchSet(id: "set2", setNumber: 2, reps: nil, weight: nil, isCompleted: false),
+                ]
+            ),
+        ]
+    )
+    let manager = WorkoutManager()
+    manager.isRunning = true
+    manager.heartRate = 128
+    manager.activeCalories = 96
+    manager.elapsedSeconds = 412
+    return TabView {
+        NavigationStack { KraftLoggingView(phoneObserver: observer, workout: observer.activeWorkout!) }
+        NavigationStack { LiveWorkoutView(workoutManager: manager, phoneObserver: observer) }
+    }
+    .tabViewStyle(.page)
+}
+
+#Preview("Live Workout (Watch-only)") {
+    let manager = WorkoutManager()
+    manager.isRunning = true
+    manager.heartRate = 142
+    manager.activeCalories = 213
+    manager.elapsedSeconds = 754
+    return NavigationStack {
+        LiveWorkoutView(workoutManager: manager, phoneObserver: PhoneWorkoutObserver())
+    }
 }

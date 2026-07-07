@@ -19,7 +19,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "WatchConnectivity"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "isSupported", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "updateWorkoutState", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "syncActiveWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clearWorkoutState", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "pushPlanCatalog", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "respondToRequest", returnType: CAPPluginReturnPromise),
@@ -48,21 +48,23 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         call.resolve(["supported": WCSession.isSupported()])
     }
 
-    /// Pushes the current exercise/set progress to the Watch. Expects
-    /// exerciseName (String), currentSet (Int), totalSets (Int),
-    /// weight (Double, optional), reps (Int, optional).
-    @objc func updateWorkoutState(_ call: CAPPluginCall) {
+    /// Pushes the full active workout (exercises + sets) to the Watch, so it
+    /// can jump straight into the same logging UI used for Watch-initiated
+    /// workouts instead of a separate summary screen. Expects `workoutJSON`
+    /// (String, already JSON.stringify'd on the JS side — application
+    /// contexts must be property-list-safe values).
+    @objc func syncActiveWorkout(_ call: CAPPluginCall) {
         guard WCSession.isSupported(), WCSession.default.activationState == .activated else {
             call.resolve()
             return
         }
+        guard let workoutJSON = call.getString("workoutJSON") else {
+            call.reject("Missing workoutJSON")
+            return
+        }
         latestContext["active"] = true
-        latestContext["exerciseName"] = call.getString("exerciseName") ?? ""
-        latestContext["currentSet"] = call.getInt("currentSet") ?? 0
-        latestContext["totalSets"] = call.getInt("totalSets") ?? 0
+        latestContext["activeWorkout"] = workoutJSON
         latestContext["updatedAt"] = Date().timeIntervalSince1970
-        if let weight = call.getDouble("weight") { latestContext["weight"] = weight } else { latestContext.removeValue(forKey: "weight") }
-        if let reps = call.getInt("reps") { latestContext["reps"] = reps } else { latestContext.removeValue(forKey: "reps") }
 
         pushContext(call)
     }
@@ -75,6 +77,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         latestContext["active"] = false
+        latestContext.removeValue(forKey: "activeWorkout")
         pushContext(call)
     }
 
@@ -120,8 +123,35 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         let payload = call.getObject("payload") ?? [:]
-        reply(payload)
+        reply(sanitized(payload))
         call.resolve()
+    }
+
+    /// Strips `NSNull` values (from JSON `null` fields, e.g. an unlogged
+    /// set's `weight`/`reps`) recursively out of a message before handing it
+    /// to WatchConnectivity — `sendMessage`/`updateApplicationContext` only
+    /// accept property-list-safe types, and `NSNull` isn't one, which fails
+    /// the whole delivery with `WCErrorCodePayloadUnsupportedTypes` even
+    /// though only one nested value was the problem.
+    private func sanitized(_ dict: [String: Any]) -> [String: Any] {
+        var result: [String: Any] = [:]
+        for (key, value) in dict {
+            if let nested = value as? [String: Any] {
+                result[key] = sanitized(nested)
+            } else if let array = value as? [Any] {
+                result[key] = array.compactMap { sanitizedValue($0) }
+            } else if !(value is NSNull) {
+                result[key] = value
+            }
+        }
+        return result
+    }
+
+    private func sanitizedValue(_ value: Any) -> Any? {
+        if value is NSNull { return nil }
+        if let nested = value as? [String: Any] { return sanitized(nested) }
+        if let array = value as? [Any] { return array.compactMap { sanitizedValue($0) } }
+        return value
     }
 }
 

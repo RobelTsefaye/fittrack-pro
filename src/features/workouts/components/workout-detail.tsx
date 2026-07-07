@@ -55,7 +55,7 @@ import {
 } from "@/lib/offline/workout-offline-store";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
 import { hapticWorkoutCompleted, hapticPersonalRecord } from "@/lib/native/haptics";
-import { updateWatchWorkoutState, clearWatchWorkoutState } from "@/lib/native/watch-connectivity";
+import { syncActiveWorkoutToWatch, clearWatchWorkoutState } from "@/lib/native/watch-connectivity";
 
 function formatShortDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -931,30 +931,26 @@ export function WorkoutDetail({
   }
 
   /**
-   * Mirrors "which exercise/set is next" to the paired Apple Watch (see
-   * PhoneWorkoutObserver.swift on the Watch side). Picks the first exercise
-   * that still has an incomplete working (non-warmup) set as "current" —
-   * simplest reliable signal without threading exercise context through the
-   * whole SetRow → onComplete callback chain, which several other call
-   * sites already depend on staying argument-less.
+   * Pushes the full workout (exercises + sets) to the paired Apple Watch
+   * (see PhoneWorkoutObserver.swift on the Watch side), so its KraftLoggingView
+   * mirror stays in sync with every set logged on the phone. Also fires once
+   * on mount/workout-load below so opening the workout page — which happens
+   * right after starting a workout — is enough to get the Watch synced,
+   * without waiting for the first set to complete.
    */
   async function pushWatchWorkoutState() {
     if (!workout) return;
-    for (const we of workout.workoutExercises) {
-      const workingSets = we.sets.filter((s) => !s.isWarmup);
-      if (workingSets.length === 0) continue;
-      const completed = workingSets.filter((s) => s.isCompleted).length;
-      if (completed >= workingSets.length) continue;
-      await updateWatchWorkoutState({
-        exerciseName: we.exercise.name,
-        currentSet: completed + 1,
-        totalSets: workingSets.length,
-      });
-      return;
-    }
-    // No incomplete working sets left across any exercise.
-    await clearWatchWorkoutState();
+    await syncActiveWorkoutToWatch(workout);
   }
+
+  useEffect(() => {
+    if (!isActive) return;
+    void pushWatchWorkoutState();
+    // Only re-sync when the workout identity or exercise count changes —
+    // individual set edits are already pushed via onSetCompleted, and this
+    // effect isn't meant to fire on every keystroke of an in-progress edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workout?.id, isActive, workout?.workoutExercises?.length]);
 
   async function deleteCompletedWorkout() {
     if (!workout?.completedAt) return;

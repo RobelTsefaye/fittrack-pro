@@ -46,11 +46,14 @@ struct WatchPlanCatalog: Codable {
 /// A started workout, as returned by `POST /plan-sessions/:id/start` →
 /// `GET /workouts/:id`. Identifiable via `workoutId` so it can drive
 /// `.navigationDestination(item:)`.
-struct WatchActiveWorkout: Codable, Identifiable {
+struct WatchActiveWorkout: Codable, Identifiable, Hashable {
     var id: String { workoutId }
     let workoutId: String
-    let name: String
-    let workoutExercises: [WatchWorkoutExercise]
+    /// Nullable on the phone (untitled workouts are common right after
+    /// starting a session) — decoding must not fail just because this is
+    /// missing/null, or the Watch silently never receives the workout at all.
+    let name: String?
+    var workoutExercises: [WatchWorkoutExercise]
 
     enum CodingKeys: String, CodingKey {
         case workoutId = "id"

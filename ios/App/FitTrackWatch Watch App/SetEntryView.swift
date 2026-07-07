@@ -94,3 +94,14 @@ struct SetEntryView: View {
         }
     }
 }
+
+#Preview {
+    NavigationStack {
+        SetEntryView(
+            phoneObserver: PhoneWorkoutObserver(),
+            workoutId: "preview-workout-1",
+            set: WatchSet(id: "set2", setNumber: 2, reps: nil, weight: nil, isCompleted: false),
+            exerciseName: "Bankdrücken"
+        ) { _, _ in }
+    }
+}
