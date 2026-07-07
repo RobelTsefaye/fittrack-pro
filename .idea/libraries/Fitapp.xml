@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="Fitapp">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/Fitapp.zip!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

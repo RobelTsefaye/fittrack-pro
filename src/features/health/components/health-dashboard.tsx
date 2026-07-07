@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { Capacitor } from "@capacitor/core";
 import {
   Moon, Heart, Footprints, Flame, Wind,
   Droplets, Zap, Timer, RefreshCw,
@@ -16,6 +17,7 @@ import { RecoveryRing } from "./recovery-ring";
 import { NutritionCard } from "./nutrition-card";
 import { CardioCard } from "./cardio-card";
 import type { CardioSummary } from "../cardio";
+import { syncHealthKitData } from "@/lib/native/healthkit";
 import dynamic from "next/dynamic";
 
 const HealthMetricChart = dynamic(
@@ -114,10 +116,18 @@ export function HealthDashboard({
   }, [load, waitingForShortcut]);
 
   const handleRefresh = useCallback(() => {
-    if (isIOS()) {
-      // Trigger the user's "HAE Sync" iOS Shortcut without x-callback-url —
-      // Shortcuts runs the export and stops there. The user manually returns
-      // to the browser; visibilitychange detects that and refreshes the data.
+    if (Capacitor.isNativePlatform()) {
+      // Native iOS app: pull straight from HealthKit via the Capacitor
+      // plugin — no Shortcuts app involved at all.
+      setRefreshing(true);
+      void syncHealthKitData()
+        .catch((err) => console.error("[healthkit] manual sync failed", err))
+        .finally(() => { void load(true); });
+    } else if (isIOS()) {
+      // Web/PWA on iOS (no native shell available): fall back to the
+      // Health Auto Export Shortcut. Shortcuts runs the export and stops
+      // there — the user manually returns to the browser; visibilitychange
+      // detects that and refreshes the data.
       setWaitingForShortcut(true);
       setRefreshing(true);
       const name = encodeURIComponent(SYNC_SHORTCUT_NAME);
@@ -197,7 +207,11 @@ export function HealthDashboard({
           disabled={refreshing}
           className="flex h-9 w-9 items-center justify-center rounded-full transition-colors"
           style={{ background: "rgba(255,255,255,0.06)" }}
-          aria-label="Sync via Health Auto Export Kurzbefehl auslösen"
+          aria-label={
+            Capacitor.isNativePlatform()
+              ? "Gesundheitsdaten aus HealthKit synchronisieren"
+              : "Sync via Health Auto Export Kurzbefehl auslösen"
+          }
         >
           <RefreshCw
             className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
