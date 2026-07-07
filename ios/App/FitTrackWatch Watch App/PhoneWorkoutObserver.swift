@@ -98,18 +98,35 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     private enum RequestError: Error, LocalizedError {
         case notReachable
         case serverError(String)
+        case timedOut
 
         var errorDescription: String? {
             switch self {
             case .notReachable: return "iPhone nicht erreichbar"
             case .serverError(let message): return message
+            case .timedOut: return "iPhone antwortet nicht — ist die App dort geöffnet?"
             }
+        }
+    }
+
+    /// Guarantees a callback fires exactly once even when sendMessage's
+    /// reply-, error- and our own timeout path race each other.
+    private final class Once {
+        private let lock = NSLock()
+        private var done = false
+        func run(_ block: () -> Void) {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !done else { return }
+            done = true
+            block()
         }
     }
 
     private func sendRequest(
         type: String,
         fields: [String: Any],
+        timeout: TimeInterval = 10,
         completion: @escaping (Result<[String: Any], Error>) -> Void
     ) {
         guard WCSession.default.isReachable else {
@@ -121,15 +138,28 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
         message["type"] = type
         message["requestId"] = requestId
 
+        // sendMessage's errorHandler is not guaranteed to fire promptly (or
+        // at all) when the message is delivered but the counterpart never
+        // calls the reply handler — e.g. the phone app's WebView is
+        // suspended or running a stale bundle. Without our own deadline the
+        // UI spinner runs forever, so race a timeout against the reply.
+        let once = Once()
+
         WCSession.default.sendMessage(message, replyHandler: { reply in
-            if let error = reply["error"] as? String {
-                completion(.failure(RequestError.serverError(error)))
-            } else {
-                completion(.success(reply))
+            once.run {
+                if let error = reply["error"] as? String {
+                    completion(.failure(RequestError.serverError(error)))
+                } else {
+                    completion(.success(reply))
+                }
             }
         }, errorHandler: { error in
-            completion(.failure(error))
+            once.run { completion(.failure(error)) }
         })
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
+            once.run { completion(.failure(RequestError.timedOut)) }
+        }
     }
 
     /// Starts a plan session's workout on the phone (creates real
