@@ -240,6 +240,16 @@ private struct WorkoutControlsView: View {
                         .font(.caption2)
                         .foregroundStyle(.red)
                         .multilineTextAlignment(.center)
+
+                    // Guaranteed escape hatch: if the phone round-trip keeps
+                    // failing (unreachable, stale deploy, …), the user must
+                    // still be able to leave this screen. Exits locally only —
+                    // the workout stays open on the phone to deal with there.
+                    Button {
+                        phoneObserver.endWorkoutLocally(workout.workoutId)
+                    } label: {
+                        Label("Nur Uhr verlassen", systemImage: "applewatch.slash")
+                    }
                 }
             }
             .padding()

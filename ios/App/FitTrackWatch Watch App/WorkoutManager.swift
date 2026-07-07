@@ -120,7 +120,10 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// session died into HealthKit's error state (common in the simulator,
     /// which has no live heart-rate source), no transition is allowed and
     /// `.ended` never fires — which used to leave `isRunning` stuck true and
-    /// the UI unable to ever leave the workout screens. Force-reset instead.
+    /// the UI unable to ever leave the workout screens. The state check alone
+    /// isn't enough either: HealthKit doesn't expose its internal error state
+    /// through `session.state` (it can still report `.running`), so a 2s
+    /// watchdog force-resets if `.ended` never arrives.
     private func endSessionOrForceReset() {
         guard let session, session.state == .running || session.state == .paused else {
             builder?.discardWorkout()
@@ -128,6 +131,14 @@ final class WorkoutManager: NSObject, ObservableObject {
             return
         }
         session.end()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self, self.isRunning else { return }
+            // .ended never fired — the session is wedged in an internal
+            // error state. Discard and reset so the UI can move on.
+            self.builder?.discardWorkout()
+            self.resetState()
+        }
     }
 
     func pause() {
