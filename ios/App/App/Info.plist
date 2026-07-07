@@ -47,5 +47,9 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSHealthShareUsageDescription</key>
+	<string>FitTrack Pro liest deine Gesundheitsdaten (Schlaf, Herzfrequenz, HRV, Atemfrequenz, Handgelenk-Temperatur, Workouts), um deinen täglichen Recovery-Score zu berechnen.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>FitTrack Pro benötigt keinen Schreibzugriff auf Apple Health — dies wird nur zur Vollständigkeit der HealthKit-Autorisierung angezeigt.</string>
 </dict>
 </plist>

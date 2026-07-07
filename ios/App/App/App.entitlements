@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  aps-environment (push notifications) is deliberately OMITTED — Apple's
+	  free Personal Team provisioning does not support the Push Notifications
+	  capability at all, and having this key present breaks every build until
+	  the account upgrades to the paid Developer Program. See project-docs/
+	  roadmap.md Phase 8 for the re-enable steps.
+	-->
+	<key>com.apple.developer.healthkit</key>
+	<true/>
+	<key>com.apple.developer.healthkit.access</key>
+	<array/>
+</dict>
+</plist>

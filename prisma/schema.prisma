@@ -72,6 +72,7 @@ model User {
   personalRecords  PersonalRecord[]
   settings        UserSettings?
   apiTokens       ApiToken[]
+  pushTokens      PushToken[]
 
   @@map("users")
 }
@@ -89,6 +90,23 @@ model ApiToken {
 
   @@index([userId])
   @@map("api_tokens")
+}
+
+// Device push tokens for the native iOS app (APNs via Capacitor).
+// One row per physical device — a user can have the app on multiple
+// devices, each registering its own token independently.
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  platform  String   // "ios" | "android" (Capacitor.getPlatform())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_tokens")
 }
 
 model UserSettings {

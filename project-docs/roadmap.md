@@ -109,6 +109,22 @@
 
 ---
 
+## Phase 8: Native iOS App ← IN PROGRESS
+**Goal**: Real installable iPhone app (Capacitor wrapper), then native capabilities the web/PWA shell can't reach.
+
+- [x] Scaffold Capacitor iOS project (`ios/App`), signed with free Apple-ID team, running on physical device
+- [x] Wire `capacitor.config.ts` to the live Vercel deployment (server-based app, not a static export)
+- [x] Fix WebView-only layout bugs surfaced by the native shell (horizontal scroll from chart negative margins)
+- [ ] **Direct HealthKit access** — native Capacitor plugin reads HealthKit on-device and syncs to the existing `/api/health-data` endpoint (same shape HAE already posts), replacing the Health Auto Export / Shortcuts bridge entirely
+- [ ] **Live Activity / Dynamic Island rest timer** — ActivityKit widget extension showing the active rest timer on the Lock Screen and Dynamic Island (iPhone 14 Pro+); requires a Widget Extension target added via Xcode (GUI step, tracked in `ios-native-plugin/README.md`)
+- [x] **Push notifications — code complete, BLOCKED on paid Apple Developer Program.** `@capacitor/push-notifications` installed, `PushToken` Prisma model + `/api/push-tokens` route + `NativePushRegister` client component all wired and working end-to-end. `App.entitlements` (`aps-environment`) is written but **not yet referenced** by the Xcode build — Apple's free Personal Team provisioning does not support the Push Notifications capability at all, so enabling the entitlement now would break every build. Flip on once the account upgrades: add `CODE_SIGN_ENTITLEMENTS = App/App.entitlements` to both build configs in `project.pbxproj`, add the Push Notifications capability in Xcode's Signing & Capabilities tab, rebuild.
+- [ ] App icon set + launch screen branding (currently Capacitor defaults)
+- [ ] App Store submission decision (stay free-sideload vs. pay for Apple Developer Program)
+
+**Deliverable**: Native iPhone app with direct HealthKit sync, a Dynamic Island rest timer, and push notifications — no more HAE/Shortcuts dependency for health data.
+
+---
+
 ## Timeline Estimate
 | Phase | Scope |
 |-------|-------|
@@ -119,3 +135,4 @@
 | Phase 5 | Dashboard |
 | Phase 6 | Advanced |
 | Phase 7 | AI Layer |
+| Phase 8 | Native iOS App |
