@@ -13,8 +13,9 @@ private let intentLog = Logger(
  * the Activity in place without opening the app.
  *
  * It mutates the running Activity directly (source of truth while the app is
- * backgrounded) and mirrors the result into RestTimerSharedStore so the JS
- * timer can pick it up next time the app becomes active.
+ * backgrounded). The app re-reads that Activity's state on foreground (see
+ * RestTimerActivityPlugin.handleAppDidBecomeActive) to resync the JS timer —
+ * no App Group / shared storage needed.
  */
 struct AdjustRestTimerIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Adjust Rest Timer"
@@ -50,14 +51,7 @@ struct AdjustRestTimerIntent: LiveActivityIntent {
         }
 
         await activity.update(.init(state: next, staleDate: nil))
-
-        RestTimerSharedStore.write(
-            RestTimerSharedStore.Adjustment(
-                endsAt: next.pausedRemainingSeconds == nil ? next.endDate.timeIntervalSince1970 * 1000 : nil,
-                pausedRemainingSeconds: next.pausedRemainingSeconds,
-                deltaSeconds: deltaSeconds
-            )
-        )
+        intentLog.notice("activity updated ok")
 
         return .result()
     }

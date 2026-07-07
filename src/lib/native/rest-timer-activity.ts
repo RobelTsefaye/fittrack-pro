@@ -2,13 +2,13 @@
 
 import { Capacitor, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 
-/** Emitted when the -15s/+15s Dynamic Island / Lock Screen buttons adjust
- *  the timer while this app was backgrounded (see AdjustRestTimerIntent +
- *  RestTimerSharedStore on the native side). Exactly one of `endsAt` /
- *  `pausedRemainingSeconds` is set, matching whether the timer was running
- *  or paused when the adjustment happened. */
+/** Emitted on app foreground with the running Live Activity's current state,
+ *  so the web timer resyncs after -15s/+15s adjustments made from the Dynamic
+ *  Island / Lock Screen buttons while backgrounded (see AdjustRestTimerIntent
+ *  + RestTimerActivityPlugin.handleAppDidBecomeActive on the native side).
+ *  Exactly one of `endsAt` / `pausedRemainingSeconds` is set, matching whether
+ *  the timer was running or paused. */
 export type RestTimerActivityAdjustment = {
-  deltaSeconds: number;
   endsAt?: number;
   pausedRemainingSeconds?: number;
 };

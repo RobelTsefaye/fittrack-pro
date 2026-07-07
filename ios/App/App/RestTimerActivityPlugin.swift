@@ -36,6 +36,11 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
     /// +/- buttons (AdjustRestTimerIntent, runs in the widget extension
     /// process while this app may have been backgrounded) and forwards them
     /// to JS so `rest-timer-context.tsx` stays in sync.
+    ///
+    /// Rather than a shared App Group, we read the running Activity's current
+    /// state directly on foreground — both this app and the widget extension
+    /// share the same ActivityKit store, so whatever the +/- buttons wrote via
+    /// `activity.update(...)` is visible here without any extra entitlement.
     override public func load() {
         NotificationCenter.default.addObserver(
             self,
@@ -50,10 +55,15 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc private func handleAppDidBecomeActive() {
-        guard let adjustment = RestTimerSharedStore.consume() else { return }
-        var data: [String: Any] = ["deltaSeconds": adjustment.deltaSeconds]
-        if let endsAt = adjustment.endsAt { data["endsAt"] = endsAt }
-        if let paused = adjustment.pausedRemainingSeconds { data["pausedRemainingSeconds"] = paused }
+        guard #available(iOS 16.1, *) else { return }
+        guard let activity = Activity<RestTimerWidgetAttributes>.activities.first else { return }
+        let state = activity.content.state
+        var data: [String: Any] = [:]
+        if let paused = state.pausedRemainingSeconds {
+            data["pausedRemainingSeconds"] = paused
+        } else {
+            data["endsAt"] = state.endDate.timeIntervalSince1970 * 1000
+        }
         notifyListeners("adjustment", data: data)
     }
 

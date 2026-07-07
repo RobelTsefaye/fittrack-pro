@@ -348,17 +348,21 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [endsAt, pausedRemaining, requestWakeLock]);
 
-  /** Picks up -15s/+15s adjustments made from the Dynamic Island / Lock
-   *  Screen buttons while this app was backgrounded. The native side has
-   *  already updated the Live Activity itself, so we only mirror the result
-   *  into React state here — no `updateRestTimerActivity` call back out. */
+  /** On foreground, resync from the running Live Activity's current state —
+   *  it reflects any -15s/+15s adjustments made from the Dynamic Island / Lock
+   *  Screen buttons while backgrounded. The native side is the source of truth
+   *  for that state, so we only mirror it into React here (no
+   *  `updateRestTimerActivity` call back out). `duration` is bumped if the new
+   *  remaining exceeds it, so the progress bar denominator stays sane. */
   useEffect(() => {
-    return onRestTimerActivityAdjustment(({ deltaSeconds, endsAt: nextEndsAt, pausedRemainingSeconds }) => {
-      if (deltaSeconds > 0) setDuration((d) => d + deltaSeconds);
+    return onRestTimerActivityAdjustment(({ endsAt: nextEndsAt, pausedRemainingSeconds }) => {
       if (pausedRemainingSeconds != null) {
         setPausedRemaining(pausedRemainingSeconds);
+        setDuration((d) => Math.max(d, pausedRemainingSeconds));
       } else if (nextEndsAt != null) {
         setEndsAt(nextEndsAt);
+        const remainingSecs = Math.max(0, Math.ceil((nextEndsAt - Date.now()) / 1000));
+        setDuration((d) => Math.max(d, remainingSecs));
       }
     });
   }, []);
