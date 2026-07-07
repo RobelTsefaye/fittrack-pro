@@ -263,11 +263,16 @@ private struct WorkoutControlsView: View {
         phoneObserver.finishWorkout(workoutId: workout.workoutId) { result in
             DispatchQueue.main.async {
                 isFinishing = false
-                // On success, the phone clears the shared state via
-                // updateApplicationContext, which — through ContentView's
-                // onChange — takes us back to StartView and saves the
-                // Watch's own HR session. Nothing else to do here.
-                if case .failure(let error) = result {
+                switch result {
+                case .success:
+                    // Leave the workout locally right away instead of waiting
+                    // for the phone's context-clear push — that push depends
+                    // on the phone app being frontmost and its background
+                    // fetch succeeding, which isn't guaranteed mid-workout.
+                    // This drives ContentView's onChange, which also
+                    // stops/saves the Watch's own HR session.
+                    phoneObserver.endWorkoutLocally(workout.workoutId)
+                case .failure(let error):
                     errorMessage = error.localizedDescription
                 }
             }
@@ -280,7 +285,13 @@ private struct WorkoutControlsView: View {
         phoneObserver.cancelWorkout(workoutId: workout.workoutId) { result in
             DispatchQueue.main.async {
                 isCancelling = false
-                if case .failure(let error) = result {
+                switch result {
+                case .success:
+                    // Same local exit as finish() — pendingCancellation was
+                    // set by cancelWorkout, so onChange discards (not saves)
+                    // the Watch's HR session.
+                    phoneObserver.endWorkoutLocally(workout.workoutId)
+                case .failure(let error):
                     errorMessage = error.localizedDescription
                 }
             }

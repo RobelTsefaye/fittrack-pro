@@ -29,6 +29,26 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     /// at least once (see watch-workout-sync.ts on the phone side).
     @Published var planSessions: [WatchPlanSession] = []
 
+    /// Workouts the user already finished/cancelled *on the Watch*. A stale
+    /// application-context push (the phone's clear can lag its ack by
+    /// seconds, or never arrive if its background fetch fails) still carries
+    /// the old workout — without this guard it would resurrect the workout
+    /// the user just left. `apply` drops pushes for these ids.
+    private var locallyEndedWorkoutIds: Set<String> = []
+
+    /// Local exit path for finish/cancel on the Watch: leaves the workout
+    /// immediately (driving ContentView's onChange, which stops or discards
+    /// the HR session based on `pendingCancellation`) and remembers the id
+    /// so a stale re-push can't bring it back.
+    func endWorkoutLocally(_ workoutId: String) {
+        DispatchQueue.main.async {
+            self.locallyEndedWorkoutIds.insert(workoutId)
+            if self.activeWorkout?.workoutId == workoutId {
+                self.activeWorkout = nil
+            }
+        }
+    }
+
     // Request/reply methods (startSession/logSet/finishWorkout) live here
     // rather than in a second WCSessionDelegate class, since only one object
     // may hold that role on the Watch — see the class doc comment above.
@@ -46,7 +66,10 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
             if active, let workoutJSON = context["activeWorkout"] as? String {
                 if let data = workoutJSON.data(using: .utf8) {
                     do {
-                        self.activeWorkout = try JSONDecoder().decode(WatchActiveWorkout.self, from: data)
+                        let workout = try JSONDecoder().decode(WatchActiveWorkout.self, from: data)
+                        // Drop stale pushes for workouts already ended on the
+                        // Watch (see locallyEndedWorkoutIds above).
+                        self.activeWorkout = self.locallyEndedWorkoutIds.contains(workout.workoutId) ? nil : workout
                     } catch {
                         // A decode failure here otherwise looks identical to
                         // "no workout active" — log it so a schema mismatch

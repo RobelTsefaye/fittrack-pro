@@ -100,10 +100,14 @@ struct KraftLoggingView: View {
         finishError = nil
         phoneObserver.finishWorkout(workoutId: workout.workoutId) { result in
             DispatchQueue.main.async {
-                // On success the phone clears the shared context, which routes
-                // ContentView back to StartView (this view is torn down) — so
-                // only the failure branch needs handling here.
-                if case .failure(let error) = result {
+                switch result {
+                case .success:
+                    // Exit locally right away (tears this view down via
+                    // ContentView) instead of depending on the phone's
+                    // context-clear push, which can lag or never arrive —
+                    // see PhoneWorkoutObserver.endWorkoutLocally.
+                    phoneObserver.endWorkoutLocally(workout.workoutId)
+                case .failure(let error):
                     isFinishing = false
                     finishError = error.localizedDescription
                 }
