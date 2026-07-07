@@ -249,6 +249,39 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             store.execute(q)
         }
 
+        // Same shape as runStatsQuery but with noon-to-noon day buckets
+        // instead of midnight-to-midnight — for overnight vitals Apple
+        // timestamps near bedtime (see call site comment). The bucket
+        // spanning noon-of-day-N to noon-of-day-N+1 is labeled by its
+        // END (noon of day N+1, still calendar day N+1), not its start
+        // (noon of day N) — using the start would just shift the same
+        // bug by 12 hours instead of fixing it.
+        func runOvernightVitalQuery(id: HKQuantityTypeIdentifier, field: String, extract: @escaping (HKStatistics) -> Double?) {
+            guard let type = HKObjectType.quantityType(forIdentifier: id) else { return }
+            group.enter()
+            var interval = DateComponents()
+            interval.day = 1
+            let midnightAnchor = calendar.startOfDay(for: startDate)
+            let noonAnchor = calendar.date(byAdding: .hour, value: 12, to: midnightAnchor) ?? midnightAnchor
+            let predicate = HKQuery.predicateForSamples(withStart: startDate, end: now, options: .strictStartDate)
+            let q = HKStatisticsCollectionQuery(quantityType: type, quantitySamplePredicate: predicate, options: .discreteAverage, anchorDate: noonAnchor, intervalComponents: interval)
+            q.initialResultsHandler = { _, collection, _ in
+                defer { group.leave() }
+                var pending: [(String, Double)] = []
+                collection?.enumerateStatistics(from: startDate, to: now) { stats, _ in
+                    guard let value = extract(stats) else { return }
+                    pending.append((dateKey(stats.endDate), value))
+                }
+                resultsQueue.sync {
+                    for (key, value) in pending {
+                        ensureRecord(key)
+                        results[key]?[field] = value
+                    }
+                }
+            }
+            store.execute(q)
+        }
+
         // Cumulative fields (steps, active/basal calories, exercise time) are
         // each independently tracked by BOTH the iPhone's motion coprocessor
         // AND the Apple Watch — a plain .cumulativeSum across all sources
@@ -298,14 +331,25 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             runStatsQuery(id: id, field: field, unit: unit, option: .discreteMax) { $0.maximumQuantity()?.doubleValue(for: unit) }
         }
 
-        // Wrist temperature (iOS 16+, Series 8+ only) — read as raw deviation
-        // samples averaged per day. Uses the UCUM unit string "degC" rather
-        // than a named HKUnit convenience method, since degreeCelsius() is
-        // not guaranteed present across SDK versions the way
-        // degreeFahrenheit() historically is.
+        // Wrist temperature (iOS 16+, Series 8+ only). Uses the UCUM unit
+        // string "degC" rather than a named HKUnit convenience method, since
+        // degreeCelsius() is not guaranteed present across SDK versions the
+        // way degreeFahrenheit() historically is.
+        //
+        // Apple timestamps the nightly wrist-temperature reading near
+        // BEDTIME, not wake-up time (unlike sleep-stage samples, which we
+        // already attribute to the wake day). A plain midnight-to-midnight
+        // day bucket therefore puts last night's reading under YESTERDAY's
+        // date — so "today" always looks empty even though the value exists,
+        // one day behind. Fix: bucket with a noon-to-noon day boundary
+        // instead of midnight-to-midnight. Any time between noon on day N
+        // and noon on day N+1 falls in a single bucket labeled day N+1 —
+        // which always contains one full night regardless of what time the
+        // user actually fell asleep, so the reading lands on the correct
+        // wake-up day.
         if #available(iOS 16.0, *), HKObjectType.quantityType(forIdentifier: .appleSleepingWristTemperature) != nil {
             let celsius = HKUnit(from: "degC")
-            runStatsQuery(id: .appleSleepingWristTemperature, field: "wristTemperature", unit: celsius, option: .discreteAverage) { $0.averageQuantity()?.doubleValue(for: celsius) }
+            runOvernightVitalQuery(id: .appleSleepingWristTemperature, field: "wristTemperature") { $0.averageQuantity()?.doubleValue(for: celsius) }
         }
 
         group.notify(queue: .main) {
