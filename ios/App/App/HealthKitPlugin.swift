@@ -113,38 +113,61 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             defer { group.leave() }
             guard let samples = samples as? [HKCategorySample] else { return }
             resultsQueue.sync {
-            var deepByDay: [String: Double] = [:]
-            var remByDay: [String: Double] = [:]
-            var asleepByDay: [String: Double] = [:]
+            // HealthKit returns sleep samples from EVERY source that ever wrote
+            // one for that night — Apple Watch, the iPhone's own sleep
+            // detection, third-party apps (AutoSleep etc.). Naively summing
+            // every sample's duration double- or triple-counts overlapping
+            // nights when more than one source tracked the same sleep. Apple's
+            // own Health app avoids this by picking one "best" source per
+            // night rather than merging all of them — we do the same: group
+            // samples by (day, source), then for each day keep only the
+            // source with actual stage detail (deep/REM present), falling
+            // back to whichever source logged the most total sleep if none
+            // have stage detail.
+            struct DaySource: Hashable { let day: String; let source: String }
+            var byDaySource: [DaySource: (deep: Double, rem: Double, asleep: Double)] = [:]
+
             for s in samples {
                 // Attribute sleep to the day it ENDS on (matches HAE's dateKey = sleepEnd behavior).
-                let key = dateKey(s.endDate)
+                let key = DaySource(day: dateKey(s.endDate), source: s.sourceRevision.source.bundleIdentifier)
                 let hours = s.endDate.timeIntervalSince(s.startDate) / 3600.0
+                var entry = byDaySource[key] ?? (0, 0, 0)
                 switch s.value {
                 case HKCategoryValueSleepAnalysis.asleepDeep.rawValue:
-                    deepByDay[key, default: 0] += hours
+                    entry.deep += hours
                 case HKCategoryValueSleepAnalysis.asleepREM.rawValue:
-                    remByDay[key, default: 0] += hours
+                    entry.rem += hours
                 case HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue,
                      HKCategoryValueSleepAnalysis.asleepCore.rawValue,
                      HKCategoryValueSleepAnalysis.asleep.rawValue:
-                    asleepByDay[key, default: 0] += hours
+                    entry.asleep += hours
                 default:
                     break
                 }
+                byDaySource[key] = entry
             }
-            let allDays = Set(deepByDay.keys).union(remByDay.keys).union(asleepByDay.keys)
-            for key in allDays {
-                ensureRecord(key)
-                let deep = deepByDay[key] ?? 0
-                let rem = remByDay[key] ?? 0
-                let core = asleepByDay[key] ?? 0
-                let stageSum = deep + rem + core
-                if stageSum > 0 {
-                    results[key]?["sleepDuration"] = stageSum
-                    results[key]?["sleepDeepMinutes"] = Int(deep * 60)
-                    results[key]?["sleepRemMinutes"] = Int(rem * 60)
+
+            // Pick the winning source per day: prefer stage detail (deep+rem > 0),
+            // tie-break by total sleep duration.
+            var bestBySource: [String: (source: String, deep: Double, rem: Double, total: Double, hasStages: Bool)] = [:]
+            for (key, entry) in byDaySource {
+                let total = entry.deep + entry.rem + entry.asleep
+                guard total > 0 else { continue }
+                let hasStages = entry.deep > 0 || entry.rem > 0
+                let candidate = (source: key.source, deep: entry.deep, rem: entry.rem, total: total, hasStages: hasStages)
+                if let current = bestBySource[key.day] {
+                    let candidateWins = (hasStages && !current.hasStages) || (hasStages == current.hasStages && total > current.total)
+                    if candidateWins { bestBySource[key.day] = candidate }
+                } else {
+                    bestBySource[key.day] = candidate
                 }
+            }
+
+            for (dayKey, best) in bestBySource {
+                ensureRecord(dayKey)
+                results[dayKey]?["sleepDuration"] = best.total
+                results[dayKey]?["sleepDeepMinutes"] = Int(best.deep * 60)
+                results[dayKey]?["sleepRemMinutes"] = Int(best.rem * 60)
             }
             } // resultsQueue.sync
         }
