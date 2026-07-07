@@ -431,6 +431,23 @@ export function WorkoutDetail({
     }
   }, [workout]);
 
+  /** Auto-start the rest timer (and its Live Activity / Dynamic Island
+   *  mirror) right when a workout begins, not just after the first set —
+   *  fires once per fresh workout (no sets completed yet). Guarded so
+   *  re-opening a workout that's already in progress doesn't restart it. */
+  const autoStartedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isActive || !workout) return;
+    if (autoStartedRef.current === workout.id) return;
+    const hasCompletedSet = workout.workoutExercises.some((we) =>
+      we.sets.some((s) => s.isCompleted)
+    );
+    if (hasCompletedSet) return;
+    autoStartedRef.current = workout.id;
+    restTimer.start(defaultRestSeconds, { onExpire: fireRestDone });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, workout, defaultRestSeconds]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
