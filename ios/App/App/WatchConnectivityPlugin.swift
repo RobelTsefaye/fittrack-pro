@@ -21,7 +21,22 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "isSupported", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "updateWorkoutState", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clearWorkoutState", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "pushPlanCatalog", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "respondToRequest", returnType: CAPPluginReturnPromise),
     ]
+
+    /// The full application context dict, mutated in place and re-pushed on
+    /// every call — `updateApplicationContext` replaces the *entire*
+    /// dictionary each time, so separate features (live workout mirroring vs.
+    /// the plan catalog) must merge into this shared dict instead of each
+    /// building their own from scratch, or they'd silently clobber each
+    /// other's keys.
+    private var latestContext: [String: Any] = [:]
+
+    /// Reply handlers for in-flight Watch → phone `sendMessage` requests,
+    /// keyed by a requestId chosen by the Watch. JS resolves a request by
+    /// calling `respondToRequest` with the same id.
+    private var pendingReplies: [String: ([String: Any]) -> Void] = [:]
 
     override public func load() {
         guard WCSession.isSupported() else { return }
@@ -41,22 +56,15 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve()
             return
         }
-        var context: [String: Any] = [
-            "active": true,
-            "exerciseName": call.getString("exerciseName") ?? "",
-            "currentSet": call.getInt("currentSet") ?? 0,
-            "totalSets": call.getInt("totalSets") ?? 0,
-            "updatedAt": Date().timeIntervalSince1970,
-        ]
-        if let weight = call.getDouble("weight") { context["weight"] = weight }
-        if let reps = call.getInt("reps") { context["reps"] = reps }
+        latestContext["active"] = true
+        latestContext["exerciseName"] = call.getString("exerciseName") ?? ""
+        latestContext["currentSet"] = call.getInt("currentSet") ?? 0
+        latestContext["totalSets"] = call.getInt("totalSets") ?? 0
+        latestContext["updatedAt"] = Date().timeIntervalSince1970
+        if let weight = call.getDouble("weight") { latestContext["weight"] = weight } else { latestContext.removeValue(forKey: "weight") }
+        if let reps = call.getInt("reps") { latestContext["reps"] = reps } else { latestContext.removeValue(forKey: "reps") }
 
-        do {
-            try WCSession.default.updateApplicationContext(context)
-            call.resolve()
-        } catch {
-            call.reject("Failed to update Watch context: \(error.localizedDescription)")
-        }
+        pushContext(call)
     }
 
     /// Called when the workout ends/is cancelled, so the Watch stops showing
@@ -66,12 +74,54 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve()
             return
         }
+        latestContext["active"] = false
+        pushContext(call)
+    }
+
+    /// Pushes the strength-training plan catalog (plans/sessions/exercises)
+    /// to the Watch so it can offer a session picker without a network call.
+    /// Expects `catalog` (JSON string, already serialized on the JS side —
+    /// application contexts must be property-list-safe values, and a single
+    /// String is the simplest way to hand over an arbitrary nested shape).
+    @objc func pushPlanCatalog(_ call: CAPPluginCall) {
+        guard WCSession.isSupported(), WCSession.default.activationState == .activated else {
+            call.resolve()
+            return
+        }
+        guard let catalog = call.getString("catalog") else {
+            call.reject("Missing catalog")
+            return
+        }
+        latestContext["planCatalog"] = catalog
+        latestContext["planCatalogUpdatedAt"] = Date().timeIntervalSince1970
+        pushContext(call)
+    }
+
+    private func pushContext(_ call: CAPPluginCall) {
         do {
-            try WCSession.default.updateApplicationContext(["active": false])
+            try WCSession.default.updateApplicationContext(latestContext)
             call.resolve()
         } catch {
-            call.reject("Failed to clear Watch context: \(error.localizedDescription)")
+            call.reject("Failed to update Watch context: \(error.localizedDescription)")
         }
+    }
+
+    /// Resolves a pending Watch request (startSession/logSet/finishWorkout)
+    /// with the JS-computed payload. Expects `requestId` (String) matching
+    /// the id delivered via the "watchRequest" event, and `payload`
+    /// (Object) — the reply handed back to the Watch's `sendMessage` call.
+    @objc func respondToRequest(_ call: CAPPluginCall) {
+        guard let requestId = call.getString("requestId") else {
+            call.reject("Missing requestId")
+            return
+        }
+        guard let reply = pendingReplies.removeValue(forKey: requestId) else {
+            call.reject("No pending request for id \(requestId)")
+            return
+        }
+        let payload = call.getObject("payload") ?? [:]
+        reply(payload)
+        call.resolve()
     }
 }
 
@@ -84,5 +134,18 @@ extension WatchConnectivityPlugin: WCSessionDelegate {
     public func sessionDidDeactivate(_ session: WCSession) {
         // Re-activate for the next paired Watch (e.g. after unpair/re-pair).
         session.activate()
+    }
+
+    /// Handles Watch → phone requests (startSession/logSet/finishWorkout).
+    /// The message must contain a "requestId" (String) chosen by the Watch;
+    /// we stash the replyHandler and hand the message to JS via
+    /// notifyListeners, which resolves it later via `respondToRequest`.
+    public func session(_ session: WCSession, didReceiveMessage message: [String: Any], replyHandler: @escaping ([String: Any]) -> Void) {
+        guard let requestId = message["requestId"] as? String else {
+            replyHandler(["error": "Missing requestId"])
+            return
+        }
+        pendingReplies[requestId] = replyHandler
+        notifyListeners("watchRequest", data: ["requestId": requestId, "message": message])
     }
 }

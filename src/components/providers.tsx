@@ -8,6 +8,7 @@ import { OfflineSyncProvider } from "@/components/offline-sync-provider";
 import { NativePushRegister } from "@/components/native-push-register";
 import { NativeHealthSync } from "@/components/native-health-sync";
 import { NativeAppLock } from "@/components/native-app-lock";
+import { NativeWatchWorkoutSync } from "@/components/native-watch-workout-sync";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -16,6 +17,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <PwaRegister />
         <NativePushRegister />
         <NativeHealthSync />
+        <NativeWatchWorkoutSync />
         <OfflineSyncProvider />
         <NativeAppLock>{children}</NativeAppLock>
         <Toaster />

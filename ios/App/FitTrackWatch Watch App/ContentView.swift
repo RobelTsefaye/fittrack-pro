@@ -46,7 +46,7 @@ struct ContentView: View {
             } else if phoneObserver.isPhoneWorkoutActive {
                 PhoneMirrorView(phoneObserver: phoneObserver, workoutManager: workoutManager)
             } else {
-                StartView(workoutManager: workoutManager)
+                StartView(workoutManager: workoutManager, phoneObserver: phoneObserver)
             }
         }
         .onAppear {
@@ -86,19 +86,35 @@ private struct AuthorizationView: View {
  *  phone workout is active (see PhoneMirrorView otherwise). */
 private struct StartView: View {
     @ObservedObject var workoutManager: WorkoutManager
+    @ObservedObject var phoneObserver: PhoneWorkoutObserver
 
     var body: some View {
-        List {
-            Section {
-                Text("Workout wählen")
-                    .font(.headline)
-                    .listRowBackground(Color.clear)
-            }
-            ForEach(WorkoutTypeOption.all) { option in
-                Button {
-                    workoutManager.start(activityType: option.id)
-                } label: {
-                    Label(option.label, systemImage: option.icon)
+        NavigationStack {
+            List {
+                Section {
+                    Text("Workout wählen")
+                        .font(.headline)
+                        .listRowBackground(Color.clear)
+                }
+                ForEach(WorkoutTypeOption.all) { option in
+                    if option.id == .traditionalStrengthTraining {
+                        // Kraft opens the custom session-picker/logging flow
+                        // instead of immediately starting an HKWorkoutSession —
+                        // kept independent of workoutManager so the user isn't
+                        // yanked into LiveWorkoutView mid-log (see ContentView's
+                        // isRunning-first Group switch).
+                        NavigationLink {
+                            KraftSessionPickerView(phoneObserver: phoneObserver)
+                        } label: {
+                            Label(option.label, systemImage: option.icon)
+                        }
+                    } else {
+                        Button {
+                            workoutManager.start(activityType: option.id)
+                        } label: {
+                            Label(option.label, systemImage: option.icon)
+                        }
+                    }
                 }
             }
         }
