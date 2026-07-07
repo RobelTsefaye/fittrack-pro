@@ -7,6 +7,7 @@ import { PwaRegister } from "@/components/pwa-register";
 import { OfflineSyncProvider } from "@/components/offline-sync-provider";
 import { NativePushRegister } from "@/components/native-push-register";
 import { NativeHealthSync } from "@/components/native-health-sync";
+import { NativeAppLock } from "@/components/native-app-lock";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -16,7 +17,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <NativePushRegister />
         <NativeHealthSync />
         <OfflineSyncProvider />
-        {children}
+        <NativeAppLock>{children}</NativeAppLock>
         <Toaster />
       </ThemeProvider>
     </SessionProvider>

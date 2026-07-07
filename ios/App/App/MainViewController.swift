@@ -16,6 +16,10 @@ class MainViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(HealthKitPlugin())
         bridge?.registerPluginInstance(RestTimerActivityPlugin())
+        bridge?.registerPluginInstance(WatchConnectivityPlugin())
+        bridge?.registerPluginInstance(BiometricLockPlugin())
+        bridge?.registerPluginInstance(SyncTokenPlugin())
+        bridge?.registerPluginInstance(SharedDataPlugin())
 
         // Disable WKWebView's built-in long-press "Peek" link preview (the
         // Safari-style pop-up with Open/Copy/Share). It's WebKit's default

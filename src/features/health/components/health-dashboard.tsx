@@ -18,6 +18,7 @@ import { NutritionCard } from "./nutrition-card";
 import { CardioCard } from "./cardio-card";
 import type { CardioSummary } from "../cardio";
 import { syncHealthKitData } from "@/lib/native/healthkit";
+import { syncRecoveryWidgetSnapshot } from "@/lib/native/shared-data";
 import dynamic from "next/dynamic";
 
 const HealthMetricChart = dynamic(
@@ -82,6 +83,9 @@ export function HealthDashboard({
       if (recRes.ok) {
         const json = (await recRes.json()) as { data: RecoveryBreakdown };
         setRecovery(json.data);
+        if (json.data.level !== "none") {
+          void syncRecoveryWidgetSnapshot(json.data.score, json.data.level);
+        }
       }
       if (cardioRes.ok) {
         const json = (await cardioRes.json()) as { data: CardioSummary };

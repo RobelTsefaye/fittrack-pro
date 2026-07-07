@@ -17,16 +17,23 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		7D97728F8A4E369EBBCDFB3D /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 241C812FAA07DEA7AD75E4B4 /* HealthKit.framework */; };
-		9F1E2D3C4B5A6978869F0E11 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 241C812FAA07DEA7AD75E4B4 /* HealthKit.framework */; };
 		8316D18F2FFD11FC00B74FDF /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8316D18E2FFD11FC00B74FDF /* WidgetKit.framework */; };
 		8316D1912FFD11FC00B74FDF /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8316D1902FFD11FC00B74FDF /* SwiftUI.framework */; };
 		8316D1A22FFD11FE00B74FDF /* RestTimerWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8316D18D2FFD11FC00B74FDF /* RestTimerWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		83B3EA442FFD3C0200CC951E /* FitTrackWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 83B3EA3A2FFD3C0100CC951E /* FitTrackWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		9F1E2D3C4B5A6978869F0E11 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 241C812FAA07DEA7AD75E4B4 /* HealthKit.framework */; };
 		AA11BB22CC33DD44EE55FF02 /* RestTimerActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF01 /* RestTimerActivityPlugin.swift */; };
 		AA11BB22CC33DD44EE55FF04 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF03 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift */; };
 		AA11BB22CC33DD44EE55FF06 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF05 /* MainViewController.swift */; };
 		AA11BB22CC33DD44EE55FF0A /* ../RestTimerWidget/AdjustRestTimerIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF09 /* ../RestTimerWidget/AdjustRestTimerIntent.swift */; };
 		AA11BB22CC33DD44EE55FF0C /* RestTimerAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF0B /* RestTimerAppShortcuts.swift */; };
+		F43ED9D36FDFEF1893ED2917 /* WatchConnectivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */; };
+		DE81AFC34ECCF2849D0B5C36 /* BiometricLockPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */; };
+		FC5CCC552F02B0142759F285 /* SyncTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AB29A1B6FE92831C897693B /* SyncTokenStore.swift */; };
+		0E4B2A91649804D2E740AFAB /* SyncTokenPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC11B8425F6F67ADE9DEBF5 /* SyncTokenPlugin.swift */; };
+		63E6C145EEC1412536B5F9F9 /* BackgroundSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19558FA5A94803F3678CB309 /* BackgroundSyncManager.swift */; };
+		B37394D1BBAFEEE2853C4204 /* SharedDataPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42D146C0D81D9C9989C9E01F /* SharedDataPlugin.swift */; };
+		A3AD012C32E9B00A71BE0247 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8316D18E2FFD11FC00B74FDF /* WidgetKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -75,6 +82,12 @@
 		241C812FAA07DEA7AD75E4B4 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		41E81FC7A2B6F1AE1D7C41F3 /* HealthKitPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitPlugin.swift; sourceTree = "<group>"; };
+		0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityPlugin.swift; sourceTree = "<group>"; };
+		D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricLockPlugin.swift; sourceTree = "<group>"; };
+		7AB29A1B6FE92831C897693B /* SyncTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncTokenStore.swift; sourceTree = "<group>"; };
+		3BC11B8425F6F67ADE9DEBF5 /* SyncTokenPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncTokenPlugin.swift; sourceTree = "<group>"; };
+		19558FA5A94803F3678CB309 /* BackgroundSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncManager.swift; sourceTree = "<group>"; };
+		42D146C0D81D9C9989C9E01F /* SharedDataPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDataPlugin.swift; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -117,6 +130,7 @@
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
 				7D97728F8A4E369EBBCDFB3D /* HealthKit.framework in Frameworks */,
+				A3AD012C32E9B00A71BE0247 /* WidgetKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -178,6 +192,12 @@
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				41E81FC7A2B6F1AE1D7C41F3 /* HealthKitPlugin.swift */,
+				0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */,
+				D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */,
+				7AB29A1B6FE92831C897693B /* SyncTokenStore.swift */,
+				3BC11B8425F6F67ADE9DEBF5 /* SyncTokenPlugin.swift */,
+				19558FA5A94803F3678CB309 /* BackgroundSyncManager.swift */,
+				42D146C0D81D9C9989C9E01F /* SharedDataPlugin.swift */,
 				AA11BB22CC33DD44EE55FF05 /* MainViewController.swift */,
 				AA11BB22CC33DD44EE55FF01 /* RestTimerActivityPlugin.swift */,
 				AA11BB22CC33DD44EE55FF03 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift */,
@@ -352,6 +372,12 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				0EC6850581A02526C4154886 /* HealthKitPlugin.swift in Sources */,
+				F43ED9D36FDFEF1893ED2917 /* WatchConnectivityPlugin.swift in Sources */,
+				DE81AFC34ECCF2849D0B5C36 /* BiometricLockPlugin.swift in Sources */,
+				FC5CCC552F02B0142759F285 /* SyncTokenStore.swift in Sources */,
+				0E4B2A91649804D2E740AFAB /* SyncTokenPlugin.swift in Sources */,
+				63E6C145EEC1412536B5F9F9 /* BackgroundSyncManager.swift in Sources */,
+				B37394D1BBAFEEE2853C4204 /* SharedDataPlugin.swift in Sources */,
 				AA11BB22CC33DD44EE55FF06 /* MainViewController.swift in Sources */,
 				AA11BB22CC33DD44EE55FF02 /* RestTimerActivityPlugin.swift in Sources */,
 				AA11BB22CC33DD44EE55FF04 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift in Sources */,

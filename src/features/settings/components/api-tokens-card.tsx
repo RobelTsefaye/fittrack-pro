@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/lib/i18n-provider";
+import { storeBackgroundSyncToken } from "@/lib/native/sync-token";
 
 type TokenRow = {
   id: string;
@@ -24,6 +26,7 @@ export function ApiTokensCard() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [syncTokenStored, setSyncTokenStored] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/tokens", { credentials: "include", cache: "no-store" });
@@ -107,6 +110,12 @@ export function ApiTokensCard() {
     await navigator.clipboard.writeText(newSecret);
   }
 
+  async function useForBackgroundSync() {
+    if (!newSecret) return;
+    const ok = await storeBackgroundSyncToken(newSecret);
+    setSyncTokenStored(ok);
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -134,9 +143,22 @@ export function ApiTokensCard() {
               {t("settings.apiTokensNewOnce")}
             </p>
             <code className="block break-all rounded bg-muted px-2 py-1.5 text-xs">{newSecret}</code>
-            <Button type="button" size="sm" variant="secondary" onClick={() => void copySecret()}>
-              {t("settings.apiTokensCopy")}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="secondary" onClick={() => void copySecret()}>
+                {t("settings.apiTokensCopy")}
+              </Button>
+              {Capacitor.isNativePlatform() && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={syncTokenStored}
+                  onClick={() => void useForBackgroundSync()}
+                >
+                  {syncTokenStored ? "Für Hintergrund-Sync aktiviert" : "Für Hintergrund-Sync verwenden"}
+                </Button>
+              )}
+            </div>
           </div>
         ) : null}
 

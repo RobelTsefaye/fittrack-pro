@@ -55,6 +55,7 @@ import {
 } from "@/lib/offline/workout-offline-store";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
 import { hapticWorkoutCompleted, hapticPersonalRecord } from "@/lib/native/haptics";
+import { updateWatchWorkoutState, clearWatchWorkoutState } from "@/lib/native/watch-connectivity";
 
 function formatShortDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -914,6 +915,7 @@ export function WorkoutDetail({
     if (json.comparison) setCompletionSummary(json.comparison);
     restTimer.stop();
     notifyActiveWorkoutChanged();
+    void clearWatchWorkoutState();
     if (json.newPersonalRecords && json.newPersonalRecords > 0) {
       void hapticPersonalRecord();
     } else {
@@ -925,6 +927,33 @@ export function WorkoutDetail({
 
   function onSetCompleted() {
     if (isActive) restTimer.start(defaultRestSeconds, { onExpire: fireRestDone });
+    void pushWatchWorkoutState();
+  }
+
+  /**
+   * Mirrors "which exercise/set is next" to the paired Apple Watch (see
+   * PhoneWorkoutObserver.swift on the Watch side). Picks the first exercise
+   * that still has an incomplete working (non-warmup) set as "current" —
+   * simplest reliable signal without threading exercise context through the
+   * whole SetRow → onComplete callback chain, which several other call
+   * sites already depend on staying argument-less.
+   */
+  async function pushWatchWorkoutState() {
+    if (!workout) return;
+    for (const we of workout.workoutExercises) {
+      const workingSets = we.sets.filter((s) => !s.isWarmup);
+      if (workingSets.length === 0) continue;
+      const completed = workingSets.filter((s) => s.isCompleted).length;
+      if (completed >= workingSets.length) continue;
+      await updateWatchWorkoutState({
+        exerciseName: we.exercise.name,
+        currentSet: completed + 1,
+        totalSets: workingSets.length,
+      });
+      return;
+    }
+    // No incomplete working sets left across any exercise.
+    await clearWatchWorkoutState();
   }
 
   async function deleteCompletedWorkout() {
