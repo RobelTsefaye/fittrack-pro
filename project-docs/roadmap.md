@@ -109,19 +109,19 @@
 
 ---
 
-## Phase 8: Native iOS App ← IN PROGRESS
+## Phase 8: Native iOS App ← MOSTLY DONE
 **Goal**: Real installable iPhone app (Capacitor wrapper), then native capabilities the web/PWA shell can't reach.
 
 - [x] Scaffold Capacitor iOS project (`ios/App`), signed with free Apple-ID team, running on physical device
 - [x] Wire `capacitor.config.ts` to the live Vercel deployment (server-based app, not a static export)
-- [x] Fix WebView-only layout bugs surfaced by the native shell (horizontal scroll from chart negative margins)
-- [ ] **Direct HealthKit access** — native Capacitor plugin reads HealthKit on-device and syncs to the existing `/api/health-data` endpoint (same shape HAE already posts), replacing the Health Auto Export / Shortcuts bridge entirely
-- [ ] **Live Activity / Dynamic Island rest timer** — ActivityKit widget extension showing the active rest timer on the Lock Screen and Dynamic Island (iPhone 14 Pro+); requires a Widget Extension target added via Xcode (GUI step, tracked in `ios-native-plugin/README.md`)
-- [x] **Push notifications — code complete, BLOCKED on paid Apple Developer Program.** `@capacitor/push-notifications` installed, `PushToken` Prisma model + `/api/push-tokens` route + `NativePushRegister` client component all wired and working end-to-end. `App.entitlements` (`aps-environment`) is written but **not yet referenced** by the Xcode build — Apple's free Personal Team provisioning does not support the Push Notifications capability at all, so enabling the entitlement now would break every build. Flip on once the account upgrades: add `CODE_SIGN_ENTITLEMENTS = App/App.entitlements` to both build configs in `project.pbxproj`, add the Push Notifications capability in Xcode's Signing & Capabilities tab, rebuild.
-- [ ] App icon set + launch screen branding (currently Capacitor defaults)
-- [ ] App Store submission decision (stay free-sideload vs. pay for Apple Developer Program)
+- [x] Fix WebView-only layout bugs surfaced by the native shell (horizontal scroll from chart negative margins, WKWebView long-press link preview)
+- [x] **Direct HealthKit access** — `HealthKitPlugin.swift` reads HealthKit on-device and syncs to the existing `/api/health-data` endpoint, fully replacing Health Auto Export / Shortcuts. Reliable foreground re-sync via `@capacitor/app`'s `resume` event (visibilitychange alone proved unreliable in a native WKWebView). Hardened through several real-device bugs found via user testing: sleep sessions double-counted across multiple HealthKit sources, sleep sessions split across the midnight boundary, steps/calories double-counted between iPhone + Watch (now Watch-only), wrist temperature attributed to the wrong day (Apple timestamps it near bedtime, not wake time — fixed with noon-to-noon bucketing)
+- [x] **Live Activity / Dynamic Island rest timer** — `RestTimerWidget` extension target with interactive +/- buttons directly in the Dynamic Island (`AdjustRestTimerIntent`), shared state via `RestTimerSharedStore` + App Group, activity calls serialized to prevent orphaned activities. Timer now auto-starts at workout begin, not just after the first set.
+- [x] **Push notifications — code complete, BLOCKED on paid Apple Developer Program.** `@capacitor/push-notifications` installed, `PushToken` Prisma model + `/api/push-tokens` route + `NativePushRegister` client component all wired and working end-to-end. `App.entitlements`'s `aps-environment` key is deliberately omitted — Apple's free Personal Team provisioning does not support the Push Notifications capability at all, so including it would break every build. Re-enable once the account upgrades: add the `aps-environment` key back to `App.entitlements`, add the Push Notifications capability in Xcode's Signing & Capabilities tab, rebuild.
+- [ ] App icon set + launch screen branding — still Capacitor's default placeholder icon/splash, not FitTrack Pro branding
+- [ ] App Store submission decision (stay free-sideload vs. pay for Apple Developer Program) — free sideload needs a fresh Xcode re-sign every 7 days
 
-**Deliverable**: Native iPhone app with direct HealthKit sync, a Dynamic Island rest timer, and push notifications — no more HAE/Shortcuts dependency for health data.
+**Deliverable**: Native iPhone app with direct HealthKit sync (HAE fully retired) and a Dynamic Island rest timer — done. Push notifications are code-complete and waiting on a paid account. Only cosmetic branding (icon/splash) and the App Store decision remain.
 
 ---
 
