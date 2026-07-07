@@ -12,6 +12,11 @@ import {
 } from "react";
 import { DEFAULT_REST_TIMER } from "@/lib/constants";
 import { RestTimerBar } from "./components/rest-timer-bar";
+import {
+  startRestTimerActivity,
+  updateRestTimerActivity,
+  endRestTimerActivity,
+} from "@/lib/native/rest-timer-activity";
 
 const STORAGE_KEY = "fittrack-rest-v1";
 
@@ -211,6 +216,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
       setDoneVisible(true);
       clearPersisted();
       releaseWakeLock();
+      void endRestTimerActivity();
       queueMicrotask(() => onExpireRef.current?.());
     });
   }, [endsAt, pausedRemaining, doneVisible, tick, releaseWakeLock]);
@@ -225,9 +231,11 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
       setDoneVisible(false);
       const d = Math.max(1, seconds ?? DEFAULT_REST_TIMER);
       setDuration(d);
-      setEndsAt(Date.now() + d * 1000);
+      const newEndsAt = Date.now() + d * 1000;
+      setEndsAt(newEndsAt);
       setPausedRemaining(null);
       void requestWakeLock();
+      void startRestTimerActivity(newEndsAt);
     },
     [requestWakeLock]
   );
@@ -241,6 +249,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     setDuration(DEFAULT_REST_TIMER);
     clearPersisted();
     releaseWakeLock();
+    void endRestTimerActivity();
   }, [releaseWakeLock]);
 
   const pause = useCallback(() => {
@@ -249,13 +258,16 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     setPausedRemaining(left);
     setEndsAt(null);
     releaseWakeLock();
+    void updateRestTimerActivity({ pausedRemainingSeconds: left });
   }, [endsAt, pausedRemaining, releaseWakeLock]);
 
   const resume = useCallback(() => {
     if (pausedRemaining == null || pausedRemaining <= 0) return;
-    setEndsAt(Date.now() + pausedRemaining * 1000);
+    const newEndsAt = Date.now() + pausedRemaining * 1000;
+    setEndsAt(newEndsAt);
     setPausedRemaining(null);
     void requestWakeLock();
+    void updateRestTimerActivity({ endsAt: newEndsAt });
   }, [pausedRemaining, requestWakeLock]);
 
   const adjustTime = useCallback((delta: number) => {
@@ -263,13 +275,20 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     if (pausedRemaining != null) {
       setPausedRemaining((prev) => {
         if (prev == null) return prev;
-        return Math.max(0, prev + delta);
+        const next = Math.max(0, prev + delta);
+        void updateRestTimerActivity({ pausedRemainingSeconds: next });
+        return next;
       });
       if (delta > 0) setDuration((d) => d + delta);
       return;
     }
     if (endsAt != null) {
-      setEndsAt((e) => (e == null ? e : e + delta * 1000));
+      setEndsAt((e) => {
+        if (e == null) return e;
+        const next = e + delta * 1000;
+        void updateRestTimerActivity({ endsAt: next });
+        return next;
+      });
       if (delta > 0) setDuration((d) => d + delta);
     }
   }, [endsAt, pausedRemaining]);
