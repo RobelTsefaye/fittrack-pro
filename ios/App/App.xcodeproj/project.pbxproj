@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0E4B2A91649804D2E740AFAB /* SyncTokenPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC11B8425F6F67ADE9DEBF5 /* SyncTokenPlugin.swift */; };
 		0EC6850581A02526C4154886 /* HealthKitPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41E81FC7A2B6F1AE1D7C41F3 /* HealthKitPlugin.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
@@ -16,27 +17,36 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
+		63E6C145EEC1412536B5F9F9 /* BackgroundSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19558FA5A94803F3678CB309 /* BackgroundSyncManager.swift */; };
 		7D97728F8A4E369EBBCDFB3D /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 241C812FAA07DEA7AD75E4B4 /* HealthKit.framework */; };
+		830B29182FFD4BCE0011558E /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8316D18E2FFD11FC00B74FDF /* WidgetKit.framework */; };
+		830B29192FFD4BCE0011558E /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8316D1902FFD11FC00B74FDF /* SwiftUI.framework */; };
+		830B29262FFD4BCF0011558E /* FitTrackComplicationExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 830B29172FFD4BCE0011558E /* FitTrackComplicationExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		8316D18F2FFD11FC00B74FDF /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8316D18E2FFD11FC00B74FDF /* WidgetKit.framework */; };
 		8316D1912FFD11FC00B74FDF /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8316D1902FFD11FC00B74FDF /* SwiftUI.framework */; };
 		8316D1A22FFD11FE00B74FDF /* RestTimerWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8316D18D2FFD11FC00B74FDF /* RestTimerWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		83B3EA442FFD3C0200CC951E /* FitTrackWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 83B3EA3A2FFD3C0100CC951E /* FitTrackWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9F1E2D3C4B5A6978869F0E11 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 241C812FAA07DEA7AD75E4B4 /* HealthKit.framework */; };
+		A3AD012C32E9B00A71BE0247 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8316D18E2FFD11FC00B74FDF /* WidgetKit.framework */; };
 		AA11BB22CC33DD44EE55FF02 /* RestTimerActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF01 /* RestTimerActivityPlugin.swift */; };
 		AA11BB22CC33DD44EE55FF04 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF03 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift */; };
 		AA11BB22CC33DD44EE55FF06 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF05 /* MainViewController.swift */; };
 		AA11BB22CC33DD44EE55FF0A /* ../RestTimerWidget/AdjustRestTimerIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF09 /* ../RestTimerWidget/AdjustRestTimerIntent.swift */; };
 		AA11BB22CC33DD44EE55FF0C /* RestTimerAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF0B /* RestTimerAppShortcuts.swift */; };
-		F43ED9D36FDFEF1893ED2917 /* WatchConnectivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */; };
-		DE81AFC34ECCF2849D0B5C36 /* BiometricLockPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */; };
-		FC5CCC552F02B0142759F285 /* SyncTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AB29A1B6FE92831C897693B /* SyncTokenStore.swift */; };
-		0E4B2A91649804D2E740AFAB /* SyncTokenPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC11B8425F6F67ADE9DEBF5 /* SyncTokenPlugin.swift */; };
-		63E6C145EEC1412536B5F9F9 /* BackgroundSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19558FA5A94803F3678CB309 /* BackgroundSyncManager.swift */; };
 		B37394D1BBAFEEE2853C4204 /* SharedDataPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42D146C0D81D9C9989C9E01F /* SharedDataPlugin.swift */; };
-		A3AD012C32E9B00A71BE0247 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8316D18E2FFD11FC00B74FDF /* WidgetKit.framework */; };
+		DE81AFC34ECCF2849D0B5C36 /* BiometricLockPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */; };
+		F43ED9D36FDFEF1893ED2917 /* WatchConnectivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */; };
+		FC5CCC552F02B0142759F285 /* SyncTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AB29A1B6FE92831C897693B /* SyncTokenStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		830B29242FFD4BCF0011558E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 830B29162FFD4BCE0011558E;
+			remoteInfo = FitTrackComplicationExtension;
+		};
 		8316D1A02FFD11FE00B74FDF /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
@@ -54,6 +64,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		830B29272FFD4BCF0011558E /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				830B29262FFD4BCF0011558E /* FitTrackComplicationExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8316D1A32FFD11FE00B74FDF /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -79,14 +100,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityPlugin.swift; sourceTree = "<group>"; };
+		19558FA5A94803F3678CB309 /* BackgroundSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncManager.swift; sourceTree = "<group>"; };
 		241C812FAA07DEA7AD75E4B4 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
-		41E81FC7A2B6F1AE1D7C41F3 /* HealthKitPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitPlugin.swift; sourceTree = "<group>"; };
-		0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityPlugin.swift; sourceTree = "<group>"; };
-		D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricLockPlugin.swift; sourceTree = "<group>"; };
-		7AB29A1B6FE92831C897693B /* SyncTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncTokenStore.swift; sourceTree = "<group>"; };
 		3BC11B8425F6F67ADE9DEBF5 /* SyncTokenPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncTokenPlugin.swift; sourceTree = "<group>"; };
-		19558FA5A94803F3678CB309 /* BackgroundSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncManager.swift; sourceTree = "<group>"; };
+		41E81FC7A2B6F1AE1D7C41F3 /* HealthKitPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitPlugin.swift; sourceTree = "<group>"; };
 		42D146C0D81D9C9989C9E01F /* SharedDataPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDataPlugin.swift; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -96,6 +115,8 @@
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
+		7AB29A1B6FE92831C897693B /* SyncTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncTokenStore.swift; sourceTree = "<group>"; };
+		830B29172FFD4BCE0011558E /* FitTrackComplicationExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FitTrackComplicationExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8316D18D2FFD11FC00B74FDF /* RestTimerWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = RestTimerWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8316D18E2FFD11FC00B74FDF /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		8316D1902FFD11FC00B74FDF /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -106,9 +127,17 @@
 		AA11BB22CC33DD44EE55FF05 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF09 /* ../RestTimerWidget/AdjustRestTimerIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../RestTimerWidget/AdjustRestTimerIntent.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF0B /* RestTimerAppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestTimerAppShortcuts.swift; sourceTree = "<group>"; };
+		D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricLockPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		830B292A2FFD4BCF0011558E /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 830B29162FFD4BCE0011558E /* FitTrackComplicationExtension */;
+		};
 		8316D1A62FFD11FE00B74FDF /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -119,6 +148,7 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		830B291A2FFD4BCE0011558E /* FitTrackComplication */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (830B292A2FFD4BCF0011558E /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = FitTrackComplication; sourceTree = "<group>"; };
 		8316D1922FFD11FC00B74FDF /* RestTimerWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (8316D1A62FFD11FE00B74FDF /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = RestTimerWidget; sourceTree = "<group>"; };
 		83B3EA3B2FFD3C0100CC951E /* FitTrackWatch Watch App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "FitTrackWatch Watch App"; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -131,6 +161,15 @@
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
 				7D97728F8A4E369EBBCDFB3D /* HealthKit.framework in Frameworks */,
 				A3AD012C32E9B00A71BE0247 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		830B29142FFD4BCE0011558E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				830B29192FFD4BCE0011558E /* SwiftUI.framework in Frameworks */,
+				830B29182FFD4BCE0011558E /* WidgetKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -171,6 +210,7 @@
 				504EC3061FED79650016851F /* App */,
 				8316D1922FFD11FC00B74FDF /* RestTimerWidget */,
 				83B3EA3B2FFD3C0100CC951E /* FitTrackWatch Watch App */,
+				830B291A2FFD4BCE0011558E /* FitTrackComplication */,
 				504EC3051FED79650016851F /* Products */,
 				1A2B3C4D5E6F7A8B9C0D1E2F /* Frameworks */,
 			);
@@ -182,6 +222,7 @@
 				504EC3041FED79650016851F /* App.app */,
 				8316D18D2FFD11FC00B74FDF /* RestTimerWidgetExtension.appex */,
 				83B3EA3A2FFD3C0100CC951E /* FitTrackWatch Watch App.app */,
+				830B29172FFD4BCE0011558E /* FitTrackComplicationExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -240,6 +281,28 @@
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
 		};
+		830B29162FFD4BCE0011558E /* FitTrackComplicationExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 830B292B2FFD4BCF0011558E /* Build configuration list for PBXNativeTarget "FitTrackComplicationExtension" */;
+			buildPhases = (
+				830B29132FFD4BCE0011558E /* Sources */,
+				830B29142FFD4BCE0011558E /* Frameworks */,
+				830B29152FFD4BCE0011558E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				830B291A2FFD4BCE0011558E /* FitTrackComplication */,
+			);
+			name = FitTrackComplicationExtension;
+			packageProductDependencies = (
+			);
+			productName = FitTrackComplicationExtension;
+			productReference = 830B29172FFD4BCE0011558E /* FitTrackComplicationExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		8316D18C2FFD11FC00B74FDF /* RestTimerWidgetExtension */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8316D1A72FFD11FE00B74FDF /* Build configuration list for PBXNativeTarget "RestTimerWidgetExtension" */;
@@ -269,10 +332,12 @@
 				83B3EA362FFD3C0100CC951E /* Sources */,
 				83B3EA372FFD3C0100CC951E /* Frameworks */,
 				83B3EA382FFD3C0100CC951E /* Resources */,
+				830B29272FFD4BCF0011558E /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				830B29252FFD4BCF0011558E /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				83B3EA3B2FFD3C0100CC951E /* FitTrackWatch Watch App */,
@@ -302,6 +367,15 @@
 								enabled = 1;
 							};
 							com.apple.HealthKit = {
+								enabled = 1;
+							};
+						};
+					};
+					830B29162FFD4BCE0011558E = {
+						CreatedOnToolsVersion = 26.6;
+						ProvisioningStyle = Automatic;
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
 								enabled = 1;
 							};
 						};
@@ -339,6 +413,7 @@
 				504EC3031FED79650016851F /* App */,
 				8316D18C2FFD11FC00B74FDF /* RestTimerWidgetExtension */,
 				83B3EA392FFD3C0100CC951E /* FitTrackWatch Watch App */,
+				830B29162FFD4BCE0011558E /* FitTrackComplicationExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -354,6 +429,13 @@
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		830B29152FFD4BCE0011558E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -394,6 +476,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		830B29132FFD4BCE0011558E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8316D1892FFD11FC00B74FDF /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -411,6 +500,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		830B29252FFD4BCF0011558E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 830B29162FFD4BCE0011558E /* FitTrackComplicationExtension */;
+			targetProxy = 830B29242FFD4BCF0011558E /* PBXContainerItemProxy */;
+		};
 		8316D1A12FFD11FE00B74FDF /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 8316D18C2FFD11FC00B74FDF /* RestTimerWidgetExtension */;
@@ -597,6 +691,96 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		830B29282FFD4BCF0011558E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CODE_SIGN_ENTITLEMENTS = FitTrackComplication/FitTrackComplication.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QZNG93JKH6;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FitTrackComplication/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FitTrackComplication;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.robeltsefaye.fittrackpro.watchkitapp.FitTrackComplication;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.5;
+			};
+			name = Debug;
+		};
+		830B29292FFD4BCF0011558E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CODE_SIGN_ENTITLEMENTS = FitTrackComplication/FitTrackComplication.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QZNG93JKH6;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FitTrackComplication/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FitTrackComplication;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.robeltsefaye.fittrackpro.watchkitapp.FitTrackComplication;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.5;
 			};
 			name = Release;
 		};
@@ -799,6 +983,15 @@
 			buildConfigurations = (
 				504EC3171FED79650016851F /* Debug */,
 				504EC3181FED79650016851F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		830B292B2FFD4BCF0011558E /* Build configuration list for PBXNativeTarget "FitTrackComplicationExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				830B29282FFD4BCF0011558E /* Debug */,
+				830B29292FFD4BCF0011558E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
