@@ -32,6 +32,11 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
     // accessor below is what's actually gated by @available).
     private var _activity: Any?
 
+    /// A start requested while the app wasn't foreground-active. ActivityKit
+    /// only allows `Activity.request` from the foreground, so we stash the
+    /// params here and retry on the next `didBecomeActive`.
+    private var pendingStart: (endsAtMs: Double, title: String)?
+
     /// Picks up timer adjustments made from the Dynamic Island / Lock Screen
     /// +/- buttons (AdjustRestTimerIntent, runs in the widget extension
     /// process while this app may have been backgrounded) and forwards them
@@ -56,6 +61,15 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc private func handleAppDidBecomeActive() {
         guard #available(iOS 16.1, *) else { return }
+
+        // 1) Flush a start that was deferred because we weren't foreground yet.
+        if let pending = pendingStart {
+            pendingStart = nil
+            requestActivity(endsAtMs: pending.endsAtMs, title: pending.title, call: nil)
+        }
+
+        // 2) Resync JS from the running Activity's current state (reflects any
+        //    -15s/+15s adjustments made from the Dynamic Island buttons).
         guard let activity = Activity<RestTimerWidgetAttributes>.activities.first else { return }
         let state = activity.content.state
         var data: [String: Any] = [:]
@@ -90,6 +104,26 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         let title = call.getString("title") ?? "Pause"
+
+        // ActivityKit rejects `Activity.request` with "Target is not foreground"
+        // unless the app is foreground-active. Auto-start (e.g. at workout begin)
+        // can fire during a scene transition, so defer to didBecomeActive then.
+        DispatchQueue.main.async {
+            guard #available(iOS 16.1, *) else { call.resolve(); return }
+            if UIApplication.shared.applicationState == .active {
+                self.requestActivity(endsAtMs: endsAtMs, title: title, call: call)
+            } else {
+                self.pendingStart = (endsAtMs, title)
+                call.resolve()
+            }
+        }
+    }
+
+    /// Ends any running rest-timer Activity and requests a fresh one. `call`
+    /// is non-nil only for a direct JS `start` (so we can resolve/reject it);
+    /// nil when replaying a deferred start from didBecomeActive.
+    @available(iOS 16.1, *)
+    private func requestActivity(endsAtMs: Double, title: String, call: CAPPluginCall?) {
         let endDate = Date(timeIntervalSince1970: endsAtMs / 1000)
 
         if let existing = activity {
@@ -105,9 +139,9 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
                 content: .init(state: state, staleDate: nil)
             )
             activity = newActivity
-            call.resolve(["id": newActivity.id])
+            call?.resolve(["id": newActivity.id])
         } catch {
-            call.reject("Failed to start Live Activity: \(error.localizedDescription)")
+            call?.reject("Failed to start Live Activity: \(error.localizedDescription)")
         }
     }
 
@@ -129,8 +163,11 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    /// Ends the running Activity (timer stopped/dismissed/expired).
+    /// Ends the running Activity (timer stopped/dismissed/expired). Also drops
+    /// any deferred start so a stop while backgrounded can't spawn an Activity
+    /// on next foreground.
     @objc func end(_ call: CAPPluginCall) {
+        pendingStart = nil
         guard #available(iOS 16.1, *), let activity = activity else {
             call.resolve()
             return
