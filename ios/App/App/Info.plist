@@ -2,12 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CAPACITOR_DEBUG</key>
+	<key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>FitTrack Pro</string>
+	<string>FitTrack Pro</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -23,6 +23,12 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSHealthShareUsageDescription</key>
+	<string>FitTrack Pro liest deine Gesundheitsdaten (Schlaf, Herzfrequenz, HRV, Atemfrequenz, Handgelenk-Temperatur, Workouts), um deinen täglichen Recovery-Score zu berechnen.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>FitTrack Pro benötigt keinen Schreibzugriff auf Apple Health — dies wird nur zur Vollständigkeit der HealthKit-Autorisierung angezeigt.</string>
+	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
@@ -47,9 +53,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>NSHealthShareUsageDescription</key>
-	<string>FitTrack Pro liest deine Gesundheitsdaten (Schlaf, Herzfrequenz, HRV, Atemfrequenz, Handgelenk-Temperatur, Workouts), um deinen täglichen Recovery-Score zu berechnen.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>FitTrack Pro benötigt keinen Schreibzugriff auf Apple Health — dies wird nur zur Vollständigkeit der HealthKit-Autorisierung angezeigt.</string>
 </dict>
 </plist>
