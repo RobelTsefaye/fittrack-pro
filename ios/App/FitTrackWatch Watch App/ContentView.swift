@@ -10,6 +10,22 @@
 //
 
 import SwiftUI
+import HealthKit
+
+/** Workout types offered on the Watch's start screen, with German labels
+ *  and SF Symbols matching the phone app's iconography. */
+private struct WorkoutTypeOption: Identifiable {
+    let id: HKWorkoutActivityType
+    let label: String
+    let icon: String
+
+    static let all: [WorkoutTypeOption] = [
+        WorkoutTypeOption(id: .traditionalStrengthTraining, label: "Kraft", icon: "figure.strengthtraining.traditional"),
+        WorkoutTypeOption(id: .running, label: "Laufen", icon: "figure.run"),
+        WorkoutTypeOption(id: .cycling, label: "Radfahren", icon: "figure.outdoor.cycle"),
+        WorkoutTypeOption(id: .highIntensityIntervalTraining, label: "HIIT", icon: "figure.highintensity.intervaltraining"),
+    ]
+}
 
 struct ContentView: View {
     @StateObject private var workoutManager = WorkoutManager()
@@ -55,24 +71,27 @@ private struct AuthorizationView: View {
     }
 }
 
+/** Shown before every workout — including after a finished one ends and
+ *  `ContentView` falls back to StartView, so the user always re-picks the
+ *  type rather than the last choice sticking around. */
 private struct StartView: View {
     @ObservedObject var workoutManager: WorkoutManager
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "figure.strengthtraining.traditional")
-                .font(.system(size: 36))
-                .foregroundStyle(.tint)
-            Text("Bereit")
-                .font(.headline)
-            Button {
-                workoutManager.start()
-            } label: {
-                Label("Start", systemImage: "play.fill")
+        List {
+            Section {
+                Text("Workout wählen")
+                    .font(.headline)
+                    .listRowBackground(Color.clear)
             }
-            .tint(.green)
+            ForEach(WorkoutTypeOption.all) { option in
+                Button {
+                    workoutManager.start(activityType: option.id)
+                } label: {
+                    Label(option.label, systemImage: option.icon)
+                }
+            }
         }
-        .padding()
     }
 }
 

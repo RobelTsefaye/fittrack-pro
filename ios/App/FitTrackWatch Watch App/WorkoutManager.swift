@@ -57,10 +57,13 @@ final class WorkoutManager: NSObject, ObservableObject {
         }
     }
 
-    func start() {
+    func start(activityType: HKWorkoutActivityType) {
         let config = HKWorkoutConfiguration()
-        config.activityType = .traditionalStrengthTraining
-        config.locationType = .indoor
+        config.activityType = activityType
+        config.locationType = activityType == .traditionalStrengthTraining
+            || activityType == .highIntensityIntervalTraining
+            ? .indoor
+            : .outdoor
 
         do {
             session = try HKWorkoutSession(healthStore: store, configuration: config)

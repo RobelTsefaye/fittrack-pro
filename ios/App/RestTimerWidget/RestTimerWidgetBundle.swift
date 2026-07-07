@@ -14,5 +14,6 @@ struct RestTimerWidgetBundle: WidgetBundle {
         RestTimerWidget()
         RestTimerWidgetControl()
         RestTimerWidgetLiveActivity()
+        RecoveryScoreWidget()
     }
 }
