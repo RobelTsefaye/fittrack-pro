@@ -85,12 +85,17 @@ final class WorkoutManager: NSObject, ObservableObject {
             session?.startActivity(with: start)
             builder?.beginCollection(withStart: start) { [weak self] success, error in
                 Task { @MainActor in
+                    guard let self else { return }
                     if let error = error {
-                        self?.errorMessage = error.localizedDescription
+                        // Clean up the already-started session — otherwise it
+                        // lingers as a zombie that blocks the next start().
+                        self.errorMessage = error.localizedDescription
+                        self.session?.end()
+                        self.resetState()
                         return
                     }
-                    self?.isRunning = true
-                    self?.startTimer()
+                    self.isRunning = true
+                    self.startTimer()
                 }
             }
         } catch {
@@ -100,15 +105,29 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     /// Ends the workout and saves it to HealthKit.
     func stop() {
-        session?.end()
         stopTimer()
+        endSessionOrForceReset()
     }
 
     /// Ends the workout and discards it — nothing gets saved to HealthKit.
     func cancel() {
         isCancelling = true
-        session?.end()
         stopTimer()
+        endSessionOrForceReset()
+    }
+
+    /// `session.end()` only works from the running/paused states. If the
+    /// session died into HealthKit's error state (common in the simulator,
+    /// which has no live heart-rate source), no transition is allowed and
+    /// `.ended` never fires — which used to leave `isRunning` stuck true and
+    /// the UI unable to ever leave the workout screens. Force-reset instead.
+    private func endSessionOrForceReset() {
+        guard let session, session.state == .running || session.state == .paused else {
+            builder?.discardWorkout()
+            resetState()
+            return
+        }
+        session.end()
     }
 
     func pause() {
@@ -188,7 +207,14 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
 
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
         Task { @MainActor in
+            // The session is unrecoverable once it reports a failure (it sits
+            // in an error state that allows no further transitions), so tear
+            // everything down — otherwise isRunning stays true forever and
+            // the UI can never leave the workout screens.
             self.errorMessage = error.localizedDescription
+            self.stopTimer()
+            self.builder?.discardWorkout()
+            self.resetState()
         }
     }
 }
