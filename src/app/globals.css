@@ -198,6 +198,21 @@
   }
 }
 
+/*
+ * ─── Horizontal-scroll guard ────────────────────────────────────────────────
+ * In a real browser tab a few px of leaked overflow is invisible (scrollbar
+ * gutter, elastic-scroll tolerance). In the native Capacitor WebView the
+ * viewport is pixel-exact with no such slack, so small negative margins used
+ * to align Recharts components (`-ml-2`/`-ml-3`, offsetting Recharts' default
+ * internal padding) leak through as an actual horizontally-scrollable page.
+ * Clipping at the document root stops that leak without touching every chart
+ * wrapper individually.
+ */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
 /* ─── Safe-area ──────────────────────────────────────────────────────────── */
 .safe-top-pad     { padding-top:    max(0px, env(safe-area-inset-top,    0px)); }
 .safe-top-offset  { top:             env(safe-area-inset-top, 0px); }
