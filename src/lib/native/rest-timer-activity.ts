@@ -1,11 +1,27 @@
 "use client";
 
-import { Capacitor, registerPlugin } from "@capacitor/core";
+import { Capacitor, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
+
+/** Emitted when the -15s/+15s Dynamic Island / Lock Screen buttons adjust
+ *  the timer while this app was backgrounded (see AdjustRestTimerIntent +
+ *  RestTimerSharedStore on the native side). Exactly one of `endsAt` /
+ *  `pausedRemainingSeconds` is set, matching whether the timer was running
+ *  or paused when the adjustment happened. */
+export type RestTimerActivityAdjustment = {
+  deltaSeconds: number;
+  endsAt?: number;
+  pausedRemainingSeconds?: number;
+};
 
 interface RestTimerActivityPlugin {
   start(options: { endsAt: number; title?: string }): Promise<{ id?: string }>;
   update(options: { endsAt?: number; pausedRemainingSeconds?: number }): Promise<void>;
   end(): Promise<void>;
+  addListener(
+    eventName: "adjustment",
+    listenerFunc: (data: RestTimerActivityAdjustment) => void
+  ): Promise<PluginListenerHandle>;
+  removeAllListeners(): Promise<void>;
 }
 
 const RestTimerActivity = registerPlugin<RestTimerActivityPlugin>("RestTimerActivity");
@@ -69,4 +85,24 @@ export async function endRestTimerActivity(): Promise<void> {
       console.error("[rest-timer-activity] end failed", err);
     }
   });
+}
+
+/**
+ * Subscribes to timer adjustments made from the Dynamic Island / Lock Screen
+ * +/- buttons. No-ops on web/PWA. Returns an unsubscribe function.
+ */
+export function onRestTimerActivityAdjustment(
+  handler: (adjustment: RestTimerActivityAdjustment) => void
+): () => void {
+  if (!Capacitor.isNativePlatform()) return () => {};
+  let cancelled = false;
+  const handlePromise = RestTimerActivity.addListener("adjustment", handler);
+  handlePromise.catch((err) => {
+    console.error("[rest-timer-activity] addListener failed", err);
+  });
+  return () => {
+    if (cancelled) return;
+    cancelled = true;
+    void handlePromise.then((h) => h.remove()).catch(() => undefined);
+  };
 }

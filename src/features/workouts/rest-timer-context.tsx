@@ -16,6 +16,7 @@ import {
   startRestTimerActivity,
   updateRestTimerActivity,
   endRestTimerActivity,
+  onRestTimerActivityAdjustment,
 } from "@/lib/native/rest-timer-activity";
 
 const STORAGE_KEY = "fittrack-rest-v1";
@@ -346,6 +347,21 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [endsAt, pausedRemaining, requestWakeLock]);
+
+  /** Picks up -15s/+15s adjustments made from the Dynamic Island / Lock
+   *  Screen buttons while this app was backgrounded. The native side has
+   *  already updated the Live Activity itself, so we only mirror the result
+   *  into React state here — no `updateRestTimerActivity` call back out. */
+  useEffect(() => {
+    return onRestTimerActivityAdjustment(({ deltaSeconds, endsAt: nextEndsAt, pausedRemainingSeconds }) => {
+      if (deltaSeconds > 0) setDuration((d) => d + deltaSeconds);
+      if (pausedRemainingSeconds != null) {
+        setPausedRemaining(pausedRemainingSeconds);
+      } else if (nextEndsAt != null) {
+        setEndsAt(nextEndsAt);
+      }
+    });
+  }, []);
 
   const actions = useMemo<RestTimerActions>(
     () => ({ start, stop, pause, resume, adjustTime }),

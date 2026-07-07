@@ -13,5 +13,15 @@
 	<true/>
 	<key>com.apple.developer.healthkit.access</key>
 	<array/>
+	<!--
+	  Shared with RestTimerWidgetExtension so the Dynamic Island +/- buttons
+	  (AdjustRestTimerIntent, runs in the widget extension process) can hand
+	  timer adjustments back to the app via a common UserDefaults suite. See
+	  RestTimerWidget/RestTimerSharedStore.swift.
+	-->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.robeltsefaye.fittrackpro</string>
+	</array>
 </dict>
 </plist>

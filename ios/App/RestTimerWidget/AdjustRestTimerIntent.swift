@@ -1,0 +1,55 @@
+import AppIntents
+import ActivityKit
+
+/**
+ * Powers the -15s / +15s buttons inside the Live Activity (Dynamic Island
+ * expanded view + Lock Screen). `LiveActivityIntent` lets it run and update
+ * the Activity in place without opening the app.
+ *
+ * It mutates the running Activity directly (source of truth while the app is
+ * backgrounded) and mirrors the result into RestTimerSharedStore so the JS
+ * timer can pick it up next time the app becomes active.
+ */
+struct AdjustRestTimerIntent: LiveActivityIntent {
+    static var title: LocalizedStringResource = "Adjust Rest Timer"
+    static var description = IntentDescription("Adjusts the running rest timer by a number of seconds.")
+
+    @Parameter(title: "Delta seconds")
+    var deltaSeconds: Int
+
+    init() {
+        self.deltaSeconds = 0
+    }
+
+    init(deltaSeconds: Int) {
+        self.deltaSeconds = deltaSeconds
+    }
+
+    func perform() async throws -> some IntentResult {
+        guard #available(iOS 16.1, *) else { return .result() }
+        guard let activity = Activity<RestTimerWidgetAttributes>.activities.first else {
+            return .result()
+        }
+
+        let current = activity.content.state
+        var next = current
+
+        if let paused = current.pausedRemainingSeconds {
+            next.pausedRemainingSeconds = max(0, paused + deltaSeconds)
+        } else {
+            next.endDate = current.endDate.addingTimeInterval(Double(deltaSeconds))
+        }
+
+        await activity.update(.init(state: next, staleDate: nil))
+
+        RestTimerSharedStore.write(
+            RestTimerSharedStore.Adjustment(
+                endsAt: next.pausedRemainingSeconds == nil ? next.endDate.timeIntervalSince1970 * 1000 : nil,
+                pausedRemainingSeconds: next.pausedRemainingSeconds,
+                deltaSeconds: deltaSeconds
+            )
+        )
+
+        return .result()
+    }
+}

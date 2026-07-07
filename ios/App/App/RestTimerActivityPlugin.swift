@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Capacitor
 import ActivityKit
 
@@ -22,12 +23,39 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "update", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "end", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "addListener", returnType: CAPPluginReturnCallback),
+        CAPPluginMethod(name: "removeAllListeners", returnType: CAPPluginReturnPromise),
     ]
 
     // Type-erased storage so this property can exist on iOS versions below
     // 16.1 too (the typed `Activity<RestTimerWidgetAttributes>` computed
     // accessor below is what's actually gated by @available).
     private var _activity: Any?
+
+    /// Picks up timer adjustments made from the Dynamic Island / Lock Screen
+    /// +/- buttons (AdjustRestTimerIntent, runs in the widget extension
+    /// process while this app may have been backgrounded) and forwards them
+    /// to JS so `rest-timer-context.tsx` stays in sync.
+    override public func load() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func handleAppDidBecomeActive() {
+        guard let adjustment = RestTimerSharedStore.consume() else { return }
+        var data: [String: Any] = ["deltaSeconds": adjustment.deltaSeconds]
+        if let endsAt = adjustment.endsAt { data["endsAt"] = endsAt }
+        if let paused = adjustment.pausedRemainingSeconds { data["pausedRemainingSeconds"] = paused }
+        notifyListeners("adjustment", data: data)
+    }
 
     @available(iOS 16.1, *)
     private var activity: Activity<RestTimerWidgetAttributes>? {

@@ -29,9 +29,12 @@ struct RestTimerWidgetLiveActivity: Widget {
                         .foregroundStyle(.white)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text(context.attributes.title)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    VStack(spacing: 6) {
+                        Text(context.attributes.title)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        adjustButtons(context: context)
+                    }
                 }
             } compactLeading: {
                 Image(systemName: "timer")
@@ -55,6 +58,31 @@ struct RestTimerWidgetLiveActivity: Widget {
         } else {
             Text(timerInterval: Date.now...context.state.endDate, countsDown: true)
         }
+    }
+
+    /// -15s / +15s buttons — shown in the Dynamic Island expanded view and
+    /// on the Lock Screen. Each runs `AdjustRestTimerIntent` in place,
+    /// without opening the app (see LiveActivityIntent).
+    @ViewBuilder
+    fileprivate func adjustButtons(context: ActivityViewContext<RestTimerWidgetAttributes>) -> some View {
+        HStack(spacing: 12) {
+            Button(intent: AdjustRestTimerIntent(deltaSeconds: -15)) {
+                Label("15s", systemImage: "gobackward.15")
+                    .labelStyle(.iconOnly)
+                    .font(.body.weight(.semibold))
+            }
+            .tint(.white.opacity(0.85))
+
+            Spacer(minLength: 0)
+
+            Button(intent: AdjustRestTimerIntent(deltaSeconds: 15)) {
+                Label("15s", systemImage: "goforward.15")
+                    .labelStyle(.iconOnly)
+                    .font(.body.weight(.semibold))
+            }
+            .tint(.white.opacity(0.85))
+        }
+        .buttonStyle(.plain)
     }
 
     fileprivate static func formatSeconds(_ seconds: Int) -> String {
@@ -85,7 +113,20 @@ private struct LockScreenRestTimerView: View {
                 }
             }
             Spacer()
+            Button(intent: AdjustRestTimerIntent(deltaSeconds: -15)) {
+                Label("15s", systemImage: "gobackward.15")
+                    .labelStyle(.iconOnly)
+                    .font(.title3.weight(.semibold))
+            }
+            .tint(.white.opacity(0.85))
+            Button(intent: AdjustRestTimerIntent(deltaSeconds: 15)) {
+                Label("15s", systemImage: "goforward.15")
+                    .labelStyle(.iconOnly)
+                    .font(.title3.weight(.semibold))
+            }
+            .tint(.white.opacity(0.85))
         }
+        .buttonStyle(.plain)
         .padding()
     }
 }
