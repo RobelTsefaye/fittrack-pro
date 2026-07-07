@@ -60,6 +60,7 @@ export async function PATCH(
 
   /** Always reconcile PR for this set so edits (incl. past sessions) stay consistent. */
   await removePersonalRecordForSet(setId);
+  let personalRecord = false;
   if (
     set.isCompleted &&
     !set.isWarmup &&
@@ -68,16 +69,17 @@ export async function PATCH(
     set.weight > 0 &&
     set.reps > 0
   ) {
-    await recordPersonalRecordIfBest({
+    const result = await recordPersonalRecordIfBest({
       userId: session.user.id,
       exerciseId: existing.workoutExercise.exerciseId,
       setId: set.id,
       weight: set.weight,
       reps: set.reps,
     });
+    personalRecord = result.recorded;
   }
 
-  return NextResponse.json({ data: set });
+  return NextResponse.json({ data: set, personalRecord });
 }
 
 export async function DELETE(

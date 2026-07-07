@@ -8,6 +8,7 @@ import { Check, Trash2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
 import { cn } from "@/lib/utils";
 import type { WorkoutSetData } from "@/features/workouts/workout-types";
+import { hapticSetCompleted, hapticPersonalRecord } from "@/lib/native/haptics";
 
 function parseLocaleDecimal(raw: string): number | null {
   const t = raw.trim().replace(/\s/g, "").replace(",", ".");
@@ -82,6 +83,7 @@ export const SetRow = memo(function SetRow({
       await offlineHandlers.patchSet(data, complete);
       setSaving(false);
       if (complete) {
+        void hapticSetCompleted();
         onComplete();
       }
       return;
@@ -97,9 +99,17 @@ export const SetRow = memo(function SetRow({
     setSaving(false);
 
     if (res.ok) {
-      const json = (await res.json()) as { data?: WorkoutSetData };
+      const json = (await res.json()) as {
+        data?: WorkoutSetData;
+        personalRecord?: boolean;
+      };
       if (json.data) onMergeSet?.(json.data);
       if (complete) {
+        if (json.personalRecord) {
+          void hapticPersonalRecord();
+        } else {
+          void hapticSetCompleted();
+        }
         onComplete();
       }
     } else {

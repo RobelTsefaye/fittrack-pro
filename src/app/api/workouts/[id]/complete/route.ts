@@ -95,14 +95,16 @@ export async function POST(
     },
   });
 
+  let newPersonalRecords = 0;
   for (const s of setsForPr) {
-    await recordPersonalRecordIfBest({
+    const result = await recordPersonalRecordIfBest({
       userId: session.user.id,
       exerciseId: s.workoutExercise.exerciseId,
       setId: s.id,
       weight: s.weight!,
       reps: s.reps!,
     });
+    if (result.recorded) newPersonalRecords++;
   }
 
   const currentVolume = await sumWorkoutVolume(id);
@@ -123,5 +125,6 @@ export async function POST(
       volumeDelta,
       volumeDeltaPct,
     },
+    newPersonalRecords,
   });
 }

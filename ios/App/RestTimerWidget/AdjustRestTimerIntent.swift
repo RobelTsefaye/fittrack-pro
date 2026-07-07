@@ -1,11 +1,5 @@
 import AppIntents
 import ActivityKit
-import os
-
-private let intentLog = Logger(
-    subsystem: "com.robeltsefaye.fittrackpro.RestTimerWidget",
-    category: "AdjustRestTimerIntent"
-)
 
 /**
  * Powers the -15s / +15s buttons inside the Live Activity (Dynamic Island
@@ -33,13 +27,10 @@ struct AdjustRestTimerIntent: LiveActivityIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        intentLog.notice("perform() ENTERED, deltaSeconds=\(deltaSeconds, privacy: .public)")
         guard #available(iOS 16.1, *) else { return .result() }
         guard let activity = Activity<RestTimerWidgetAttributes>.activities.first else {
-            intentLog.error("no running activity found — nothing to adjust")
             return .result()
         }
-        intentLog.notice("found activity id=\(activity.id, privacy: .public)")
 
         let current = activity.content.state
         var next = current
@@ -51,7 +42,6 @@ struct AdjustRestTimerIntent: LiveActivityIntent {
         }
 
         await activity.update(.init(state: next, staleDate: nil))
-        intentLog.notice("activity updated ok")
 
         return .result()
     }

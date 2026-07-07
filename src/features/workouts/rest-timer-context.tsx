@@ -18,6 +18,11 @@ import {
   endRestTimerActivity,
   onRestTimerActivityAdjustment,
 } from "@/lib/native/rest-timer-activity";
+import {
+  scheduleRestTimerNotification,
+  cancelRestTimerNotification,
+} from "@/lib/native/local-notifications";
+import { hapticRestTimerExpired } from "@/lib/native/haptics";
 
 const STORAGE_KEY = "fittrack-rest-v1";
 
@@ -218,6 +223,8 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
       clearPersisted();
       releaseWakeLock();
       void endRestTimerActivity();
+      void cancelRestTimerNotification();
+      void hapticRestTimerExpired();
       queueMicrotask(() => onExpireRef.current?.());
     });
   }, [endsAt, pausedRemaining, doneVisible, tick, releaseWakeLock]);
@@ -237,6 +244,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
       setPausedRemaining(null);
       void requestWakeLock();
       void startRestTimerActivity(newEndsAt);
+      void scheduleRestTimerNotification(newEndsAt);
     },
     [requestWakeLock]
   );
@@ -251,6 +259,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     clearPersisted();
     releaseWakeLock();
     void endRestTimerActivity();
+    void cancelRestTimerNotification();
   }, [releaseWakeLock]);
 
   const pause = useCallback(() => {
@@ -260,6 +269,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     setEndsAt(null);
     releaseWakeLock();
     void updateRestTimerActivity({ pausedRemainingSeconds: left });
+    void cancelRestTimerNotification();
   }, [endsAt, pausedRemaining, releaseWakeLock]);
 
   const resume = useCallback(() => {
@@ -269,6 +279,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     setPausedRemaining(null);
     void requestWakeLock();
     void updateRestTimerActivity({ endsAt: newEndsAt });
+    void scheduleRestTimerNotification(newEndsAt);
   }, [pausedRemaining, requestWakeLock]);
 
   const adjustTime = useCallback((delta: number) => {
@@ -288,6 +299,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
         if (e == null) return e;
         const next = e + delta * 1000;
         void updateRestTimerActivity({ endsAt: next });
+        void scheduleRestTimerNotification(next);
         return next;
       });
       if (delta > 0) setDuration((d) => d + delta);
@@ -359,10 +371,12 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
       if (pausedRemainingSeconds != null) {
         setPausedRemaining(pausedRemainingSeconds);
         setDuration((d) => Math.max(d, pausedRemainingSeconds));
+        void cancelRestTimerNotification();
       } else if (nextEndsAt != null) {
         setEndsAt(nextEndsAt);
         const remainingSecs = Math.max(0, Math.ceil((nextEndsAt - Date.now()) / 1000));
         setDuration((d) => Math.max(d, remainingSecs));
+        void scheduleRestTimerNotification(nextEndsAt);
       }
     });
   }, []);

@@ -54,6 +54,7 @@ import {
   saveWorkoutSnapshot,
 } from "@/lib/offline/workout-offline-store";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
+import { hapticWorkoutCompleted, hapticPersonalRecord } from "@/lib/native/haptics";
 
 function formatShortDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -889,6 +890,7 @@ export function WorkoutDetail({
       setCompleting(false);
       restTimer.stop();
       notifyActiveWorkoutChanged();
+      void hapticWorkoutCompleted();
       router.refresh();
       return;
     }
@@ -907,10 +909,16 @@ export function WorkoutDetail({
         volumeDelta: number;
         volumeDeltaPct: number | null;
       };
+      newPersonalRecords?: number;
     };
     if (json.comparison) setCompletionSummary(json.comparison);
     restTimer.stop();
     notifyActiveWorkoutChanged();
+    if (json.newPersonalRecords && json.newPersonalRecords > 0) {
+      void hapticPersonalRecord();
+    } else {
+      void hapticWorkoutCompleted();
+    }
     await loadWorkout({ silent: true });
     router.refresh();
   }
