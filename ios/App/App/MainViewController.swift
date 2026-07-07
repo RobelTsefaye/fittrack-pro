@@ -1,4 +1,5 @@
 import UIKit
+import WebKit
 import Capacitor
 
 /**
@@ -15,5 +16,12 @@ class MainViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(HealthKitPlugin())
         bridge?.registerPluginInstance(RestTimerActivityPlugin())
+
+        // Disable WKWebView's built-in long-press "Peek" link preview (the
+        // Safari-style pop-up with Open/Copy/Share). It's WebKit's default
+        // link-interaction behavior and is the single biggest tell that this
+        // is a wrapped website rather than a native app — nothing in the web
+        // layer can turn it off, it has to be disabled on the WKWebView itself.
+        bridge?.webView?.allowsLinkPreview = false
     }
 }

@@ -211,6 +211,15 @@
 html, body {
   overflow-x: hidden;
   max-width: 100vw;
+  /*
+   * Suppresses WebKit's long-press "peek" callout menu (Open/Copy/Share) on
+   * links, images, and text everywhere — the single biggest visual tell that
+   * this is a wrapped website rather than a native app. `allowsLinkPreview`
+   * on the native WKWebView (see MainViewController.swift) handles links
+   * specifically; this covers the same behavior on non-link elements and
+   * takes effect immediately over the live deployment with no app rebuild.
+   */
+  -webkit-touch-callout: none;
 }
 
 /* ─── Safe-area ──────────────────────────────────────────────────────────── */
