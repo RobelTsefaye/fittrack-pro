@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0EC6850581A02526C4154886 /* HealthKitPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41E81FC7A2B6F1AE1D7C41F3 /* HealthKitPlugin.swift */; };
+		AA11BB22CC33DD44EE55FF06 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF05 /* MainViewController.swift */; };
 		AA11BB22CC33DD44EE55FF02 /* RestTimerActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF01 /* RestTimerActivityPlugin.swift */; };
 		AA11BB22CC33DD44EE55FF04 /* RestTimerWidgetAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF03 /* RestTimerWidgetAttributes.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
@@ -52,6 +53,7 @@
 		241C812FAA07DEA7AD75E4B4 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		41E81FC7A2B6F1AE1D7C41F3 /* HealthKitPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitPlugin.swift; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE55FF05 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF01 /* RestTimerActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestTimerActivityPlugin.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF03 /* RestTimerWidgetAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../RestTimerWidget/RestTimerWidgetAttributes.swift"; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
@@ -140,6 +142,7 @@
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				41E81FC7A2B6F1AE1D7C41F3 /* HealthKitPlugin.swift */,
+				AA11BB22CC33DD44EE55FF05 /* MainViewController.swift */,
 				AA11BB22CC33DD44EE55FF01 /* RestTimerActivityPlugin.swift */,
 				AA11BB22CC33DD44EE55FF03 /* RestTimerWidgetAttributes.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -275,6 +278,7 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				0EC6850581A02526C4154886 /* HealthKitPlugin.swift in Sources */,
+				AA11BB22CC33DD44EE55FF06 /* MainViewController.swift in Sources */,
 				AA11BB22CC33DD44EE55FF02 /* RestTimerActivityPlugin.swift in Sources */,
 				AA11BB22CC33DD44EE55FF04 /* RestTimerWidgetAttributes.swift in Sources */,
 			);
