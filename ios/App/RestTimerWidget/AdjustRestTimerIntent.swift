@@ -21,7 +21,7 @@ struct AdjustRestTimerIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Adjust Rest Timer"
     static var description = IntentDescription("Adjusts the running rest timer by a number of seconds.")
 
-    @Parameter(title: "Delta seconds")
+    @Parameter(title: "Delta seconds", default: 0)
     var deltaSeconds: Int
 
     init() {
