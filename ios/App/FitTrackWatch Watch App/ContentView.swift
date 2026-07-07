@@ -8,6 +8,12 @@
 //  section on the next HealthKit sync — no direct network call needed
 //  from the Watch itself.
 //
+//  Also mirrors whatever workout is currently active on the paired iPhone
+//  (via PhoneWorkoutObserver / WatchConnectivity) — if the phone has a
+//  workout going, that takes priority over the manual type-picker so the
+//  Watch shows "what's happening right now" instead of asking the user to
+//  redundantly pick a type it could already infer.
+//
 
 import SwiftUI
 import HealthKit
@@ -29,13 +35,16 @@ private struct WorkoutTypeOption: Identifiable {
 
 struct ContentView: View {
     @StateObject private var workoutManager = WorkoutManager()
+    @StateObject private var phoneObserver = PhoneWorkoutObserver()
 
     var body: some View {
         Group {
             if !workoutManager.authorizationGranted {
                 AuthorizationView(workoutManager: workoutManager)
             } else if workoutManager.isRunning {
-                LiveWorkoutView(workoutManager: workoutManager)
+                LiveWorkoutView(workoutManager: workoutManager, phoneObserver: phoneObserver)
+            } else if phoneObserver.isPhoneWorkoutActive {
+                PhoneMirrorView(phoneObserver: phoneObserver, workoutManager: workoutManager)
             } else {
                 StartView(workoutManager: workoutManager)
             }
@@ -73,7 +82,8 @@ private struct AuthorizationView: View {
 
 /** Shown before every workout — including after a finished one ends and
  *  `ContentView` falls back to StartView, so the user always re-picks the
- *  type rather than the last choice sticking around. */
+ *  type rather than the last choice sticking around. Only reached when no
+ *  phone workout is active (see PhoneMirrorView otherwise). */
 private struct StartView: View {
     @ObservedObject var workoutManager: WorkoutManager
 
@@ -95,11 +105,80 @@ private struct StartView: View {
     }
 }
 
-private struct LiveWorkoutView: View {
+/**
+ * Shown while a workout is running on the paired iPhone and the Watch
+ * hasn't started its own HKWorkoutSession yet — mirrors the current
+ * exercise/set instead of asking the user to manually pick a type the app
+ * already knows. Offers a one-tap button to also start HR/calorie tracking
+ * on the Watch itself (phone workouts are strength-focused, so that's the
+ * activity type used).
+ */
+private struct PhoneMirrorView: View {
+    @ObservedObject var phoneObserver: PhoneWorkoutObserver
     @ObservedObject var workoutManager: WorkoutManager
 
     var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "iphone.gen3")
+                .font(.system(size: 20))
+                .foregroundStyle(.secondary)
+
+            Text(phoneObserver.exerciseName.isEmpty ? "Workout aktiv" : phoneObserver.exerciseName)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+
+            if phoneObserver.totalSets > 0 {
+                Text("Satz \(phoneObserver.currentSet) / \(phoneObserver.totalSets)")
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+            }
+
+            if let weight = phoneObserver.weight, let reps = phoneObserver.reps {
+                Text("\(formattedWeight(weight)) kg × \(reps)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button {
+                workoutManager.start(activityType: .traditionalStrengthTraining)
+            } label: {
+                Label("HF tracken", systemImage: "heart.fill")
+            }
+            .tint(.red)
+            .padding(.top, 4)
+        }
+        .padding()
+    }
+
+    private func formattedWeight(_ w: Double) -> String {
+        w.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", w) : String(format: "%.1f", w)
+    }
+}
+
+private struct LiveWorkoutView: View {
+    @ObservedObject var workoutManager: WorkoutManager
+    @ObservedObject var phoneObserver: PhoneWorkoutObserver
+
+    var body: some View {
         VStack(spacing: 6) {
+            // Phone exercise/set banner — shown alongside the Watch's own
+            // HR/calorie session when both are active at once (the common
+            // case: user starts HR tracking after already logging a set).
+            if phoneObserver.isPhoneWorkoutActive {
+                VStack(spacing: 1) {
+                    Text(phoneObserver.exerciseName)
+                        .font(.caption)
+                        .lineLimit(1)
+                    if phoneObserver.totalSets > 0 {
+                        Text("Satz \(phoneObserver.currentSet)/\(phoneObserver.totalSets)")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                }
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 2)
+            }
+
             Text(formattedTime)
                 .font(.system(size: 34, weight: .semibold, design: .rounded))
                 .monospacedDigit()
