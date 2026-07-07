@@ -940,17 +940,30 @@ export function WorkoutDetail({
    */
   async function pushWatchWorkoutState() {
     if (!workout) return;
-    await syncActiveWorkoutToWatch(workout);
+    await syncActiveWorkoutToWatch(workout, previousLogs);
   }
 
   useEffect(() => {
     if (!isActive) return;
     void pushWatchWorkoutState();
-    // Only re-sync when the workout identity or exercise count changes —
-    // individual set edits are already pushed via onSetCompleted, and this
-    // effect isn't meant to fire on every keystroke of an in-progress edit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workout?.id, isActive, workout?.workoutExercises?.length]);
+    // Deliberately depends on the whole `workout` object, not just its id —
+    // loadWorkout below produces a fresh object on every poll tick, so this
+    // re-pushes to the Watch whenever anything changed server-side,
+    // including a set logged *on* the Watch (which lands via REST, gets
+    // picked up by the next poll, and is pushed straight back — the Watch's
+    // own optimistic update just gets confirmed with the same values).
+  }, [workout, isActive]);
+
+  // Keeps both devices converged in near-real-time: a set logged on the
+  // phone reaches the Watch via the effect above almost immediately, and a
+  // set logged on the Watch reaches the phone via this poll within ~1s.
+  useEffect(() => {
+    if (!isActive) return;
+    const interval = setInterval(() => {
+      void loadWorkout({ silent: true });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isActive, loadWorkout]);
 
   async function deleteCompletedWorkout() {
     if (!workout?.completedAt) return;

@@ -74,4 +74,10 @@ struct WatchSet: Codable, Identifiable, Hashable {
     var reps: Int?
     var weight: Double?
     var isCompleted: Bool
+    /// Weight/reps from the last session that logged this same set number
+    /// for this exercise (see `previous-logs` on the phone side). Nil until
+    /// there's history for this exact exercise. Used only as the initial
+    /// value for not-yet-logged sets — never overwrites an already-logged one.
+    var previousWeight: Double?
+    var previousReps: Int?
 }

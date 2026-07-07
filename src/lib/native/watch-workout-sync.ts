@@ -7,6 +7,7 @@ import {
   clearWatchWorkoutState,
 } from "@/lib/native/watch-connectivity";
 import type { WorkoutData } from "@/features/workouts/workout-types";
+import type { PreviousLogEntry } from "@/app/api/workouts/[id]/previous-logs/route";
 
 /**
  * Backs the Watch's standalone strength-training flow (session picker +
@@ -56,6 +57,20 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
       if (!detailRes.ok) return { error: `Laden fehlgeschlagen (${detailRes.status})` };
       const { data: workout } = (await detailRes.json()) as { data: WorkoutData };
 
+      // Best-effort — a freshly started session usually has no prior
+      // sessions with this exact combination of exercises yet, so a failure
+      // here just means the Watch falls back to its own defaults.
+      let previousLogs: Record<string, PreviousLogEntry> | undefined;
+      try {
+        const prevRes = await fetch(`/api/workouts/${data.id}/previous-logs`);
+        if (prevRes.ok) {
+          const json = (await prevRes.json()) as { data: Record<string, PreviousLogEntry> };
+          previousLogs = json.data;
+        }
+      } catch {
+        // Non-fatal.
+      }
+
       // Deliver the workout via application context, not the sendMessage
       // reply: two sequential network round-trips (start + detail fetch)
       // are slow enough over a real network that WatchConnectivity can
@@ -63,7 +78,7 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
       // with no error. application context has no such timeout — the Watch
       // picks it up via PhoneWorkoutObserver and ContentView routes into
       // KraftLoggingView as soon as it arrives.
-      await syncActiveWorkoutToWatch(workout);
+      await syncActiveWorkoutToWatch(workout, previousLogs);
       return { started: true };
     }
 

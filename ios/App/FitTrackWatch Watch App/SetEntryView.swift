@@ -29,8 +29,11 @@ struct SetEntryView: View {
         self.set = set
         self.exerciseName = exerciseName
         self.onSaved = onSaved
-        _weight = State(initialValue: set.weight ?? 20)
-        _reps = State(initialValue: Double(set.reps ?? 10))
+        // Prefill with what was actually logged, then the last session's
+        // values for this exact set, and only fall back to a generic
+        // default when neither exists (first time ever logging this set).
+        _weight = State(initialValue: set.weight ?? set.previousWeight ?? 20)
+        _reps = State(initialValue: Double(set.reps ?? set.previousReps ?? 10))
     }
 
     var body: some View {
