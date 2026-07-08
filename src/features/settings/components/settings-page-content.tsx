@@ -1,7 +1,7 @@
 "use client";
 
 import { useI18n } from "@/lib/i18n-provider";
-import { ApiTokensCard } from "./api-tokens-card";
+import { ApiTokensCard } from "./api-keys-card";
 import { SettingsForm } from "./settings-form";
 
 type InitialSettings = {

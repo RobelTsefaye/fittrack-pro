@@ -112,6 +112,8 @@
     "apiTokensClaudeHint": "Token z. B. in Claude-Desktop-Projektanweisungen, MCP-Server-Umgebungsvariable oder Skript mit Authorization: Bearer … hinterlegen.",
     "apiTokensNewOnce": "Token jetzt speichern — er wird nur einmal angezeigt.",
     "apiTokensCopy": "Token kopieren",
+    "apiTokensSyncUse": "Für Hintergrund-Sync verwenden",
+    "apiTokensSyncActive": "Für Hintergrund-Sync aktiviert",
     "apiTokensNameLabel": "Bezeichnung (optional)",
     "apiTokensNamePlaceholder": "z. B. Claude Mac",
     "apiTokensCreate": "Token erstellen",

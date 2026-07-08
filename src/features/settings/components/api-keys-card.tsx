@@ -110,7 +110,10 @@ export function ApiTokensCard() {
     await navigator.clipboard.writeText(newSecret);
   }
 
-  async function useForBackgroundSync() {
+  // Deliberately NOT named `use…` — the `use` prefix makes the rules-of-hooks
+  // lint treat this plain helper as a React hook and reject calling it from
+  // the button's onClick callback.
+  async function enableBackgroundSync() {
     if (!newSecret) return;
     const ok = await storeBackgroundSyncToken(newSecret);
     setSyncTokenStored(ok);
@@ -153,9 +156,11 @@ export function ApiTokensCard() {
                   size="sm"
                   variant="secondary"
                   disabled={syncTokenStored}
-                  onClick={() => void useForBackgroundSync()}
+                  onClick={() => void enableBackgroundSync()}
                 >
-                  {syncTokenStored ? "Für Hintergrund-Sync aktiviert" : "Für Hintergrund-Sync verwenden"}
+                  {syncTokenStored
+                    ? t("settings.apiTokensSyncActive")
+                    : t("settings.apiTokensSyncUse")}
                 </Button>
               )}
             </div>
