@@ -64,7 +64,9 @@ struct WatchActiveWorkout: Codable, Identifiable, Hashable {
     /// String rather than decoding straight to `Date` since Foundation's
     /// `.iso8601` JSONDecoder strategy doesn't handle the fractional-seconds
     /// format Prisma's serialized DateTime uses; see `startedAtDate`.
-    let startedAt: String?
+    // Defaults to nil so existing memberwise-init call sites (mock data in
+    // #Previews) don't need updating every time an optional field is added.
+    let startedAt: String? = nil
 
     /// Parsed `startedAt`, used as the base for the Watch's own elapsed-time
     /// display so it doesn't drift from the phone's — both then compute

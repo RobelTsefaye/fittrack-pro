@@ -170,7 +170,7 @@ private struct RestTimerRow: View {
     )
     let observer = PhoneWorkoutObserver()
     observer.activeWorkout = mockWorkout
-    return NavigationStack {
+    NavigationStack {
         KraftLoggingView(phoneObserver: observer, initialWorkout: mockWorkout)
     }
 }
@@ -200,7 +200,7 @@ private struct RestTimerRow: View {
     )
     let observer = PhoneWorkoutObserver()
     observer.activeWorkout = mockWorkout
-    return NavigationStack {
+    NavigationStack {
         KraftLoggingView(phoneObserver: observer, initialWorkout: mockWorkout)
     }
 }
