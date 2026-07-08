@@ -37,6 +37,7 @@ private struct WorkoutTypeOption: Identifiable {
 struct ContentView: View {
     @StateObject private var workoutManager = WorkoutManager()
     @StateObject private var phoneObserver = PhoneWorkoutObserver()
+    @StateObject private var routeTracker = RouteLocationTracker()
 
     /// Which page of the phone-workout TabView is showing. Defaults to the
     /// logging page (1) — swipe right for controls (0), left for live HR (2).
@@ -61,14 +62,14 @@ struct ContentView: View {
                     }
                     .tag(1)
                     NavigationStack {
-                        LiveWorkoutView(workoutManager: workoutManager, phoneObserver: phoneObserver)
+                        LiveWorkoutView(workoutManager: workoutManager, phoneObserver: phoneObserver, routeTracker: routeTracker)
                     }
                     .tag(2)
                 }
                 .tabViewStyle(.page)
             } else if workoutManager.isRunning {
                 NavigationStack {
-                    LiveWorkoutView(workoutManager: workoutManager, phoneObserver: phoneObserver)
+                    LiveWorkoutView(workoutManager: workoutManager, phoneObserver: phoneObserver, routeTracker: routeTracker)
                 }
             } else {
                 StartView(workoutManager: workoutManager, phoneObserver: phoneObserver)
@@ -76,6 +77,19 @@ struct ContentView: View {
         }
         .onAppear {
             workoutManager.requestAuthorization()
+        }
+        .onChange(of: workoutManager.isRunning) { _, isRunning in
+            // Route recording is tied to the HR/calorie session's own
+            // lifetime rather than to a screen appearing/disappearing —
+            // TabView keeps every page alive, so LiveWorkoutView's own
+            // appear/disappear isn't reliable here, and this also covers
+            // the phone-mirrored TabView path where the map is one swipe
+            // away from the page actually shown at start.
+            if isRunning, workoutManager.isOutdoorActivity {
+                routeTracker.start()
+            } else if !isRunning {
+                routeTracker.stop()
+            }
         }
         .onChange(of: phoneObserver.activeWorkout?.workoutId) { oldId, newId in
             if newId != nil {
@@ -336,8 +350,24 @@ private struct WorkoutControlsView: View {
 private struct LiveWorkoutView: View {
     @ObservedObject var workoutManager: WorkoutManager
     @ObservedObject var phoneObserver: PhoneWorkoutObserver
+    @ObservedObject var routeTracker: RouteLocationTracker
 
     var body: some View {
+        if workoutManager.isOutdoorActivity {
+            // Laufen/Radfahren: an extra swipe page shows the route covered
+            // so far — Kraft/HIIT run indoors and have nothing to map, so
+            // they keep the plain metrics screen (the `else` branch below).
+            TabView {
+                metricsPage.tag(0)
+                RouteMapView(tracker: routeTracker).tag(1)
+            }
+            .tabViewStyle(.page)
+        } else {
+            metricsPage
+        }
+    }
+
+    private var metricsPage: some View {
         VStack(spacing: 6) {
             if let workout = phoneObserver.activeWorkout {
                 Text(workout.name ?? "Training")
@@ -464,7 +494,7 @@ private struct MetricView: View {
     return TabView {
         NavigationStack { WorkoutControlsView(phoneObserver: observer, workoutManager: manager, workout: observer.activeWorkout!) }.tag(0)
         NavigationStack { KraftLoggingView(phoneObserver: observer, initialWorkout: observer.activeWorkout!) }.tag(1)
-        NavigationStack { LiveWorkoutView(workoutManager: manager, phoneObserver: observer) }.tag(2)
+        NavigationStack { LiveWorkoutView(workoutManager: manager, phoneObserver: observer, routeTracker: RouteLocationTracker()) }.tag(2)
     }
     .tabViewStyle(.page)
 }
@@ -476,6 +506,6 @@ private struct MetricView: View {
     manager.activeCalories = 213
     manager.elapsedSeconds = 754
     return NavigationStack {
-        LiveWorkoutView(workoutManager: manager, phoneObserver: PhoneWorkoutObserver())
+        LiveWorkoutView(workoutManager: manager, phoneObserver: PhoneWorkoutObserver(), routeTracker: RouteLocationTracker())
     }
 }

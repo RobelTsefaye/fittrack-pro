@@ -20,6 +20,18 @@ final class WorkoutManager: NSObject, ObservableObject {
     @Published var authorizationGranted = false
     @Published var errorMessage: String?
 
+    /// Set in `start()`, cleared in `resetState()` — lets views (LiveWorkoutView)
+    /// decide whether to show RouteMapView without needing their own copy of
+    /// the indoor/outdoor mapping.
+    @Published private(set) var currentActivityType: HKWorkoutActivityType?
+
+    /// True for activity types with a meaningful outdoor route to draw
+    /// (Laufen/Radfahren) — Kraft/HIIT run `.indoor` and have nothing to map.
+    var isOutdoorActivity: Bool {
+        guard let type = currentActivityType else { return false }
+        return type != .traditionalStrengthTraining && type != .highIntensityIntervalTraining
+    }
+
     /// Most recent heart rate sample HealthKit has, independent of whether a
     /// workout is currently running — the paired Watch/iPhone share the same
     /// underlying HealthKit store, so this reflects whichever device (Watch
@@ -110,6 +122,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     }
 
     func start(activityType: HKWorkoutActivityType) {
+        currentActivityType = activityType
         let config = HKWorkoutConfiguration()
         config.activityType = activityType
         config.locationType = activityType == .traditionalStrengthTraining
@@ -219,6 +232,7 @@ final class WorkoutManager: NSObject, ObservableObject {
         isCancelling = false
         session = nil
         builder = nil
+        currentActivityType = nil
     }
 }
 

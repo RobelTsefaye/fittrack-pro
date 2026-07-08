@@ -898,6 +898,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = FitTrackWatch;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "FitTrackWatch liest deine Herzfrequenz für Live-Anzeige während des Trainings.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "FitTrackWatch speichert deine Workouts (Dauer, Kalorien, Herzfrequenz) in Apple Health.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "FitTrackWatch zeichnet deine Route bei Laufen/Radfahren live auf der Karte auf.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKBackgroundModes = "workout-processing";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.robeltsefaye.fittrackpro;
@@ -949,6 +950,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = FitTrackWatch;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "FitTrackWatch liest deine Herzfrequenz für Live-Anzeige während des Trainings.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "FitTrackWatch speichert deine Workouts (Dauer, Kalorien, Herzfrequenz) in Apple Health.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "FitTrackWatch zeichnet deine Route bei Laufen/Radfahren live auf der Karte auf.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKBackgroundModes = "workout-processing";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.robeltsefaye.fittrackpro;
