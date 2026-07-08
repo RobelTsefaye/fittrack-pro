@@ -366,6 +366,7 @@ private struct LiveWorkoutView: View {
             TabView {
                 metricsPage.tag(0)
                 RouteMapView(tracker: routeTracker).tag(1)
+                RouteStatsView(tracker: routeTracker, workoutManager: workoutManager).tag(2)
             }
             .tabViewStyle(.page)
         } else {

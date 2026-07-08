@@ -21,6 +21,13 @@ final class RouteLocationTracker: NSObject, ObservableObject {
     @Published private(set) var coordinates: [CLLocationCoordinate2D] = []
     @Published var authorizationDenied = false
 
+    /// Cumulative distance covered, in meters — summed from consecutive
+    /// accepted fixes (see `minAccuracyMeters`) rather than derived from the
+    /// polyline's endpoints, so it reflects the actual path walked/run/ridden
+    /// instead of a straight line between start and current position.
+    @Published private(set) var distanceMeters: Double = 0
+
+    private var lastLocation: CLLocation?
     private let manager = CLLocationManager()
     /// Drop obviously-bad fixes (GPS warm-up jumps, indoor multipath) rather
     /// than drawing a route that spikes across the map.
@@ -40,6 +47,8 @@ final class RouteLocationTracker: NSObject, ObservableObject {
     /// still on screen when a new one begins.
     func start() {
         coordinates = []
+        distanceMeters = 0
+        lastLocation = nil
         authorizationDenied = false
         let status = manager.authorizationStatus
         switch status {
@@ -74,6 +83,10 @@ extension RouteLocationTracker: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         Task { @MainActor in
             for location in locations where location.horizontalAccuracy >= 0 && location.horizontalAccuracy <= self.minAccuracyMeters {
+                if let last = self.lastLocation {
+                    self.distanceMeters += location.distance(from: last)
+                }
+                self.lastLocation = location
                 self.coordinates.append(location.coordinate)
             }
         }

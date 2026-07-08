@@ -22,21 +22,43 @@ struct RouteMapView: View {
             } else if tracker.coordinates.count < 2 {
                 waitingState
             } else {
-                Map(position: .constant(cameraPosition)) {
-                    MapPolyline(coordinates: tracker.coordinates)
-                        .stroke(.red, lineWidth: 4)
-                    if let last = tracker.coordinates.last {
-                        Annotation("", coordinate: last) {
-                            Circle()
-                                .fill(.red)
-                                .frame(width: 10, height: 10)
-                                .overlay(Circle().stroke(.white, lineWidth: 2))
+                ZStack(alignment: .bottom) {
+                    Map(position: .constant(cameraPosition), interactionModes: []) {
+                        MapPolyline(coordinates: tracker.coordinates)
+                            .stroke(.red, lineWidth: 4)
+                        if let last = tracker.coordinates.last {
+                            Annotation("", coordinate: last) {
+                                Circle()
+                                    .fill(.red)
+                                    .frame(width: 10, height: 10)
+                                    .overlay(Circle().stroke(.white, lineWidth: 2))
+                            }
                         }
                     }
+                    .mapControls { /* no controls — screen is tiny, keep it clean */ }
+
+                    distancePill
                 }
-                .mapControls { /* no controls — screen is tiny, keep it clean */ }
             }
         }
+    }
+
+    /// Small always-visible distance readout so a glance at the map still
+    /// shows progress without needing the full RouteStatsView page — full
+    /// pace/speed breakdown lives there since this map has no room to spare.
+    private var distancePill: some View {
+        Text(formattedDistance)
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(.black.opacity(0.55), in: Capsule())
+            .padding(.bottom, 4)
+    }
+
+    private var formattedDistance: String {
+        String(format: "%.2f km", tracker.distanceMeters / 1000)
     }
 
     /// Recomputed each render from the current route so the map always
