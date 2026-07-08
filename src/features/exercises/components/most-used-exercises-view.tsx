@@ -43,6 +43,11 @@ export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps
   const { t } = useI18n();
   const [usage, setUsage] = useState<UsageRow[]>([]);
   const [usageLoading, setUsageLoading] = useState(true);
+  // Distinguishes "fetch failed" from "no usage data yet" — otherwise a
+  // network error/500 renders the "no exercises used" empty state to a user
+  // with plenty of history. Bumping `usageReload` re-runs the fetch effect.
+  const [usageError, setUsageError] = useState(false);
+  const [usageReload, setUsageReload] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Which exercise the currently-loaded history belongs to. `histLoading` is
@@ -51,6 +56,11 @@ export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps
   // React 19's set-state-in-effect rule, whereas a render-time derivation
   // (selected ≠ loaded) shows the spinner immediately with no extra render.
   const [loadedId, setLoadedId] = useState<string | null>(null);
+  // Set when loading the *current* selection failed. Without it, the stale
+  // meta/history of the previously selected exercise would render under the
+  // new selection's identity (its counts and "open full" link) — mixed data.
+  const [histError, setHistError] = useState(false);
+  const [histReload, setHistReload] = useState(0);
   const [history, setHistory] = useState<AnalyticsHistoryRow[]>([]);
   const [progressBySession, setProgressBySession] = useState<ProgressPoint[]>([]);
   const [volumeBySession, setVolumeBySession] = useState<VolumePoint[]>([]);
@@ -69,19 +79,23 @@ export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps
     (async () => {
       try {
         const res = await fetch("/api/exercises/most-used");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
         const list = (json.data ?? []) as UsageRow[];
         setUsage(list);
+        setUsageError(false);
         if (list.length > 0) {
           setSelectedId((prev) => prev ?? list[0].exercise.id);
         }
+      } catch {
+        if (!cancelled) setUsageError(true);
       } finally {
         if (!cancelled) setUsageLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [usageReload]);
 
   const histLoading = selectedId != null && selectedId !== loadedId;
 
@@ -94,7 +108,8 @@ export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps
     (async () => {
       try {
         const res = await fetch(`/api/exercises/${selectedId}/history`);
-        if (cancelled || !res.ok) return;
+        if (cancelled) return;
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
         const d = json.data;
@@ -107,12 +122,15 @@ export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps
         setProgressBySession(d.progressBySession ?? []);
         setVolumeBySession(d.volumeBySession ?? []);
         setBestPr(d.bestPersonalRecord ?? null);
+        setHistError(false);
+      } catch {
+        if (!cancelled) setHistError(true);
       } finally {
         if (!cancelled) setLoadedId(selectedId);
       }
     })();
     return () => { cancelled = true; };
-  }, [selectedId]);
+  }, [selectedId, histReload]);
 
   const selectedUsage = usage.find((u) => u.exercise.id === selectedId);
 
@@ -143,6 +161,23 @@ export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps
           </div>
           <div className="lg:col-span-8 h-96 animate-pulse rounded-xl bg-muted/60" />
         </div>
+      ) : usageError ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center gap-4 py-12">
+            <p className="text-sm text-muted-foreground text-center">{t("common.loadFailed")}</p>
+            <button
+              type="button"
+              className={cn(buttonVariants({ variant: "outline" }))}
+              onClick={() => {
+                setUsageError(false);
+                setUsageLoading(true);
+                setUsageReload((k) => k + 1);
+              }}
+            >
+              {t("common.retry")}
+            </button>
+          </CardContent>
+        </Card>
       ) : usage.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
@@ -203,7 +238,33 @@ export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps
           </div>
 
           <div className="lg:col-span-8 space-y-6 min-w-0">
-            {histLoading || !meta ? (
+            {histLoading ? (
+              <div className="space-y-4">
+                <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+                <div className="h-52 animate-pulse rounded-xl bg-muted/80" />
+                <div className="h-52 animate-pulse rounded-xl bg-muted/80" />
+              </div>
+            ) : histError ? (
+              // Checked before the meta panel: `meta` may still hold the
+              // previously selected exercise's data, and rendering it here
+              // would show exercise A's charts under exercise B's identity.
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center gap-4 py-12">
+                  <p className="text-sm text-muted-foreground text-center">{t("common.loadFailed")}</p>
+                  <button
+                    type="button"
+                    className={cn(buttonVariants({ variant: "outline" }))}
+                    onClick={() => {
+                      setHistError(false);
+                      setLoadedId(null);
+                      setHistReload((k) => k + 1);
+                    }}
+                  >
+                    {t("common.retry")}
+                  </button>
+                </CardContent>
+              </Card>
+            ) : !meta ? (
               <div className="space-y-4">
                 <div className="h-8 w-48 animate-pulse rounded bg-muted" />
                 <div className="h-52 animate-pulse rounded-xl bg-muted/80" />

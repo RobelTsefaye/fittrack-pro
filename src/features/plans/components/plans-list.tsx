@@ -35,25 +35,43 @@ export function PlansList() {
   const [description, setDescription] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // Distinguishes "fetch failed" from "user genuinely has no plans" — without
+  // it, a network error or 500 would render the "no plans yet" empty state to
+  // a user who has plans.
+  const [loadError, setLoadError] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/plans");
-    const json = await res.json();
-    setPlans(json.data ?? []);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/plans");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setPlans(json.data ?? []);
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   // Initial fetch inlined (not `load()`) so no setState runs synchronously in
   // the effect body — `loading` already starts true and the updates below
-  // happen only after awaits. `load` is still used to refresh after creating
-  // a plan.
+  // happen only after awaits. `load` is still used for retry and to refresh
+  // after creating a plan.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch("/api/plans");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        if (!cancelled) setPlans(json.data ?? []);
+        if (!cancelled) {
+          setPlans(json.data ?? []);
+          setLoadError(false);
+        }
+      } catch {
+        if (!cancelled) setLoadError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -103,6 +121,15 @@ export function PlansList() {
             </Card>
           ))}
         </div>
+      ) : loadError ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center gap-4 py-12">
+            <p className="text-sm text-muted-foreground text-center">{t("common.loadFailed")}</p>
+            <Button variant="outline" onClick={() => void load()}>
+              {t("common.retry")}
+            </Button>
+          </CardContent>
+        </Card>
       ) : plans.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">

@@ -32,10 +32,11 @@
     "delete": "Löschen",
     "edit": "Bearbeiten",
     "view": "Ansehen",
-    "back": "Zurück",
     "optional": "optional",
     "completed": "Abgeschlossen",
-    "inProgress": "Läuft"
+    "inProgress": "Läuft",
+    "loadFailed": "Daten konnten nicht geladen werden. Prüfe deine Verbindung.",
+    "retry": "Nochmal versuchen"
   },
   "auth": {
     "login": {

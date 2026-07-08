@@ -32,10 +32,11 @@
     "delete": "Delete",
     "edit": "Edit",
     "view": "View",
-    "back": "Back",
     "optional": "optional",
     "completed": "Completed",
-    "inProgress": "In progress"
+    "inProgress": "In progress",
+    "loadFailed": "Could not load data. Check your connection.",
+    "retry": "Retry"
   },
   "auth": {
     "login": {

@@ -97,14 +97,24 @@ export function BodyMeasurementsTracker() {
   });
   const [formNotes, setFormNotes] = useState("");
 
+  // Distinguishes "fetch failed" from "no measurements yet" so a network
+  // error doesn't render the false empty state. `reload` re-runs the effect.
+  const [loadError, setLoadError] = useState(false);
+  const [reload, setReload] = useState(0);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/body-measurements");
-    if (res.ok) {
+    try {
+      const res = await fetch("/api/body-measurements");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setEntries(json.data ?? []);
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   // Initial fetch. Kept inline (rather than calling `load()`) so no setState
@@ -117,16 +127,20 @@ export function BodyMeasurementsTracker() {
       try {
         const res = await fetch("/api/body-measurements");
         if (cancelled) return;
-        if (res.ok) {
-          const json = await res.json();
-          if (!cancelled) setEntries(json.data ?? []);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (!cancelled) {
+          setEntries(json.data ?? []);
+          setLoadError(false);
         }
+      } catch {
+        if (!cancelled) setLoadError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [reload]);
 
   function openFormForDate(date: string) {
     const existing = entries.find((e) => e.date === date);
@@ -293,8 +307,27 @@ export function BodyMeasurementsTracker() {
         </div>
       )}
 
+      {/* ── Load error ──────────────────────────────────── */}
+      {loadError && (
+        <div className="ios-group px-6 py-10 text-center">
+          <p className="text-sm font-medium text-foreground mb-1">Could not load measurements</p>
+          <p className="text-[0.78rem] text-[var(--sys-label3)] mb-4">Check your connection and try again.</p>
+          <button
+            type="button"
+            onClick={() => {
+              setLoadError(false);
+              setLoading(true);
+              setReload((k) => k + 1);
+            }}
+            className="rounded-xl border border-[var(--sys-separator)] px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* ── Empty state ──────────────────────────────────── */}
-      {entries.length === 0 && (
+      {!loadError && entries.length === 0 && (
         <div className="ios-group px-6 py-10 text-center">
           <Ruler className="mx-auto mb-3 h-8 w-8 text-[var(--sys-label3)]" />
           <p className="text-sm font-medium text-foreground mb-1">No measurements yet</p>
