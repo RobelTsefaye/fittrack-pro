@@ -5,17 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { flushAllQueues } from "@/lib/offline/flush-all-queues";
 import { toast } from "sonner";
 
-async function warmCurrentRoute(pathname: string) {
-  if (!("serviceWorker" in navigator) || !navigator.onLine) return;
-  try {
-    const reg = await navigator.serviceWorker.ready;
-    if (!reg.active) return;
-    // Cache the current page and the workout page the user is on
-    const routes = [pathname];
-    reg.active.postMessage({ type: "WARM_CACHE", routes });
-  } catch { /* non-fatal */ }
-}
-
 export function OfflineSyncProvider() {
   const pathname = usePathname();
   const router = useRouter();
@@ -63,16 +52,20 @@ export function OfflineSyncProvider() {
 
     void run();
 
-    // Cache the current page every time we come online
-    if (navigator.onLine) warmCurrentRoute(pathname);
     // Named handler so cleanup actually removes THIS effect's listener —
     // the previous inline arrow was never removed (cleanup mistakenly
     // targeted `run`), so every navigation piled on another leaked
-    // "online" listener that kept firing extra syncs/fetches forever.
-    const onOnline = () => {
-      void run();
-      void warmCurrentRoute(pathname);
-    };
+    // "online" listener that kept firing extra syncs forever.
+    //
+    // Note: this used to also call warmCurrentRoute(pathname) here AND on
+    // every pathname change below — on a real (non-localhost) connection
+    // that meant every single tab tap fired a WARM_CACHE postMessage that
+    // made the service worker independently re-fetch the exact page Next's
+    // router was already fetching for the navigation, doubling network
+    // traffic per tap. PwaRegister already warms all the important routes
+    // once on SW registration and again on every "online" event, so no
+    // per-navigation warming is needed here at all.
+    const onOnline = () => void run();
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
   }, [pathname, router]);
