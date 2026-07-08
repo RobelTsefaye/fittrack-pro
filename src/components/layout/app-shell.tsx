@@ -28,7 +28,7 @@ export function AppShell({
           {/* Scrollable content */}
           <main
             id="main-content"
-            className="main-scroll flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background px-4 py-5 sm:px-6 md:px-8 md:py-7 tab-bar-safe"
+            className="main-scroll flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background px-4 pt-2 pb-5 sm:px-6 md:px-8 md:pt-4 md:pb-7 tab-bar-safe"
           >
             <div className="mx-auto w-full max-w-5xl">
               {children}
