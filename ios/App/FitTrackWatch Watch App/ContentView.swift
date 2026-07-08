@@ -146,6 +146,14 @@ private struct StartView: View {
         NavigationStack {
             List {
                 Section {
+                    NavigationLink {
+                        HealthDashboardView(workoutManager: workoutManager, phoneObserver: phoneObserver)
+                    } label: {
+                        Label("Health", systemImage: "heart.text.square.fill")
+                    }
+                }
+
+                Section {
                     Text("Workout wählen")
                         .font(.headline)
                         .listRowBackground(Color.clear)

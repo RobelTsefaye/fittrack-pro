@@ -9,6 +9,7 @@ interface WatchConnectivityPlugin {
   syncActiveWorkout(options: { workoutJSON: string }): Promise<void>;
   clearWorkoutState(): Promise<void>;
   pushPlanCatalog(options: { catalog: string }): Promise<void>;
+  syncRecoverySnapshot(options: { score: number; level: string }): Promise<void>;
   respondToRequest(options: { requestId: string; payload: Record<string, unknown> }): Promise<void>;
   addListener(
     eventName: "watchRequest",
@@ -100,6 +101,21 @@ export async function clearWatchWorkoutState(): Promise<void> {
     await WatchConnectivity.clearWorkoutState();
   } catch {
     // Non-fatal.
+  }
+}
+
+/**
+ * Pushes the Recovery Score to the Watch's HealthDashboardView. The Watch is
+ * a separate device from the phone's home-screen widget/complication (which
+ * read a *local* App Group snapshot via SharedDataPlugin) — WatchConnectivity
+ * is the only channel that actually crosses the Watch↔iPhone boundary.
+ */
+export async function syncRecoveryToWatch(score: number, level: string): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    await WatchConnectivity.syncRecoverySnapshot({ score, level });
+  } catch {
+    // Non-fatal — the Watch dashboard just keeps showing the last value it had.
   }
 }
 

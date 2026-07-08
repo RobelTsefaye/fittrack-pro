@@ -20,6 +20,15 @@ final class WorkoutManager: NSObject, ObservableObject {
     @Published var authorizationGranted = false
     @Published var errorMessage: String?
 
+    /// Most recent heart rate sample HealthKit has, independent of whether a
+    /// workout is currently running — the paired Watch/iPhone share the same
+    /// underlying HealthKit store, so this reflects whichever device (Watch
+    /// wrist sensor, or synced from iPhone) recorded last. Used by
+    /// HealthDashboardView when there's no live workout to stream from.
+    @Published var latestHeartRate: Double?
+    @Published var restingHeartRate: Double?
+    @Published var heartRateVariability: Double?
+
     private let store = HKHealthStore()
     private var session: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
@@ -37,6 +46,8 @@ final class WorkoutManager: NSObject, ObservableObject {
         [
             HKObjectType.quantityType(forIdentifier: .heartRate)!,
             HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
+            HKObjectType.quantityType(forIdentifier: .restingHeartRate)!,
+            HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!,
             HKObjectType.activitySummaryType(),
         ]
     }
@@ -63,6 +74,39 @@ final class WorkoutManager: NSObject, ObservableObject {
                 self?.authorizationGranted = success
             }
         }
+    }
+
+    /// Populates latestHeartRate/restingHeartRate/heartRateVariability with
+    /// the newest sample HealthKit has for each — a point-in-time snapshot
+    /// for HealthDashboardView, not a live stream (unlike heartRate above,
+    /// which only updates while an HKWorkoutSession is running).
+    func loadHealthSnapshot() {
+        fetchLatestSample(.heartRate, unit: .count().unitDivided(by: .minute())) { [weak self] value in
+            self?.latestHeartRate = value
+        }
+        fetchLatestSample(.restingHeartRate, unit: .count().unitDivided(by: .minute())) { [weak self] value in
+            self?.restingHeartRate = value
+        }
+        fetchLatestSample(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli)) { [weak self] value in
+            self?.heartRateVariability = value
+        }
+    }
+
+    private func fetchLatestSample(
+        _ identifier: HKQuantityTypeIdentifier,
+        unit: HKUnit,
+        completion: @escaping (Double?) -> Void
+    ) {
+        guard let type = HKQuantityType.quantityType(forIdentifier: identifier) else {
+            completion(nil)
+            return
+        }
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+        let query = HKSampleQuery(sampleType: type, predicate: nil, limit: 1, sortDescriptors: [sort]) { _, samples, _ in
+            let value = (samples?.first as? HKQuantitySample)?.quantity.doubleValue(for: unit)
+            DispatchQueue.main.async { completion(value) }
+        }
+        store.execute(query)
     }
 
     func start(activityType: HKWorkoutActivityType) {

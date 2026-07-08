@@ -22,6 +22,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "syncActiveWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clearWorkoutState", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "pushPlanCatalog", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "syncRecoverySnapshot", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "respondToRequest", returnType: CAPPluginReturnPromise),
     ]
 
@@ -97,6 +98,27 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         latestContext["planCatalog"] = catalog
         latestContext["planCatalogUpdatedAt"] = Date().timeIntervalSince1970
+        pushContext(call)
+    }
+
+    /// Pushes the Recovery Score to the Watch for HealthDashboardView —
+    /// mirrors the same score/level SharedDataPlugin.swift already writes to
+    /// the App Group for the phone's home-screen widget and this app's own
+    /// watch-face complication, but those both read a *local* App Group,
+    /// which the Watch (a separate device/process) can't see; WatchConnectivity
+    /// is the only channel across the actual Watch↔iPhone boundary.
+    @objc func syncRecoverySnapshot(_ call: CAPPluginCall) {
+        guard WCSession.isSupported(), WCSession.default.activationState == .activated else {
+            call.resolve()
+            return
+        }
+        guard let level = call.getString("level") else {
+            call.reject("Missing level")
+            return
+        }
+        latestContext["recoveryScore"] = call.getInt("score") ?? 0
+        latestContext["recoveryLevel"] = level
+        latestContext["recoveryUpdatedAt"] = Date().timeIntervalSince1970
         pushContext(call)
     }
 

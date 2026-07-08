@@ -29,6 +29,13 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     /// at least once (see watch-workout-sync.ts on the phone side).
     @Published var planSessions: [WatchPlanSession] = []
 
+    /// Recovery Score pushed from the phone (health-dashboard.tsx), backing
+    /// HealthDashboardView. Nil until the phone has computed at least one —
+    /// this is a separate device from the phone's own widget/complication,
+    /// which read a local App Group snapshot the Watch has no access to.
+    @Published var recoveryScore: Int?
+    @Published var recoveryLevel: String?
+
     /// Workouts the user already finished/cancelled *on the Watch*. A stale
     /// application-context push (the phone's clear can lag its ack by
     /// seconds, or never arrive if its background fetch fails) still carries
@@ -89,6 +96,11 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
                let data = catalogJSON.data(using: .utf8),
                let catalog = try? JSONDecoder().decode(WatchPlanCatalog.self, from: data) {
                 self.planSessions = catalog.plans.flatMap { $0.sessions }.sorted { $0.order < $1.order }
+            }
+
+            if let score = context["recoveryScore"] as? Int, let level = context["recoveryLevel"] as? String {
+                self.recoveryScore = score
+                self.recoveryLevel = level
             }
         }
     }
