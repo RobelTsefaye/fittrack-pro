@@ -20,6 +20,11 @@ import Foundation
  */
 enum WatchAPIProxy {
     private static let baseURL = "https://fittrack-pro-ashen.vercel.app"
+    /// Matches DEFAULT_REST_TIMER in src/lib/constants.ts — the native proxy
+    /// has no access to the user's saved preference (that lives in the web
+    /// app's own settings, never synced to the Watch), so this is a
+    /// reasonable fixed fallback for the no-phone-open path specifically.
+    private static let defaultRestSeconds: Double = 90
 
     enum ContextUpdate {
         case setActiveWorkout(json: String)
@@ -58,20 +63,9 @@ enum WatchAPIProxy {
             let started: ApiIdResponse = try await request(
                 "/api/plan-sessions/\(sessionId)/start", method: "POST", token: token
             )
-            let workoutRes: ApiWorkoutResponse = try await request(
-                "/api/workouts/\(started.data.id)", method: "GET", token: token
-            )
-            // Best-effort — a freshly started session usually has no prior
-            // sessions with this exact combination of exercises yet.
-            let previousLogs: ApiPreviousLogsResponse? = try? await request(
-                "/api/workouts/\(started.data.id)/previous-logs", method: "GET", token: token
-            )
-            let payload = buildWatchWorkoutPayload(
-                workout: workoutRes.data,
-                previousLogs: previousLogs?.data,
-                restTimerEndsAt: nil
-            )
-            guard let json = jsonString(payload) else {
+            guard let json = try await fetchWorkoutPayloadJSON(
+                workoutId: started.data.id, token: token, restTimerEndsAt: nil
+            ) else {
                 return (["error": "Konnte Workout nicht kodieren"], nil)
             }
             return (["started": true], .setActiveWorkout(json: json))
@@ -96,7 +90,17 @@ enum WatchAPIProxy {
             let result: ApiSetPatchResponse = try await request(
                 "/api/workouts/\(workoutId)/sets/\(setId)", method: "PATCH", token: token, body: body
             )
-            return (["personalRecord": result.personalRecord], nil)
+            // Mirrors onSetCompleted in workout-detail.tsx, which never runs
+            // for a Watch-initiated log when the phone app isn't open — the
+            // rest timer has to start here instead, or it never starts at
+            // all. Re-fetches the whole workout (rather than patching just
+            // this one set locally) so the pushed context also picks up
+            // anything else that changed server-side since the last sync.
+            let restTimerEndsAt = Date().timeIntervalSince1970 + defaultRestSeconds
+            let contextUpdate: ContextUpdate? = (try? await fetchWorkoutPayloadJSON(
+                workoutId: workoutId, token: token, restTimerEndsAt: restTimerEndsAt
+            )).flatMap { $0 }.map { .setActiveWorkout(json: $0) }
+            return (["personalRecord": result.personalRecord], contextUpdate)
         } catch {
             return (["error": describeError(error)], nil)
         }
@@ -130,6 +134,28 @@ enum WatchAPIProxy {
         } catch {
             return (["error": describeError(error)], nil)
         }
+    }
+
+    /// Fetches a workout + its previous-session hints and returns the same
+    /// JSON shape `syncActiveWorkoutToWatch` pushes from the JS side, ready
+    /// to hand to `WCSession.updateApplicationContext`.
+    private static func fetchWorkoutPayloadJSON(
+        workoutId: String, token: String, restTimerEndsAt: Double?
+    ) async throws -> String? {
+        let workoutRes: ApiWorkoutResponse = try await request(
+            "/api/workouts/\(workoutId)", method: "GET", token: token
+        )
+        // Best-effort — missing history just means the Watch falls back to
+        // its own defaults for not-yet-logged sets.
+        let previousLogs: ApiPreviousLogsResponse? = try? await request(
+            "/api/workouts/\(workoutId)/previous-logs", method: "GET", token: token
+        )
+        let payload = buildWatchWorkoutPayload(
+            workout: workoutRes.data,
+            previousLogs: previousLogs?.data,
+            restTimerEndsAt: restTimerEndsAt
+        )
+        return jsonString(payload)
     }
 
     // MARK: - Networking
