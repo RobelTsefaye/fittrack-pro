@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { WifiOff } from "lucide-react";
@@ -27,39 +27,40 @@ function usePageTitle() {
   return "";
 }
 
+/** Subscribe to the browser's online/offline status without a setState-in-
+ *  effect (which React 19 flags as a cascading-render smell). Server render
+ *  assumes online so the offline indicator never appears in SSR markup. */
+function subscribeOnline(callback: () => void) {
+  window.addEventListener("online", callback);
+  window.addEventListener("offline", callback);
+  return () => {
+    window.removeEventListener("online", callback);
+    window.removeEventListener("offline", callback);
+  };
+}
+
 /** Visible only on mobile (< lg). */
 export function MobileTopBar() {
   const { t } = useI18n();
   const { data: session } = useSession();
-  const [isOnline, setIsOnline] = useState(true);
   const title = usePageTitle();
-
-  useEffect(() => {
-    setIsOnline(navigator.onLine);
-    const on  = () => setIsOnline(true);
-    const off = () => setIsOnline(false);
-    window.addEventListener("online",  on);
-    window.addEventListener("offline", off);
-    return () => {
-      window.removeEventListener("online",  on);
-      window.removeEventListener("offline", off);
-    };
-  }, []);
+  const isOnline = useSyncExternalStore(
+    subscribeOnline,
+    () => navigator.onLine,
+    () => true
+  );
 
   const initials = session?.user?.name
     ?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) ?? "?";
 
   return (
     <header className={cn("shrink-0 lg:hidden", "safe-top-pad")}>
-      {/* Offline banner */}
-      {!isOnline && (
-        <div className="flex items-center gap-2 bg-amber-500/15 px-4 py-1.5 text-xs text-amber-800 dark:text-amber-200">
-          <WifiOff className="h-3.5 w-3.5 shrink-0" />
-          <span>{t("offline.banner")}</span>
-        </div>
-      )}
-
-      {/* Top bar */}
+      {/* Top bar — fixed height. The offline state shows as an inline icon
+          rather than an extra banner row on purpose: a row that inserts/
+          removes here would push the whole scroll area below it up/down. On
+          iOS that shift, landing between a finger-down and finger-up, made
+          taps register/highlight the wrong row (see MorePage). Keeping this
+          bar a constant height means connectivity changes never move content. */}
       <div
         className="flex h-12 items-center gap-3 px-4"
         style={{
@@ -72,6 +73,15 @@ export function MobileTopBar() {
         <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold tracking-tight text-white">
           {title}
         </span>
+
+        {!isOnline && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[0.6875rem] font-medium text-amber-800 dark:text-amber-200"
+            aria-label={t("offline.banner")}
+          >
+            <WifiOff className="h-3 w-3 shrink-0" />
+          </span>
+        )}
 
         <Avatar className="h-8 w-8 shrink-0">
           <AvatarFallback
