@@ -48,9 +48,7 @@ export default function MorePage() {
       .slice(0, 2) ?? "?";
 
   return (
-    <div className="-mt-6 space-y-4 sm:mt-0">
-      <h1 className="page-title">{t("nav.more")}</h1>
-
+    <div className="space-y-4">
       {/* User profile */}
       <div
         className="flex items-center gap-3 rounded-[16px] p-4"
