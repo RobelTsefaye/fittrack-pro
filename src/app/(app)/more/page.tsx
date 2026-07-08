@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { useSession } from "next-auth/react";
@@ -29,6 +30,12 @@ const ITEMS = [
 export default function MorePage() {
   const { t } = useI18n();
   const { data: session } = useSession();
+  // Driven explicitly via pointer events rather than the CSS `:active`
+  // pseudo-class — on iOS/WKWebView (how this runs as an installed PWA),
+  // `:active` on <a> inside a scrollable list is unreliable and can paint
+  // the neighboring row instead of the one actually under the finger. State
+  // tied to the exact href that received the touch can't drift like that.
+  const [pressedHref, setPressedHref] = useState<string | null>(null);
 
   const initials =
     session?.user?.name
@@ -75,8 +82,15 @@ export default function MorePage() {
             key={href}
             href={href}
             prefetch
-            className="flex items-center gap-3 px-4 py-3.5 transition-colors active:bg-white/5"
-            style={{ borderTop: i > 0 ? "1px solid rgba(255,255,255,0.08)" : "none" }}
+            className="flex items-center gap-3 px-4 py-3.5 transition-colors"
+            style={{
+              borderTop: i > 0 ? "1px solid rgba(255,255,255,0.08)" : "none",
+              background: pressedHref === href ? "rgba(255,255,255,0.05)" : undefined,
+            }}
+            onPointerDown={(e) => { if (e.pointerType !== "mouse") setPressedHref(href); }}
+            onPointerUp={() => setPressedHref(null)}
+            onPointerCancel={() => setPressedHref(null)}
+            onPointerLeave={() => setPressedHref((current) => (current === href ? null : current))}
           >
             <div
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
@@ -99,7 +113,12 @@ export default function MorePage() {
       >
         <button
           type="button"
-          className="flex w-full items-center gap-3 px-4 py-3.5 transition-colors active:bg-white/5"
+          className="flex w-full items-center gap-3 px-4 py-3.5 transition-colors"
+          style={{ background: pressedHref === "signOut" ? "rgba(255,255,255,0.05)" : undefined }}
+          onPointerDown={(e) => { if (e.pointerType !== "mouse") setPressedHref("signOut"); }}
+          onPointerUp={() => setPressedHref(null)}
+          onPointerCancel={() => setPressedHref(null)}
+          onPointerLeave={() => setPressedHref((current) => (current === "signOut" ? null : current))}
           onClick={() => signOut({ callbackUrl: "/login" })}
         >
           <div
