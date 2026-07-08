@@ -92,12 +92,19 @@ struct KraftSessionPickerView: View {
 }
 
 #Preview("Sessions geladen") {
-    let observer = PhoneWorkoutObserver()
-    observer.planSessions = [
-        WatchPlanSession(id: "s1", name: "Push", order: 0, exercises: []),
-        WatchPlanSession(id: "s2", name: "Pull", order: 1, exercises: []),
-        WatchPlanSession(id: "s3", name: "Legs", order: 2, exercises: []),
-    ]
+    // #Preview's trailing closure is a ViewBuilder context — a bare
+    // assignment statement (Void-returning) directly in it gets treated as
+    // "this should be a View" and fails to compile, so the mutation happens
+    // inside an ordinary immediately-invoked closure instead.
+    let observer: PhoneWorkoutObserver = {
+        let o = PhoneWorkoutObserver()
+        o.planSessions = [
+            WatchPlanSession(id: "s1", name: "Push", order: 0, exercises: []),
+            WatchPlanSession(id: "s2", name: "Pull", order: 1, exercises: []),
+            WatchPlanSession(id: "s3", name: "Legs", order: 2, exercises: []),
+        ]
+        return o
+    }()
     return NavigationStack {
         KraftSessionPickerView(phoneObserver: observer)
     }

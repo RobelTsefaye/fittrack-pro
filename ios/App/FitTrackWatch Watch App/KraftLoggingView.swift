@@ -168,8 +168,15 @@ private struct RestTimerRow: View {
         ],
         restTimerEndsAt: Date().timeIntervalSince1970 + 62
     )
-    let observer = PhoneWorkoutObserver()
-    observer.activeWorkout = mockWorkout
+    // #Preview's trailing closure is a ViewBuilder context — a bare
+    // assignment statement (Void-returning) directly in it gets treated as
+    // "this should be a View" and fails to compile. Do the mutation inside
+    // an ordinary immediately-invoked closure instead.
+    let observer: PhoneWorkoutObserver = {
+        let o = PhoneWorkoutObserver()
+        o.activeWorkout = mockWorkout
+        return o
+    }()
     NavigationStack {
         KraftLoggingView(phoneObserver: observer, initialWorkout: mockWorkout)
     }
@@ -198,8 +205,11 @@ private struct RestTimerRow: View {
             ),
         ]
     )
-    let observer = PhoneWorkoutObserver()
-    observer.activeWorkout = mockWorkout
+    let observer: PhoneWorkoutObserver = {
+        let o = PhoneWorkoutObserver()
+        o.activeWorkout = mockWorkout
+        return o
+    }()
     NavigationStack {
         KraftLoggingView(phoneObserver: observer, initialWorkout: mockWorkout)
     }

@@ -152,13 +152,23 @@ struct HealthDashboardView: View {
 }
 
 #Preview {
-    let observer = PhoneWorkoutObserver()
-    observer.recoveryScore = 78
-    observer.recoveryLevel = "high"
-    let manager = WorkoutManager()
-    manager.latestHeartRate = 64
-    manager.restingHeartRate = 52
-    manager.heartRateVariability = 41
+    // #Preview's trailing closure is a ViewBuilder context — bare
+    // assignment statements (Void-returning) directly in it get treated as
+    // "this should be a View" and fail to compile, so mock-object setup
+    // happens inside ordinary immediately-invoked closures instead.
+    let observer: PhoneWorkoutObserver = {
+        let o = PhoneWorkoutObserver()
+        o.recoveryScore = 78
+        o.recoveryLevel = "high"
+        return o
+    }()
+    let manager: WorkoutManager = {
+        let m = WorkoutManager()
+        m.latestHeartRate = 64
+        m.restingHeartRate = 52
+        m.heartRateVariability = 41
+        return m
+    }()
     return NavigationStack {
         HealthDashboardView(workoutManager: manager, phoneObserver: observer)
     }

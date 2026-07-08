@@ -488,26 +488,36 @@ private struct MetricView: View {
 }
 
 #Preview("Phone-Workout (Paging)") {
-    let observer = PhoneWorkoutObserver()
-    observer.activeWorkout = WatchActiveWorkout(
-        workoutId: "preview-workout-1",
-        name: "Push",
-        workoutExercises: [
-            WatchWorkoutExercise(
-                id: "we1",
-                exercise: WatchExerciseInfo(id: "e1", name: "Bankdrücken", muscleGroup: "Brust"),
-                sets: [
-                    WatchSet(id: "set1", setNumber: 1, reps: 10, weight: 60, isCompleted: true),
-                    WatchSet(id: "set2", setNumber: 2, reps: nil, weight: nil, isCompleted: false),
-                ]
-            ),
-        ]
-    )
-    let manager = WorkoutManager()
-    manager.isRunning = true
-    manager.heartRate = 128
-    manager.activeCalories = 96
-    manager.elapsedSeconds = 412
+    // #Preview's trailing closure is a ViewBuilder context — bare
+    // assignment statements (Void-returning) directly in it get treated as
+    // "this should be a View" and fail to compile, so mock-object setup
+    // happens inside ordinary immediately-invoked closures instead.
+    let observer: PhoneWorkoutObserver = {
+        let o = PhoneWorkoutObserver()
+        o.activeWorkout = WatchActiveWorkout(
+            workoutId: "preview-workout-1",
+            name: "Push",
+            workoutExercises: [
+                WatchWorkoutExercise(
+                    id: "we1",
+                    exercise: WatchExerciseInfo(id: "e1", name: "Bankdrücken", muscleGroup: "Brust"),
+                    sets: [
+                        WatchSet(id: "set1", setNumber: 1, reps: 10, weight: 60, isCompleted: true),
+                        WatchSet(id: "set2", setNumber: 2, reps: nil, weight: nil, isCompleted: false),
+                    ]
+                ),
+            ]
+        )
+        return o
+    }()
+    let manager: WorkoutManager = {
+        let m = WorkoutManager()
+        m.isRunning = true
+        m.heartRate = 128
+        m.activeCalories = 96
+        m.elapsedSeconds = 412
+        return m
+    }()
     return TabView {
         NavigationStack { WorkoutControlsView(phoneObserver: observer, workoutManager: manager, workout: observer.activeWorkout!) }.tag(0)
         NavigationStack { KraftLoggingView(phoneObserver: observer, initialWorkout: observer.activeWorkout!) }.tag(1)
@@ -517,11 +527,14 @@ private struct MetricView: View {
 }
 
 #Preview("Live Workout (Watch-only)") {
-    let manager = WorkoutManager()
-    manager.isRunning = true
-    manager.heartRate = 142
-    manager.activeCalories = 213
-    manager.elapsedSeconds = 754
+    let manager: WorkoutManager = {
+        let m = WorkoutManager()
+        m.isRunning = true
+        m.heartRate = 142
+        m.activeCalories = 213
+        m.elapsedSeconds = 754
+        return m
+    }()
     return NavigationStack {
         LiveWorkoutView(workoutManager: manager, phoneObserver: PhoneWorkoutObserver(), routeTracker: RouteLocationTracker())
     }
