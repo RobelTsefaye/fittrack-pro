@@ -65,11 +65,16 @@ export function OfflineSyncProvider() {
 
     // Cache the current page every time we come online
     if (navigator.onLine) warmCurrentRoute(pathname);
-    window.addEventListener("online", () => {
+    // Named handler so cleanup actually removes THIS effect's listener —
+    // the previous inline arrow was never removed (cleanup mistakenly
+    // targeted `run`), so every navigation piled on another leaked
+    // "online" listener that kept firing extra syncs/fetches forever.
+    const onOnline = () => {
       void run();
       void warmCurrentRoute(pathname);
-    });
-    return () => window.removeEventListener("online", run);
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
   }, [pathname, router]);
 
   return null;

@@ -55,7 +55,11 @@ export function ActiveWorkoutBanner() {
     const onChanged = () => void fetchActive();
     window.addEventListener(CHANGED, onChanged);
     window.addEventListener("fittrack-offline-synced", onChanged);
-    const iv = setInterval(() => void fetchActive(), 25000);
+    // 25s felt like the app was "constantly loading" in the background —
+    // the event listeners above already cover the cases where accuracy
+    // actually matters (workout start/stop, offline sync, tab refocus), so
+    // this interval is just a slow safety-net poll, not the primary trigger.
+    const iv = setInterval(() => void fetchActive(), 90000);
     const onVis = () => { if (document.visibilityState === "visible") void fetchActive(); };
     document.addEventListener("visibilitychange", onVis);
     return () => {
