@@ -84,9 +84,26 @@ extension RouteLocationTracker: CLLocationManagerDelegate {
         Task { @MainActor in
             for location in locations where location.horizontalAccuracy >= 0 && location.horizontalAccuracy <= self.minAccuracyMeters {
                 if let last = self.lastLocation {
-                    self.distanceMeters += location.distance(from: last)
+                    let delta = location.distance(from: last)
+                    // A GPS fix jitters by roughly its own accuracy radius
+                    // even while genuinely standing still — without a
+                    // threshold, that jitter kept getting summed into
+                    // `distanceMeters`, which made distance/pace/speed creep
+                    // upward at a red light or full stop (reported: "3 km/h"
+                    // while standing). Only count movement clearly bigger
+                    // than both fixes' combined noise floor, and only then
+                    // advance `lastLocation` — leaving it in place otherwise
+                    // means the *next* fix is still compared against the
+                    // last genuinely-moved-to point, not a reference that
+                    // silently drifted along with the noise.
+                    let jitterThreshold = max(last.horizontalAccuracy, location.horizontalAccuracy, 5)
+                    if delta > jitterThreshold {
+                        self.distanceMeters += delta
+                        self.lastLocation = location
+                    }
+                } else {
+                    self.lastLocation = location
                 }
-                self.lastLocation = location
                 self.coordinates.append(location.coordinate)
             }
         }

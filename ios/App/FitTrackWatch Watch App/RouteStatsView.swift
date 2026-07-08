@@ -62,12 +62,21 @@ struct RouteStatsView: View {
         String(format: "%.2f km", distanceKm)
     }
 
+    /// Below this, a tiny elapsed-time denominator turns a few meters of
+    /// residual GPS noise into a wildly swinging speed/pace figure (e.g.
+    /// jumping between 1 and 20 km/h second to second right after the
+    /// workout starts) — hold off showing either until there's enough time
+    /// and distance for the ratio to actually mean something.
+    private let minElapsedSecondsForRate = 20
+    private let minDistanceMetersForRate = 30.0
+
     /// Average speed in km/h — average, not instantaneous, since the Watch
     /// has no reliable moment-to-moment speed sample of its own to smooth;
     /// distance-over-elapsed-time is stable and matches what the eventual
     /// workout summary computes.
     private var speedKmh: Double? {
-        guard workoutManager.elapsedSeconds > 0, distanceKm > 0 else { return nil }
+        guard workoutManager.elapsedSeconds >= minElapsedSecondsForRate,
+              tracker.distanceMeters >= minDistanceMetersForRate else { return nil }
         let hours = Double(workoutManager.elapsedSeconds) / 3600
         return distanceKm / hours
     }
@@ -80,7 +89,8 @@ struct RouteStatsView: View {
     /// Pace in min:sec per km — the inverse of speed, shown the way runners
     /// actually read it rather than as a km/h figure.
     private var paceDisplay: String {
-        guard distanceKm > 0, workoutManager.elapsedSeconds > 0 else { return "—" }
+        guard workoutManager.elapsedSeconds >= minElapsedSecondsForRate,
+              tracker.distanceMeters >= minDistanceMetersForRate else { return "—" }
         let secondsPerKm = Double(workoutManager.elapsedSeconds) / distanceKm
         guard secondsPerKm.isFinite, secondsPerKm > 0 else { return "—" }
         let minutes = Int(secondsPerKm) / 60
