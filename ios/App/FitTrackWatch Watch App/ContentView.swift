@@ -80,12 +80,21 @@ struct ContentView: View {
         .onChange(of: phoneObserver.activeWorkout?.workoutId) { oldId, newId in
             if newId != nil {
                 selectedPage = 1
-                if !workoutManager.isRunning {
+                if !workoutManager.isRunning, workoutManager.authorizationGranted {
                     // Phone workout just started (or the Watch app just
                     // launched into one already running) — HR/calories track
                     // continuously for the whole session, no manual button.
                     workoutManager.start(activityType: .traditionalStrengthTraining)
                 }
+                // If authorization isn't granted yet, the onChange below
+                // (watching authorizationGranted) starts it as soon as it is
+                // — this used to fire unconditionally here, attempting to
+                // create an HKWorkoutSession before HealthKit had responded
+                // to the permission request. Unlike the manual Start-screen
+                // buttons (structurally unreachable until authorized, since
+                // ContentView shows AuthorizationView until then), this path
+                // is triggered by the *phone*, which has no way to know the
+                // Watch's authorization state — so it needs its own guard.
             } else if newId == nil, oldId != nil {
                 // Always consume the flag, even when no HR session is running,
                 // so a stale `true` can't misclassify the *next* workout's
@@ -105,6 +114,13 @@ struct ContentView: View {
                     }
                 }
             }
+        }
+        .onChange(of: workoutManager.authorizationGranted) { _, granted in
+            // Catches up on the auto-start above: if a phone workout arrived
+            // before HealthKit finished responding to the permission
+            // request, nothing started it. Fires once authorization lands.
+            guard granted, phoneObserver.activeWorkout != nil, !workoutManager.isRunning else { return }
+            workoutManager.start(activityType: .traditionalStrengthTraining)
         }
     }
 }
