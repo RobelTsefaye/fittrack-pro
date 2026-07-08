@@ -45,6 +45,12 @@ export function toWatchWorkoutPayload(
     restTimerEndsAt: restTimerEndsAt ?? null,
     workoutExercises: workout.workoutExercises.map((we) => {
       const prevSets = previousLogs?.[we.exercise.id];
+      // Matched by position among working (non-warmup) sets, same as the
+      // phone's own hint (workout-detail.tsx's getPreviousHintForSet) — not
+      // by raw setNumber, which drifts whenever either session has a warmup
+      // set: setNumber then includes gaps that don't line up between
+      // sessions, silently attaching one set's history to the next.
+      let workingIndex = 0;
       return {
         id: we.id,
         exercise: {
@@ -53,7 +59,8 @@ export function toWatchWorkoutPayload(
           muscleGroup: we.exercise.muscleGroup,
         },
         sets: we.sets.map((s) => {
-          const prev = prevSets?.find((p) => p.setNumber === s.setNumber);
+          const prev = s.isWarmup ? undefined : prevSets?.[workingIndex];
+          if (!s.isWarmup) workingIndex++;
           return {
             id: s.id,
             setNumber: s.setNumber,

@@ -20,35 +20,38 @@ struct CrownStepperField: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        VStack(spacing: 2) {
+        // Vertical layout (plus / value / minus stacked) instead of the
+        // previous single-row minus-value-plus: two of these side by side
+        // (weight + reps) put 6 elements across in one row, which overflows
+        // the screen width and clips the outer buttons — weight's minus and
+        // reps' plus were unreachable. Stacking keeps each field narrow.
+        VStack(spacing: 4) {
             Text(label)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 10) {
-                Button {
-                    value = max(range.lowerBound, value - step)
-                    crownValue = value
-                } label: {
-                    Image(systemName: "minus.circle.fill")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-
-                Text(formattedValue)
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .frame(minWidth: 54)
-
-                Button {
-                    value = min(range.upperBound, value + step)
-                    crownValue = value
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+            Button {
+                value = min(range.upperBound, value + step)
+                crownValue = value
+            } label: {
+                Image(systemName: "plus.circle.fill")
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+
+            Text(formattedValue)
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .frame(minWidth: 46)
+
+            Button {
+                value = max(range.lowerBound, value - step)
+                crownValue = value
+            } label: {
+                Image(systemName: "minus.circle.fill")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
 
             Text(unit)
                 .font(.system(size: 9))
