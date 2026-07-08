@@ -59,22 +59,33 @@ export function SettingsForm({ initial }: { initial: InitialSettings }) {
     router.refresh();
   }
 
+  // Trigger a client-side download of a blob. The object URL is revoked on a
+  // timeout rather than synchronously after click(): revoking immediately can
+  // invalidate the URL before the browser has actually started the download,
+  // producing an empty/failed file (notably on Safari/iOS).
+  function triggerBlobDownload(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+
   async function downloadJson() {
     const res = await fetch("/api/export");
     if (!res.ok) return;
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = t("export.jsonFilename"); a.click();
-    URL.revokeObjectURL(url);
+    triggerBlobDownload(blob, t("export.jsonFilename"));
   }
 
   async function downloadCsv() {
     const res = await fetch("/api/export/csv");
     if (!res.ok) return;
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = t("export.csvFilename"); a.click();
-    URL.revokeObjectURL(url);
+    triggerBlobDownload(blob, t("export.csvFilename"));
   }
 
   return (

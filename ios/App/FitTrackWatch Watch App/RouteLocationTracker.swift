@@ -100,11 +100,19 @@ extension RouteLocationTracker: CLLocationManagerDelegate {
                     if delta > jitterThreshold {
                         self.distanceMeters += delta
                         self.lastLocation = location
+                        // Only extend the drawn route for genuine movement, in
+                        // lockstep with the distance sum — otherwise the
+                        // polyline accumulated the same standing-still jitter
+                        // the distance calc rejects, drawing a ragged scribble
+                        // around a stationary user.
+                        self.coordinates.append(location.coordinate)
                     }
                 } else {
                     self.lastLocation = location
+                    // Seed the polyline with the first accepted fix so the map
+                    // has a starting point to center on immediately.
+                    self.coordinates.append(location.coordinate)
                 }
-                self.coordinates.append(location.coordinate)
             }
         }
     }

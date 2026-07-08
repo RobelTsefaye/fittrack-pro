@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { APP_NAME, ROUTES } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
+import { clearSwCache } from "@/components/pwa-register";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface SidebarProps {
@@ -238,7 +239,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         <button
           type="button"
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={async () => { await clearSwCache(); signOut({ callbackUrl: "/login" }); }}
           className="mt-1 flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-[0.78rem] font-medium text-sidebar-foreground/45 transition-colors hover:bg-destructive/8 hover:text-destructive"
         >
           <LogOut className="h-3.5 w-3.5 shrink-0" />

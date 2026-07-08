@@ -107,7 +107,26 @@ export function BodyMeasurementsTracker() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // Initial fetch. Kept inline (rather than calling `load()`) so no setState
+  // runs synchronously in the effect body — `loading` already starts `true`,
+  // and every state update below happens only after an await, satisfying
+  // React 19's set-state-in-effect rule and avoiding a cascading re-render.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/body-measurements");
+        if (cancelled) return;
+        if (res.ok) {
+          const json = await res.json();
+          if (!cancelled) setEntries(json.data ?? []);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   function openFormForDate(date: string) {
     const existing = entries.find((e) => e.date === date);
@@ -197,7 +216,7 @@ export function BodyMeasurementsTracker() {
           className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[var(--sys-separator)] py-4 text-sm font-medium text-[var(--sys-label2)] transition-colors hover:border-primary/40 hover:text-primary"
         >
           <Plus className="h-4 w-4" />
-          Log today's measurements
+          Log today&apos;s measurements
         </button>
       )}
 

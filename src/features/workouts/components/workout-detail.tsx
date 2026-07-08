@@ -468,6 +468,8 @@ export function WorkoutDetail({
    * kept running as if the workout were still going.
    */
   const wasActiveRef = useRef(false);
+  /** Monotonic counter guarding `loadWorkout` against out-of-order responses. */
+  const loadRequestIdRef = useRef(0);
   useEffect(() => {
     if (wasActiveRef.current && !isActive) restTimer.stop();
     wasActiveRef.current = !!isActive;
@@ -548,10 +550,20 @@ export function WorkoutDetail({
     if (!silent) setLoading(true);
     setError(null);
 
+    // Monotonic request id: the 1s active-workout poll can have several
+    // fetches in flight at once, and if a slow earlier response lands after a
+    // newer one it would overwrite fresh state with stale data (including
+    // clobbering an in-progress set edit). Only the most recent request is
+    // allowed to apply its result — `isStale()` is checked right before every
+    // state mutation below.
+    const requestId = ++loadRequestIdRef.current;
+    const isStale = () => requestId !== loadRequestIdRef.current;
+
     try {
       const queued = await listQueueForWorkout(workoutId);
       if (queued.length > 0) {
         const snap = await loadWorkoutSnapshot(workoutId);
+        if (isStale()) return;
         if (!snap) {
           setWorkout(null);
           setError(t("workouts.offlineNoSnapshot"));
@@ -565,6 +577,7 @@ export function WorkoutDetail({
 
       try {
         const res = await fetch(`/api/workouts/${workoutId}`, { credentials: "include" });
+        if (isStale()) return;
         if (res.status === 404) {
           // A real 404 means we successfully reached the server and it
           // authoritatively says this workout is gone — e.g. cancelled from
@@ -585,10 +598,12 @@ export function WorkoutDetail({
         if (!res.ok) {
           const json = await res.json().catch(() => ({}));
           const snap = await loadWorkoutSnapshot(workoutId);
+          if (isStale()) return;
           if (snap) {
             setWorkout(snap.data);
             setOfflineOriginSession(snap.offlineOrigin);
             const q2 = await listQueueForWorkout(workoutId);
+            if (isStale()) return;
             setPendingQueue(q2.length > 0);
             setError(null);
             return;
@@ -598,12 +613,14 @@ export function WorkoutDetail({
           return;
         }
         const json = (await res.json()) as { data: WorkoutData };
+        if (isStale()) return;
         setWorkout(json.data);
         await saveWorkoutSnapshot(workoutId, json.data, false);
         setOfflineOriginSession(false);
         setPendingQueue(false);
       } catch {
         const snap = await loadWorkoutSnapshot(workoutId);
+        if (isStale()) return;
         if (snap) {
           setWorkout(snap.data);
           setOfflineOriginSession(snap.offlineOrigin);

@@ -16,8 +16,13 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = req.nextUrl;
-  const page = parseInt(searchParams.get("page") ?? "1", 10);
-  const limit = parseInt(searchParams.get("limit") ?? "20", 10);
+  // Clamp pagination so malformed input (NaN, negative, or an absurdly large
+  // limit) can't reach the query layer and either 500 or fetch an unbounded
+  // result set.
+  const rawPage = parseInt(searchParams.get("page") ?? "1", 10);
+  const rawLimit = parseInt(searchParams.get("limit") ?? "20", 10);
+  const page = Number.isFinite(rawPage) ? Math.max(rawPage, 1) : 1;
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : 20;
   const statusParam = searchParams.get("status");
   const statusFilter: "active" | "completed" | null =
     statusParam === "active" || statusParam === "completed" ? statusParam : null;

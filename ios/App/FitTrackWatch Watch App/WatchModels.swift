@@ -64,9 +64,15 @@ struct WatchActiveWorkout: Codable, Identifiable, Hashable {
     /// String rather than decoding straight to `Date` since Foundation's
     /// `.iso8601` JSONDecoder strategy doesn't handle the fractional-seconds
     /// format Prisma's serialized DateTime uses; see `startedAtDate`.
-    // Defaults to nil so existing memberwise-init call sites (mock data in
-    // #Previews) don't need updating every time an optional field is added.
-    let startedAt: String? = nil
+    // Declared `var` (optional) rather than `let … = nil`: a `let` with a
+    // default value is treated as already-initialized and is SILENTLY SKIPPED
+    // by Swift's synthesized Decodable init, so `startedAt` would always be
+    // nil no matter what the phone sent — defeating the whole point of the
+    // server-clock sync (the Watch timer would restart from "now" on every
+    // mirrored workout). An optional `var` with no default still gets an
+    // implicit nil in the memberwise initializer (so #Preview call sites that
+    // omit it keep compiling) AND is properly decoded.
+    var startedAt: String?
 
     /// Parsed `startedAt`, used as the base for the Watch's own elapsed-time
     /// display so it doesn't drift from the phone's — both then compute

@@ -61,16 +61,29 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from");
   const to = searchParams.get("to");
-  const limit = Math.min(parseInt(searchParams.get("limit") ?? "90", 10), 365);
+
+  // Harden the query params: a non-numeric `limit` (parseInt → NaN) or an
+  // unparseable `from`/`to` date used to flow straight into Prisma's `take`
+  // and `new Date(...)`, producing a 500 on malformed input. Clamp `limit`
+  // to a sane [1, 365] and drop date bounds that don't parse.
+  const parsedLimit = parseInt(searchParams.get("limit") ?? "90", 10);
+  const limit = Number.isFinite(parsedLimit)
+    ? Math.min(Math.max(parsedLimit, 1), 365)
+    : 90;
+
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(to) : null;
+  const gte = fromDate && !Number.isNaN(fromDate.getTime()) ? fromDate : null;
+  const lte = toDate && !Number.isNaN(toDate.getTime()) ? toDate : null;
 
   const data = await prisma.healthSnapshot.findMany({
     where: {
       userId,
-      ...(from || to
+      ...(gte || lte
         ? {
             date: {
-              ...(from ? { gte: new Date(from) } : {}),
-              ...(to ? { lte: new Date(to) } : {}),
+              ...(gte ? { gte } : {}),
+              ...(lte ? { lte } : {}),
             },
           }
         : {}),

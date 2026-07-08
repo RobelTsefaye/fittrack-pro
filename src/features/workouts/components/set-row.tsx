@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useEffect } from "react";
+import { memo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,10 +65,18 @@ export const SetRow = memo(function SetRow({
   const [weight, setWeight] = useState(set.weight?.toString() ?? "");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  // Re-seed the inputs from props only when this row starts representing a
+  // *different* set (id change) — not on every prop update. The active-workout
+  // poll refreshes the `set` object every second; syncing on set.reps/set.weight
+  // (the old effect) both tripped React 19's set-state-in-effect rule and, worse,
+  // wiped out whatever the user was mid-typing each time a poll landed. Adjusting
+  // state during render keyed on set.id is React's recommended pattern here.
+  const [seededSetId, setSeededSetId] = useState(set.id);
+  if (seededSetId !== set.id) {
+    setSeededSetId(set.id);
     setReps(set.reps?.toString() ?? "");
     setWeight(set.weight?.toString() ?? "");
-  }, [set.id, set.reps, set.weight]);
+  }
 
   async function saveSet(complete = false) {
     setSaving(true);

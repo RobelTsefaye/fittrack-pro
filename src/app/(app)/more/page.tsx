@@ -15,6 +15,7 @@ import {
   HeartPulse,
 } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
+import { clearSwCache } from "@/components/pwa-register";
 import { useI18n } from "@/lib/i18n-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
@@ -112,7 +113,7 @@ export default function MorePage() {
           type="button"
           className="flex w-full items-center gap-3 px-4 py-3.5 transition-colors"
           style={{ background: pressedHref === "signOut" ? "rgba(255,255,255,0.05)" : undefined }}
-          onClick={() => { setPressedHref("signOut"); signOut({ callbackUrl: "/login" }); }}
+          onClick={async () => { setPressedHref("signOut"); await clearSwCache(); signOut({ callbackUrl: "/login" }); }}
         >
           <div
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"

@@ -36,12 +36,17 @@ export function MetricDetail({
     if (hasInitialData) return;
     let cancelled = false;
     (async () => {
-      const res = await fetch("/api/health-data?limit=90", { credentials: "include" });
-      if (!res.ok) return;
-      const json = (await res.json()) as { data: HealthSnapshot[] };
-      if (!cancelled) {
-        setSnapshots(json.data);
-        setLoading(false);
+      try {
+        const res = await fetch("/api/health-data?limit=90", { credentials: "include" });
+        if (!res.ok) return;
+        const json = (await res.json()) as { data: HealthSnapshot[] };
+        if (!cancelled) setSnapshots(json.data);
+      } catch {
+        // Network failure — fall through to clear the spinner below.
+      } finally {
+        // Always stop loading, even on error/non-OK, so the view doesn't get
+        // stuck on a spinner forever (it just shows an empty chart instead).
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };

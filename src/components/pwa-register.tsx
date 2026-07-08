@@ -33,6 +33,26 @@ async function warmSwCache() {
   }
 }
 
+/**
+ * Purge the SW's cached HTML/RSC responses before signing out. Those cached
+ * pages carry the current user's rendered data; leaving them behind would let
+ * a second user on the same device be served the previous user's pages while
+ * offline. Awaited (best-effort, with a short timeout) so it completes before
+ * the session cookie is cleared and the app navigates away.
+ */
+export async function clearSwCache() {
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    reg.active?.postMessage({ type: "CLEAR_CACHE" });
+    // Give the SW a moment to process the message before navigation tears
+    // down the page context.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  } catch {
+    // Non-fatal — logout must proceed regardless.
+  }
+}
+
 export function PwaRegister() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;

@@ -16,15 +16,24 @@ export async function GET(req: NextRequest) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
+  // `parseDateOnlyUtc` throws on a malformed date; catch it and reject with a
+  // 400 rather than letting it bubble up as an opaque 500.
   const where: Record<string, unknown> = { userId: session.user.id };
-  if (from || to) {
-    where.date = {};
-    if (from) {
-      (where.date as Record<string, Date>).gte = parseDateOnlyUtc(from);
+  try {
+    if (from || to) {
+      where.date = {};
+      if (from) {
+        (where.date as Record<string, Date>).gte = parseDateOnlyUtc(from);
+      }
+      if (to) {
+        (where.date as Record<string, Date>).lte = parseDateOnlyUtc(to);
+      }
     }
-    if (to) {
-      (where.date as Record<string, Date>).lte = parseDateOnlyUtc(to);
-    }
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid date format; expected YYYY-MM-DD" },
+      { status: 400 }
+    );
   }
 
   const entries = await prisma.bodyWeight.findMany({

@@ -83,7 +83,35 @@ self.addEventListener("activate", (event) => {
 // ─── Cache warming via postMessage ────────────────────────────────────────────
 // The app sends { type: "WARM_CACHE", routes: [...] } after login while online.
 self.addEventListener("message", (event) => {
-  if (!event.data || event.data.type !== "WARM_CACHE") return;
+  if (!event.data) return;
+
+  // ── Purge personalized responses on logout/user-switch ──────────────────────
+  // HTML and RSC responses cached below carry the *current* user's rendered
+  // data. Without this, signing out (or a second user signing in on the same
+  // device) would let network-first fall back to another user's cached pages
+  // while offline — a cross-user data leak. The app posts { type: "CLEAR_CACHE" }
+  // from its sign-out flow; we drop every cached entry except the immutable,
+  // content-hashed /_next/static/* assets (shared across users, safe to keep).
+  if (event.data.type === "CLEAR_CACHE") {
+    console.log("[SW] Clearing user-specific caches");
+    event.waitUntil(
+      caches.open(CACHE).then((cache) =>
+        cache.keys().then((requests) =>
+          Promise.all(
+            requests
+              .filter((req) => {
+                const p = new URL(req.url).pathname;
+                return !p.startsWith("/_next/static/");
+              })
+              .map((req) => cache.delete(req))
+          )
+        )
+      )
+    );
+    return;
+  }
+
+  if (event.data.type !== "WARM_CACHE") return;
   const routes = Array.isArray(event.data.routes) ? event.data.routes : KEY_ROUTES;
   console.log(`[SW] Warming cache for ${routes.length} routes`);
   event.waitUntil(
