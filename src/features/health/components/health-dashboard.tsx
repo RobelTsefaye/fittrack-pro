@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -62,8 +62,14 @@ export function HealthDashboard({
   const [waitingForShortcut, setWaitingForShortcut] = useState(false);
   const [trend, setTrend] = useState<TrendDays>(7);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  // Guards against out-of-order responses: if load() is called again before
+  // an in-flight call finishes (e.g. refresh tapped twice, or the
+  // visibilitychange handler firing while a manual refresh is still
+  // running), a slower/older response must not overwrite fresher state.
+  const requestIdRef = useRef(0);
 
   const load = useCallback(async (silent = false) => {
+    const requestId = ++requestIdRef.current;
     if (!silent) setLoading(true);
     else setRefreshing(true);
     setFetchError(null);
@@ -73,13 +79,17 @@ export function HealthDashboard({
         fetch("/api/health/recovery", { credentials: "include" }),
         fetch("/api/health/cardio", { credentials: "include" }),
       ]);
+      // A newer load() started after us — our results are stale, discard them.
+      if (requestId !== requestIdRef.current) return;
+
+      const errors: string[] = [];
       if (snapsRes.ok) {
         const json = (await snapsRes.json()) as { data: HealthSnapshot[] };
         setSnapshots(json.data);
       } else {
         // Surface the real reason instead of silently rendering the empty state.
         // 500s here usually mean the DB schema is out of sync with Prisma.
-        setFetchError(`Gesundheitsdaten konnten nicht geladen werden (${snapsRes.status})`);
+        errors.push(`Gesundheitsdaten konnten nicht geladen werden (${snapsRes.status})`);
       }
       if (recRes.ok) {
         const json = (await recRes.json()) as { data: RecoveryBreakdown };
@@ -88,16 +98,24 @@ export function HealthDashboard({
           void syncRecoveryWidgetSnapshot(json.data.score, json.data.level);
           void syncRecoveryToWatch(json.data.score, json.data.level);
         }
+      } else {
+        errors.push(`Recovery-Daten konnten nicht geladen werden (${recRes.status})`);
       }
       if (cardioRes.ok) {
         const json = (await cardioRes.json()) as { data: CardioSummary };
         setCardio(json.data);
+      } else {
+        errors.push(`Cardio-Daten konnten nicht geladen werden (${cardioRes.status})`);
       }
+      if (errors.length > 0) setFetchError(errors.join(" · "));
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       setFetchError(`Verbindungsfehler: ${err instanceof Error ? err.message : "unbekannt"}`);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
@@ -126,9 +144,20 @@ export function HealthDashboard({
       // Native iOS app: pull straight from HealthKit via the Capacitor
       // plugin — no Shortcuts app involved at all.
       setRefreshing(true);
-      void syncHealthKitData()
-        .catch((err) => console.error("[healthkit] manual sync failed", err))
-        .finally(() => { void load(true); });
+      void (async () => {
+        let syncError: string | null = null;
+        try {
+          await syncHealthKitData();
+        } catch (err) {
+          console.error("[healthkit] manual sync failed", err);
+          syncError = `HealthKit-Sync fehlgeschlagen: ${err instanceof Error ? err.message : "unbekannt"}`;
+        }
+        await load(true);
+        // Sync failing still lets load(true) re-fetch (now-stale) data
+        // successfully, so only surface the sync error if load() didn't
+        // already report a more specific one of its own.
+        if (syncError) setFetchError((current) => current ?? syncError);
+      })();
     } else if (isIOS()) {
       // Web/PWA on iOS (no native shell available): fall back to the
       // Health Auto Export Shortcut. Shortcuts runs the export and stops
