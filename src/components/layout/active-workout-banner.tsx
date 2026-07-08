@@ -21,10 +21,20 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
   // skip the redundant client refetch on mount so the banner can't pop
   // in/out mid-tap right after navigation (that shift used to make taps on
   // the list below register on the wrong row, e.g. on the "Mehr" page).
-  const lastFetchedAt = useRef(Date.now());
+  // Seeded in the mount effect below rather than inline (`useRef(Date.now())`)
+  // — calling Date.now() during render is impure and flagged by the React
+  // Compiler; the effect runs before the stale-guard effect, so the initial
+  // refetch is still skipped.
+  const lastFetchedAt = useRef(0);
+  useEffect(() => {
+    lastFetchedAt.current = Date.now();
+  }, []);
 
   const fetchActive = useCallback(async () => {
-    if (status !== "authenticated") { setActive(null); return; }
+    // No synchronous setState here — this is invoked straight from effect
+    // bodies, and a sync setActive would trip React 19's set-state-in-effect
+    // rule. The signed-out case is handled by the render guard below instead.
+    if (status !== "authenticated") return;
     lastFetchedAt.current = Date.now();
     try {
       const res = await fetch("/api/workouts?status=active&limit=1", { credentials: "include" });
@@ -51,9 +61,12 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
 
   // Route changes only refetch when the data is stale — without the guard
   // every tab switch fires an extra API call before the page can settle.
+  // Deferred to a (cancellable) timeout so the fetch kicks off outside the
+  // effect body itself — setState must only ever run from a callback here.
   useEffect(() => {
     if (Date.now() - lastFetchedAt.current < 10_000) return;
-    void fetchActive();
+    const id = setTimeout(() => { void fetchActive(); }, 0);
+    return () => clearTimeout(id);
   }, [fetchActive, pathname]);
 
   useEffect(() => {
@@ -75,7 +88,13 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
     };
   }, [fetchActive]);
 
-  if (!active) return null;
+  // Signed out (or session expired): hide the banner outright rather than
+  // clearing `active` state from within fetchActive. Deliberately checks for
+  // "unauthenticated" (not !== "authenticated") so the server-provided banner
+  // stays visible during the brief client-side "loading" phase — hiding it
+  // there would reintroduce the pop-in/layout-shift this component guards
+  // against (see lastFetchedAt comment above).
+  if (status === "unauthenticated" || !active) return null;
   if (pathname === `/workouts/${active.id}`) return null;
 
   const title = active.name?.trim() || t("workouts.workoutFallback");

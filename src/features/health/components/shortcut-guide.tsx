@@ -206,7 +206,7 @@ export function ShortcutGuide() {
 
       {/* HAE fallback note */}
       <p className="px-2 text-center text-[11px]" style={{ color: "#5E5E66" }}>
-        Alternativ funktioniert weiterhin die App „Health Auto Export" (REST-API-Export an dieselbe URL) —
+        Alternativ funktioniert weiterhin die App „Health Auto Export&ldquo; (REST-API-Export an dieselbe URL) —
         der native Kurzbefehl oben kommt aber ohne Zusatz-App und ohne Kosten aus.
       </p>
     </div>

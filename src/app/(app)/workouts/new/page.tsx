@@ -44,15 +44,16 @@ export default function NewWorkoutPage() {
 
   // When set, render WorkoutDetail inline instead of the form
   const [offlineWorkoutId, setOfflineWorkoutId] = useState<string | null>(null);
-  const [settings, setSettings] = useState<CachedSettings>({
-    weightUnit: "KG",
-    restTimerDefault: 90,
-  });
+  // Lazy initializer reads the cached settings during the first render
+  // (client-side only — `readCachedSettings` swallows the SSR "localStorage is
+  // undefined" and returns the default). Doing it here rather than via a
+  // synchronous setState in the mount effect avoids the cascading re-render
+  // React 19 flags, and `settings` doesn't affect the initial rendered form so
+  // there's no hydration mismatch.
+  const [settings, setSettings] = useState<CachedSettings>(readCachedSettings);
 
   // ── On mount: resume active offline workout + cache settings ────────────
   useEffect(() => {
-    setSettings(readCachedSettings());
-
     // Fetch + cache settings if online
     if (typeof navigator !== "undefined" && navigator.onLine) {
       fetch("/api/settings", { credentials: "include" })

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, TrendingUp } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
@@ -45,7 +45,12 @@ export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps
   const [usageLoading, setUsageLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const [histLoading, setHistLoading] = useState(false);
+  // Which exercise the currently-loaded history belongs to. `histLoading` is
+  // derived from this rather than being its own state toggled inside the
+  // fetch effect — setting a loading flag synchronously in an effect trips
+  // React 19's set-state-in-effect rule, whereas a render-time derivation
+  // (selected ≠ loaded) shows the spinner immediately with no extra render.
+  const [loadedId, setLoadedId] = useState<string | null>(null);
   const [history, setHistory] = useState<AnalyticsHistoryRow[]>([]);
   const [progressBySession, setProgressBySession] = useState<ProgressPoint[]>([]);
   const [volumeBySession, setVolumeBySession] = useState<VolumePoint[]>([]);
@@ -56,49 +61,58 @@ export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps
     equipment: string;
   } | null>(null);
 
-  const loadUsage = useCallback(async () => {
-    setUsageLoading(true);
-    const res = await fetch("/api/exercises/most-used");
-    const json = await res.json();
-    const list = (json.data ?? []) as UsageRow[];
-    setUsage(list);
-    setUsageLoading(false);
-    if (list.length > 0) {
-      setSelectedId((prev) => prev ?? list[0].exercise.id);
-    }
+  // Initial usage fetch. Inlined so no setState runs synchronously in the
+  // effect body (usageLoading already starts true); state updates all happen
+  // after an await.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/exercises/most-used");
+        const json = await res.json();
+        if (cancelled) return;
+        const list = (json.data ?? []) as UsageRow[];
+        setUsage(list);
+        if (list.length > 0) {
+          setSelectedId((prev) => prev ?? list[0].exercise.id);
+        }
+      } finally {
+        if (!cancelled) setUsageLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    loadUsage();
-  }, [loadUsage]);
+  const histLoading = selectedId != null && selectedId !== loadedId;
 
-  const loadHistory = useCallback(
-    async (exerciseId: string) => {
-      setHistLoading(true);
-      const res = await fetch(`/api/exercises/${exerciseId}/history`);
-      if (!res.ok) {
-        setHistLoading(false);
-        return;
+  // Load the selected exercise's history. `loadedId` is set at the end (even
+  // on failure) so the derived `histLoading` clears; no synchronous loading
+  // toggle inside the effect.
+  useEffect(() => {
+    if (!selectedId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/exercises/${selectedId}/history`);
+        if (cancelled || !res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        const d = json.data;
+        setMeta({
+          name: d.exercise.name,
+          muscleGroup: d.exercise.muscleGroup,
+          equipment: d.exercise.equipment,
+        });
+        setHistory(d.history ?? []);
+        setProgressBySession(d.progressBySession ?? []);
+        setVolumeBySession(d.volumeBySession ?? []);
+        setBestPr(d.bestPersonalRecord ?? null);
+      } finally {
+        if (!cancelled) setLoadedId(selectedId);
       }
-      const json = await res.json();
-      const d = json.data;
-      setMeta({
-        name: d.exercise.name,
-        muscleGroup: d.exercise.muscleGroup,
-        equipment: d.exercise.equipment,
-      });
-      setHistory(d.history ?? []);
-      setProgressBySession(d.progressBySession ?? []);
-      setVolumeBySession(d.volumeBySession ?? []);
-      setBestPr(d.bestPersonalRecord ?? null);
-      setHistLoading(false);
-    },
-    []
-  );
-
-  useEffect(() => {
-    if (selectedId) loadHistory(selectedId);
-  }, [selectedId, loadHistory]);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedId]);
 
   const selectedUsage = usage.find((u) => u.exercise.id === selectedId);
 

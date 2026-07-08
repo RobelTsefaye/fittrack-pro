@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Standalone design-canvas mockups (host-bridge fragments, not part of
+    // the Next.js build) — their cross-file component refs aren't resolvable
+    // here and would drown the lint gate in false jsx-no-undef errors.
+    "Fitapp/**",
   ]),
 ]);
 

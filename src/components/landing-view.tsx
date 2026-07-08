@@ -8,12 +8,15 @@ import { LOCALE_COOKIE } from "@/lib/i18n-config";
 import type { UiLocale } from "@/lib/i18n-config";
 import { cn } from "@/lib/utils";
 
+// Defined at module scope so the DOM mutation (document.cookie) isn't inside a
+// component/hook body, which the React Compiler's immutability rule forbids.
+function applyLocale(l: UiLocale) {
+  document.cookie = `${LOCALE_COOKIE}=${l};path=/;max-age=31536000;SameSite=Lax`;
+  window.location.reload();
+}
+
 function LandingLocaleSwitch() {
   const { t, locale } = useI18n();
-  function setLang(l: UiLocale) {
-    document.cookie = `${LOCALE_COOKIE}=${l};path=/;max-age=31536000;SameSite=Lax`;
-    window.location.reload();
-  }
   return (
     <div className="flex items-center justify-center gap-3 text-xs text-[var(--sys-label3)]">
       <span>{t("landing.language")}:</span>
@@ -27,7 +30,7 @@ function LandingLocaleSwitch() {
               ? "font-semibold text-foreground"
               : "hover:text-foreground/70"
           )}
-          onClick={() => setLang(l)}
+          onClick={() => applyLocale(l)}
         >
           {l === "en" ? "English" : "Deutsch"}
         </button>

@@ -43,9 +43,23 @@ export function PlansList() {
     setLoading(false);
   }, []);
 
+  // Initial fetch inlined (not `load()`) so no setState runs synchronously in
+  // the effect body — `loading` already starts true and the updates below
+  // happen only after awaits. `load` is still used to refresh after creating
+  // a plan.
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/plans");
+        const json = await res.json();
+        if (!cancelled) setPlans(json.data ?? []);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
