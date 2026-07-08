@@ -189,11 +189,14 @@ export async function getCardioSummary(userId: string): Promise<CardioSummary> {
     orderBy: { startedAt: "desc" },
   });
 
-  // Drop junk micro-sessions (accidental watch starts: ~1 min, ~10 kcal).
-  // Same threshold as recovery.ts so session counts and load stay consistent:
-  // a session counts if it ran ≥5 min OR burned ≥50 kcal.
+  // Drop junk micro-sessions (accidental watch starts: a few *seconds*,
+  // ~0 kcal). Same threshold as recovery.ts so session counts and load stay
+  // consistent. Deliberately permissive (≥60s or ≥20kcal): the previous
+  // 5-min bar silently swallowed real-but-short sessions — a user finishing
+  // a 3-minute cool-down ride saw nothing appear and reasonably concluded
+  // the sync was broken.
   const rows = allRows.filter(
-    (w) => w.durationSec >= 300 || (w.activeCalories ?? 0) >= 50,
+    (w) => w.durationSec >= 60 || (w.activeCalories ?? 0) >= 20,
   );
 
   // Combined buckets (for dashboard card)

@@ -358,6 +358,8 @@ private struct LiveWorkoutView: View {
     @ObservedObject var phoneObserver: PhoneWorkoutObserver
     @ObservedObject var routeTracker: RouteLocationTracker
 
+    @State private var showCancelConfirm = false
+
     var body: some View {
         if workoutManager.isOutdoorActivity {
             // Laufen/Radfahren: an extra swipe page shows the route covered
@@ -375,6 +377,10 @@ private struct LiveWorkoutView: View {
     }
 
     private var metricsPage: some View {
+        // ScrollView: with the added cancel button (and possibly an error
+        // block), the content can exceed the small watch screen — without
+        // this, whatever ends up below the fold is simply unreachable.
+        ScrollView {
         VStack(spacing: 6) {
             if let workout = phoneObserver.activeWorkout {
                 Text(workout.name ?? "Training")
@@ -441,10 +447,10 @@ private struct LiveWorkoutView: View {
             }
 
             if phoneObserver.activeWorkout == nil {
-                // Only offer a manual stop for Watch-only sessions — phone-
-                // mirrored workouts stop automatically when finished on the
-                // phone (see ContentView's onChange), avoiding two different
-                // "end workout" actions that could disagree with each other.
+                // Only offer manual end/cancel for Watch-only sessions —
+                // phone-mirrored workouts stop automatically when finished on
+                // the phone (see ContentView's onChange), avoiding two
+                // different "end workout" actions that could disagree.
                 Button(role: .destructive) {
                     workoutManager.stop()
                 } label: {
@@ -452,9 +458,30 @@ private struct LiveWorkoutView: View {
                 }
                 .tint(.red)
                 .padding(.top, 4)
+
+                // Cancel = discard, nothing saved to HealthKit — for
+                // accidental starts, where "Beenden" would pollute the
+                // history with a junk workout.
+                Button {
+                    showCancelConfirm = true
+                } label: {
+                    Label("Abbrechen", systemImage: "xmark.circle")
+                }
+                .foregroundStyle(.secondary)
             }
         }
         .padding()
+        .confirmationDialog(
+            "Workout verwerfen?",
+            isPresented: $showCancelConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Ja, verwerfen", role: .destructive) { workoutManager.cancel() }
+            Button("Zurück", role: .cancel) {}
+        } message: {
+            Text("Es wird nichts in Health gespeichert.")
+        }
+        }
     }
 
     private var formattedTime: String {

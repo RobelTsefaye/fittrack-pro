@@ -1,6 +1,7 @@
 import Foundation
 import HealthKit
 import Combine
+import WatchConnectivity
 
 /**
  * Drives a live HKWorkoutSession on the Watch: starts/stops the session,
@@ -302,9 +303,24 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
                         self.builder?.discardWorkout()
                         Task { @MainActor in self.resetState() }
                     } else {
-                        self.builder?.finishWorkout { _, error in
+                        self.builder?.finishWorkout { workout, error in
                             Task { @MainActor in
                                 if let error = error { self.errorMessage = error.localizedDescription }
+                                if workout != nil {
+                                    // Tell the phone a new cardio session just
+                                    // landed in HealthKit so it can sync it to
+                                    // the server right away — without this, the
+                                    // workout only appears after the phone app's
+                                    // next foreground sync, which is also rate-
+                                    // limited to every 15 min (so "finish run,
+                                    // check phone" showed nothing).
+                                    // transferUserInfo (not sendMessage): queued
+                                    // and delivered even if the phone isn't
+                                    // reachable right now.
+                                    if WCSession.isSupported(), WCSession.default.activationState == .activated {
+                                        WCSession.default.transferUserInfo(["type": "cardioSaved"])
+                                    }
+                                }
                                 self.resetState()
                             }
                         }

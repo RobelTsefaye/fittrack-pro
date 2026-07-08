@@ -16,6 +16,10 @@ interface WatchConnectivityPlugin {
     eventName: "watchRequest",
     listenerFunc: (data: { requestId: string; message: Record<string, unknown> }) => void
   ): Promise<{ remove: () => void }>;
+  addListener(
+    eventName: "watchCardioSaved",
+    listenerFunc: () => void
+  ): Promise<{ remove: () => void }>;
 }
 
 const WatchConnectivity = registerPlugin<WatchConnectivityPlugin>("WatchConnectivity");
@@ -197,4 +201,17 @@ export function onWatchRequest(
       // Non-fatal — the Watch's sendMessage call will simply time out.
     }
   });
+}
+
+/**
+ * Fires when the Watch reports it just saved a cardio HKWorkout and no
+ * background-sync token is stored — the native side handles this itself
+ * when a token exists (see WatchConnectivityPlugin.didReceiveUserInfo), so
+ * this JS fallback only runs with the app open. The handler should push
+ * recent HealthKit workouts to the server (syncHealthKitData) so the new
+ * session shows up immediately instead of on the next rate-limited sync.
+ */
+export function onWatchCardioSaved(handler: () => void): void {
+  if (!Capacitor.isNativePlatform()) return;
+  void WatchConnectivity.addListener("watchCardioSaved", handler);
 }

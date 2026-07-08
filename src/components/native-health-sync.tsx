@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { requestHealthKitAuthorization, syncHealthKitData } from "@/lib/native/healthkit";
+import { onWatchCardioSaved } from "@/lib/native/watch-connectivity";
 
 // Avoid re-syncing on every tab-visibility flicker — once every 15 min is
 // plenty for daily vitals that only change a few times a day at most.
@@ -48,6 +49,18 @@ export function NativeHealthSync() {
     }
 
     void sync();
+
+    // Watch just saved a cardio session and no background-sync token is
+    // stored (the native side handles it itself otherwise). Bypasses the
+    // 15-min rate limit — this is an explicit "new data exists right now"
+    // signal, not a speculative visibility flicker. Small delay so the
+    // workout has a moment to replicate into the phone's HealthKit store.
+    onWatchCardioSaved(() => {
+      setTimeout(() => {
+        lastSyncRef.current = 0;
+        void sync();
+      }, 5000);
+    });
 
     function onVisibilityChange() {
       if (document.visibilityState === "visible") void sync();

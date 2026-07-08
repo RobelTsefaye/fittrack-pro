@@ -719,12 +719,13 @@ async function fetchSnapshotsAndWorkouts(userId: string, sinceMs: number) {
     });
 
   // Ignore junk micro-sessions (accidental watch starts — real data shows
-  // 1-minute, 10-15 kcal entries). Left in, they'd count as full training
+  // few-second, ~0 kcal entries). Left in, they'd count as full training
   // days: daysSinceLast drops to 0, streaks extend, and the ACWR acute
-  // window gains phantom sessions. A session counts only if it ran ≥5 min
-  // OR burned ≥50 kcal (short-but-real HIIT bursts pass the kcal test).
+  // window gains phantom sessions. Threshold kept in sync with cardio.ts
+  // (≥60s or ≥20kcal — the previous 5-min bar silently swallowed
+  // real-but-short sessions).
   const realCardio = appleWorkouts.filter(
-    (w) => w.durationSec >= 300 || (w.activeCalories ?? 0) >= 50,
+    (w) => w.durationSec >= 60 || (w.activeCalories ?? 0) >= 20,
   );
 
   // Convert each cardio session to a strength-tonnage equivalent so ACWR works

@@ -1,4 +1,5 @@
 import Foundation
+import HealthKit
 
 /**
  * Native (no-WebView) implementation of the Watch → phone requests
@@ -157,6 +158,66 @@ enum WatchAPIProxy {
         } catch {
             return (["error": describeError(error)], nil)
         }
+    }
+
+    // MARK: - Cardio sync (Watch-saved HealthKit workouts → server)
+
+    private static let healthStore = HKHealthStore()
+
+    /// Pushes recent HealthKit workouts to the server — the native
+    /// equivalent of syncHealthKitData()'s workout half in healthkit.ts,
+    /// runnable without a WebView. Triggered by the Watch's "cardioSaved"
+    /// userInfo transfer right after it saves a cardio session (see
+    /// WorkoutManager's finishWorkout callback): without this, a Watch-
+    /// recorded run only reached the server on the phone app's next
+    /// foreground sync, which is additionally rate-limited to every 15
+    /// minutes — so finishing a run and immediately checking the phone
+    /// showed nothing. Same payload shape as HealthKitPlugin.queryWorkouts,
+    /// posted in the HAE envelope /api/health-data already parses.
+    static func syncRecentWorkouts(token: String, days: Int = 7) async {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        guard let startDate = Calendar.current.date(byAdding: .day, value: -days, to: Date()) else { return }
+
+        let workouts: [HKWorkout] = await withCheckedContinuation { continuation in
+            let predicate = HKQuery.predicateForSamples(withStart: startDate, end: Date(), options: .strictStartDate)
+            let query = HKSampleQuery(
+                sampleType: .workoutType(), predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
+            ) { _, samples, _ in
+                continuation.resume(returning: (samples as? [HKWorkout]) ?? [])
+            }
+            healthStore.execute(query)
+        }
+        guard !workouts.isEmpty else { return }
+
+        let iso = ISO8601DateFormatter()
+        let payload: [[String: Any]] = workouts.map { w in
+            var dict: [String: Any] = [
+                "name": w.workoutActivityType.haeDisplayName,
+                "start": iso.string(from: w.startDate),
+                "end": iso.string(from: w.endDate),
+                "duration": w.duration,
+                "source": w.sourceRevision.source.name,
+            ]
+            if let distance = w.totalDistance {
+                dict["distance"] = ["qty": distance.doubleValue(for: .meter()), "units": "m"]
+            }
+            if let energy = w.totalEnergyBurned {
+                dict["activeEnergyBurned"] = ["qty": energy.doubleValue(for: .kilocalorie()), "units": "kcal"]
+            }
+            return dict
+        }
+
+        guard let url = URL(string: baseURL + "/api/health-data") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["data": ["workouts": payload]])
+        // Best-effort — a failure here is recovered by the phone app's next
+        // regular foreground sync; nothing to surface to the Watch.
+        _ = try? await URLSession.shared.data(for: req)
     }
 
     /// Fetches a workout + its previous-session hints and returns the same
@@ -358,4 +419,27 @@ private struct ApiPreviousSetEntry: Decodable {
 
 private struct ApiSetPatchResponse: Decodable {
     let personalRecord: Bool
+}
+
+private extension HKWorkoutActivityType {
+    /// Same mapping as HealthKitPlugin.displayName (fileprivate there) — the
+    /// English Apple Health names cardio.ts/cardio-config.ts match against.
+    var haeDisplayName: String {
+        switch self {
+        case .running: return "Running"
+        case .walking: return "Walking"
+        case .cycling: return "Cycling"
+        case .swimming: return "Swimming"
+        case .traditionalStrengthTraining: return "Traditional Strength Training"
+        case .functionalStrengthTraining: return "Functional Strength Training"
+        case .hiking: return "Hiking"
+        case .yoga: return "Yoga"
+        case .highIntensityIntervalTraining: return "High Intensity Interval Training"
+        case .rowing: return "Rowing"
+        case .elliptical: return "Elliptical"
+        case .stairClimbing: return "Stair Climbing"
+        case .skatingSports: return "Skating"
+        default: return "Other"
+        }
+    }
 }

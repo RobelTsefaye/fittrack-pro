@@ -244,4 +244,32 @@ extension WatchConnectivityPlugin: WCSessionDelegate {
         pendingReplies[requestId] = replyHandler
         notifyListeners("watchRequest", data: ["requestId": requestId, "message": message])
     }
+
+    /// Fire-and-forget notifications from the Watch, sent via
+    /// transferUserInfo (queued, survives the phone being unreachable —
+    /// unlike sendMessage there's no reply to deliver, so it's the right
+    /// channel for "something happened, catch up when you can").
+    ///
+    /// "cardioSaved": the Watch just saved a cardio HKWorkout. Push recent
+    /// HealthKit workouts to the server right away so it shows up in the
+    /// app immediately — otherwise it waits for the next foreground sync
+    /// (rate-limited to 15 min). Falls back to the JS bridge when no token
+    /// is stored; that path only works with the app open, same trade-off as
+    /// the request handling above.
+    public func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        guard userInfo["type"] as? String == "cardioSaved" else { return }
+        if let token = SyncTokenStore.load() {
+            Task {
+                // Small grace period: the workout the Watch just saved needs a
+                // moment to replicate into the phone's HealthKit store. If
+                // it's still not there after this, the next foreground sync
+                // picks it up — this is best-effort acceleration, not the
+                // only path.
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                await WatchAPIProxy.syncRecentWorkouts(token: token)
+            }
+        } else {
+            notifyListeners("watchCardioSaved", data: [:])
+        }
+    }
 }

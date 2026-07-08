@@ -27,6 +27,7 @@
 		8316D1A22FFD11FE00B74FDF /* RestTimerWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8316D18D2FFD11FC00B74FDF /* RestTimerWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		83B3EA442FFD3C0200CC951E /* FitTrackWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 83B3EA3A2FFD3C0100CC951E /* FitTrackWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9F1E2D3C4B5A6978869F0E11 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 241C812FAA07DEA7AD75E4B4 /* HealthKit.framework */; };
+		A19E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B29E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift */; };
 		A3AD012C32E9B00A71BE0247 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8316D18E2FFD11FC00B74FDF /* WidgetKit.framework */; };
 		AA11BB22CC33DD44EE55FF02 /* RestTimerActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF01 /* RestTimerActivityPlugin.swift */; };
 		AA11BB22CC33DD44EE55FF04 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF03 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift */; };
@@ -37,7 +38,6 @@
 		DE81AFC34ECCF2849D0B5C36 /* BiometricLockPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */; };
 		F43ED9D36FDFEF1893ED2917 /* WatchConnectivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */; };
 		FC5CCC552F02B0142759F285 /* SyncTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AB29A1B6FE92831C897693B /* SyncTokenStore.swift */; };
-		A19E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B29E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -102,7 +102,6 @@
 
 /* Begin PBXFileReference section */
 		0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityPlugin.swift; sourceTree = "<group>"; };
-		B29E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchAPIProxy.swift; sourceTree = "<group>"; };
 		19558FA5A94803F3678CB309 /* BackgroundSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncManager.swift; sourceTree = "<group>"; };
 		241C812FAA07DEA7AD75E4B4 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -129,6 +128,7 @@
 		AA11BB22CC33DD44EE55FF05 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF09 /* ../RestTimerWidget/AdjustRestTimerIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../RestTimerWidget/AdjustRestTimerIntent.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF0B /* RestTimerAppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestTimerAppShortcuts.swift; sourceTree = "<group>"; };
+		B29E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchAPIProxy.swift; sourceTree = "<group>"; };
 		D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricLockPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
