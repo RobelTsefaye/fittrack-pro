@@ -377,6 +377,11 @@ model AppleWorkout {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  /// Soft-delete: HealthKit stays the source of truth and keeps re-syncing
+  /// this same externalId on every sync, so a hard delete would just come
+  /// back. Hiding it here instead — the upsert in /api/health-data never
+  /// touches this field, so it stays hidden across re-syncs.
+  hiddenAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

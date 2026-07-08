@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
   ArrowLeft, Activity, Clock, Route, Flame, TrendingUp, TrendingDown,
-  Heart, MapPin, Mountain, Sun, Home, ChevronDown,
+  Heart, MapPin, Mountain, Sun, Home, ChevronDown, Trash2,
 } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import type {
@@ -20,6 +21,39 @@ const VolumeChart = dynamic(
 
 export function CardioDetail({ summary }: { summary: CardioSummary }) {
   const { outdoor, indoor } = summary;
+  const router = useRouter();
+
+  // Client-side hide for instant feedback — the delete is a soft-delete
+  // server-side (see /api/health/cardio/[id]), so a router.refresh() alone
+  // would still show the row until the new server data lands. Weekly
+  // stats/type breakdown only catch up after that refresh, not instantly —
+  // acceptable since those are aggregates, not the row itself.
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+
+  async function deleteSession(id: string) {
+    if (!confirm("Diese Einheit wirklich löschen? Sie verschwindet dauerhaft aus FitTrack.")) return;
+    setHiddenIds((prev) => new Set(prev).add(id));
+    try {
+      const res = await fetch(`/api/health/cardio/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) {
+        setHiddenIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        window.alert("Löschen fehlgeschlagen.");
+        return;
+      }
+      router.refresh();
+    } catch {
+      setHiddenIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      window.alert("Löschen fehlgeschlagen.");
+    }
+  }
 
   const hasOutdoor =
     outdoor.thisWeek.sessions > 0 ||
@@ -52,6 +86,8 @@ export function CardioDetail({ summary }: { summary: CardioSummary }) {
               icon={<Sun className="h-4 w-4" />}
               metric="distance"
               group={outdoor}
+              hiddenIds={hiddenIds}
+              onDeleteSession={deleteSession}
             />
           )}
 
@@ -62,6 +98,8 @@ export function CardioDetail({ summary }: { summary: CardioSummary }) {
               icon={<Home className="h-4 w-4" />}
               metric="time"
               group={indoor}
+              hiddenIds={hiddenIds}
+              onDeleteSession={deleteSession}
             />
           )}
         </>
@@ -73,7 +111,7 @@ export function CardioDetail({ summary }: { summary: CardioSummary }) {
 // ── Category block (Outdoor or Indoor) ───────────────────────────────────────
 
 function CategoryBlock({
-  label, accentColor, icon, metric, group,
+  label, accentColor, icon, metric, group, hiddenIds, onDeleteSession,
 }: {
   label: string;
   accentColor: string;
@@ -81,8 +119,11 @@ function CategoryBlock({
   /** Which metric is the headline KPI — distance for outdoor, time for indoor */
   metric: "distance" | "time";
   group: CardioCategoryGroup;
+  hiddenIds: Set<string>;
+  onDeleteSession: (id: string) => void;
 }) {
-  const { thisWeek, lastWeek, weeklyHistory, typeBreakdown, recentSessions } = group;
+  const { thisWeek, lastWeek, weeklyHistory, typeBreakdown } = group;
+  const recentSessions = group.recentSessions.filter((s) => !hiddenIds.has(s.id));
 
   const deltaDistPct = lastWeek.distanceKm > 0
     ? ((thisWeek.distanceKm - lastWeek.distanceKm) / lastWeek.distanceKm) * 100
@@ -140,7 +181,7 @@ function CategoryBlock({
         >
           <div className="space-y-2">
             {recentSessions.map((s) => (
-              <SessionRow key={s.id} session={s} metric={metric} />
+              <SessionRow key={s.id} session={s} metric={metric} onDelete={() => onDeleteSession(s.id)} />
             ))}
           </div>
         </CollapsibleSection>
@@ -381,7 +422,13 @@ function TypeRow({
 
 // ── Session row ──────────────────────────────────────────────────────────────
 
-function SessionRow({ session, metric }: { session: CardioSession; metric: "distance" | "time" }) {
+function SessionRow({
+  session, metric, onDelete,
+}: {
+  session: CardioSession;
+  metric: "distance" | "time";
+  onDelete: () => void;
+}) {
   const meta = getWorkoutTypeMeta(session.type);
   const Icon = meta.icon;
   const date = useMemo(() => new Date(session.startedAt), [session.startedAt]);
@@ -408,10 +455,20 @@ function SessionRow({ session, metric }: { session: CardioSession; metric: "dist
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
           <p className="text-[14px] font-semibold text-white truncate">{meta.label}</p>
-          <p className="shrink-0 text-[11px] tabular-nums" style={{ color: "#9A9AA2" }}>
-            {date.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "short" })}{" "}
-            · {date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
-          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            <p className="text-[11px] tabular-nums" style={{ color: "#9A9AA2" }}>
+              {date.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "short" })}{" "}
+              · {date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
+            </p>
+            <button
+              type="button"
+              onClick={onDelete}
+              aria-label="Einheit löschen"
+              className="rounded-md p-1 text-muted-foreground/60 transition-colors hover:text-destructive active:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
 
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] tabular-nums" style={{ color: "#9A9AA2" }}>

@@ -696,6 +696,7 @@ async function fetchSnapshotsAndWorkouts(userId: string, sinceMs: number) {
       where: {
         userId,
         startedAt: { gte: since },
+        hiddenAt: null,
         NOT: {
           OR: [
             { type: { contains: "Strength", mode: "insensitive" } },

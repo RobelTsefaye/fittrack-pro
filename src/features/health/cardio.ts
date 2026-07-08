@@ -178,6 +178,7 @@ export async function getCardioSummary(userId: string): Promise<CardioSummary> {
     where: {
       userId,
       startedAt: { gte: since },
+      hiddenAt: null,
       NOT: {
         OR: [
           { type: { contains: "Strength", mode: "insensitive" } },
