@@ -22,7 +22,7 @@ struct RouteMapView: View {
             } else if tracker.coordinates.count < 2 {
                 waitingState
             } else {
-                Map(position: cameraPosition) {
+                Map(position: .constant(cameraPosition)) {
                     MapPolyline(coordinates: tracker.coordinates)
                         .stroke(.red, lineWidth: 4)
                     if let last = tracker.coordinates.last {
