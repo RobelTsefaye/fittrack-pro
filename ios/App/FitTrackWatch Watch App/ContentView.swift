@@ -413,6 +413,17 @@ private struct LiveWorkoutView: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
+                    // The only HealthKit permissions the app is ever allowed
+                    // to introspect (read-only types stay opaque by design,
+                    // even after being granted or denied) — shown here since
+                    // Watch Settings > Health doesn't reliably list every
+                    // requested category either.
+                    if let debug = workoutManager.shareAuthorizationDebug {
+                        Text(debug)
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
                     Button {
                         workoutManager.start(activityType: .traditionalStrengthTraining)
                     } label: {

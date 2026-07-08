@@ -19,6 +19,13 @@ final class WorkoutManager: NSObject, ObservableObject {
     @Published var activeCalories: Double = 0
     @Published var authorizationGranted = false
     @Published var errorMessage: String?
+    /// Human-readable dump of authorizationStatus(for:) per share type —
+    /// HealthKit only ever reveals real grant/deny status for *share*
+    /// (write) types, never read-only ones, so this is the most we can ever
+    /// know in-app about why a session might be failing. Surfaced directly
+    /// in AuthorizationView since Watch Settings > Health doesn't reliably
+    /// list every requested category either.
+    @Published var shareAuthorizationDebug: String?
 
     /// Set in `start()`, cleared in `resetState()` — lets views (LiveWorkoutView)
     /// decide whether to show RouteMapView without needing their own copy of
@@ -79,13 +86,41 @@ final class WorkoutManager: NSObject, ObservableObject {
         }
         store.requestAuthorization(toShare: shareTypes, read: readTypes) { [weak self] success, error in
             Task { @MainActor in
+                guard let self else { return }
+                self.logShareAuthorizationStatus()
                 if let error = error {
-                    self?.errorMessage = error.localizedDescription
+                    self.errorMessage = error.localizedDescription
                     return
                 }
-                self?.authorizationGranted = success
+                self.authorizationGranted = success
             }
         }
+    }
+
+    /// Dumps authorizationStatus(for:) for every share type into
+    /// shareAuthorizationDebug. Only share types report real status —
+    /// .notDetermined/.sharingDenied/.sharingAuthorized — read types always
+    /// report .notDetermined regardless of the actual decision, by design.
+    private func logShareAuthorizationStatus() {
+        let lines = shareTypes.map { type -> String in
+            let name: String
+            switch type {
+            case HKObjectType.workoutType(): name = "Workout"
+            case HKObjectType.quantityType(forIdentifier: .heartRate): name = "Herzfrequenz"
+            case HKObjectType.quantityType(forIdentifier: .activeEnergyBurned): name = "Kalorien"
+            default: name = type.identifier
+            }
+            let status: String
+            switch store.authorizationStatus(for: type) {
+            case .notDetermined: status = "nicht entschieden"
+            case .sharingDenied: status = "VERWEIGERT"
+            case .sharingAuthorized: status = "erlaubt"
+            @unknown default: status = "unbekannt"
+            }
+            return "\(name): \(status)"
+        }
+        shareAuthorizationDebug = lines.sorted().joined(separator: "\n")
+        print("WorkoutManager share authorization:\n\(shareAuthorizationDebug ?? "")")
     }
 
     /// Populates latestHeartRate/restingHeartRate/heartRateVariability with
@@ -147,6 +182,7 @@ final class WorkoutManager: NSObject, ObservableObject {
                         // Clean up the already-started session — otherwise it
                         // lingers as a zombie that blocks the next start().
                         self.errorMessage = error.localizedDescription
+                        self.logShareAuthorizationStatus()
                         self.session?.end()
                         self.resetState()
                         return
@@ -281,6 +317,7 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
             // everything down — otherwise isRunning stays true forever and
             // the UI can never leave the workout screens.
             self.errorMessage = error.localizedDescription
+            self.logShareAuthorizationStatus()
             self.stopTimer()
             self.builder?.discardWorkout()
             self.resetState()
