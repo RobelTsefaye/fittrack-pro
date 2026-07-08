@@ -224,6 +224,10 @@ extension WatchConnectivityPlugin: WCSessionDelegate {
                         self.latestContext["active"] = true
                         self.latestContext["activeWorkout"] = json
                         self.latestContext["updatedAt"] = Date().timeIntervalSince1970
+                    case .setRecovery(let score, let level):
+                        self.latestContext["recoveryScore"] = score
+                        self.latestContext["recoveryLevel"] = level
+                        self.latestContext["recoveryUpdatedAt"] = Date().timeIntervalSince1970
                     case .clear:
                         self.latestContext["active"] = false
                         self.latestContext.removeValue(forKey: "activeWorkout")

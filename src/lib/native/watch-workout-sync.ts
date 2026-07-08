@@ -5,9 +5,13 @@ import {
   onWatchRequest,
   syncActiveWorkoutToWatch,
   clearWatchWorkoutState,
+  syncRecoveryToWatch,
 } from "@/lib/native/watch-connectivity";
 import type { WorkoutData } from "@/features/workouts/workout-types";
 import type { PreviousLogEntry } from "@/app/api/workouts/[id]/previous-logs/route";
+import { syncHealthKitData } from "@/lib/native/healthkit";
+import { Capacitor } from "@capacitor/core";
+import type { RecoveryBreakdown } from "@/features/health/recovery";
 
 /**
  * Backs the Watch's standalone strength-training flow (session picker +
@@ -129,6 +133,30 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
         }
       })();
       return { started: true };
+    }
+
+    case "refreshRecovery": {
+      // Same as the manual refresh button in health-dashboard.tsx: pull the
+      // latest vitals from HealthKit first (native only — no-ops on
+      // web/Simulator) so the recomputed score actually reflects anything
+      // recorded since the last sync, then recompute from the DB.
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await syncHealthKitData();
+        } catch {
+          // Non-fatal — fall through and recompute from whatever's already
+          // in the DB rather than failing the whole refresh.
+        }
+      }
+      const res = await fetch("/api/health/recovery");
+      if (!res.ok) return { error: `Recovery-Abruf fehlgeschlagen (${res.status})` };
+      const { data } = (await res.json()) as { data: RecoveryBreakdown };
+      // Push through the normal application-context channel too (in case the
+      // Watch app isn't the one that's currently in the foreground) and hand
+      // it back directly in the reply so the Watch shows it immediately
+      // without waiting for that separate push to land.
+      if (data.level !== "none") await syncRecoveryToWatch(data.score, data.level);
+      return { score: data.score, level: data.level };
     }
 
     default:

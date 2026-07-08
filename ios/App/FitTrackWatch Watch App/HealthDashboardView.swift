@@ -18,10 +18,21 @@ struct HealthDashboardView: View {
     @ObservedObject var workoutManager: WorkoutManager
     @ObservedObject var phoneObserver: PhoneWorkoutObserver
 
+    @State private var isRefreshing = false
+    @State private var refreshError: String?
+
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
                 recoveryRing
+                refreshButton
+
+                if let refreshError {
+                    Text(refreshError)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                }
 
                 if workoutManager.isRunning || phoneObserver.activeWorkout != nil {
                     liveBadge
@@ -87,6 +98,39 @@ struct HealthDashboardView: View {
             }
         }
         .frame(width: 110, height: 110)
+    }
+
+    /// Manually asks the phone to recompute + push the Recovery Score — the
+    /// automatic push only happens when the phone app itself refreshes
+    /// (health-dashboard.tsx), so without this the Watch's ring could sit
+    /// stale for a while after new vitals land, with no way to force it.
+    private var refreshButton: some View {
+        Button {
+            guard !isRefreshing else { return }
+            isRefreshing = true
+            refreshError = nil
+            phoneObserver.refreshRecovery { result in
+                DispatchQueue.main.async {
+                    isRefreshing = false
+                    if case .failure(let error) = result {
+                        refreshError = error.localizedDescription
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                if isRefreshing {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                }
+                Text(isRefreshing ? "Aktualisiere…" : "Aktualisieren")
+            }
+            .font(.system(size: 11, weight: .semibold))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .disabled(isRefreshing)
     }
 
     private var liveBadge: some View {

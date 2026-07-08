@@ -28,6 +28,7 @@ enum WatchAPIProxy {
 
     enum ContextUpdate {
         case setActiveWorkout(json: String)
+        case setRecovery(score: Int, level: String)
         case clear
     }
 
@@ -45,6 +46,8 @@ enum WatchAPIProxy {
             return await finishWorkout(message: message, token: token)
         case "cancelWorkout":
             return await cancelWorkout(message: message, token: token)
+        case "refreshRecovery":
+            return await refreshRecovery(token: token)
         default:
             return (["error": "Unbekannter Request-Typ: \(type)"], nil)
         }
@@ -128,6 +131,29 @@ enum WatchAPIProxy {
         do {
             try await requestNoContent("/api/workouts/\(workoutId)", method: "DELETE", token: token)
             return (["done": true], .clear)
+        } catch {
+            return (["error": describeError(error)], nil)
+        }
+    }
+
+    /// Recomputes the Recovery Score from whatever's already in the DB and
+    /// hands it back both directly (so the Watch shows it immediately,
+    /// without waiting on a separate application-context push) and as a
+    /// context update (so it also lands if some other screen is what's
+    /// currently visible on the Watch). Unlike the JS-bridge path in
+    /// watch-workout-sync.ts, this proxy has no access to the Capacitor
+    /// HealthKit plugin (that requires a running app/WebView), so it can only
+    /// recompute from data already synced — good enough for "phone app isn't
+    /// open," where there's nothing newer to pull in anyway.
+    private static func refreshRecovery(token: String) async -> (reply: [String: Any], contextUpdate: ContextUpdate?) {
+        do {
+            let result: ApiRecoveryResponse = try await request(
+                "/api/health/recovery", method: "GET", token: token
+            )
+            let score = result.data.score
+            let level = result.data.level
+            let contextUpdate: ContextUpdate? = level != "none" ? .setRecovery(score: score, level: level) : nil
+            return (["score": score, "level": level], contextUpdate)
         } catch {
             return (["error": describeError(error)], nil)
         }
@@ -292,6 +318,9 @@ enum WatchAPIProxy {
 
 private struct ApiIdResponse: Decodable { let data: ApiId }
 private struct ApiId: Decodable { let id: String }
+
+private struct ApiRecoveryResponse: Decodable { let data: ApiRecovery }
+private struct ApiRecovery: Decodable { let score: Int; let level: String }
 
 private struct ApiWorkoutResponse: Decodable { let data: ApiWorkout }
 private struct ApiWorkout: Decodable {

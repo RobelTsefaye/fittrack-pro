@@ -244,6 +244,30 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
         }
     }
 
+    /// Asks the phone to recompute the Recovery Score (re-syncing HealthKit
+    /// first if the phone app is open — see watch-workout-sync.ts) and
+    /// applies the result immediately from the reply, rather than waiting on
+    /// the separate `updateApplicationContext` push this same request also
+    /// triggers — that push is the reliable channel if this view isn't the
+    /// one currently on screen, but for the view that asked, using the
+    /// direct reply means the ring updates the moment sendMessage completes.
+    func refreshRecovery(completion: @escaping (Result<Void, Error>) -> Void) {
+        sendRequest(type: "refreshRecovery", fields: [:]) { result in
+            switch result {
+            case .success(let reply):
+                if let score = reply["score"] as? Int, let level = reply["level"] as? String {
+                    DispatchQueue.main.async {
+                        self.recoveryScore = score
+                        self.recoveryLevel = level
+                    }
+                }
+                completion(.success(()))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+
     /// Discards the workout on the phone (deletes it — no partial save).
     func cancelWorkout(workoutId: String, completion: @escaping (Result<Void, Error>) -> Void) {
         pendingCancellation = true
