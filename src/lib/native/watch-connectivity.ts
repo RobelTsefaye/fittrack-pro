@@ -39,6 +39,13 @@ export function toWatchWorkoutPayload(
   return {
     id: workout.id,
     name: workout.name,
+    // ISO string — the Watch parses this and uses it as the base for its
+    // own elapsed-time display instead of "whenever the Watch's own
+    // HKWorkoutSession happened to start collecting," which lagged the
+    // phone's timer by however long the create-workout -> WatchConnectivity
+    // push -> HealthKit authorization chain took (a few seconds, visibly
+    // out of sync between the two screens).
+    startedAt: workout.startedAt,
     // Epoch seconds (not ms) the current rest timer ends at, or null/absent
     // when no timer is running. The Watch computes its own countdown from
     // this — self-expiring, so nothing has to explicitly "clear" it later.

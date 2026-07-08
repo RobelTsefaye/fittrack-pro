@@ -98,7 +98,13 @@ struct ContentView: View {
                     // Phone workout just started (or the Watch app just
                     // launched into one already running) — HR/calories track
                     // continuously for the whole session, no manual button.
-                    workoutManager.start(activityType: .traditionalStrengthTraining)
+                    // startedAt keeps this screen's elapsed time in sync
+                    // with the phone's own timer (both count from the same
+                    // server timestamp instead of each other's local clock).
+                    workoutManager.start(
+                        activityType: .traditionalStrengthTraining,
+                        startedAt: phoneObserver.activeWorkout?.startedAtDate
+                    )
                 }
                 // If authorization isn't granted yet, the onChange below
                 // (watching authorizationGranted) starts it as soon as it is
@@ -133,8 +139,8 @@ struct ContentView: View {
             // Catches up on the auto-start above: if a phone workout arrived
             // before HealthKit finished responding to the permission
             // request, nothing started it. Fires once authorization lands.
-            guard granted, phoneObserver.activeWorkout != nil, !workoutManager.isRunning else { return }
-            workoutManager.start(activityType: .traditionalStrengthTraining)
+            guard granted, let activeWorkout = phoneObserver.activeWorkout, !workoutManager.isRunning else { return }
+            workoutManager.start(activityType: .traditionalStrengthTraining, startedAt: activeWorkout.startedAtDate)
         }
     }
 }

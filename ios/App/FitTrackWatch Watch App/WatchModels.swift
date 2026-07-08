@@ -59,12 +59,36 @@ struct WatchActiveWorkout: Codable, Identifiable, Hashable {
     /// rest timer is running. Self-expiring (compare against `Date()`), so
     /// there's no separate "cleared" signal to handle.
     var restTimerEndsAt: Double?
+    /// ISO 8601 string of when the workout actually started (server clock,
+    /// same value the phone's own elapsed-time display uses) — kept as a raw
+    /// String rather than decoding straight to `Date` since Foundation's
+    /// `.iso8601` JSONDecoder strategy doesn't handle the fractional-seconds
+    /// format Prisma's serialized DateTime uses; see `startedAtDate`.
+    let startedAt: String?
+
+    /// Parsed `startedAt`, used as the base for the Watch's own elapsed-time
+    /// display so it doesn't drift from the phone's — both then compute
+    /// "now minus this," instead of each starting its own local clock
+    /// whenever its own session/page happened to become active.
+    var startedAtDate: Date? {
+        guard let startedAt else { return nil }
+        return Self.isoFormatterWithFractionalSeconds.date(from: startedAt)
+            ?? Self.isoFormatterPlain.date(from: startedAt)
+    }
+
+    private static let isoFormatterWithFractionalSeconds: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    private static let isoFormatterPlain = ISO8601DateFormatter()
 
     enum CodingKeys: String, CodingKey {
         case workoutId = "id"
         case name
         case workoutExercises
         case restTimerEndsAt
+        case startedAt
     }
 }
 

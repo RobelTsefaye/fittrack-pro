@@ -156,7 +156,14 @@ final class WorkoutManager: NSObject, ObservableObject {
         store.execute(query)
     }
 
-    func start(activityType: HKWorkoutActivityType) {
+    /// `startedAt` overrides the session's base timestamp — used for
+    /// phone-mirrored workouts so the Watch's elapsed-time display counts
+    /// from the same server clock the phone's own timer uses, instead of
+    /// from whenever the Watch's own HKWorkoutSession happened to finish
+    /// authorizing/starting (a few seconds later, visibly out of sync).
+    /// Manual Watch-only starts (Laufen/Radfahren tapped directly here) pass
+    /// nil and just use "now", same as before.
+    func start(activityType: HKWorkoutActivityType, startedAt: Date? = nil) {
         currentActivityType = activityType
         let config = HKWorkoutConfiguration()
         config.activityType = activityType
@@ -172,7 +179,7 @@ final class WorkoutManager: NSObject, ObservableObject {
             session?.delegate = self
             builder?.delegate = self
 
-            let start = Date()
+            let start = startedAt ?? Date()
             startDate = start
             session?.startActivity(with: start)
             builder?.beginCollection(withStart: start) { [weak self] success, error in
