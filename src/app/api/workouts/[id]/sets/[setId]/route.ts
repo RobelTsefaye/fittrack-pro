@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { updateSetSchema } from "@/features/workouts/schemas";
 import {
@@ -11,8 +12,11 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; setId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  // Bearer-token auth too — the Watch's set logging hits this directly
+  // (see WatchConnectivityPlugin) and needs to work without the phone app
+  // open.
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -23,7 +27,7 @@ export async function PATCH(
       id: setId,
       workoutExercise: {
         workoutId,
-        workout: { userId: session.user.id },
+        workout: { userId },
       },
     },
     include: {
@@ -70,7 +74,7 @@ export async function PATCH(
     set.reps > 0
   ) {
     const result = await recordPersonalRecordIfBest({
-      userId: session.user.id,
+      userId,
       exerciseId: existing.workoutExercise.exerciseId,
       setId: set.id,
       weight: set.weight,

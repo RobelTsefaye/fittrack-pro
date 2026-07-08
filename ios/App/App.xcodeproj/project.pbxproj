@@ -37,6 +37,7 @@
 		DE81AFC34ECCF2849D0B5C36 /* BiometricLockPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */; };
 		F43ED9D36FDFEF1893ED2917 /* WatchConnectivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */; };
 		FC5CCC552F02B0142759F285 /* SyncTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AB29A1B6FE92831C897693B /* SyncTokenStore.swift */; };
+		A19E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B29E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -101,6 +102,7 @@
 
 /* Begin PBXFileReference section */
 		0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityPlugin.swift; sourceTree = "<group>"; };
+		B29E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchAPIProxy.swift; sourceTree = "<group>"; };
 		19558FA5A94803F3678CB309 /* BackgroundSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSyncManager.swift; sourceTree = "<group>"; };
 		241C812FAA07DEA7AD75E4B4 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -234,6 +236,7 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				41E81FC7A2B6F1AE1D7C41F3 /* HealthKitPlugin.swift */,
 				0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */,
+				B29E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift */,
 				D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */,
 				7AB29A1B6FE92831C897693B /* SyncTokenStore.swift */,
 				3BC11B8425F6F67ADE9DEBF5 /* SyncTokenPlugin.swift */,
@@ -468,6 +471,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				0EC6850581A02526C4154886 /* HealthKitPlugin.swift in Sources */,
 				F43ED9D36FDFEF1893ED2917 /* WatchConnectivityPlugin.swift in Sources */,
+				A19E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift in Sources */,
 				DE81AFC34ECCF2849D0B5C36 /* BiometricLockPlugin.swift in Sources */,
 				FC5CCC552F02B0142759F285 /* SyncTokenStore.swift in Sources */,
 				0E4B2A91649804D2E740AFAB /* SyncTokenPlugin.swift in Sources */,

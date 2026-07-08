@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { sessionId } = await params;
 
   const planSession = await prisma.planSession.findFirst({
-    where: { id: sessionId, plan: { userId: session.user.id } },
+    where: { id: sessionId, plan: { userId } },
     include: {
       exercises: {
         orderBy: { order: "asc" },
@@ -31,7 +31,7 @@ export async function POST(
   const workout = await prisma.$transaction(async (tx) => {
     const w = await tx.workout.create({
       data: {
-        userId: session.user.id,
+        userId,
         name: planSession.name,
         planSessionId: planSession.id,
         startedAt,

@@ -1,6 +1,7 @@
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { dashboardCacheTag, workoutsListCacheTag } from "@/lib/constants";
 import { updateWorkoutSchema } from "@/features/workouts/schemas";
@@ -9,15 +10,18 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  // Bearer-token auth too — GET is also used to fetch a workout's detail
+  // right after the Watch starts one via plan-sessions/:id/start, which
+  // needs to work without the phone app open (see WatchConnectivityPlugin).
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id } = await params;
 
   const workout = await prisma.workout.findFirst({
-    where: { id, userId: session.user.id },
+    where: { id, userId },
     include: {
       workoutExercises: {
         include: {
@@ -83,15 +87,18 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  // Bearer-token auth too — the Watch's "Workout abbrechen" hits this
+  // directly (see WatchConnectivityPlugin) and needs to work without the
+  // phone app open.
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id } = await params;
 
   const workout = await prisma.workout.findFirst({
-    where: { id, userId: session.user.id },
+    where: { id, userId },
   });
 
   if (!workout) {
@@ -100,8 +107,8 @@ export async function DELETE(
 
   await prisma.workout.delete({ where: { id } });
 
-  revalidateTag(dashboardCacheTag(session.user.id), "max");
-  revalidateTag(workoutsListCacheTag(session.user.id), "max");
+  revalidateTag(dashboardCacheTag(userId), "max");
+  revalidateTag(workoutsListCacheTag(userId), "max");
 
   return NextResponse.json({ success: true });
 }

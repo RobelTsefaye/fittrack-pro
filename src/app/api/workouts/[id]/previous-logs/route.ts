@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 export type PreviousSetEntry = {
@@ -26,15 +26,15 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id: workoutId } = await params;
 
   const workout = await prisma.workout.findFirst({
-    where: { id: workoutId, userId: session.user.id },
+    where: { id: workoutId, userId },
     include: {
       workoutExercises: { select: { exerciseId: true } },
     },
@@ -66,7 +66,7 @@ export async function GET(
     SELECT DISTINCT ON (we."exerciseId") we.id, we."exerciseId"
     FROM "workout_exercises" we
     JOIN "workouts" w ON w.id = we."workoutId"
-    WHERE w."userId" = ${session.user.id}
+    WHERE w."userId" = ${userId}
       AND w."completedAt" IS NOT NULL
       AND w.id <> ${workoutId}
       AND we."exerciseId" = ANY(${exerciseIds})

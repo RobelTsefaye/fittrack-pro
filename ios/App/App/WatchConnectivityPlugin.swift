@@ -123,11 +123,23 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     private func pushContext(_ call: CAPPluginCall) {
+        if pushContextToWatch() {
+            call.resolve()
+        } else {
+            call.reject("Failed to update Watch context")
+        }
+    }
+
+    /// Same as `pushContext(_:)` but callable from the native request proxy
+    /// below, which has no `CAPPluginCall` to resolve/reject (it isn't
+    /// triggered by a JS call at all).
+    @discardableResult
+    private func pushContextToWatch() -> Bool {
         do {
             try WCSession.default.updateApplicationContext(latestContext)
-            call.resolve()
+            return true
         } catch {
-            call.reject("Failed to update Watch context: \(error.localizedDescription)")
+            return false
         }
     }
 
@@ -188,15 +200,43 @@ extension WatchConnectivityPlugin: WCSessionDelegate {
         session.activate()
     }
 
-    /// Handles Watch → phone requests (startSession/logSet/finishWorkout).
-    /// The message must contain a "requestId" (String) chosen by the Watch;
-    /// we stash the replyHandler and hand the message to JS via
-    /// notifyListeners, which resolves it later via `respondToRequest`.
+    /// Handles Watch → phone requests (startSession/logSet/finishWorkout/
+    /// cancelWorkout). Prefers answering natively via WatchAPIProxy — a
+    /// stored Bearer token means this works even if the phone app isn't
+    /// open, unlike the JS bridge fallback below, which needs a live
+    /// WKWebView to run watch-workout-sync.ts's fetch calls.
     public func session(_ session: WCSession, didReceiveMessage message: [String: Any], replyHandler: @escaping ([String: Any]) -> Void) {
         guard let requestId = message["requestId"] as? String else {
             replyHandler(["error": "Missing requestId"])
             return
         }
+        guard let type = message["type"] as? String else {
+            replyHandler(["error": "Missing type"])
+            return
+        }
+
+        if let token = SyncTokenStore.load() {
+            Task {
+                let (reply, contextUpdate) = await WatchAPIProxy.handle(type: type, message: message, token: token)
+                if let contextUpdate {
+                    switch contextUpdate {
+                    case .setActiveWorkout(let json):
+                        self.latestContext["active"] = true
+                        self.latestContext["activeWorkout"] = json
+                        self.latestContext["updatedAt"] = Date().timeIntervalSince1970
+                    case .clear:
+                        self.latestContext["active"] = false
+                        self.latestContext.removeValue(forKey: "activeWorkout")
+                    }
+                    self.pushContextToWatch()
+                }
+                replyHandler(reply)
+            }
+            return
+        }
+
+        // No token configured yet — fall back to the JS bridge, which only
+        // works while the app is actually open and running.
         pendingReplies[requestId] = replyHandler
         notifyListeners("watchRequest", data: ["requestId": requestId, "message": message])
     }

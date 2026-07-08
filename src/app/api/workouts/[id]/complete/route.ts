@@ -1,6 +1,6 @@
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { dashboardCacheTag, workoutsListCacheTag } from "@/lib/constants";
 import { recordPersonalRecordIfBest } from "@/lib/personal-record";
@@ -23,15 +23,18 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  // Bearer-token auth too — the Watch's "Workout beenden" hits this
+  // directly (see WatchConnectivityPlugin) and needs to work without the
+  // phone app open.
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id } = await params;
 
   const workout = await prisma.workout.findFirst({
-    where: { id, userId: session.user.id, completedAt: null },
+    where: { id, userId, completedAt: null },
   });
 
   if (!workout) {
@@ -43,7 +46,7 @@ export async function POST(
 
   const previousWorkout = await prisma.workout.findFirst({
     where: {
-      userId: session.user.id,
+      userId,
       completedAt: { not: null },
       startedAt: { lt: workout.startedAt },
     },
@@ -98,7 +101,7 @@ export async function POST(
   let newPersonalRecords = 0;
   for (const s of setsForPr) {
     const result = await recordPersonalRecordIfBest({
-      userId: session.user.id,
+      userId,
       exerciseId: s.workoutExercise.exerciseId,
       setId: s.id,
       weight: s.weight!,
@@ -113,8 +116,8 @@ export async function POST(
   const volumeDeltaPct =
     previousVolume > 0 ? (volumeDelta / previousVolume) * 100 : null;
 
-  revalidateTag(dashboardCacheTag(session.user.id), "max");
-  revalidateTag(workoutsListCacheTag(session.user.id), "max");
+  revalidateTag(dashboardCacheTag(userId), "max");
+  revalidateTag(workoutsListCacheTag(userId), "max");
 
   return NextResponse.json({
     data: updated,
