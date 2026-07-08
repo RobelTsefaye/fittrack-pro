@@ -54,11 +54,17 @@ struct WatchActiveWorkout: Codable, Identifiable, Hashable {
     /// missing/null, or the Watch silently never receives the workout at all.
     let name: String?
     var workoutExercises: [WatchWorkoutExercise]
+    /// Epoch seconds the phone's rest timer ends at, whether started there
+    /// directly or in reaction to a set completed on the Watch — nil when no
+    /// rest timer is running. Self-expiring (compare against `Date()`), so
+    /// there's no separate "cleared" signal to handle.
+    var restTimerEndsAt: Double?
 
     enum CodingKeys: String, CodingKey {
         case workoutId = "id"
         case name
         case workoutExercises
+        case restTimerEndsAt
     }
 }
 

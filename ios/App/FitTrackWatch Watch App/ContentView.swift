@@ -342,6 +342,32 @@ private struct LiveWorkoutView: View {
                 )
             }
 
+            if !workoutManager.isRunning {
+                // Was previously silent here — a failed beginCollection() (no
+                // HealthKit authorization, a wedged session, …) tore the
+                // session down without ever setting isRunning, and the user
+                // just saw a permanently frozen 0:00/—/0 with zero indication
+                // why. Surface it and offer to retry instead of guessing.
+                VStack(spacing: 4) {
+                    if let error = workoutManager.errorMessage {
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                    } else {
+                        Text("Verbinde mit HealthKit…")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Button {
+                        workoutManager.start(activityType: .traditionalStrengthTraining)
+                    } label: {
+                        Label("Erneut versuchen", systemImage: "arrow.clockwise")
+                    }
+                }
+                .padding(.top, 4)
+            }
+
             if phoneObserver.activeWorkout == nil {
                 // Only offer a manual stop for Watch-only sessions — phone-
                 // mirrored workouts stop automatically when finished on the

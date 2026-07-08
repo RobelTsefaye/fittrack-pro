@@ -446,7 +446,7 @@ export function WorkoutDetail({
     );
     if (hasCompletedSet) return;
     autoStartedRef.current = workout.id;
-    restTimer.start(defaultRestSeconds, { onExpire: fireRestDone });
+    startRestTimer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, workout, defaultRestSeconds]);
 
@@ -542,14 +542,18 @@ export function WorkoutDetail({
       try {
         const res = await fetch(`/api/workouts/${workoutId}`, { credentials: "include" });
         if (res.status === 404) {
-          const snap = await loadWorkoutSnapshot(workoutId);
-          if (snap) {
-            setWorkout(snap.data);
-            setOfflineOriginSession(snap.offlineOrigin);
-            const q2 = await listQueueForWorkout(workoutId);
-            setPendingQueue(q2.length > 0);
-            return;
+          // A real 404 means we successfully reached the server and it
+          // authoritatively says this workout is gone — e.g. cancelled from
+          // the Watch while this page was open. That's different from "we
+          // don't know" (network failure below, where the snapshot fallback
+          // is still correct): don't resurrect a stale cached copy here, or
+          // the phone keeps showing a workout that no longer exists anywhere.
+          try {
+            await deleteWorkoutSnapshot(workoutId);
+          } catch {
+            /* ignore IDB */
           }
+          notifyActiveWorkoutChanged();
           setWorkout(null);
           setError(t("workouts.notFound"));
           return;
@@ -925,8 +929,28 @@ export function WorkoutDetail({
     router.refresh();
   }
 
+  /// Epoch *seconds* the current rest timer ends at — read by pushWatchWorkoutState
+  /// so the Watch can show the same countdown. A ref (not state) since it's
+  /// only ever read at push time, never rendered on the phone itself.
+  const restTimerEndsAtRef = useRef<number | null>(null);
+  /// Wall-clock ms of the last restTimer.start() call, regardless of which
+  /// of the two trigger paths below caused it — guards against starting the
+  /// timer twice for the *same* completion (this component's own
+  /// onSetCompleted fires immediately; the poll-based detector below sees
+  /// that same now-completed set a moment later and would otherwise treat
+  /// it as a second, distinct completion).
+  const lastRestTimerStartAtRef = useRef(0);
+
+  function startRestTimer() {
+    const now = Date.now();
+    if (now - lastRestTimerStartAtRef.current < 1500) return;
+    lastRestTimerStartAtRef.current = now;
+    restTimer.start(defaultRestSeconds, { onExpire: fireRestDone });
+    restTimerEndsAtRef.current = now / 1000 + defaultRestSeconds;
+  }
+
   function onSetCompleted() {
-    if (isActive) restTimer.start(defaultRestSeconds, { onExpire: fireRestDone });
+    if (isActive) startRestTimer();
     void pushWatchWorkoutState();
   }
 
@@ -940,7 +964,7 @@ export function WorkoutDetail({
    */
   async function pushWatchWorkoutState() {
     if (!workout) return;
-    await syncActiveWorkoutToWatch(workout, previousLogs);
+    await syncActiveWorkoutToWatch(workout, previousLogs, restTimerEndsAtRef.current);
   }
 
   useEffect(() => {
@@ -952,6 +976,43 @@ export function WorkoutDetail({
     // including a set logged *on* the Watch (which lands via REST, gets
     // picked up by the next poll, and is pushed straight back — the Watch's
     // own optimistic update just gets confirmed with the same values).
+    // `previousLogs` is also a dep so the Watch gets last-session hints as
+    // soon as that separate fetch resolves, instead of waiting for the next
+    // poll tick to happen to re-push.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workout, isActive, previousLogs]);
+
+  /**
+   * Detects a set completed by something other than this component's own
+   * onSetCompleted() — in practice, that's only the Watch: its logSet
+   * request PATCHes the API directly, bypassing this page's React state
+   * entirely, so the *only* way this component learns about it is the next
+   * poll tick. When that happens, start the rest timer here too — the same
+   * "completing a set starts the rest timer" behavior the phone gets
+   * immediately, just arriving within one poll interval instead of instantly.
+   */
+  const knownCompletedSetIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!workout) return;
+    const nowCompleted = new Set<string>();
+    for (const we of workout.workoutExercises) {
+      for (const s of we.sets) {
+        if (s.isCompleted) nowCompleted.add(s.id);
+      }
+    }
+    const known = knownCompletedSetIdsRef.current;
+    // First run after mount just establishes the baseline — a workout
+    // opened mid-session shouldn't retroactively fire the rest timer for
+    // sets that were already done before this page ever loaded.
+    if (known != null && isActive) {
+      const hasNewCompletion = [...nowCompleted].some((id) => !known.has(id));
+      if (hasNewCompletion) {
+        startRestTimer();
+        void pushWatchWorkoutState();
+      }
+    }
+    knownCompletedSetIdsRef.current = nowCompleted;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workout, isActive]);
 
   // Keeps both devices converged in near-real-time: a set logged on the

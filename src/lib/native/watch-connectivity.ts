@@ -32,11 +32,16 @@ const WatchConnectivity = registerPlugin<WatchConnectivityPlugin>("WatchConnecti
  */
 export function toWatchWorkoutPayload(
   workout: WorkoutData,
-  previousLogs?: Record<string, PreviousLogEntry>
+  previousLogs?: Record<string, PreviousLogEntry>,
+  restTimerEndsAt?: number | null
 ) {
   return {
     id: workout.id,
     name: workout.name,
+    // Epoch seconds (not ms) the current rest timer ends at, or null/absent
+    // when no timer is running. The Watch computes its own countdown from
+    // this — self-expiring, so nothing has to explicitly "clear" it later.
+    restTimerEndsAt: restTimerEndsAt ?? null,
     workoutExercises: workout.workoutExercises.map((we) => {
       const prevSets = previousLogs?.[we.exercise.id];
       return {
@@ -76,12 +81,13 @@ export function toWatchWorkoutPayload(
  */
 export async function syncActiveWorkoutToWatch(
   workout: WorkoutData,
-  previousLogs?: Record<string, PreviousLogEntry>
+  previousLogs?: Record<string, PreviousLogEntry>,
+  restTimerEndsAt?: number | null
 ): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
     await WatchConnectivity.syncActiveWorkout({
-      workoutJSON: JSON.stringify(toWatchWorkoutPayload(workout, previousLogs)),
+      workoutJSON: JSON.stringify(toWatchWorkoutPayload(workout, previousLogs, restTimerEndsAt)),
     });
   } catch {
     // Non-fatal — Watch mirroring is a nice-to-have, never block the workout UI on it.

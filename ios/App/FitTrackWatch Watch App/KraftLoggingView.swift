@@ -30,6 +30,12 @@ struct KraftLoggingView: View {
 
     var body: some View {
         List {
+            if let endsAt = workout.restTimerEndsAt {
+                Section {
+                    RestTimerRow(endsAt: endsAt)
+                }
+            }
+
             ForEach(workout.workoutExercises) { exercise in
                 Section(exercise.exercise.name) {
                     ForEach(exercise.sets) { set in
@@ -113,6 +119,59 @@ struct KraftLoggingView: View {
                 }
             }
         }
+    }
+}
+
+/// Ticking countdown to `endsAt` (epoch seconds), pushed from the phone
+/// whenever its rest timer starts — whether triggered by a set completed on
+/// the phone or one completed here on the Watch (see workout-detail.tsx's
+/// startRestTimer/newly-completed-set detector). Self-hides once expired;
+/// no separate "stop" signal needed.
+private struct RestTimerRow: View {
+    let endsAt: Double
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let remaining = endsAt - context.date.timeIntervalSince1970
+            if remaining > 0 {
+                HStack {
+                    Label("Pause", systemImage: "timer")
+                        .foregroundStyle(.orange)
+                    Spacer()
+                    Text(formattedRemaining(remaining))
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                }
+            }
+        }
+    }
+
+    private func formattedRemaining(_ seconds: Double) -> String {
+        let total = Int(seconds.rounded(.up))
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+#Preview("Mit Pausen-Timer") {
+    let mockWorkout = WatchActiveWorkout(
+        workoutId: "preview-workout-1",
+        name: "Push",
+        workoutExercises: [
+            WatchWorkoutExercise(
+                id: "we1",
+                exercise: WatchExerciseInfo(id: "e1", name: "Bankdrücken", muscleGroup: "Brust"),
+                sets: [
+                    WatchSet(id: "set1", setNumber: 1, reps: 10, weight: 60, isCompleted: true),
+                    WatchSet(id: "set2", setNumber: 2, reps: nil, weight: nil, isCompleted: false),
+                ]
+            ),
+        ],
+        restTimerEndsAt: Date().timeIntervalSince1970 + 62
+    )
+    let observer = PhoneWorkoutObserver()
+    observer.activeWorkout = mockWorkout
+    return NavigationStack {
+        KraftLoggingView(phoneObserver: observer, initialWorkout: mockWorkout)
     }
 }
 
