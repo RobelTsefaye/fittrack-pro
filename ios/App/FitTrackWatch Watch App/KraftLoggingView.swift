@@ -122,32 +122,61 @@ struct KraftLoggingView: View {
     }
 }
 
-/// Ticking countdown to `endsAt` (epoch seconds), pushed from the phone
-/// whenever its rest timer starts — whether triggered by a set completed on
-/// the phone or one completed here on the Watch (see workout-detail.tsx's
-/// startRestTimer/newly-completed-set detector). Self-hides once expired;
-/// no separate "stop" signal needed.
+/// Ticking countdown to `endsAt` (epoch seconds) — derived purely from
+/// server data (most recent set completion, or workout start) by both the
+/// phone's push and the Watch's own no-phone-open native path, so it's
+/// identical and race-free regardless of which device completed the last
+/// set or which one is currently connected. Self-hides once expired; no
+/// separate "stop" signal needed.
 private struct RestTimerRow: View {
     let endsAt: Double
 
+    /// +/- nudges the display only on *this* Watch — not synced back to the
+    /// phone (that would need a persisted, server-side adjustment to stay
+    /// race-free the same way `endsAt` itself is). Reset whenever `endsAt`
+    /// actually changes, i.e. a genuinely new rest period started; stable
+    /// across the ~1s re-syncs of the *same* period, since those repeatedly
+    /// carry the identical `endsAt` value.
+    @State private var adjustSeconds: Double = 0
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            let remaining = endsAt - context.date.timeIntervalSince1970
+            let remaining = (endsAt + adjustSeconds) - context.date.timeIntervalSince1970
             if remaining > 0 {
-                HStack {
-                    Label("Pause", systemImage: "timer")
-                        .foregroundStyle(.orange)
-                    Spacer()
-                    Text(formattedRemaining(remaining))
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
+                VStack(spacing: 4) {
+                    HStack {
+                        Label("Pause", systemImage: "timer")
+                            .foregroundStyle(.orange)
+                        Spacer()
+                        Text(formattedRemaining(remaining))
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                    }
+                    HStack(spacing: 20) {
+                        Button {
+                            adjustSeconds -= 15
+                        } label: {
+                            Label("15s", systemImage: "gobackward.15")
+                        }
+                        Button {
+                            adjustSeconds += 15
+                        } label: {
+                            Label("15s", systemImage: "goforward.15")
+                        }
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.orange)
                 }
             }
+        }
+        .onChange(of: endsAt) { _, _ in
+            adjustSeconds = 0
         }
     }
 
     private func formattedRemaining(_ seconds: Double) -> String {
-        let total = Int(seconds.rounded(.up))
+        let total = max(0, Int(seconds.rounded(.up)))
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 }

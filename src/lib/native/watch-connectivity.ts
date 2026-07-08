@@ -3,6 +3,7 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import type { WorkoutData } from "@/features/workouts/workout-types";
 import type { PreviousLogEntry } from "@/app/api/workouts/[id]/previous-logs/route";
+import { DEFAULT_REST_TIMER } from "@/lib/constants";
 
 interface WatchConnectivityPlugin {
   isSupported(): Promise<{ supported: boolean }>;
@@ -20,6 +21,34 @@ interface WatchConnectivityPlugin {
 const WatchConnectivity = registerPlugin<WatchConnectivityPlugin>("WatchConnectivity");
 
 /**
+ * Epoch seconds the rest timer should end at — derived purely from data
+ * already in `workout` (most recent set completion, or the workout's own
+ * start if nothing's completed yet), never from client-tracked state.
+ *
+ * This used to be a ref the caller maintained locally and passed in, but
+ * that meant two independent writers (this web app's own poll, and the
+ * Watch's native no-phone-open path) could each push a stale cached value
+ * and stomp on whichever one was actually more recent — on the Watch, the
+ * rest timer would sometimes silently revert to an old countdown instead of
+ * resetting on a fresh set. Deriving it from `completedAt`/`startedAt` — a
+ * pure function of already-authoritative server data — is race-free by
+ * construction: whoever completed the *actual* latest set gets the same
+ * answer regardless of which device asks, and it's non-nil from the moment
+ * the workout starts (a set doesn't have to be completed first).
+ */
+function computeRestTimerEndsAt(workout: WorkoutData): number {
+  let anchor = new Date(workout.startedAt).getTime();
+  for (const we of workout.workoutExercises) {
+    for (const s of we.sets) {
+      if (!s.completedAt) continue;
+      const t = new Date(s.completedAt).getTime();
+      if (t > anchor) anchor = t;
+    }
+  }
+  return anchor / 1000 + DEFAULT_REST_TIMER;
+}
+
+/**
  * Trims a full `WorkoutData` down to the fields the Watch's
  * `WatchActiveWorkout`/`WatchWorkoutExercise`/`WatchSet` Codable structs
  * decode — shared between the phone-initiated sync (workout-detail.tsx) and
@@ -33,8 +62,7 @@ const WatchConnectivity = registerPlugin<WatchConnectivityPlugin>("WatchConnecti
  */
 export function toWatchWorkoutPayload(
   workout: WorkoutData,
-  previousLogs?: Record<string, PreviousLogEntry>,
-  restTimerEndsAt?: number | null
+  previousLogs?: Record<string, PreviousLogEntry>
 ) {
   return {
     id: workout.id,
@@ -46,10 +74,9 @@ export function toWatchWorkoutPayload(
     // push -> HealthKit authorization chain took (a few seconds, visibly
     // out of sync between the two screens).
     startedAt: workout.startedAt,
-    // Epoch seconds (not ms) the current rest timer ends at, or null/absent
-    // when no timer is running. The Watch computes its own countdown from
-    // this — self-expiring, so nothing has to explicitly "clear" it later.
-    restTimerEndsAt: restTimerEndsAt ?? null,
+    // Self-expiring (compare against "now" on the Watch), so nothing has to
+    // explicitly "clear" it later — see computeRestTimerEndsAt above.
+    restTimerEndsAt: computeRestTimerEndsAt(workout),
     workoutExercises: workout.workoutExercises.map((we) => {
       const prevSets = previousLogs?.[we.exercise.id];
       // Matched by position among working (non-warmup) sets, same as the
@@ -96,13 +123,12 @@ export function toWatchWorkoutPayload(
  */
 export async function syncActiveWorkoutToWatch(
   workout: WorkoutData,
-  previousLogs?: Record<string, PreviousLogEntry>,
-  restTimerEndsAt?: number | null
+  previousLogs?: Record<string, PreviousLogEntry>
 ): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
     await WatchConnectivity.syncActiveWorkout({
-      workoutJSON: JSON.stringify(toWatchWorkoutPayload(workout, previousLogs, restTimerEndsAt)),
+      workoutJSON: JSON.stringify(toWatchWorkoutPayload(workout, previousLogs)),
     });
   } catch {
     // Non-fatal — Watch mirroring is a nice-to-have, never block the workout UI on it.

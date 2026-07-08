@@ -48,6 +48,7 @@ export async function getWorkoutDetailData(
         rpe: s.rpe,
         isWarmup: s.isWarmup,
         isCompleted: s.isCompleted,
+        completedAt: s.completedAt?.toISOString() ?? null,
       })),
     })),
   };

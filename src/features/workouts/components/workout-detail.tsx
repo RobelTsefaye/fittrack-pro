@@ -89,6 +89,7 @@ function mapApiSet(raw: Record<string, unknown>): WorkoutSetData {
     rpe: raw.rpe == null ? null : Number(raw.rpe),
     isWarmup: !!raw.isWarmup,
     isCompleted: !!raw.isCompleted,
+    completedAt: raw.completedAt == null ? null : String(raw.completedAt),
   };
 }
 
@@ -134,7 +135,14 @@ function patchSetInWorkout(
         const next = { ...set };
         if (body.reps !== undefined) next.reps = typeof body.reps === "number" ? body.reps : null;
         if (body.weight !== undefined) next.weight = typeof body.weight === "number" ? body.weight : null;
-        if (body.isCompleted === true || complete) next.isCompleted = true;
+        if (body.isCompleted === true || complete) {
+          next.isCompleted = true;
+          // Offline optimistic path — without this, computeRestTimerEndsAt
+          // (watch-connectivity.ts) has no fresh anchor for this completion
+          // until the offline queue syncs and a real completedAt comes back
+          // from the server, so the Watch's rest timer wouldn't reset yet.
+          next.completedAt = new Date().toISOString();
+        }
         return next;
       }),
     })),
@@ -747,6 +755,7 @@ export function WorkoutDetail({
             rpe: null,
             isWarmup: false,
             isCompleted: false,
+            completedAt: null,
           },
         ],
       };
@@ -812,6 +821,7 @@ export function WorkoutDetail({
           rpe: null,
           isWarmup: true,
           isCompleted: false,
+          completedAt: null,
         };
         nextSets = sortSetsForDisplay([newSet, ...shifted]).map((s, i) => ({
           ...s,
@@ -826,6 +836,7 @@ export function WorkoutDetail({
           rpe: null,
           isWarmup: false,
           isCompleted: false,
+          completedAt: null,
         };
         nextSets = sortSetsForDisplay([...we.sets, newSet]);
       }
@@ -945,16 +956,15 @@ export function WorkoutDetail({
     router.refresh();
   }
 
-  /// Epoch *seconds* the current rest timer ends at — read by pushWatchWorkoutState
-  /// so the Watch can show the same countdown. A ref (not state) since it's
-  /// only ever read at push time, never rendered on the phone itself.
-  const restTimerEndsAtRef = useRef<number | null>(null);
   /// Wall-clock ms of the last restTimer.start() call, regardless of which
   /// of the two trigger paths below caused it — guards against starting the
   /// timer twice for the *same* completion (this component's own
   /// onSetCompleted fires immediately; the poll-based detector below sees
   /// that same now-completed set a moment later and would otherwise treat
-  /// it as a second, distinct completion).
+  /// it as a second, distinct completion). Only affects this page's own
+  /// timer UI/notifications/Live Activity — the value the Watch sees is
+  /// computed purely from workout data (see computeRestTimerEndsAt in
+  /// watch-connectivity.ts), not tracked here at all anymore.
   const lastRestTimerStartAtRef = useRef(0);
 
   function startRestTimer() {
@@ -962,7 +972,6 @@ export function WorkoutDetail({
     if (now - lastRestTimerStartAtRef.current < 1500) return;
     lastRestTimerStartAtRef.current = now;
     restTimer.start(defaultRestSeconds, { onExpire: fireRestDone });
-    restTimerEndsAtRef.current = now / 1000 + defaultRestSeconds;
   }
 
   function onSetCompleted() {
@@ -980,7 +989,7 @@ export function WorkoutDetail({
    */
   async function pushWatchWorkoutState() {
     if (!workout) return;
-    await syncActiveWorkoutToWatch(workout, previousLogs, restTimerEndsAtRef.current);
+    await syncActiveWorkoutToWatch(workout, previousLogs);
   }
 
   useEffect(() => {

@@ -8,6 +8,7 @@ export type WorkoutSetData = {
   rpe: number | null;
   isWarmup: boolean;
   isCompleted: boolean;
+  completedAt: string | null;
 };
 
 export type WorkoutExerciseData = {

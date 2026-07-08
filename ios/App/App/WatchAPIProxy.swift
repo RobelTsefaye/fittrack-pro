@@ -63,9 +63,7 @@ enum WatchAPIProxy {
             let started: ApiIdResponse = try await request(
                 "/api/plan-sessions/\(sessionId)/start", method: "POST", token: token
             )
-            guard let json = try await fetchWorkoutPayloadJSON(
-                workoutId: started.data.id, token: token, restTimerEndsAt: nil
-            ) else {
+            guard let json = try await fetchWorkoutPayloadJSON(workoutId: started.data.id, token: token) else {
                 return (["error": "Konnte Workout nicht kodieren"], nil)
             }
             return (["started": true], .setActiveWorkout(json: json))
@@ -90,15 +88,14 @@ enum WatchAPIProxy {
             let result: ApiSetPatchResponse = try await request(
                 "/api/workouts/\(workoutId)/sets/\(setId)", method: "PATCH", token: token, body: body
             )
-            // Mirrors onSetCompleted in workout-detail.tsx, which never runs
-            // for a Watch-initiated log when the phone app isn't open — the
-            // rest timer has to start here instead, or it never starts at
-            // all. Re-fetches the whole workout (rather than patching just
-            // this one set locally) so the pushed context also picks up
-            // anything else that changed server-side since the last sync.
-            let restTimerEndsAt = Date().timeIntervalSince1970 + defaultRestSeconds
+            // Re-fetches the whole workout (rather than patching just this
+            // one set locally) so the rest timer — derived purely from the
+            // freshest completedAt in the response, see
+            // buildWatchWorkoutPayload — reflects this completion, and the
+            // pushed context also picks up anything else that changed
+            // server-side since the last sync.
             let contextUpdate: ContextUpdate? = (try? await fetchWorkoutPayloadJSON(
-                workoutId: workoutId, token: token, restTimerEndsAt: restTimerEndsAt
+                workoutId: workoutId, token: token
             )).flatMap { $0 }.map { .setActiveWorkout(json: $0) }
             return (["personalRecord": result.personalRecord], contextUpdate)
         } catch {
@@ -139,9 +136,7 @@ enum WatchAPIProxy {
     /// Fetches a workout + its previous-session hints and returns the same
     /// JSON shape `syncActiveWorkoutToWatch` pushes from the JS side, ready
     /// to hand to `WCSession.updateApplicationContext`.
-    private static func fetchWorkoutPayloadJSON(
-        workoutId: String, token: String, restTimerEndsAt: Double?
-    ) async throws -> String? {
+    private static func fetchWorkoutPayloadJSON(workoutId: String, token: String) async throws -> String? {
         let workoutRes: ApiWorkoutResponse = try await request(
             "/api/workouts/\(workoutId)", method: "GET", token: token
         )
@@ -150,11 +145,7 @@ enum WatchAPIProxy {
         let previousLogs: ApiPreviousLogsResponse? = try? await request(
             "/api/workouts/\(workoutId)/previous-logs", method: "GET", token: token
         )
-        let payload = buildWatchWorkoutPayload(
-            workout: workoutRes.data,
-            previousLogs: previousLogs?.data,
-            restTimerEndsAt: restTimerEndsAt
-        )
+        let payload = buildWatchWorkoutPayload(workout: workoutRes.data, previousLogs: previousLogs?.data)
         return jsonString(payload)
     }
 
@@ -207,10 +198,38 @@ enum WatchAPIProxy {
 
     // MARK: - Payload shaping (mirrors toWatchWorkoutPayload in watch-connectivity.ts)
 
+    /// Epoch seconds the rest timer should end at — derived purely from
+    /// already-authoritative data in `workout` (most recent set completion,
+    /// or the workout's own start if nothing's completed yet), matching
+    /// computeRestTimerEndsAt in watch-connectivity.ts exactly. Never
+    /// tracked as separate client-side state: that would let this proxy and
+    /// the phone's own JS-driven push independently cache stale values and
+    /// stomp on whichever one was actually more recent.
+    private static func computeRestTimerEndsAt(_ workout: ApiWorkout) -> Double {
+        var anchor = parseDate(workout.startedAt)?.timeIntervalSince1970 ?? Date().timeIntervalSince1970
+        for we in workout.workoutExercises {
+            for s in we.sets {
+                guard let completedAt = s.completedAt, let t = parseDate(completedAt)?.timeIntervalSince1970 else { continue }
+                if t > anchor { anchor = t }
+            }
+        }
+        return anchor + defaultRestSeconds
+    }
+
+    private static let isoFormatterWithFractionalSeconds: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    private static let isoFormatterPlain = ISO8601DateFormatter()
+
+    private static func parseDate(_ iso: String) -> Date? {
+        isoFormatterWithFractionalSeconds.date(from: iso) ?? isoFormatterPlain.date(from: iso)
+    }
+
     private static func buildWatchWorkoutPayload(
         workout: ApiWorkout,
-        previousLogs: [String: [ApiPreviousSetEntry]?]?,
-        restTimerEndsAt: Double?
+        previousLogs: [String: [ApiPreviousSetEntry]?]?
     ) -> [String: Any] {
         let workoutExercises: [[String: Any]] = workout.workoutExercises.map { we in
             // previousLogs values are themselves optional (JSON null when no
@@ -251,7 +270,7 @@ enum WatchAPIProxy {
             "id": workout.id,
             "name": nullable(workout.name),
             "startedAt": workout.startedAt,
-            "restTimerEndsAt": nullable(restTimerEndsAt),
+            "restTimerEndsAt": computeRestTimerEndsAt(workout),
             "workoutExercises": workoutExercises,
         ]
     }
@@ -298,6 +317,7 @@ private struct ApiSetEntry: Decodable {
     let weight: Double?
     let isCompleted: Bool
     let isWarmup: Bool
+    let completedAt: String?
 }
 
 private struct ApiPreviousLogsResponse: Decodable { let data: [String: [ApiPreviousSetEntry]?] }
