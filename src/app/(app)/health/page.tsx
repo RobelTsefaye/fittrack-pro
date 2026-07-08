@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { APP_NAME } from "@/lib/constants";
+import { BackButton } from "@/components/layout/back-button";
 import { HealthDashboard } from "@/features/health/components/health-dashboard";
 import { getHealthSnapshots } from "@/features/health/health-data";
 import { computeRecovery } from "@/features/health/recovery";
@@ -19,10 +20,13 @@ export default async function HealthPage() {
   ]);
 
   return (
-    <HealthDashboard
-      initialSnapshots={snapshots}
-      initialRecovery={recovery}
-      initialCardio={cardio}
-    />
+    <>
+      <BackButton />
+      <HealthDashboard
+        initialSnapshots={snapshots}
+        initialRecovery={recovery}
+        initialCardio={cardio}
+      />
+    </>
   );
 }

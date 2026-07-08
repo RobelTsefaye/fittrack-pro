@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { APP_NAME } from "@/lib/constants";
+import { BackButton } from "@/components/layout/back-button";
 import { BodyTrackingShell } from "@/features/tracking/components/body-tracking-shell";
 
 export const metadata = { title: `Body Tracking — ${APP_NAME}` };
@@ -14,5 +15,10 @@ export default async function BodyWeightPage() {
     where: { userId: session.user.id },
   });
 
-  return <BodyTrackingShell weightUnit={settings?.weightUnit ?? "KG"} />;
+  return (
+    <>
+      <BackButton />
+      <BodyTrackingShell weightUnit={settings?.weightUnit ?? "KG"} />
+    </>
+  );
 }

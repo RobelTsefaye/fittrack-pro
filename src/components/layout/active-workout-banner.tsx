@@ -10,13 +10,18 @@ import { useI18n } from "@/lib/i18n-provider";
 const CHANGED = "fittrack-active-workout-changed";
 
 type ActiveItem = { id: string; name: string | null; startedAt: string };
+export type ActiveWorkoutItem = ActiveItem;
 
-export function ActiveWorkoutBanner() {
+export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: ActiveItem | null }) {
   const { t } = useI18n();
   const pathname = usePathname();
   const { status } = useSession();
-  const [active, setActive] = useState<ActiveItem | null>(null);
-  const lastFetchedAt = useRef(0);
+  const [active, setActive] = useState<ActiveItem | null>(initialActive);
+  // Server already gave us an accurate snapshot for the very first paint —
+  // skip the redundant client refetch on mount so the banner can't pop
+  // in/out mid-tap right after navigation (that shift used to make taps on
+  // the list below register on the wrong row, e.g. on the "Mehr" page).
+  const lastFetchedAt = useRef(Date.now());
 
   const fetchActive = useCallback(async () => {
     if (status !== "authenticated") { setActive(null); return; }

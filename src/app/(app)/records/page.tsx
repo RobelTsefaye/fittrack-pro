@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { APP_NAME } from "@/lib/constants";
 import { getAllPersonalRecords, getAchievements } from "@/services/personal-records";
 import { getDashboardSummary } from "@/features/dashboard/queries";
+import { BackButton } from "@/components/layout/back-button";
 import { RecordsView } from "@/features/records/components/records-view";
 
 export const metadata = { title: `Personal Records — ${APP_NAME}` };
@@ -26,6 +27,7 @@ export default async function RecordsPage() {
 
   return (
     <Suspense fallback={null}>
+      <BackButton />
       <RecordsView
         records={records}
         achievements={achievements}

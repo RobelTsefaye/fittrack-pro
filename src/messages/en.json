@@ -24,6 +24,7 @@
     "signOut": "Sign out"
   },
   "common": {
+    "back": "Back",
     "save": "Save",
     "saving": "Saving…",
     "cancel": "Cancel",

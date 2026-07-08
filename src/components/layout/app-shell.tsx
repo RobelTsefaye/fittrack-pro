@@ -1,11 +1,17 @@
 "use client";
 
-import { ActiveWorkoutBanner } from "@/components/layout/active-workout-banner";
+import { ActiveWorkoutBanner, type ActiveWorkoutItem } from "@/components/layout/active-workout-banner";
 import { RestTimerProvider } from "@/features/workouts/rest-timer-context";
 import { MobileTopBar } from "@/components/layout/navbar";
 import { BottomTabBar } from "@/components/layout/bottom-tab-bar";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  initialActiveWorkout = null,
+}: {
+  children: React.ReactNode;
+  initialActiveWorkout?: ActiveWorkoutItem | null;
+}) {
   return (
     <div className="flex h-dvh max-h-dvh min-h-dvh overflow-hidden bg-background">
 
@@ -17,7 +23,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <MobileTopBar />
 
           {/* Active workout strip */}
-          <ActiveWorkoutBanner />
+          <ActiveWorkoutBanner initialActive={initialActiveWorkout} />
 
           {/* Scrollable content */}
           <main

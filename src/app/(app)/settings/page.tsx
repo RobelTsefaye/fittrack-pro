@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { APP_NAME } from "@/lib/constants";
+import { BackButton } from "@/components/layout/back-button";
 import { SettingsPageContent } from "@/features/settings/components/settings-page-content";
 import { LOCALE_COOKIE, prismaLocaleFromCookieString } from "@/lib/i18n-config";
 
@@ -35,10 +36,13 @@ export default async function SettingsPage() {
   };
 
   return (
-    <SettingsPageContent
-      name={session.user.name}
-      email={session.user.email}
-      initial={initial}
-    />
+    <>
+      <BackButton />
+      <SettingsPageContent
+        name={session.user.name}
+        email={session.user.email}
+        initial={initial}
+      />
+    </>
   );
 }

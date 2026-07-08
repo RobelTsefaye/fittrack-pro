@@ -5,6 +5,7 @@ import { APP_NAME } from "@/lib/constants";
 import { ExerciseList } from "@/features/exercises/components/exercise-list";
 import { ExerciseFilters } from "@/features/exercises/components/exercise-filters";
 import { getExercises } from "@/features/exercises/exercise-data";
+import { BackButton } from "@/components/layout/back-button";
 
 export const metadata = { title: `Exercises — ${APP_NAME}` };
 
@@ -25,6 +26,7 @@ export default async function ExercisesPage({
 
   return (
     <div className="space-y-4">
+      <BackButton />
       <Suspense>
         <ExerciseFilters />
         <ExerciseList initialExercises={exercises} initialQuery={initialQuery} />

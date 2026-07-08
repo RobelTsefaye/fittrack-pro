@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { APP_NAME } from "@/lib/constants";
+import { BackButton } from "@/components/layout/back-button";
 import { PlateCalculator } from "@/features/tools/components/plate-calculator";
 
 export const metadata = { title: `Plate Calculator — ${APP_NAME}` };
@@ -17,6 +18,7 @@ export default async function PlateCalculatorPage() {
 
   return (
     <div className="space-y-5">
+      <BackButton />
       <div className="shrink-0">
         <h1 className="page-title leading-none">Plate Calculator</h1>
         <p className="mt-1 text-sm text-[var(--sys-label2)]">
