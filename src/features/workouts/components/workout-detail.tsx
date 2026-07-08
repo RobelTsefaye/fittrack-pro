@@ -450,6 +450,22 @@ export function WorkoutDetail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, workout, defaultRestSeconds]);
 
+  /**
+   * Safety net for the rest timer: stop it whenever the workout stops being
+   * active, no matter what caused that. The explicit complete/cancel buttons
+   * already call restTimer.stop() directly, but a finish or cancel
+   * triggered *from the Watch* bypasses this component entirely (it PATCHes
+   * the API directly) — this page only learns about it via the next poll
+   * tick or a 404, and without this, the rest timer (and its Live Activity)
+   * kept running as if the workout were still going.
+   */
+  const wasActiveRef = useRef(false);
+  useEffect(() => {
+    if (wasActiveRef.current && !isActive) restTimer.stop();
+    wasActiveRef.current = !!isActive;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
