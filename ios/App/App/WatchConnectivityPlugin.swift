@@ -46,6 +46,10 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
     /// isn't already reachable — see `startCardioSession`.
     private let healthStore = HKHealthStore()
 
+    /// Same production host WatchAPIProxy / CardioPictureInPicturePlugin use —
+    /// see `relayCardioLiveToServer`.
+    private static let serverBaseURL = "https://fittrack-pro-ashen.vercel.app"
+
     override public func load() {
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
@@ -450,6 +454,43 @@ extension WatchConnectivityPlugin: WCSessionDelegate {
             elapsedSeconds: message["elapsedSeconds"] as? Int ?? 0,
             zone: message["zone"] as? Int
         ))
+        relayCardioLiveToServer(message)
+    }
+
+    /// Relays each live cardio sample to the server (`POST /api/cardio/live`)
+    /// so devices with no direct Watch pairing — an iPad, a second iPhone —
+    /// can poll it (see CardioPictureInPicturePlugin.pollOnce and
+    /// cardio-live-context.tsx).
+    ///
+    /// Native, NOT the JS `fetch` in cardio-live-context.tsx: this fires from
+    /// the `WCSessionDelegate` callback directly, so it keeps relaying even
+    /// while this iPhone is locked or backgrounded — exactly when the
+    /// WKWebView (and its JS `fetch`) is frozen and the whole "iPhone in your
+    /// pocket, iPad on the handlebars" case would otherwise silently stop
+    /// updating. Requires the background-sync token (Settings → API Tokens →
+    /// "Für Hintergrund-Sync verwenden"); the JS path still covers the
+    /// foreground / no-token case. Fire-and-forget — a dropped sample is
+    /// superseded by the next one ~1s later.
+    private func relayCardioLiveToServer(_ message: [String: Any]) {
+        guard let token = SyncTokenStore.load() else { return }
+        guard let url = URL(string: Self.serverBaseURL + "/api/cardio/live") else { return }
+
+        var body: [String: Any] = [
+            "isRunning": message["isRunning"] as? Bool ?? false,
+            "heartRate": message["heartRate"] as? Double ?? 0,
+            "activeCalories": message["activeCalories"] as? Double ?? 0,
+            "elapsedSeconds": message["elapsedSeconds"] as? Int ?? 0,
+        ]
+        if let zone = message["zone"] as? Int { body["zone"] = zone }
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.httpBody = httpBody
+
+        URLSession.shared.dataTask(with: request).resume()
     }
 
     /// Fire-and-forget notifications from the Watch, sent via
