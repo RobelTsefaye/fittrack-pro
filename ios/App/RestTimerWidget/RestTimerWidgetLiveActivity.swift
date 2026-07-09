@@ -8,6 +8,7 @@
 import ActivityKit
 import WidgetKit
 import SwiftUI
+import AppIntents
 
 struct RestTimerWidgetLiveActivity: Widget {
     var body: some WidgetConfiguration {
@@ -37,8 +38,18 @@ struct RestTimerWidgetLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                Image(systemName: "timer")
-                    .foregroundStyle(.orange)
+                // When another Live Activity is also running (e.g. Music),
+                // the system only ever shows *this* activity's compactLeading
+                // — squeezed down to a small badge — and drops compactTrailing
+                // entirely. A bare icon there used to mean the countdown
+                // vanished completely whenever the Island was split; showing
+                // the time itself here means it survives that squeeze.
+                HStack(spacing: 3) {
+                    Image(systemName: "timer")
+                        .foregroundStyle(.orange)
+                    countdownText(context: context)
+                        .font(.caption2.monospacedDigit())
+                }
             } compactTrailing: {
                 countdownText(context: context)
                     .font(.caption.monospacedDigit())

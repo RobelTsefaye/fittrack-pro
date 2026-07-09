@@ -1,5 +1,6 @@
 import Foundation
 import HealthKit
+import UserNotifications
 
 /**
  * Native (no-WebView) implementation of the Watch → phone requests
@@ -67,10 +68,10 @@ enum WatchAPIProxy {
             let started: ApiIdResponse = try await request(
                 "/api/plan-sessions/\(sessionId)/start", method: "POST", token: token
             )
-            guard let json = try await fetchWorkoutPayloadJSON(workoutId: started.data.id, token: token) else {
+            guard let fetched = try await fetchWorkoutPayload(workoutId: started.data.id, token: token) else {
                 return (["error": "Konnte Workout nicht kodieren"], nil)
             }
-            return (["started": true], .setActiveWorkout(json: json))
+            return (["started": true], .setActiveWorkout(json: fetched.json))
         } catch {
             return (["error": describeError(error)], nil)
         }
@@ -98,9 +99,18 @@ enum WatchAPIProxy {
             // buildWatchWorkoutPayload — reflects this completion, and the
             // pushed context also picks up anything else that changed
             // server-side since the last sync.
-            let contextUpdate: ContextUpdate? = (try? await fetchWorkoutPayloadJSON(
-                workoutId: workoutId, token: token
-            )).flatMap { $0 }.map { .setActiveWorkout(json: $0) }
+            let fetched = try? await fetchWorkoutPayload(workoutId: workoutId, token: token)
+            let contextUpdate: ContextUpdate? = fetched.map { .setActiveWorkout(json: $0.json) }
+            // Logging a set on the Watch while the phone app isn't open
+            // never runs any of the phone's own JS (rest-timer-context.tsx),
+            // so nothing schedules the "rest over" notification — this was
+            // reported as "no notification at set-end when the phone is
+            // off." Scheduled natively here instead, same fixed identifier
+            // as the JS path so whichever one runs later cleanly supersedes
+            // the other instead of double-firing.
+            if let workout = fetched?.workout {
+                scheduleRestTimerNotification(endsAt: computeRestTimerEndsAt(workout))
+            }
             return (["personalRecord": result.personalRecord], contextUpdate)
         } catch {
             return (["error": describeError(error)], nil)
@@ -223,7 +233,9 @@ enum WatchAPIProxy {
     /// Fetches a workout + its previous-session hints and returns the same
     /// JSON shape `syncActiveWorkoutToWatch` pushes from the JS side, ready
     /// to hand to `WCSession.updateApplicationContext`.
-    private static func fetchWorkoutPayloadJSON(workoutId: String, token: String) async throws -> String? {
+    private static func fetchWorkoutPayload(
+        workoutId: String, token: String
+    ) async throws -> (json: String, workout: ApiWorkout)? {
         let workoutRes: ApiWorkoutResponse = try await request(
             "/api/workouts/\(workoutId)", method: "GET", token: token
         )
@@ -233,7 +245,32 @@ enum WatchAPIProxy {
             "/api/workouts/\(workoutId)/previous-logs", method: "GET", token: token
         )
         let payload = buildWatchWorkoutPayload(workout: workoutRes.data, previousLogs: previousLogs?.data)
-        return jsonString(payload)
+        guard let json = jsonString(payload) else { return nil }
+        return (json, workoutRes.data)
+    }
+
+    /// Matches REST_TIMER_NOTIFICATION_ID in local-notifications.ts exactly
+    /// (Capacitor's LocalNotifications plugin uses the decimal string of the
+    /// numeric id as the UNNotificationRequest identifier) — scheduling here
+    /// with the same id means a notification scheduled by one path replaces
+    /// rather than duplicates one already scheduled by the other.
+    private static let restTimerNotificationId = "424242"
+
+    private static func scheduleRestTimerNotification(endsAt: Double) {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [restTimerNotificationId])
+        let interval = endsAt - Date().timeIntervalSince1970
+        guard interval > 0 else { return }
+        center.getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "Rest vorbei"
+            content.body = "Zeit fürs nächste Set"
+            content.sound = .default
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
+            let request = UNNotificationRequest(identifier: restTimerNotificationId, content: content, trigger: trigger)
+            center.add(request)
+        }
     }
 
     // MARK: - Networking

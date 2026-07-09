@@ -30,6 +30,19 @@ struct KraftLoggingView: View {
 
     var body: some View {
         List {
+            // The elapsed workout clock previously only existed on
+            // LiveWorkoutView (one swipe away, page 2) — this is the default
+            // landing page (1) during a strength workout, so the clock was
+            // never visible at all while actually logging sets. Derived
+            // purely from `startedAt` (not WorkoutManager, which this view
+            // is intentionally independent of) so it works identically for
+            // phone-mirrored and Watch-only sessions.
+            if let startedAt = workout.startedAtDate {
+                Section {
+                    ElapsedTimeRow(startedAt: startedAt)
+                }
+            }
+
             if let endsAt = workout.restTimerEndsAt {
                 Section {
                     RestTimerRow(endsAt: endsAt)
@@ -127,6 +140,35 @@ struct KraftLoggingView: View {
                 }
             }
         }
+    }
+}
+
+/// Ticking elapsed-time-since-start display, race-free for the same reason
+/// as `RestTimerRow` below: a pure function of `startedAt`, never
+/// client-tracked state, so it reads identically regardless of when this
+/// view happened to appear.
+private struct ElapsedTimeRow: View {
+    let startedAt: Date
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            HStack {
+                Label("Dauer", systemImage: "clock")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(formattedElapsed(context.date.timeIntervalSince(startedAt)))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+            }
+        }
+    }
+
+    private func formattedElapsed(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds))
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
     }
 }
 
