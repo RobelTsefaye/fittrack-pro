@@ -3,6 +3,17 @@ import HealthKit
 import Combine
 import WatchConnectivity
 
+/// Lightweight `Error` wrapper for a plain human-readable message —
+/// `Result`'s `Failure` type must conform to `Error`, which a bare `String`
+/// doesn't. Supports both a literal (`.failure("some message")`) and
+/// wrapping an existing `String` value (`.failure(SimpleError(msg))`).
+struct SimpleError: Error, LocalizedError, ExpressibleByStringLiteral {
+    let message: String
+    init(_ message: String) { self.message = message }
+    init(stringLiteral value: String) { self.message = value }
+    var errorDescription: String? { message }
+}
+
 /**
  * Drives a live HKWorkoutSession on the Watch: starts/stops the session,
  * streams heart rate + active calories in real time via HKLiveWorkoutBuilder,
@@ -83,7 +94,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// reply with, since the phone has no other way to know whether
     /// HealthKit actually accepted the session — see
     /// PhoneWorkoutObserver's "startCardio" handler.
-    private var startCompletion: ((Result<Void, String>) -> Void)?
+    private var startCompletion: ((Result<Void, SimpleError>) -> Void)?
 
     private var readTypes: Set<HKObjectType> {
         [
@@ -190,7 +201,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     func start(
         activityType: HKWorkoutActivityType,
         startedAt: Date? = nil,
-        completion: ((Result<Void, String>) -> Void)? = nil
+        completion: ((Result<Void, SimpleError>) -> Void)? = nil
     ) {
         startCompletion = completion
         // A previous session can still be live here if its own end/cancel
@@ -248,7 +259,7 @@ final class WorkoutManager: NSObject, ObservableObject {
                         self.logShareAuthorizationStatus()
                         self.session?.end()
                         self.resetState()
-                        completion?(.failure(error.localizedDescription))
+                        completion?(.failure(SimpleError(error.localizedDescription)))
                         return
                     }
                     self.isRunning = true
@@ -260,7 +271,7 @@ final class WorkoutManager: NSObject, ObservableObject {
             errorMessage = error.localizedDescription
             let completion = startCompletion
             startCompletion = nil
-            completion?(.failure(error.localizedDescription))
+            completion?(.failure(SimpleError(error.localizedDescription)))
         }
     }
 

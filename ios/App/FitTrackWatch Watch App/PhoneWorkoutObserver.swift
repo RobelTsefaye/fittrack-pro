@@ -58,7 +58,7 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     /// received." `@MainActor`-typed since the implementation calls into
     /// WorkoutManager (itself @MainActor) — the `Task { @MainActor in ... }`
     /// call site below hops there before invoking it.
-    var onCardioStartRequested: (@MainActor (_ activityType: String) async -> Result<Void, String>)?
+    var onCardioStartRequested: (@MainActor (_ activityType: String) async -> Result<Void, SimpleError>)?
 
     /// Set once in ContentView.onAppear — ends/discards the shared
     /// WorkoutManager session in response to a phone-initiated stop request.
@@ -421,8 +421,8 @@ extension PhoneWorkoutObserver: WCSessionDelegate {
                 case .success:
                     self.isPhoneInitiatedCardio = true
                     replyHandler(["started": true])
-                case .failure(let message):
-                    replyHandler(["error": message])
+                case .failure(let error):
+                    replyHandler(["error": error.message])
                 }
             }
         case "stopCardio":
