@@ -48,7 +48,7 @@ struct SetEntryView: View {
                     .foregroundStyle(set.isWarmup ? .orange : .secondary)
 
                 HStack(spacing: 12) {
-                    CrownStepperField(label: "Gewicht", unit: "kg", value: $weight, step: 1.25, range: 0...400)
+                    CrownStepperField(label: "Gewicht", unit: "kg", value: $weight, step: 2.5, range: 0...400)
                     CrownStepperField(label: "Wdh.", unit: "reps", value: $reps, step: 1, range: 0...50)
                 }
 

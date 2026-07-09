@@ -72,8 +72,22 @@ export const SetRow = memo(function SetRow({
   // wiped out whatever the user was mid-typing each time a poll landed. Adjusting
   // state during render keyed on set.id is React's recommended pattern here.
   const [seededSetId, setSeededSetId] = useState(set.id);
+  const [seededCompleted, setSeededCompleted] = useState(set.isCompleted);
   if (seededSetId !== set.id) {
     setSeededSetId(set.id);
+    setSeededCompleted(set.isCompleted);
+    setReps(set.reps?.toString() ?? "");
+    setWeight(set.weight?.toString() ?? "");
+  } else if (set.isCompleted && !seededCompleted && reps.trim() === "" && weight.trim() === "") {
+    // A set logged elsewhere (the Watch, via its own direct PATCH — this
+    // page only learns about it on the next poll) while this row was
+    // already mounted with empty inputs, because the phone had never
+    // logged this set itself, used to leave weight/reps blank here forever
+    // despite the set now holding real values — the id never changed, so
+    // the branch above never fired. Only resyncs when both inputs are
+    // still blank, so it can never clobber something the phone user is
+    // mid-typing here.
+    setSeededCompleted(true);
     setReps(set.reps?.toString() ?? "");
     setWeight(set.weight?.toString() ?? "");
   }

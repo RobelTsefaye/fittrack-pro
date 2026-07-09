@@ -458,7 +458,13 @@ export function WorkoutDetail({
     );
     if (hasCompletedSet) return;
     autoStartedRef.current = workout.id;
-    startRestTimer();
+    // Anchor-derived, not startRestTimer()'s "fresh from now" — a workout
+    // started on the Watch begins its rest countdown immediately from
+    // workout.startedAt (see computeRestTimerEndsAt), so opening the phone
+    // any time after that used to restart a full-length timer from the
+    // moment the phone happened to open instead of continuing the one
+    // already running.
+    startRestTimerFromServerAnchor(workout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, workout, defaultRestSeconds]);
 
