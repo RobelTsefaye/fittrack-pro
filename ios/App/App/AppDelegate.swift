@@ -19,6 +19,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidEnterBackground(_ application: UIApplication) {
+        // NOTE: not delivered anymore since the app adopted the UIScene
+        // lifecycle — see SceneDelegate.sceneDidEnterBackground, which took
+        // over the BGTask scheduling. Kept only as a safety net in case the
+        // scene manifest is ever removed.
         BackgroundSyncManager.schedule()
     }
 

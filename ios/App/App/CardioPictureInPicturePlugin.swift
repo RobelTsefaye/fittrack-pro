@@ -43,11 +43,18 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
     /// noticeable: the system's PiP chrome takes over the instant PiP starts.
     private var hostView: UIView?
     private var relaySubscription: UUID?
+    /// Keeps the display layer continuously fed. An `AVSampleBufferDisplayLayer`
+    /// only becomes eligible for PiP (`isPictureInPicturePossible == true`)
+    /// while it's actively receiving frames — a single enqueued frame is not
+    /// enough, and relay pushes only arrive ~1/s AND only while a Watch cardio
+    /// session is live. This ticks independently so PiP can start (and stay
+    /// filled) even before/without any relay data.
+    private var renderTimer: Timer?
 
     private var pendingStartCall: CAPPluginCall?
     private var pendingStopCall: CAPPluginCall?
 
-    private let contentSize = CGSize(width: 300, height: 300)
+    private let contentSize = CGSize(width: 300, height: 120)
 
     @objc func isSupported(_ call: CAPPluginCall) {
         call.resolve(["supported": AVPictureInPictureController.isPictureInPictureSupported()])
@@ -61,6 +68,21 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
             }
             if let pipController = self.pipController, pipController.isPictureInPictureActive {
                 call.resolve()
+                return
+            }
+
+            // Non-video (sample-buffer) PiP silently refuses to start unless the
+            // app owns an ACTIVE audio session with a PiP-compatible category.
+            // A Capacitor WebView app defaults to `.soloAmbient`, which does NOT
+            // qualify — so `isPictureInPicturePossible` never flips true and
+            // `startPictureInPicture()` does nothing at all. This is the single
+            // most common reason sample-buffer PiP "just doesn't open".
+            do {
+                let audioSession = AVAudioSession.sharedInstance()
+                try audioSession.setCategory(.playback, mode: .moviePlayback)
+                try audioSession.setActive(true)
+            } catch {
+                call.reject("Audio-Session für Picture in Picture konnte nicht aktiviert werden: \(error.localizedDescription)")
                 return
             }
 
@@ -91,8 +113,77 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
                 }
             }
 
+            // Feed the layer continuously so it stays PiP-eligible and the
+            // content keeps refreshing even without relay pushes.
+            self.renderTimer?.invalidate()
+            self.renderTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+                self?.render(CardioLiveRelay.shared.lastSample)
+            }
+
             self.pendingStartCall = call
-            controller.startPictureInPicture()
+            self.dumpDiagnostics(controller, tag: "t=0")
+            self.startWhenPossible(controller)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                self?.dumpDiagnostics(controller, tag: "t=1s")
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                self?.dumpDiagnostics(controller, tag: "t=3s")
+            }
+
+            // Safety net: if the controller neither starts nor reports a
+            // failure (the silent no-op case), fail the JS call instead of
+            // leaving the promise pending forever with the button stuck in
+            // its disabled "starting" state.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+                guard let self, let pending = self.pendingStartCall, pending === call else { return }
+                NSLog("[CardioPiP] start timed out — no delegate callback within 5s")
+                self.pendingStartCall = nil
+                self.teardownDisplayLayer()
+                pending.reject("Picture in Picture konnte nicht gestartet werden")
+            }
+        }
+    }
+
+    /// One-shot dump of every state that gates sample-buffer PiP — the
+    /// controller fails silently (no delegate callback) when any of these is
+    /// off, so this is the only way to see WHICH one it is on-device.
+    private func dumpDiagnostics(_ controller: AVPictureInPictureController, tag: String) {
+        let session = AVAudioSession.sharedInstance()
+        let layer = displayLayer
+        let host = hostView
+        NSLog("""
+        [CardioPiP][\(tag)] \
+        possible=\(controller.isPictureInPicturePossible) \
+        active=\(controller.isPictureInPictureActive) \
+        suspended=\(controller.isPictureInPictureSuspended) \
+        | audio: cat=\(session.category.rawValue) mode=\(session.mode.rawValue) otherPlaying=\(session.isOtherAudioPlaying) \
+        | layer: status=\(layer?.status.rawValue ?? -1) ready=\(layer?.isReadyForMoreMediaData ?? false) \
+        tbRate=\(layer?.controlTimebase.map { CMTimebaseGetRate($0) } ?? -1) \
+        | host: inWindow=\(host?.window != nil) frame=\(host.map { NSCoder.string(for: $0.frame) } ?? "nil") \
+        | appState=\(UIApplication.shared.applicationState.rawValue)
+        """)
+    }
+
+    /// Attempt the start repeatedly with short spacing. A single call made in
+    /// the same run-loop turn as the controller's creation can be silently
+    /// swallowed by AVKit (no willStart/didStart/failedToStart at all), so
+    /// retry until a delegate callback settles the pending call (didStart /
+    /// failedToStart / the 5s timeout all clear `pendingStartCall`, which
+    /// stops the retries).
+    private var startAttempts = 0
+    private func startWhenPossible(_ controller: AVPictureInPictureController) {
+        startAttempts = 0
+        attemptStart(controller)
+    }
+
+    private func attemptStart(_ controller: AVPictureInPictureController) {
+        guard pendingStartCall != nil, !controller.isPictureInPictureActive else { return }
+        startAttempts += 1
+        NSLog("[CardioPiP] startPictureInPicture() attempt \(startAttempts)")
+        controller.startPictureInPicture()
+        guard startAttempts < 8 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            self?.attemptStart(controller)
         }
     }
 
@@ -113,6 +204,22 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
         }
         let layer = AVSampleBufferDisplayLayer()
         layer.videoGravity = .resizeAspect
+
+        // A `controlTimebase` gives the layer a clock. Without it the PiP
+        // controller has no playback state to reason about and never reports
+        // `isPictureInPicturePossible == true` for a sample-buffer source, so
+        // `startPictureInPicture()` silently does nothing (no willStart /
+        // didStart / failedToStart ever fires).
+        var timebase: CMTimebase?
+        CMTimebaseCreateWithSourceClock(
+            allocator: kCFAllocatorDefault,
+            sourceClock: CMClockGetHostTimeClock(),
+            timebaseOut: &timebase
+        )
+        if let timebase {
+            CMTimebaseSetRate(timebase, rate: 1.0)
+            layer.controlTimebase = timebase
+        }
 
         // 8x8pt, top-left corner, fully opaque and NOT `isHidden` — a hidden
         // or zero-area layer can make `isPictureInPicturePossible` report
@@ -141,6 +248,8 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     private func teardownDisplayLayer() {
+        renderTimer?.invalidate()
+        renderTimer = nil
         displayLayer?.flushAndRemoveImage()
         hostView?.removeFromSuperview()
         displayLayer = nil
@@ -150,11 +259,16 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
             CardioLiveRelay.shared.unsubscribe(relaySubscription)
         }
         relaySubscription = nil
+
+        // Release the audio session we claimed in `start()` so other apps'
+        // audio can resume; `.notifyOthersOnDeactivation` lets a paused
+        // music/podcast app pick back up where it left off.
+        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
     }
 
     // MARK: - Rendering
 
-    private func render(_ sample: CardioLiveSample?) {
+    @MainActor private func render(_ sample: CardioLiveSample?) {
         guard let displayLayer else { return }
         let content = CardioPipContentView(heartRate: sample?.heartRate ?? 0, zone: sample?.zone)
         let renderer = ImageRenderer(content: content)
@@ -172,14 +286,21 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
     private static func makePixelBuffer(from image: CGImage) -> CVPixelBuffer? {
         let width = image.width
         let height = image.height
+        // `kCVPixelBufferIOSurfacePropertiesKey` is REQUIRED: PiP hands each
+        // frame to a separate system process, and only IOSurface-backed pixel
+        // buffers can cross that process boundary. Without it the enqueued
+        // sample fails serialization with `FigSampleBufferSerialization
+        // err=-19642` and the PiP window stays blank. 32BGRA is the format the
+        // display/serialization path handles reliably (32ARGB does not).
         let attrs: [CFString: Any] = [
             kCVPixelBufferCGImageCompatibilityKey: true,
             kCVPixelBufferCGBitmapContextCompatibilityKey: true,
+            kCVPixelBufferIOSurfacePropertiesKey: [:] as CFDictionary,
         ]
         var pixelBuffer: CVPixelBuffer?
         let status = CVPixelBufferCreate(
             kCFAllocatorDefault, width, height,
-            kCVPixelFormatType_32ARGB,
+            kCVPixelFormatType_32BGRA,
             attrs as CFDictionary,
             &pixelBuffer
         )
@@ -195,7 +316,7 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
             bitsPerComponent: 8,
             bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
             space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
         ) else { return nil }
 
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
@@ -249,7 +370,12 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
 // MARK: - AVPictureInPictureControllerDelegate
 
 extension CardioPictureInPicturePlugin: AVPictureInPictureControllerDelegate {
+    public func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        NSLog("[CardioPiP] willStart")
+    }
+
     public func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        NSLog("[CardioPiP] didStart — isPictureInPictureActive=\(pictureInPictureController.isPictureInPictureActive)")
         pendingStartCall?.resolve()
         pendingStartCall = nil
     }
@@ -258,6 +384,7 @@ extension CardioPictureInPicturePlugin: AVPictureInPictureControllerDelegate {
         _ pictureInPictureController: AVPictureInPictureController,
         failedToStartPictureInPictureWithError error: Error
     ) {
+        NSLog("[CardioPiP] failedToStartPictureInPicture: \(error)")
         pendingStartCall?.reject(error.localizedDescription)
         pendingStartCall = nil
         teardownDisplayLayer()
@@ -268,6 +395,7 @@ extension CardioPictureInPicturePlugin: AVPictureInPictureControllerDelegate {
     /// other reason — this is the single place all three converge, so
     /// cleanup and the JS-facing "stopped" event only need to live here.
     public func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        NSLog("[CardioPiP] didStop")
         teardownDisplayLayer()
         pendingStopCall?.resolve()
         pendingStopCall = nil

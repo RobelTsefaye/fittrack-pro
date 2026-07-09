@@ -73,6 +73,7 @@ model User {
   settings        UserSettings?
   apiTokens       ApiToken[]
   pushTokens      PushToken[]
+  cardioLiveSample CardioLiveSample?
 
   @@map("users")
 }
@@ -107,6 +108,25 @@ model PushToken {
 
   @@index([userId])
   @@map("push_tokens")
+}
+
+// One row per user, upserted on every ~1s live push from the phone (the
+// only device with an actual Watch pairing — see WatchConnectivityPlugin.swift).
+// Lets any *other* signed-in device (e.g. an iPad, which can never pair with
+// a Watch directly) poll for the same live cardio data cross-device — see
+// /api/cardio/live and useCardioLive's polling fallback.
+model CardioLiveSample {
+  userId         String   @id
+  isRunning      Boolean
+  heartRate      Float
+  activeCalories Float
+  elapsedSeconds Int
+  zone           Int?
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("cardio_live_samples")
 }
 
 model UserSettings {

@@ -36,6 +36,7 @@
 		CD01AA1100000000000000B2 /* CardioPipContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A2 /* CardioPipContentView.swift */; };
 		CD01AA1100000000000000B3 /* CardioPictureInPicturePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A3 /* CardioPictureInPicturePlugin.swift */; };
 		CD01AA1100000000000000B4 /* AVKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A4 /* AVKit.framework */; };
+		CD01AA1100000000000000B6 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A6 /* SceneDelegate.swift */; };
 		CD01AA1100000000000000B5 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A5 /* AVFoundation.framework */; };
 		AA11BB22CC33DD44EE55FF0A /* ../RestTimerWidget/AdjustRestTimerIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF09 /* ../RestTimerWidget/AdjustRestTimerIntent.swift */; };
 		AA11BB22CC33DD44EE55FF0C /* RestTimerAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF0B /* RestTimerAppShortcuts.swift */; };
@@ -139,6 +140,7 @@
 		CD01AA1100000000000000A2 /* CardioPipContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardioPipContentView.swift; sourceTree = "<group>"; };
 		CD01AA1100000000000000A3 /* CardioPictureInPicturePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardioPictureInPicturePlugin.swift; sourceTree = "<group>"; };
 		CD01AA1100000000000000A4 /* AVKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVKit.framework; path = System/Library/Frameworks/AVKit.framework; sourceTree = SDKROOT; };
+		CD01AA1100000000000000A6 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		CD01AA1100000000000000A5 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -248,6 +250,7 @@
 			children = (
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				CD01AA1100000000000000A6 /* SceneDelegate.swift */,
 				41E81FC7A2B6F1AE1D7C41F3 /* HealthKitPlugin.swift */,
 				0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */,
 				CD01AA1100000000000000A1 /* CardioLiveRelay.swift */,
@@ -486,6 +489,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				CD01AA1100000000000000B6 /* SceneDelegate.swift in Sources */,
 				0EC6850581A02526C4154886 /* HealthKitPlugin.swift in Sources */,
 				F43ED9D36FDFEF1893ED2917 /* WatchConnectivityPlugin.swift in Sources */,
 				CD01AA1100000000000000B1 /* CardioLiveRelay.swift in Sources */,
