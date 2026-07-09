@@ -79,6 +79,22 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         latestContext["active"] = false
         latestContext.removeValue(forKey: "activeWorkout")
+        // updateApplicationContext (inside pushContext below) is documented
+        // as "latest state, best effort" — it can lag well behind real time
+        // or get coalesced with the flurry of other context pushes an active
+        // workout generates (every set logged also pushes one), so a
+        // phone-initiated cancel could leave the Watch stuck showing the
+        // already-deleted workout for a while, where any action on it 404s.
+        // transferUserInfo is FIFO-queued and explicitly delivered even when
+        // the Watch isn't currently reachable — same reliable-delivery
+        // primitive already used for the Watch → phone "cardioSaved" signal
+        // below — so this reaches PhoneWorkoutObserver.didReceiveUserInfo
+        // independently of whatever state pushContext's context dict is in.
+        var clearedInfo: [String: Any] = ["type": "workoutCleared"]
+        if let workoutId = call.getString("workoutId") {
+            clearedInfo["workoutId"] = workoutId
+        }
+        WCSession.default.transferUserInfo(clearedInfo)
         pushContext(call)
     }
 

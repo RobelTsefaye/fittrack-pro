@@ -8,7 +8,7 @@ import { DEFAULT_REST_TIMER } from "@/lib/constants";
 interface WatchConnectivityPlugin {
   isSupported(): Promise<{ supported: boolean }>;
   syncActiveWorkout(options: { workoutJSON: string }): Promise<void>;
-  clearWorkoutState(): Promise<void>;
+  clearWorkoutState(options: { workoutId?: string }): Promise<void>;
   pushPlanCatalog(options: { catalog: string }): Promise<void>;
   syncRecoverySnapshot(options: { score: number; level: string }): Promise<void>;
   respondToRequest(options: { requestId: string; payload: Record<string, unknown> }): Promise<void>;
@@ -144,10 +144,10 @@ export async function syncActiveWorkoutToWatch(
   }
 }
 
-export async function clearWatchWorkoutState(): Promise<void> {
+export async function clearWatchWorkoutState(workoutId?: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
-    await WatchConnectivity.clearWorkoutState();
+    await WatchConnectivity.clearWorkoutState({ workoutId });
   } catch {
     // Non-fatal.
   }

@@ -973,7 +973,7 @@ export function WorkoutDetail({
     if (json.comparison) setCompletionSummary(json.comparison);
     restTimer.stop();
     notifyActiveWorkoutChanged();
-    void clearWatchWorkoutState();
+    void clearWatchWorkoutState(workoutId);
     if (json.newPersonalRecords && json.newPersonalRecords > 0) {
       void hapticPersonalRecord();
     } else {
@@ -1142,7 +1142,7 @@ export function WorkoutDetail({
     // Clear the paired Watch's mirrored workout too — otherwise cancelling
     // here strands the Watch in a KraftLoggingView for a workout that no
     // longer exists (the complete path already does this; cancel didn't).
-    void clearWatchWorkoutState();
+    void clearWatchWorkoutState(workoutId);
 
     // Offline / local-writes path: just wipe IndexedDB and queue, then navigate
     if (useLocalWrites || offlineOriginSession) {

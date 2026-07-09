@@ -329,4 +329,26 @@ extension PhoneWorkoutObserver: WCSessionDelegate {
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
         apply(applicationContext)
     }
+
+    /// A phone-initiated cancel/finish also fires this (see
+    /// clearWorkoutState in WatchConnectivityPlugin.swift) as a
+    /// more-reliably-delivered backstop to the application-context push
+    /// above, which can lag noticeably behind real time. Ends the workout
+    /// here immediately rather than waiting for `apply` to eventually catch
+    /// up — a stuck "still active" workout on the Watch otherwise looks
+    /// live but 404s the moment anything on it (finish, log a set, adjust
+    /// rest) reaches the phone for an already-deleted workout.
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        guard userInfo["type"] as? String == "workoutCleared" else { return }
+        DispatchQueue.main.async {
+            if let workoutId = userInfo["workoutId"] as? String {
+                // Guards against a still-in-flight application-context push
+                // (sent before the cancel, carrying the old workout) landing
+                // *after* this and resurrecting it — same guard endWorkoutLocally
+                // uses for the Watch-initiated exit paths.
+                self.locallyEndedWorkoutIds.insert(workoutId)
+            }
+            self.activeWorkout = nil
+        }
+    }
 }

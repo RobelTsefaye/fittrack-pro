@@ -133,7 +133,7 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
       void (async () => {
         try {
           const res = await fetch(`/api/workouts/${workoutId}/complete`, { method: "POST" });
-          if (res.ok) await clearWatchWorkoutState();
+          if (res.ok) await clearWatchWorkoutState(workoutId);
         } catch {
           // Network hiccup — the Watch already left the workout on its side;
           // the phone stays authoritative and will reconcile on next open.
@@ -147,7 +147,7 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
       void (async () => {
         try {
           const res = await fetch(`/api/workouts/${workoutId}`, { method: "DELETE" });
-          if (res.ok) await clearWatchWorkoutState();
+          if (res.ok) await clearWatchWorkoutState(workoutId);
         } catch {
           // As above — non-fatal, don't leave an unhandled rejection.
         }
