@@ -48,13 +48,42 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
     /// while it's actively receiving frames — a single enqueued frame is not
     /// enough, and relay pushes only arrive ~1/s AND only while a Watch cardio
     /// session is live. This ticks independently so PiP can start (and stay
-    /// filled) even before/without any relay data.
+    /// filled) even before/without any relay or poll data.
     private var renderTimer: Timer?
+
+    /// `isPictureInPicturePossible` is KVO-observable and starts out `false`
+    /// even after the content source/layer are wired up — AVKit needs at
+    /// least one render pass to confirm the layer can actually produce
+    /// frames. Calling `startPictureInPicture()` before it flips to `true`
+    /// is the single most common reason sample-buffer PiP silently does
+    /// nothing (no window, often no error either): this observation is what
+    /// makes `start()` wait for the real go-ahead instead of racing it.
+    private var possibleObservation: NSKeyValueObservation?
+    private var possibleTimeoutTask: Task<Void, Never>?
 
     private var pendingStartCall: CAPPluginCall?
     private var pendingStopCall: CAPPluginCall?
 
+    // Wide and short — a slim overlay bar, not a big floating tile. Matches
+    // CardioPipContentView's own .frame(width:height:).
     private let contentSize = CGSize(width: 300, height: 120)
+
+    /// When the live relay last delivered a sample — used to let a fresher
+    /// native (WatchConnectivity) push always win over a slower poll
+    /// response; see `pollOnce` below.
+    private var lastNativeUpdateAt = Date.distantPast
+
+    private var pollTask: Task<Void, Never>?
+    private static let apiBaseURL = "https://fittrack-pro-ashen.vercel.app"
+    /// Native relay data (CardioLiveRelay) only ever arrives on the one
+    /// device actually paired with the Watch — WCSession.isSupported() is
+    /// unconditionally false on iPad, so an iPad running this plugin would
+    /// otherwise show a permanently blank PiP window. Polling the same
+    /// server relay the JS side uses (cardio-live-context.tsx) is the
+    /// fallback; it runs unconditionally rather than only-on-iPad so there's
+    /// no device-type branch to get wrong, and the freshness guard in
+    /// `pollOnce` already makes it a no-op wherever native data is flowing.
+    private static let pollIntervalNanos: UInt64 = 2_000_000_000
 
     @objc func isSupported(_ call: CAPPluginCall) {
         call.resolve(["supported": AVPictureInPictureController.isPictureInPictureSupported()])
@@ -71,20 +100,16 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
                 return
             }
 
-            // Non-video (sample-buffer) PiP silently refuses to start unless the
-            // app owns an ACTIVE audio session with a PiP-compatible category.
-            // A Capacitor WebView app defaults to `.soloAmbient`, which does NOT
-            // qualify — so `isPictureInPicturePossible` never flips true and
-            // `startPictureInPicture()` does nothing at all. This is the single
-            // most common reason sample-buffer PiP "just doesn't open".
-            do {
-                let audioSession = AVAudioSession.sharedInstance()
-                try audioSession.setCategory(.playback, mode: .moviePlayback)
-                try audioSession.setActive(true)
-            } catch {
-                call.reject("Audio-Session für Picture in Picture konnte nicht aktiviert werden: \(error.localizedDescription)")
-                return
-            }
+            // THE prerequisite that was missing: PiP on iOS only becomes
+            // possible while an active `.playback` audio session exists —
+            // without it `isPictureInPicturePossible` never turns true and
+            // `startPictureInPicture()` silently does nothing (no window, no
+            // error). `.mixWithOthers` is deliberate: this feature exists to
+            // float over a video the user is watching in *another* app, and
+            // our PiP has no audio of its own, so we must NOT interrupt that
+            // app's sound. A non-mixing session would kill the movie's audio
+            // the moment PiP starts.
+            self.activateAudioSession()
 
             let layer = self.makeDisplayLayer()
             let contentSource = AVPictureInPictureController.ContentSource(
@@ -101,6 +126,7 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
             self.render(CardioLiveRelay.shared.lastSample)
             self.relaySubscription = CardioLiveRelay.shared.subscribe { [weak self] sample in
                 DispatchQueue.main.async {
+                    self?.lastNativeUpdateAt = Date()
                     self?.render(sample)
                     // The Watch pushes one isRunning:false sample right as a
                     // cardio session ends/is cancelled (see
@@ -112,78 +138,53 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
                     }
                 }
             }
+            self.startPolling()
 
-            // Feed the layer continuously so it stays PiP-eligible and the
-            // content keeps refreshing even without relay pushes.
+            // Feed the layer continuously so it stays PiP-eligible even
+            // before the first relay/poll sample arrives.
             self.renderTimer?.invalidate()
             self.renderTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
                 self?.render(CardioLiveRelay.shared.lastSample)
             }
 
             self.pendingStartCall = call
-            self.dumpDiagnostics(controller, tag: "t=0")
-            self.startWhenPossible(controller)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-                self?.dumpDiagnostics(controller, tag: "t=1s")
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-                self?.dumpDiagnostics(controller, tag: "t=3s")
-            }
-
-            // Safety net: if the controller neither starts nor reports a
-            // failure (the silent no-op case), fail the JS call instead of
-            // leaving the promise pending forever with the button stuck in
-            // its disabled "starting" state.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
-                guard let self, let pending = self.pendingStartCall, pending === call else { return }
-                NSLog("[CardioPiP] start timed out — no delegate callback within 5s")
-                self.pendingStartCall = nil
-                self.teardownDisplayLayer()
-                pending.reject("Picture in Picture konnte nicht gestartet werden")
-            }
+            self.waitUntilPossibleThenStart(controller)
         }
     }
 
-    /// One-shot dump of every state that gates sample-buffer PiP — the
-    /// controller fails silently (no delegate callback) when any of these is
-    /// off, so this is the only way to see WHICH one it is on-device.
-    private func dumpDiagnostics(_ controller: AVPictureInPictureController, tag: String) {
-        let session = AVAudioSession.sharedInstance()
-        let layer = displayLayer
-        let host = hostView
-        NSLog("""
-        [CardioPiP][\(tag)] \
-        possible=\(controller.isPictureInPicturePossible) \
-        active=\(controller.isPictureInPictureActive) \
-        suspended=\(controller.isPictureInPictureSuspended) \
-        | audio: cat=\(session.category.rawValue) mode=\(session.mode.rawValue) otherPlaying=\(session.isOtherAudioPlaying) \
-        | layer: status=\(layer?.status.rawValue ?? -1) ready=\(layer?.isReadyForMoreMediaData ?? false) \
-        tbRate=\(layer?.controlTimebase.map { CMTimebaseGetRate($0) } ?? -1) \
-        | host: inWindow=\(host?.window != nil) frame=\(host.map { NSCoder.string(for: $0.frame) } ?? "nil") \
-        | appState=\(UIApplication.shared.applicationState.rawValue)
-        """)
-    }
-
-    /// Attempt the start repeatedly with short spacing. A single call made in
-    /// the same run-loop turn as the controller's creation can be silently
-    /// swallowed by AVKit (no willStart/didStart/failedToStart at all), so
-    /// retry until a delegate callback settles the pending call (didStart /
-    /// failedToStart / the 5s timeout all clear `pendingStartCall`, which
-    /// stops the retries).
-    private var startAttempts = 0
-    private func startWhenPossible(_ controller: AVPictureInPictureController) {
-        startAttempts = 0
-        attemptStart(controller)
-    }
-
-    private func attemptStart(_ controller: AVPictureInPictureController) {
-        guard pendingStartCall != nil, !controller.isPictureInPictureActive else { return }
-        startAttempts += 1
-        NSLog("[CardioPiP] startPictureInPicture() attempt \(startAttempts)")
-        controller.startPictureInPicture()
-        guard startAttempts < 8 else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-            self?.attemptStart(controller)
+    /// `startPictureInPicture()` must not be called until
+    /// `isPictureInPicturePossible` is `true` — see the property's doc
+    /// comment above. Observes it via KVO and starts the moment it flips;
+    /// if it never does within a few seconds (content source never became
+    /// eligible — e.g. the host view/layer didn't actually attach), rejects
+    /// the pending JS call with a real error instead of silently doing
+    /// nothing, which is what made the original bug invisible.
+    private func waitUntilPossibleThenStart(_ controller: AVPictureInPictureController) {
+        if controller.isPictureInPicturePossible {
+            controller.startPictureInPicture()
+            return
+        }
+        possibleObservation = controller.observe(\.isPictureInPicturePossible, options: [.new]) { [weak self] ctrl, change in
+            guard change.newValue == true else { return }
+            DispatchQueue.main.async {
+                self?.possibleObservation = nil
+                self?.possibleTimeoutTask?.cancel()
+                self?.possibleTimeoutTask = nil
+                ctrl.startPictureInPicture()
+            }
+        }
+        possibleTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, self.possibleObservation != nil else { return }
+                self.possibleObservation = nil
+                self.pendingStartCall?.reject(
+                    "Picture in Picture wurde nicht bereit (isPictureInPicturePossible blieb false)"
+                )
+                self.pendingStartCall = nil
+                self.teardownDisplayLayer()
+            }
         }
     }
 
@@ -196,6 +197,24 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
             self.pendingStopCall = call
             pipController.stopPictureInPicture()
         }
+    }
+
+    private func activateAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers])
+            try session.setActive(true)
+        } catch {
+            // If this throws, PiP simply won't become possible and the KVO
+            // wait in start() surfaces a real error after its timeout — no
+            // silent failure.
+        }
+    }
+
+    private func deactivateAudioSession() {
+        // notifyOthersOnDeactivation lets whatever app we were mixing over
+        // (the movie the user is watching) resume its normal audio focus.
+        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
     }
 
     private func makeDisplayLayer() -> AVSampleBufferDisplayLayer {
@@ -259,11 +278,58 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
             CardioLiveRelay.shared.unsubscribe(relaySubscription)
         }
         relaySubscription = nil
+        possibleObservation = nil
+        possibleTimeoutTask?.cancel()
+        possibleTimeoutTask = nil
+        stopPolling()
+        deactivateAudioSession()
+    }
 
-        // Release the audio session we claimed in `start()` so other apps'
-        // audio can resume; `.notifyOthersOnDeactivation` lets a paused
-        // music/podcast app pick back up where it left off.
-        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+    // MARK: - Server poll fallback (devices with no Watch pairing, e.g. iPad)
+
+    private func startPolling() {
+        pollTask?.cancel()
+        guard let token = SyncTokenStore.load() else {
+            // No token stored on this device (Settings → API Tokens →
+            // "Für Hintergrund-Sync verwenden" was never tapped here) —
+            // nothing to poll with. The relay subscription above still
+            // covers this device fine if it happens to be the Watch-paired
+            // iPhone; only a device with neither ends up with a stuck window.
+            return
+        }
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.pollOnce(token: token)
+                try? await Task.sleep(nanoseconds: Self.pollIntervalNanos)
+            }
+        }
+    }
+
+    private func stopPolling() {
+        pollTask?.cancel()
+        pollTask = nil
+    }
+
+    private func pollOnce(token: String) async {
+        guard let url = URL(string: Self.apiBaseURL + "/api/cardio/live") else { return }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode < 400,
+              let decoded = try? JSONDecoder().decode(CardioLiveSnapshotResponse.self, from: data),
+              let sample = decoded.data
+        else { return }
+
+        await MainActor.run {
+            // A native push always wins if it's recent — the poll is only
+            // meant to fill in for a device that never gets one at all.
+            guard Date().timeIntervalSince(self.lastNativeUpdateAt) > 3 else { return }
+            self.render(sample)
+            if !sample.isRunning {
+                self.pipController?.stopPictureInPicture()
+            }
+        }
     }
 
     // MARK: - Rendering
@@ -370,12 +436,7 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
 // MARK: - AVPictureInPictureControllerDelegate
 
 extension CardioPictureInPicturePlugin: AVPictureInPictureControllerDelegate {
-    public func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        NSLog("[CardioPiP] willStart")
-    }
-
     public func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        NSLog("[CardioPiP] didStart — isPictureInPictureActive=\(pictureInPictureController.isPictureInPictureActive)")
         pendingStartCall?.resolve()
         pendingStartCall = nil
     }
@@ -395,7 +456,6 @@ extension CardioPictureInPicturePlugin: AVPictureInPictureControllerDelegate {
     /// other reason — this is the single place all three converge, so
     /// cleanup and the JS-facing "stopped" event only need to live here.
     public func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        NSLog("[CardioPiP] didStop")
         teardownDisplayLayer()
         pendingStopCall?.resolve()
         pendingStopCall = nil
@@ -435,6 +495,8 @@ extension CardioPictureInPicturePlugin: AVPictureInPictureSampleBufferPlaybackDe
     }
 
     public func pictureInPictureControllerShouldProhibitBackgroundAudioPlayback(_ pictureInPictureController: AVPictureInPictureController) -> Bool {
-        true
+        // false: our PiP is silent and floats over another app's video — we
+        // must not prohibit that app's audio from continuing to play.
+        false
     }
 }
