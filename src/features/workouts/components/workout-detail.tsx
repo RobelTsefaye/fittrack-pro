@@ -1255,6 +1255,21 @@ export function WorkoutDetail({
 
         {isActive ? (
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            {/* Fixing a checkmarked set used to require finishing the whole
+                workout first (this toggle only appeared once workout.completedAt
+                was set) — mid-workout it's just as reachable now. */}
+            {!useLocalWrites ? (
+              <Button
+                variant="secondary"
+                className="w-full sm:w-auto"
+                type="button"
+                onClick={() => setReviseCompletedSets((v) => !v)}
+              >
+                {reviseCompletedSets
+                  ? t("workouts.doneEditingSets")
+                  : t("workouts.editCompletedSets")}
+              </Button>
+            ) : null}
             <Button
               className="w-full shrink-0 sm:w-auto font-semibold"
               size="lg"
