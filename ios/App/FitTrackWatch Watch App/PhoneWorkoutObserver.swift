@@ -339,9 +339,23 @@ extension PhoneWorkoutObserver: WCSessionDelegate {
     /// live but 404s the moment anything on it (finish, log a set, adjust
     /// rest) reaches the phone for an already-deleted workout.
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        guard userInfo["type"] as? String == "workoutCleared" else { return }
+        handleWorkoutClearedIfNeeded(userInfo)
+    }
+
+    /// Same "workoutCleared" signal as above, delivered instantly via
+    /// `sendMessage` instead of transferUserInfo's queue — but only while
+    /// the Watch is actually reachable (see WatchConnectivityPlugin.swift),
+    /// so transferUserInfo above still has to stay as the guaranteed-
+    /// delivery fallback. This is the fast path that stops the HR session
+    /// right away instead of whenever the queue happens to flush.
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        handleWorkoutClearedIfNeeded(message)
+    }
+
+    private func handleWorkoutClearedIfNeeded(_ payload: [String: Any]) {
+        guard payload["type"] as? String == "workoutCleared" else { return }
         DispatchQueue.main.async {
-            if let workoutId = userInfo["workoutId"] as? String {
+            if let workoutId = payload["workoutId"] as? String {
                 // Guards against a still-in-flight application-context push
                 // (sent before the cancel, carrying the old workout) landing
                 // *after* this and resurrecting it — same guard endWorkoutLocally

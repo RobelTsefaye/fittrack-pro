@@ -95,6 +95,16 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             clearedInfo["workoutId"] = workoutId
         }
         WCSession.default.transferUserInfo(clearedInfo)
+        // Also fire a `sendMessage` — the one channel WatchConnectivity
+        // actually delivers instantly, but only while the Watch is reachable
+        // (roughly: its screen is on and it's in Bluetooth/WiFi range), and
+        // silently doesn't send at all otherwise. That's fine here: it's
+        // purely a latency shortcut for "stop the HR session right now" when
+        // the Watch is actually on the wrist to receive it — transferUserInfo
+        // above is what guarantees eventual delivery regardless.
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage(clearedInfo, replyHandler: nil, errorHandler: nil)
+        }
         pushContext(call)
     }
 
