@@ -38,6 +38,22 @@ enum HeartRateZones {
         return 5
     }
 
+    /// bpm bounds for a zone — drives the position pointer within the zone
+    /// band (see ZoneIndicatorView), i.e. "just entered Zone 3" vs. "about
+    /// to cross into Zone 4," not just which zone.
+    static func bpmRange(forZone zone: Int) -> (min: Double, max: Double) {
+        let band = bands.first { $0.zone == zone } ?? bands[bands.count - 1]
+        return (band.minPct * maxHeartRate, min(band.maxPct, 1) * maxHeartRate)
+    }
+
+    /// 0 at the zone's lower bound, 1 at its upper bound, clamped — where
+    /// exactly `bpm` sits within `zone`'s range right now.
+    static func positionWithinZone(bpm: Double, zone: Int) -> Double {
+        let range = bpmRange(forZone: zone)
+        guard range.max > range.min else { return 0 }
+        return min(1, max(0, (bpm - range.min) / (range.max - range.min)))
+    }
+
     static func labelDe(forZone zone: Int) -> String {
         switch zone {
         case 1: return "Erholung"

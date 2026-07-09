@@ -134,14 +134,16 @@ struct ContentView: View {
                 }
             }
         }
-        // Streams HR/calories/elapsed/zone back to the phone every ~4s while
-        // a phone-initiated cardio session runs — elapsedSeconds already
-        // ticks every 1s from WorkoutManager's own timer, so this just
-        // throttles how often that becomes a WatchConnectivity message.
-        // Also fires once immediately on isRunning's true→false edge so the
-        // phone learns the session ended without waiting for the next tick.
+        // Streams HR/calories/elapsed/zone back to the phone every single
+        // second while a phone-initiated cardio session runs — elapsedSeconds
+        // already ticks every 1s from WorkoutManager's own timer, so this
+        // fires on every tick rather than throttling, keeping the phone's
+        // heart rate reading and zone-position pointer as current as the
+        // Watch's own display. Also fires once immediately on isRunning's
+        // true→false edge so the phone learns the session ended without
+        // waiting for the next tick.
         .onChange(of: workoutManager.elapsedSeconds) { _, seconds in
-            guard phoneObserver.isPhoneInitiatedCardio, workoutManager.isRunning, seconds % 4 == 0 else { return }
+            guard phoneObserver.isPhoneInitiatedCardio, workoutManager.isRunning else { return }
             phoneObserver.pushCardioLiveUpdate(
                 isRunning: true,
                 heartRate: workoutManager.heartRate,
@@ -463,7 +465,7 @@ private struct LiveWorkoutView: View {
             // display but aren't paced by heart-rate zones the way a run or
             // ride is.
             if workoutManager.isOutdoorActivity {
-                ZoneIndicatorView(zone: workoutManager.currentHeartRateZone)
+                ZoneIndicatorView(zone: workoutManager.currentHeartRateZone, heartRate: workoutManager.heartRate)
             }
 
             Text(formattedTime)
@@ -573,6 +575,15 @@ private struct LiveWorkoutView: View {
 /// needs to register at a glance mid-run, everything else is secondary.
 private struct ZoneIndicatorView: View {
     let zone: Int?
+    let heartRate: Double
+
+    /// Where exactly within the current zone's bpm range the live reading
+    /// sits — "just entered Zone 3" vs. "about to cross into Zone 4," not
+    /// just the zone number itself.
+    private var pointerFraction: Double? {
+        guard let zone else { return nil }
+        return HeartRateZones.positionWithinZone(bpm: heartRate, zone: zone)
+    }
 
     var body: some View {
         VStack(spacing: 4) {
@@ -593,9 +604,20 @@ private struct ZoneIndicatorView: View {
             }
             HStack(spacing: 3) {
                 ForEach(1...5, id: \.self) { z in
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Self.color(for: z).opacity(z == zone ? 1 : 0.25))
-                        .frame(height: z == zone ? 8 : 5)
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Self.color(for: z).opacity(z == zone ? 1 : 0.25))
+                            .frame(height: z == zone ? 8 : 5)
+                        if z == zone, let pointerFraction {
+                            GeometryReader { geo in
+                                Capsule()
+                                    .fill(.white)
+                                    .frame(width: 2.5, height: 13)
+                                    .position(x: geo.size.width * pointerFraction, y: geo.size.height / 2)
+                            }
+                            .animation(.easeOut(duration: 0.7), value: pointerFraction)
+                        }
+                    }
                 }
             }
         }

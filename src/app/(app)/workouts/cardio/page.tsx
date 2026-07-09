@@ -17,7 +17,12 @@ import {
   type CardioActivityType,
   type CardioLiveUpdate,
 } from "@/lib/native/cardio-connectivity";
-import { HEART_RATE_ZONE_BANDS, heartRateZoneLabel, type HeartRateZone } from "@/lib/heart-rate-zones";
+import {
+  HEART_RATE_ZONE_BANDS,
+  heartRateZoneLabel,
+  heartRateZoneBpmRange,
+  type HeartRateZone,
+} from "@/lib/heart-rate-zones";
 
 /** Matches HeartRateZones.color(for:) on the Watch and ZoneIndicatorView
  *  exactly — same reasoning as the shared bpm-band constants: one visual
@@ -152,6 +157,16 @@ export default function CardioWorkoutPage() {
   // ── Live view ────────────────────────────────────────────────────────
   const zone = live?.zone as HeartRateZone | undefined;
   const zoneColor = zone ? ZONE_COLORS[zone] : "var(--muted-foreground)";
+  /** Where exactly within the current zone's bpm range the live heart rate
+   *  sits (0 = just entered the zone, 1 = about to cross into the next
+   *  one) — drives the pointer on the zone band below. */
+  const zonePointerFraction =
+    zone && live
+      ? (() => {
+          const { min, max } = heartRateZoneBpmRange(zone);
+          return Math.min(1, Math.max(0, (live.heartRate - min) / (max - min)));
+        })()
+      : null;
 
   return (
     <div className="mx-auto max-w-md space-y-6">
@@ -176,17 +191,30 @@ export default function CardioWorkoutPage() {
                   {zone ? heartRateZoneLabel(zone) : t("cardio.noZoneHint")}
                 </span>
 
-                <div className="mt-2 flex w-full gap-1">
-                  {HEART_RATE_ZONE_BANDS.map((band) => (
-                    <div
-                      key={band.zone}
-                      className="h-2 flex-1 rounded-full transition-opacity"
-                      style={{
-                        background: ZONE_COLORS[band.zone],
-                        opacity: band.zone === zone ? 1 : 0.25,
-                      }}
-                    />
-                  ))}
+                <div className="mt-3 flex w-full gap-1">
+                  {HEART_RATE_ZONE_BANDS.map((band) => {
+                    const isActive = band.zone === zone;
+                    return (
+                      <div
+                        key={band.zone}
+                        className="relative h-2 flex-1 rounded-full transition-opacity"
+                        style={{
+                          background: ZONE_COLORS[band.zone],
+                          opacity: isActive ? 1 : 0.25,
+                        }}
+                      >
+                        {isActive && zonePointerFraction != null ? (
+                          <div
+                            className="absolute -top-1.5 h-5 w-[3px] -translate-x-1/2 rounded-full bg-white transition-[left] duration-700 ease-out"
+                            style={{
+                              left: `${zonePointerFraction * 100}%`,
+                              boxShadow: "0 0 4px rgba(0,0,0,0.6)",
+                            }}
+                          />
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
