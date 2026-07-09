@@ -20,6 +20,7 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(BiometricLockPlugin())
         bridge?.registerPluginInstance(SyncTokenPlugin())
         bridge?.registerPluginInstance(SharedDataPlugin())
+        bridge?.registerPluginInstance(CardioPictureInPicturePlugin())
 
         // Disable WKWebView's built-in long-press "Peek" link preview (the
         // Safari-style pop-up with Open/Copy/Share). It's WebKit's default

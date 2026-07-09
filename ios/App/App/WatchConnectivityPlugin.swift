@@ -429,14 +429,27 @@ extension WatchConnectivityPlugin: WCSessionDelegate {
         notifyListeners("watchRequest", data: ["requestId": requestId, "message": message])
     }
 
-    /// Live HR/calories/elapsed/zone pushed from the Watch every ~4s while a
-    /// phone-initiated cardio session runs (see
+    /// Live HR/calories/elapsed/zone pushed from the Watch roughly once per
+    /// second while a cardio session runs (see
     /// PhoneWorkoutObserver.pushCardioLiveUpdate) — plain `sendMessage`, no
     /// reply expected, so this is the no-reply delegate variant, distinct
     /// from the reply-based one above that handles Watch-initiated requests.
+    ///
+    /// Published to two independent consumers: `notifyListeners` for the JS
+    /// live view (cardio-live-context.tsx) while the app is foreground, and
+    /// `CardioLiveRelay` for `CardioPictureInPicturePlugin`, which needs
+    /// these samples even once the WebView is suspended in the background —
+    /// see the relay's doc comment for why that can't go through JS.
     public func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         guard message["type"] as? String == "cardioLiveUpdate" else { return }
         notifyListeners("cardioLiveUpdate", data: message)
+        CardioLiveRelay.shared.publish(CardioLiveSample(
+            isRunning: message["isRunning"] as? Bool ?? false,
+            heartRate: message["heartRate"] as? Double ?? 0,
+            activeCalories: message["activeCalories"] as? Double ?? 0,
+            elapsedSeconds: message["elapsedSeconds"] as? Int ?? 0,
+            zone: message["zone"] as? Int
+        ))
     }
 
     /// Fire-and-forget notifications from the Watch, sent via

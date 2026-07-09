@@ -301,7 +301,10 @@
     "endedByWatch": "Auf der Uhr beendet.",
     "backToWorkouts": "Workouts",
     "activeSessionBanner": "Cardio läuft",
-    "activeSessionBannerAria": "Zum laufenden Cardio-Training wechseln"
+    "activeSessionBannerAria": "Zum laufenden Cardio-Training wechseln",
+    "pipStart": "Bild-in-Bild starten",
+    "pipStop": "Bild-in-Bild beenden",
+    "pipFailed": "Bild-in-Bild konnte nicht gestartet werden"
   },
   "plans": {
     "title": "Pläne",

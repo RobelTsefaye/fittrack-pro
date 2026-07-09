@@ -301,7 +301,10 @@
     "endedByWatch": "Ended on your watch.",
     "backToWorkouts": "Workouts",
     "activeSessionBanner": "Cardio in progress",
-    "activeSessionBannerAria": "Switch to the active cardio session"
+    "activeSessionBannerAria": "Switch to the active cardio session",
+    "pipStart": "Start Picture in Picture",
+    "pipStop": "Stop Picture in Picture",
+    "pipFailed": "Couldn't start Picture in Picture"
   },
   "plans": {
     "title": "Plans",

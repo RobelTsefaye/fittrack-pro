@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Bike, CheckCircle2, Flame, Footprints, HeartPulse, Timer as TimerIcon, X } from "lucide-react";
+import { ArrowLeft, Bike, CheckCircle2, Flame, Footprints, HeartPulse, PictureInPicture2, Timer as TimerIcon, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,12 @@ import {
   heartRateZoneBpmRange,
   type HeartRateZone,
 } from "@/lib/heart-rate-zones";
+import {
+  isCardioPipSupported,
+  startCardioPip,
+  stopCardioPip,
+  onCardioPipStopped,
+} from "@/lib/native/cardio-pip";
 
 /** Matches HeartRateZones.color(for:) on the Watch and ZoneIndicatorView
  *  exactly — same reasoning as the shared bpm-band constants: one visual
@@ -54,6 +60,9 @@ export default function CardioWorkoutPage() {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
+  const [pipSupported, setPipSupported] = useState(false);
+  const [pipActive, setPipActive] = useState(false);
+  const [pipStarting, setPipStarting] = useState(false);
   const isLive = !!live?.isRunning || activityType != null;
   /** Guards against double-navigating: both the "ended on the Watch"
    *  live-update path and this page's own finish/cancel buttons lead to the
@@ -79,8 +88,37 @@ export default function CardioWorkoutPage() {
     // this to fire again — leave automatically instead of showing a frozen,
     // now-stale live view with nothing left to interact with.
     endedRef.current = true;
+    void stopCardioPip();
     router.push(ROUTES.workouts);
   }, [isLive, live, router]);
+
+  useEffect(() => {
+    void isCardioPipSupported().then(setPipSupported);
+  }, []);
+
+  // The native side also auto-closes PiP the moment a `cardioLiveUpdate`
+  // with isRunning:false arrives (see CardioPictureInPicturePlugin.start's
+  // relay subscription) — this listener is what keeps the button's own
+  // pressed state in sync with that, and with the system chrome's own close
+  // control, not a second trigger for closing PiP itself.
+  useEffect(() => onCardioPipStopped(() => setPipActive(false)), []);
+
+  async function togglePip() {
+    if (pipActive) {
+      await stopCardioPip();
+      setPipActive(false);
+      return;
+    }
+    setPipStarting(true);
+    try {
+      await startCardioPip();
+      setPipActive(true);
+    } catch {
+      setError(t("cardio.pipFailed"));
+    } finally {
+      setPipStarting(false);
+    }
+  }
 
   async function handleStart(type: CardioActivityType) {
     setError(null);
@@ -107,6 +145,8 @@ export default function CardioWorkoutPage() {
     if (!confirm(discard ? t("cardio.cancelConfirm") : t("cardio.finishConfirm"))) return;
     endedRef.current = true;
     setEnding(true);
+    void stopCardioPip();
+    setPipActive(false);
     try {
       await stopCardioSessionOnWatch(discard);
     } catch {
@@ -183,6 +223,22 @@ export default function CardioWorkoutPage() {
     <div className="mx-auto max-w-md space-y-6">
       <Card className="overflow-hidden">
         <CardContent className="space-y-6 pt-6">
+          {pipSupported ? (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                size="icon-sm"
+                variant={pipActive ? "default" : "outline"}
+                disabled={pipStarting}
+                onClick={() => void togglePip()}
+                aria-label={pipActive ? t("cardio.pipStop") : t("cardio.pipStart")}
+                title={pipActive ? t("cardio.pipStop") : t("cardio.pipStart")}
+              >
+                <PictureInPicture2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : null}
+
           {!live ? (
             <p className="text-center text-sm text-muted-foreground">{t("cardio.waitingForData")}</p>
           ) : (
