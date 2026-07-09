@@ -276,8 +276,7 @@
     "cancelWorkout": "Cancel workout",
     "cancellingWorkout": "Cancelling…",
     "cancelWorkoutConfirm": "Cancel and discard this workout? All logged sets will be lost.",
-    "cancelWorkoutFailed": "Could not cancel workout.",
-    "startCardio": "Start cardio"
+    "cancelWorkoutFailed": "Could not cancel workout."
   },
   "cardio": {
     "pickTitle": "Start cardio",

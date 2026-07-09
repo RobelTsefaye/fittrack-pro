@@ -276,8 +276,7 @@
     "cancelWorkout": "Workout abbrechen",
     "cancellingWorkout": "Wird abgebrochen…",
     "cancelWorkoutConfirm": "Workout abbrechen und verwerfen? Alle eingetragenen Sätze gehen verloren.",
-    "cancelWorkoutFailed": "Workout konnte nicht abgebrochen werden.",
-    "startCardio": "Cardio starten"
+    "cancelWorkoutFailed": "Workout konnte nicht abgebrochen werden."
   },
   "cardio": {
     "pickTitle": "Cardio starten",
