@@ -389,6 +389,7 @@ extension PhoneWorkoutObserver: WCSessionDelegate {
     /// rest) reaches the phone for an already-deleted workout.
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         handleWorkoutClearedIfNeeded(userInfo)
+        handleStopCardioIfNeeded(userInfo)
     }
 
     /// Phone-initiated requests that expect a reply — currently only the
@@ -426,12 +427,8 @@ extension PhoneWorkoutObserver: WCSessionDelegate {
                 }
             }
         case "stopCardio":
-            let discard = message["discard"] as? Bool ?? false
-            Task { @MainActor in
-                self.onCardioStopRequested?(discard)
-                self.isPhoneInitiatedCardio = false
-                replyHandler(["done": true])
-            }
+            handleStopCardioIfNeeded(message)
+            replyHandler(["done": true])
         default:
             replyHandler(["error": "Unbekannter Request-Typ: \(type)"])
         }
@@ -458,6 +455,23 @@ extension PhoneWorkoutObserver: WCSessionDelegate {
                 self.locallyEndedWorkoutIds.insert(workoutId)
             }
             self.activeWorkout = nil
+        }
+    }
+
+    /// Shared by both delivery paths for a phone-initiated cardio stop: the
+    /// interactive, reply-expecting one (didReceiveMessage:replyHandler:,
+    /// only works while reachable) and the queued transferUserInfo backstop
+    /// (didReceiveUserInfo, delivered even when the Watch wasn't reachable
+    /// the moment the phone tapped Beenden/Abbrechen). Without the backstop,
+    /// a stop request that missed a brief reachability window had no way to
+    /// ever reach the Watch — the HR session (and its battery drain) just
+    /// kept running with nothing left to tell it to stop.
+    private func handleStopCardioIfNeeded(_ payload: [String: Any]) {
+        guard payload["type"] as? String == "stopCardio" else { return }
+        let discard = payload["discard"] as? Bool ?? false
+        Task { @MainActor in
+            self.onCardioStopRequested?(discard)
+            self.isPhoneInitiatedCardio = false
         }
     }
 }

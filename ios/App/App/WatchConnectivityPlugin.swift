@@ -238,6 +238,19 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
     /// from the phone side.
     @objc func stopCardioSession(_ call: CAPPluginCall) {
         let discard = call.getBool("discard") ?? false
+        // The interactive sendMessage inside sendRequestToWatch immediately
+        // fails with "Uhr nicht erreichbar" if the Watch happens to not be
+        // reachable at that exact moment (screen off, brief radio drop,
+        // background-throttled) — and unlike startCardioSession, there was
+        // no fallback here at all, so the HR session (and its battery
+        // drain) just kept running with no way for the phone's stop request
+        // to ever reach it. transferUserInfo is FIFO-queued and delivered
+        // even while the Watch isn't currently reachable — same
+        // reliable-delivery backstop already used for the Kraft-workout
+        // "workoutCleared" signal — so this reaches
+        // PhoneWorkoutObserver.didReceiveUserInfo independently of whether
+        // the interactive round trip below succeeds.
+        WCSession.default.transferUserInfo(["type": "stopCardio", "discard": discard])
         sendRequestToWatch(type: "stopCardio", fields: ["discard": discard], call: call)
     }
 
