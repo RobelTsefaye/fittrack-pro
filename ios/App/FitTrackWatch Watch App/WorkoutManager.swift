@@ -62,6 +62,12 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// only way to tell them apart once the delegate fires.
     private var isCancelling = false
 
+    /// A `start()` call that arrived while a previous session was still
+    /// live — see the guard at the top of `start()`. Replayed from
+    /// `resetState()` once that previous session has actually finished
+    /// tearing down.
+    private var pendingStart: (activityType: HKWorkoutActivityType, startedAt: Date?)?
+
     private var readTypes: Set<HKObjectType> {
         [
             HKObjectType.quantityType(forIdentifier: .heartRate)!,
@@ -165,6 +171,31 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// Manual Watch-only starts (Laufen/Radfahren tapped directly here) pass
     /// nil and just use "now", same as before.
     func start(activityType: HKWorkoutActivityType, startedAt: Date? = nil) {
+        // A previous session can still be live here if its own end/cancel
+        // signal from the phone hadn't arrived yet (WatchConnectivity
+        // delivery isn't instant) when the user started a *new* workout
+        // instead of waiting. HealthKit only allows one active
+        // HKWorkoutSession at a time — without this guard, overwriting
+        // `session`/`builder` below while the old session's own `.ended`
+        // delegate callback was still pending made that callback operate on
+        // the *new* session's builder instead, and — since `isCancelling`
+        // reflects the old session's own cancel() call, or wasn't set at
+        // all for one abandoned this way — the old, already-abandoned
+        // workout could end up silently *saved* to Health instead of
+        // discarded. Ending it here first (as a cancel, since the app has
+        // already moved on) and deferring the actual start until that
+        // finishes tearing down avoids both problems.
+        guard session == nil else {
+            pendingStart = (activityType, startedAt)
+            isCancelling = true
+            stopTimer()
+            endSessionOrForceReset()
+            return
+        }
+        beginSession(activityType: activityType, startedAt: startedAt)
+    }
+
+    private func beginSession(activityType: HKWorkoutActivityType, startedAt: Date?) {
         currentActivityType = activityType
         let config = HKWorkoutConfiguration()
         config.activityType = activityType
@@ -277,6 +308,14 @@ final class WorkoutManager: NSObject, ObservableObject {
         session = nil
         builder = nil
         currentActivityType = nil
+
+        // See the `session == nil` guard in start() — replays a start that
+        // arrived while the previous session was still tearing down, now
+        // that it actually has.
+        if let pending = pendingStart {
+            pendingStart = nil
+            beginSession(activityType: pending.activityType, startedAt: pending.startedAt)
+        }
     }
 }
 
