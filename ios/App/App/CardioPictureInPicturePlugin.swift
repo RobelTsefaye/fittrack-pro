@@ -44,10 +44,37 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
     private var hostView: UIView?
     private var relaySubscription: UUID?
 
+    /// `isPictureInPicturePossible` is KVO-observable and starts out `false`
+    /// even after the content source/layer are wired up — AVKit needs at
+    /// least one render pass to confirm the layer can actually produce
+    /// frames. Calling `startPictureInPicture()` before it flips to `true`
+    /// is the single most common reason sample-buffer PiP silently does
+    /// nothing (no window, often no error either): this observation is what
+    /// makes `start()` wait for the real go-ahead instead of racing it.
+    private var possibleObservation: NSKeyValueObservation?
+    private var possibleTimeoutTask: Task<Void, Never>?
+
     private var pendingStartCall: CAPPluginCall?
     private var pendingStopCall: CAPPluginCall?
 
     private let contentSize = CGSize(width: 300, height: 300)
+
+    /// When the live relay last delivered a sample — used to let a fresher
+    /// native (WatchConnectivity) push always win over a slower poll
+    /// response; see `pollOnce` below.
+    private var lastNativeUpdateAt = Date.distantPast
+
+    private var pollTask: Task<Void, Never>?
+    private static let apiBaseURL = "https://fittrack-pro-ashen.vercel.app"
+    /// Native relay data (CardioLiveRelay) only ever arrives on the one
+    /// device actually paired with the Watch — WCSession.isSupported() is
+    /// unconditionally false on iPad, so an iPad running this plugin would
+    /// otherwise show a permanently blank PiP window. Polling the same
+    /// server relay the JS side uses (cardio-live-context.tsx) is the
+    /// fallback; it runs unconditionally rather than only-on-iPad so there's
+    /// no device-type branch to get wrong, and the freshness guard in
+    /// `pollOnce` already makes it a no-op wherever native data is flowing.
+    private static let pollIntervalNanos: UInt64 = 2_000_000_000
 
     @objc func isSupported(_ call: CAPPluginCall) {
         call.resolve(["supported": AVPictureInPictureController.isPictureInPictureSupported()])
@@ -79,6 +106,7 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
             self.render(CardioLiveRelay.shared.lastSample)
             self.relaySubscription = CardioLiveRelay.shared.subscribe { [weak self] sample in
                 DispatchQueue.main.async {
+                    self?.lastNativeUpdateAt = Date()
                     self?.render(sample)
                     // The Watch pushes one isRunning:false sample right as a
                     // cardio session ends/is cancelled (see
@@ -90,9 +118,46 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
                     }
                 }
             }
+            self.startPolling()
 
             self.pendingStartCall = call
+            self.waitUntilPossibleThenStart(controller)
+        }
+    }
+
+    /// `startPictureInPicture()` must not be called until
+    /// `isPictureInPicturePossible` is `true` — see the property's doc
+    /// comment above. Observes it via KVO and starts the moment it flips;
+    /// if it never does within a few seconds (content source never became
+    /// eligible — e.g. the host view/layer didn't actually attach), rejects
+    /// the pending JS call with a real error instead of silently doing
+    /// nothing, which is what made the original bug invisible.
+    private func waitUntilPossibleThenStart(_ controller: AVPictureInPictureController) {
+        if controller.isPictureInPicturePossible {
             controller.startPictureInPicture()
+            return
+        }
+        possibleObservation = controller.observe(\.isPictureInPicturePossible, options: [.new]) { [weak self] ctrl, change in
+            guard change.newValue == true else { return }
+            DispatchQueue.main.async {
+                self?.possibleObservation = nil
+                self?.possibleTimeoutTask?.cancel()
+                self?.possibleTimeoutTask = nil
+                ctrl.startPictureInPicture()
+            }
+        }
+        possibleTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, self.possibleObservation != nil else { return }
+                self.possibleObservation = nil
+                self.pendingStartCall?.reject(
+                    "Picture in Picture wurde nicht bereit (isPictureInPicturePossible blieb false)"
+                )
+                self.pendingStartCall = nil
+                self.teardownDisplayLayer()
+            }
         }
     }
 
@@ -150,6 +215,57 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
             CardioLiveRelay.shared.unsubscribe(relaySubscription)
         }
         relaySubscription = nil
+        possibleObservation = nil
+        possibleTimeoutTask?.cancel()
+        possibleTimeoutTask = nil
+        stopPolling()
+    }
+
+    // MARK: - Server poll fallback (devices with no Watch pairing, e.g. iPad)
+
+    private func startPolling() {
+        pollTask?.cancel()
+        guard let token = SyncTokenStore.load() else {
+            // No token stored on this device (Settings → API Tokens →
+            // "Für Hintergrund-Sync verwenden" was never tapped here) —
+            // nothing to poll with. The relay subscription above still
+            // covers this device fine if it happens to be the Watch-paired
+            // iPhone; only a device with neither ends up with a stuck window.
+            return
+        }
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.pollOnce(token: token)
+                try? await Task.sleep(nanoseconds: Self.pollIntervalNanos)
+            }
+        }
+    }
+
+    private func stopPolling() {
+        pollTask?.cancel()
+        pollTask = nil
+    }
+
+    private func pollOnce(token: String) async {
+        guard let url = URL(string: Self.apiBaseURL + "/api/cardio/live") else { return }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode < 400,
+              let decoded = try? JSONDecoder().decode(CardioLiveSnapshotResponse.self, from: data),
+              let sample = decoded.data
+        else { return }
+
+        await MainActor.run {
+            // A native push always wins if it's recent — the poll is only
+            // meant to fill in for a device that never gets one at all.
+            guard Date().timeIntervalSince(self.lastNativeUpdateAt) > 3 else { return }
+            self.render(sample)
+            if !sample.isRunning {
+                self.pipController?.stopPictureInPicture()
+            }
+        }
     }
 
     // MARK: - Rendering

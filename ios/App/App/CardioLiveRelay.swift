@@ -3,12 +3,22 @@ import Foundation
 /// One cardio live sample, relayed from `WatchConnectivityPlugin`'s
 /// `cardioLiveUpdate` handler to whoever wants to render it — currently the
 /// JS bridge (`notifyListeners`, unchanged) and `CardioPictureInPicturePlugin`.
-struct CardioLiveSample {
+///
+/// `Decodable` with these exact field names also lets this double as the
+/// decode target for `GET /api/cardio/live`'s `data` object (see
+/// CardioPictureInPicturePlugin.pollOnce) — same shape, same names, on
+/// purpose, so there's one struct instead of two near-identical ones.
+struct CardioLiveSample: Decodable {
     let isRunning: Bool
     let heartRate: Double
     let activeCalories: Double
     let elapsedSeconds: Int
     let zone: Int?
+}
+
+/// `GET /api/cardio/live`'s response envelope (`{ data: CardioLiveSample | null }`).
+struct CardioLiveSnapshotResponse: Decodable {
+    let data: CardioLiveSample?
 }
 
 /// In-process pub/sub for the Watch's live cardio push, entirely independent
