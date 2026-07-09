@@ -77,6 +77,20 @@ struct ContentView: View {
         }
         .onAppear {
             workoutManager.requestAuthorization()
+            // See PhoneWorkoutObserver.onActiveWorkoutCleared — fires
+            // straight from the WCSession delegate callback (background-
+            // capable), not gated on this view currently being rendered, so
+            // a phone-initiated cancel/finish reliably ends the Watch's own
+            // HR session even if the Watch app isn't in the foreground when
+            // it happens.
+            phoneObserver.onActiveWorkoutCleared = { wasCancelled in
+                guard workoutManager.isRunning else { return }
+                if wasCancelled {
+                    workoutManager.cancel()
+                } else {
+                    workoutManager.stop()
+                }
+            }
         }
         .onChange(of: workoutManager.isRunning) { _, isRunning in
             // Route recording is tied to the HR/calorie session's own
@@ -91,7 +105,7 @@ struct ContentView: View {
                 routeTracker.stop()
             }
         }
-        .onChange(of: phoneObserver.activeWorkout?.workoutId) { oldId, newId in
+        .onChange(of: phoneObserver.activeWorkout?.workoutId) { _, newId in
             if newId != nil {
                 selectedPage = 1
                 if !workoutManager.isRunning, workoutManager.authorizationGranted {
@@ -115,25 +129,11 @@ struct ContentView: View {
                 // ContentView shows AuthorizationView until then), this path
                 // is triggered by the *phone*, which has no way to know the
                 // Watch's authorization state — so it needs its own guard.
-            } else if newId == nil, oldId != nil {
-                // Always consume the flag, even when no HR session is running,
-                // so a stale `true` can't misclassify the *next* workout's
-                // finish as a cancel.
-                let wasCancelled = phoneObserver.pendingCancellation
-                phoneObserver.pendingCancellation = false
-                if workoutManager.isRunning {
-                    if wasCancelled {
-                        // Cancelled via WorkoutControlsView — discard the
-                        // Watch's own HR session instead of saving a workout
-                        // the user explicitly threw away.
-                        workoutManager.cancel()
-                    } else {
-                        // Finished normally — save the Watch's own session
-                        // too, so it doesn't keep running unseen.
-                        workoutManager.stop()
-                    }
-                }
             }
+            // The newId == nil case (workout finished/cancelled) is handled
+            // by PhoneWorkoutObserver.onActiveWorkoutCleared, wired up in
+            // .onAppear above — see its doc comment for why it isn't done
+            // here.
         }
         .onChange(of: workoutManager.authorizationGranted) { _, granted in
             // Catches up on the auto-start above: if a phone workout arrived

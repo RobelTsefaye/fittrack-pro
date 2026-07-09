@@ -15,14 +15,33 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     /// the phone side). Non-nil for the whole lifetime of a phone-started
     /// workout — ContentView routes straight into KraftLoggingView while
     /// this is set, instead of a separate summary/mirror screen.
-    @Published var activeWorkout: WatchActiveWorkout?
+    @Published var activeWorkout: WatchActiveWorkout? {
+        didSet {
+            guard oldValue?.workoutId != activeWorkout?.workoutId else { return }
+            guard oldValue != nil, activeWorkout == nil else { return }
+            let wasCancelled = pendingCancellation
+            pendingCancellation = false
+            onActiveWorkoutCleared?(wasCancelled)
+        }
+    }
 
-    /// Set right before `cancelWorkout` fires, so ContentView's
-    /// `activeWorkout` observer knows the next "workout went away" should
-    /// discard the Watch's own HR session (`WorkoutManager.cancel()`)
-    /// instead of saving it (`.stop()`) — both a finish and a cancel look
-    /// identical from that observer's point of view otherwise.
+    /// Set right before `cancelWorkout` fires, so the `didSet` above knows
+    /// the next "workout went away" should discard the Watch's own HR
+    /// session (`WorkoutManager.cancel()`) instead of saving it (`.stop()`)
+    /// — both a finish and a cancel look identical from here otherwise.
     var pendingCancellation = false
+
+    /// Ends/discards the Watch's own HR session whenever `activeWorkout`
+    /// transitions to nil, for whatever reason (phone finished/cancelled it,
+    /// or a local finish/cancel on the Watch itself). Deliberately fired
+    /// from here — a `didSet` on the published property — rather than a
+    /// SwiftUI `.onChange` in ContentView: `didReceiveApplicationContext`
+    /// can update `activeWorkout` while the Watch app is backgrounded or not
+    /// currently rendering ContentView at all, and a view-level `.onChange`
+    /// only reacts once some view happens to be actively observing this
+    /// property again — until then, a workout cancelled from the phone left
+    /// the HKWorkoutSession (and its HR measurement) running indefinitely.
+    var onActiveWorkoutCleared: ((_ wasCancelled: Bool) -> Void)?
 
     /// Strength-training plan catalog pushed from the phone, backing the
     /// standalone Kraft session picker. Empty until the phone app has synced
@@ -44,9 +63,9 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     private var locallyEndedWorkoutIds: Set<String> = []
 
     /// Local exit path for finish/cancel on the Watch: leaves the workout
-    /// immediately (driving ContentView's onChange, which stops or discards
-    /// the HR session based on `pendingCancellation`) and remembers the id
-    /// so a stale re-push can't bring it back.
+    /// immediately (driving the `didSet` above, which stops or discards the
+    /// HR session based on `pendingCancellation`) and remembers the id so a
+    /// stale re-push can't bring it back.
     func endWorkoutLocally(_ workoutId: String) {
         DispatchQueue.main.async {
             self.locallyEndedWorkoutIds.insert(workoutId)
