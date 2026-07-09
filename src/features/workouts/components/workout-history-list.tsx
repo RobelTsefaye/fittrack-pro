@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Dumbbell, Plus, Trash2, ChevronRight, Clock, Layers } from "lucide-react";
+import { Dumbbell, HeartPulse, Plus, Trash2, ChevronRight, Clock, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
@@ -140,19 +139,28 @@ export function WorkoutHistoryList({ initialWorkouts }: { initialWorkouts: Worko
     <div className="space-y-6">
 
       {/* ── Page header ─────────────────────────── */}
-      <div className="flex items-start justify-between gap-4 px-0.5">
+      <div className="flex items-start justify-between gap-2 px-0.5">
         <h1 className="page-title">{t("workouts.title")}</h1>
-        <Link
-          href={ROUTES.newWorkout}
-          prefetch
-          className={cn(
-            "flex shrink-0 h-9 items-center gap-1.5 rounded-xl px-3.5 font-bold text-[13px] transition-opacity active:opacity-70",
-          )}
-          style={{ background: "#D4FF3A", color: "#0A1300" }}
-        >
-          <Plus className="h-4 w-4" />
-          {t("workouts.startWorkout")}
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href={ROUTES.cardioWorkout}
+            prefetch
+            className="flex h-9 items-center gap-1.5 rounded-xl px-3 font-bold text-[13px] transition-opacity active:opacity-70"
+            style={{ background: "#26262B", color: "#F5F5F7" }}
+          >
+            <HeartPulse className="h-4 w-4" />
+            {t("workouts.startCardio")}
+          </Link>
+          <Link
+            href={ROUTES.newWorkout}
+            prefetch
+            className="flex h-9 items-center gap-1.5 rounded-xl px-3.5 font-bold text-[13px] transition-opacity active:opacity-70"
+            style={{ background: "#D4FF3A", color: "#0A1300" }}
+          >
+            <Plus className="h-4 w-4" />
+            {t("workouts.startWorkout")}
+          </Link>
+        </div>
       </div>
 
       {/* ── Empty state ─────────────────────────── */}

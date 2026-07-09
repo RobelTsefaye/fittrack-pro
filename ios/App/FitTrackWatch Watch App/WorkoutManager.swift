@@ -40,6 +40,14 @@ final class WorkoutManager: NSObject, ObservableObject {
         return type != .traditionalStrengthTraining && type != .highIntensityIntervalTraining
     }
 
+    /// Current HR zone (1-5), nil below Zone 1 or with no reading yet. A
+    /// plain computed property is enough — views already re-render on every
+    /// `heartRate` change, so this is always fresh without a second
+    /// `@Published` to keep in sync.
+    var currentHeartRateZone: Int? {
+        HeartRateZones.zone(forBpm: heartRate)
+    }
+
     /// Most recent heart rate sample HealthKit has, independent of whether a
     /// workout is currently running — the paired Watch/iPhone share the same
     /// underlying HealthKit store, so this reflects whichever device (Watch
@@ -67,6 +75,15 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// `resetState()` once that previous session has actually finished
     /// tearing down.
     private var pendingStart: (activityType: HKWorkoutActivityType, startedAt: Date?)?
+
+    /// Fired once `beginCollection` actually confirms the session started
+    /// (or failed to). The Watch's own UI-driven start() calls omit this
+    /// (fire-and-forget, `isRunning`/`errorMessage` drive the UI directly);
+    /// a phone-initiated cardio-start request needs a definite yes/no to
+    /// reply with, since the phone has no other way to know whether
+    /// HealthKit actually accepted the session — see
+    /// PhoneWorkoutObserver's "startCardio" handler.
+    private var startCompletion: ((Result<Void, String>) -> Void)?
 
     private var readTypes: Set<HKObjectType> {
         [
@@ -170,7 +187,12 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// authorizing/starting (a few seconds later, visibly out of sync).
     /// Manual Watch-only starts (Laufen/Radfahren tapped directly here) pass
     /// nil and just use "now", same as before.
-    func start(activityType: HKWorkoutActivityType, startedAt: Date? = nil) {
+    func start(
+        activityType: HKWorkoutActivityType,
+        startedAt: Date? = nil,
+        completion: ((Result<Void, String>) -> Void)? = nil
+    ) {
+        startCompletion = completion
         // A previous session can still be live here if its own end/cancel
         // signal from the phone hadn't arrived yet (WatchConnectivity
         // delivery isn't instant) when the user started a *new* workout
@@ -217,6 +239,8 @@ final class WorkoutManager: NSObject, ObservableObject {
             builder?.beginCollection(withStart: start) { [weak self] success, error in
                 Task { @MainActor in
                     guard let self else { return }
+                    let completion = self.startCompletion
+                    self.startCompletion = nil
                     if let error = error {
                         // Clean up the already-started session — otherwise it
                         // lingers as a zombie that blocks the next start().
@@ -224,14 +248,19 @@ final class WorkoutManager: NSObject, ObservableObject {
                         self.logShareAuthorizationStatus()
                         self.session?.end()
                         self.resetState()
+                        completion?(.failure(error.localizedDescription))
                         return
                     }
                     self.isRunning = true
                     self.startTimer()
+                    completion?(.success(()))
                 }
             }
         } catch {
             errorMessage = error.localizedDescription
+            let completion = startCompletion
+            startCompletion = nil
+            completion?(.failure(error.localizedDescription))
         }
     }
 

@@ -5,13 +5,20 @@ import type { WorkoutData } from "@/features/workouts/workout-types";
 import type { PreviousLogEntry } from "@/app/api/workouts/[id]/previous-logs/route";
 import { DEFAULT_REST_TIMER } from "@/lib/constants";
 
-interface WatchConnectivityPlugin {
+/** Also covers the cardio-remote-control methods (see cardio-connectivity.ts)
+ *  — one native plugin, one `registerPlugin` call. Registering the same
+ *  plugin name twice throws at runtime ("already registered"), so
+ *  cardio-connectivity.ts imports the single instance below instead of
+ *  registering its own. */
+export interface WatchConnectivityPlugin {
   isSupported(): Promise<{ supported: boolean }>;
   syncActiveWorkout(options: { workoutJSON: string }): Promise<void>;
   clearWorkoutState(options: { workoutId?: string }): Promise<void>;
   pushPlanCatalog(options: { catalog: string }): Promise<void>;
   syncRecoverySnapshot(options: { score: number; level: string }): Promise<void>;
   respondToRequest(options: { requestId: string; payload: Record<string, unknown> }): Promise<void>;
+  startCardioSession(options: { activityType: "running" | "cycling" }): Promise<{ started: true }>;
+  stopCardioSession(options: { discard: boolean }): Promise<{ done: true }>;
   addListener(
     eventName: "watchRequest",
     listenerFunc: (data: { requestId: string; message: Record<string, unknown> }) => void
@@ -20,9 +27,19 @@ interface WatchConnectivityPlugin {
     eventName: "watchCardioSaved",
     listenerFunc: () => void
   ): Promise<{ remove: () => void }>;
+  addListener(
+    eventName: "cardioLiveUpdate",
+    listenerFunc: (data: {
+      isRunning: boolean;
+      heartRate: number;
+      activeCalories: number;
+      elapsedSeconds: number;
+      zone?: number;
+    }) => void
+  ): Promise<{ remove: () => void }>;
 }
 
-const WatchConnectivity = registerPlugin<WatchConnectivityPlugin>("WatchConnectivity");
+export const WatchConnectivity = registerPlugin<WatchConnectivityPlugin>("WatchConnectivity");
 
 /**
  * Epoch seconds the rest timer should end at — derived purely from data

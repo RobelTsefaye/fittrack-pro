@@ -24,6 +24,8 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "pushPlanCatalog", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "syncRecoverySnapshot", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "respondToRequest", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "startCardioSession", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "stopCardioSession", returnType: CAPPluginReturnPromise),
     ]
 
     /// The full application context dict, mutated in place and re-pushed on
@@ -148,6 +150,79 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         pushContext(call)
     }
 
+    /// Tells the Watch to start a cardio (Laufen/Radfahren) HKWorkoutSession
+    /// right now — the reverse of the usual Watch-asks-phone flow. Expects
+    /// `activityType` ("running" | "cycling"). Awaits the Watch's reply
+    /// rather than resolving immediately: the phone has no HR sensor of its
+    /// own, so the live view this unlocks is only meaningful once the
+    /// Watch's session has actually, confirmedly started.
+    @objc func startCardioSession(_ call: CAPPluginCall) {
+        guard let activityType = call.getString("activityType") else {
+            call.reject("Missing activityType")
+            return
+        }
+        sendRequestToWatch(type: "startCardio", fields: ["activityType": activityType], call: call)
+    }
+
+    /// Ends (or discards, if `discard: true`) the Watch's cardio session
+    /// from the phone side.
+    @objc func stopCardioSession(_ call: CAPPluginCall) {
+        let discard = call.getBool("discard") ?? false
+        sendRequestToWatch(type: "stopCardio", fields: ["discard": discard], call: call)
+    }
+
+    /// Guarantees a callback fires exactly once even when sendMessage's
+    /// reply-, error- and our own timeout path race each other. Mirrors the
+    /// identical helper on the Watch side (PhoneWorkoutObserver.Once).
+    private final class Once {
+        private let lock = NSLock()
+        private var done = false
+        func run(_ block: () -> Void) {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !done else { return }
+            done = true
+            block()
+        }
+    }
+
+    /// Sends a request *to* the Watch and awaits its reply — the reverse of
+    /// `session(_:didReceiveMessage:replyHandler:)` below (Watch asks
+    /// phone). Used for the cardio start/stop commands, which need to know
+    /// whether the Watch's HealthKit session actually started/stopped
+    /// before the phone shows (or leaves) a live view for it.
+    private func sendRequestToWatch(
+        type: String,
+        fields: [String: Any],
+        timeout: TimeInterval = 10,
+        call: CAPPluginCall
+    ) {
+        guard WCSession.isSupported(), WCSession.default.activationState == .activated,
+              WCSession.default.isReachable else {
+            call.reject("Uhr nicht erreichbar")
+            return
+        }
+        var message = fields
+        message["type"] = type
+        let once = Once()
+
+        WCSession.default.sendMessage(message, replyHandler: { reply in
+            once.run {
+                if let error = reply["error"] as? String {
+                    call.reject(error)
+                } else {
+                    call.resolve(reply)
+                }
+            }
+        }, errorHandler: { error in
+            once.run { call.reject(error.localizedDescription) }
+        })
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
+            once.run { call.reject("Uhr antwortet nicht") }
+        }
+    }
+
     private func pushContext(_ call: CAPPluginCall) {
         if pushContextToWatch() {
             call.resolve()
@@ -269,6 +344,16 @@ extension WatchConnectivityPlugin: WCSessionDelegate {
         // works while the app is actually open and running.
         pendingReplies[requestId] = replyHandler
         notifyListeners("watchRequest", data: ["requestId": requestId, "message": message])
+    }
+
+    /// Live HR/calories/elapsed/zone pushed from the Watch every ~4s while a
+    /// phone-initiated cardio session runs (see
+    /// PhoneWorkoutObserver.pushCardioLiveUpdate) — plain `sendMessage`, no
+    /// reply expected, so this is the no-reply delegate variant, distinct
+    /// from the reply-based one above that handles Watch-initiated requests.
+    public func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        guard message["type"] as? String == "cardioLiveUpdate" else { return }
+        notifyListeners("cardioLiveUpdate", data: message)
     }
 
     /// Fire-and-forget notifications from the Watch, sent via

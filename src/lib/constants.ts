@@ -36,6 +36,7 @@ export const ROUTES = {
   dashboard: "/dashboard",
   workouts: "/workouts",
   newWorkout: "/workouts/new",
+  cardioWorkout: "/workouts/cardio",
   plans: "/plans",
   exercises: "/exercises",
   exercisesUsage: "/exercises/usage",

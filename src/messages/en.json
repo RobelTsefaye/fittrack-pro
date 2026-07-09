@@ -276,7 +276,31 @@
     "cancelWorkout": "Cancel workout",
     "cancellingWorkout": "Cancelling…",
     "cancelWorkoutConfirm": "Cancel and discard this workout? All logged sets will be lost.",
-    "cancelWorkoutFailed": "Could not cancel workout."
+    "cancelWorkoutFailed": "Could not cancel workout.",
+    "startCardio": "Start cardio"
+  },
+  "cardio": {
+    "pickTitle": "Start cardio",
+    "pickSubtitle": "Starts on your Apple Watch — zone, time and calories show live on both devices.",
+    "running": "Running",
+    "cycling": "Cycling",
+    "starting": "Starting on your watch…",
+    "watchUnreachable": "Watch not reachable. Make sure the FitTrack app is open on your watch.",
+    "needsNativeApp": "Cardio sessions need the FitTrack iPhone app with a paired Apple Watch.",
+    "startFailed": "Could not start cardio session.",
+    "waitingForData": "Waiting for data from the watch…",
+    "noZone": "No zone",
+    "noZoneHint": "Heart rate too low for a training zone.",
+    "zoneLabel": "Zone {zone}",
+    "elapsedLabel": "Time",
+    "caloriesLabel": "Calories",
+    "heartRateLabel": "Heart rate",
+    "finish": "Finish",
+    "cancel": "Cancel",
+    "finishConfirm": "Finish cardio session and save it to Health?",
+    "cancelConfirm": "Cancel cardio session? It won't be saved.",
+    "endedByWatch": "Ended on your watch.",
+    "backToWorkouts": "Workouts"
   },
   "plans": {
     "title": "Plans",

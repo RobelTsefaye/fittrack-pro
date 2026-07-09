@@ -276,7 +276,31 @@
     "cancelWorkout": "Workout abbrechen",
     "cancellingWorkout": "Wird abgebrochen…",
     "cancelWorkoutConfirm": "Workout abbrechen und verwerfen? Alle eingetragenen Sätze gehen verloren.",
-    "cancelWorkoutFailed": "Workout konnte nicht abgebrochen werden."
+    "cancelWorkoutFailed": "Workout konnte nicht abgebrochen werden.",
+    "startCardio": "Cardio starten"
+  },
+  "cardio": {
+    "pickTitle": "Cardio starten",
+    "pickSubtitle": "Wird auf der Apple Watch gestartet — Zone, Zeit und Kalorien siehst du live auf beiden Geräten.",
+    "running": "Laufen",
+    "cycling": "Radfahren",
+    "starting": "Startet auf der Uhr…",
+    "watchUnreachable": "Uhr nicht erreichbar. Stelle sicher, dass die FitTrack-App auf der Uhr geöffnet ist.",
+    "needsNativeApp": "Cardio-Sessions benötigen die FitTrack-App auf dem iPhone mit gekoppelter Apple Watch.",
+    "startFailed": "Cardio-Training konnte nicht gestartet werden.",
+    "waitingForData": "Warte auf Daten von der Uhr…",
+    "noZone": "Keine Zone",
+    "noZoneHint": "Herzfrequenz zu niedrig für eine Trainingszone.",
+    "zoneLabel": "Zone {zone}",
+    "elapsedLabel": "Zeit",
+    "caloriesLabel": "Kalorien",
+    "heartRateLabel": "Herzfrequenz",
+    "finish": "Beenden",
+    "cancel": "Abbrechen",
+    "finishConfirm": "Cardio-Training beenden und in Health speichern?",
+    "cancelConfirm": "Cardio-Training abbrechen? Es wird nicht gespeichert.",
+    "endedByWatch": "Auf der Uhr beendet.",
+    "backToWorkouts": "Workouts"
   },
   "plans": {
     "title": "Pläne",

@@ -34,6 +34,18 @@ private struct WorkoutTypeOption: Identifiable {
     ]
 }
 
+/// Maps the activityType string a phone-initiated "Cardio starten" request
+/// sends (see the CardioActivityType TS type on the phone side) to the
+/// matching HKWorkoutActivityType. Only Laufen/Radfahren — Kraft/HIIT go
+/// through the existing phone-mirrored activeWorkout flow instead.
+private func cardioActivityType(from raw: String) -> HKWorkoutActivityType? {
+    switch raw {
+    case "running": return .running
+    case "cycling": return .cycling
+    default: return nil
+    }
+}
+
 struct ContentView: View {
     @StateObject private var workoutManager = WorkoutManager()
     @StateObject private var phoneObserver = PhoneWorkoutObserver()
@@ -90,6 +102,60 @@ struct ContentView: View {
                 } else {
                     workoutManager.stop()
                 }
+            }
+            // Drives the shared WorkoutManager for a phone-initiated
+            // "Cardio starten" request (see PhoneWorkoutObserver's
+            // didReceiveMessage handling of "startCardio"/"stopCardio") —
+            // the observer only has the WCSession plumbing, not a reference
+            // to WorkoutManager, which ContentView owns.
+            phoneObserver.onCardioStartRequested = { activityTypeRaw in
+                guard let activityType = cardioActivityType(from: activityTypeRaw) else {
+                    return .failure("Unbekannter Aktivitätstyp")
+                }
+                guard workoutManager.authorizationGranted else {
+                    return .failure("Keine HealthKit-Berechtigung auf der Uhr")
+                }
+                return await withCheckedContinuation { continuation in
+                    workoutManager.start(activityType: activityType) { result in
+                        switch result {
+                        case .success:
+                            continuation.resume(returning: .success(()))
+                        case .failure(let message):
+                            continuation.resume(returning: .failure(message))
+                        }
+                    }
+                }
+            }
+            phoneObserver.onCardioStopRequested = { discard in
+                if discard {
+                    workoutManager.cancel()
+                } else {
+                    workoutManager.stop()
+                }
+            }
+        }
+        // Streams HR/calories/elapsed/zone back to the phone every ~4s while
+        // a phone-initiated cardio session runs — elapsedSeconds already
+        // ticks every 1s from WorkoutManager's own timer, so this just
+        // throttles how often that becomes a WatchConnectivity message.
+        // Also fires once immediately on isRunning's true→false edge so the
+        // phone learns the session ended without waiting for the next tick.
+        .onChange(of: workoutManager.elapsedSeconds) { _, seconds in
+            guard phoneObserver.isPhoneInitiatedCardio, workoutManager.isRunning, seconds % 4 == 0 else { return }
+            phoneObserver.pushCardioLiveUpdate(
+                isRunning: true,
+                heartRate: workoutManager.heartRate,
+                activeCalories: workoutManager.activeCalories,
+                elapsedSeconds: seconds,
+                zone: workoutManager.currentHeartRateZone
+            )
+        }
+        .onChange(of: workoutManager.isRunning) { wasRunning, isRunning in
+            if wasRunning, !isRunning, phoneObserver.isPhoneInitiatedCardio {
+                phoneObserver.pushCardioLiveUpdate(
+                    isRunning: false, heartRate: 0, activeCalories: 0, elapsedSeconds: 0, zone: nil
+                )
+                phoneObserver.isPhoneInitiatedCardio = false
             }
         }
         .onChange(of: workoutManager.isRunning) { _, isRunning in
@@ -392,6 +458,14 @@ private struct LiveWorkoutView: View {
                     .padding(.bottom, 2)
             }
 
+            // Zones only make sense for cardio (Laufen/Radfahren) — Kraft
+            // and HIIT share this same live screen as an HR companion
+            // display but aren't paced by heart-rate zones the way a run or
+            // ride is.
+            if workoutManager.isOutdoorActivity {
+                ZoneIndicatorView(zone: workoutManager.currentHeartRateZone)
+            }
+
             Text(formattedTime)
                 .font(.system(size: 34, weight: .semibold, design: .rounded))
                 .monospacedDigit()
@@ -490,6 +564,52 @@ private struct LiveWorkoutView: View {
         let m = workoutManager.elapsedSeconds / 60
         let s = workoutManager.elapsedSeconds % 60
         return String(format: "%d:%02d", m, s)
+    }
+}
+
+/// Zone dominates (big number + German label), a 5-segment band underneath
+/// gives context without the cost of an actual chart — matches Apple's own
+/// Watch Heart Rate Zones screen: the *current* zone is the one thing that
+/// needs to register at a glance mid-run, everything else is secondary.
+private struct ZoneIndicatorView: View {
+    let zone: Int?
+
+    var body: some View {
+        VStack(spacing: 4) {
+            if let zone {
+                Text("Zone \(zone)")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(Self.color(for: zone))
+                Text(HeartRateZones.labelDe(forZone: zone))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("–")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                Text("Keine Zone")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 3) {
+                ForEach(1...5, id: \.self) { z in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Self.color(for: z).opacity(z == zone ? 1 : 0.25))
+                        .frame(height: z == zone ? 8 : 5)
+                }
+            }
+        }
+        .padding(.bottom, 2)
+    }
+
+    static func color(for zone: Int) -> Color {
+        switch zone {
+        case 1: return .blue
+        case 2: return .teal
+        case 3: return .green
+        case 4: return .orange
+        default: return .red
+        }
     }
 }
 

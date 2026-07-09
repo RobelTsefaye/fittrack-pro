@@ -43,6 +43,27 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     /// the HKWorkoutSession (and its HR measurement) running indefinitely.
     var onActiveWorkoutCleared: ((_ wasCancelled: Bool) -> Void)?
 
+    /// True while the *current* WorkoutManager session was started by a
+    /// phone "Cardio starten" request, as opposed to a Watch-only manual
+    /// start from StartView — gates the periodic live-stats push in
+    /// ContentView, so an ordinary Watch-initiated Laufen/Radfahren session
+    /// doesn't also start streaming to a phone screen nothing navigated the
+    /// user to.
+    @Published var isPhoneInitiatedCardio = false
+
+    /// Set once in ContentView.onAppear — a phone-initiated cardio-start
+    /// request needs to drive the shared WorkoutManager, which ContentView
+    /// (not this observer) owns. Returns the HealthKit-confirmed outcome so
+    /// the reply sent back to the phone reflects reality, not just "request
+    /// received." `@MainActor`-typed since the implementation calls into
+    /// WorkoutManager (itself @MainActor) — the `Task { @MainActor in ... }`
+    /// call site below hops there before invoking it.
+    var onCardioStartRequested: (@MainActor (_ activityType: String) async -> Result<Void, String>)?
+
+    /// Set once in ContentView.onAppear — ends/discards the shared
+    /// WorkoutManager session in response to a phone-initiated stop request.
+    var onCardioStopRequested: (@MainActor (_ discard: Bool) -> Void)?
+
     /// Strength-training plan catalog pushed from the phone, backing the
     /// standalone Kraft session picker. Empty until the phone app has synced
     /// at least once (see watch-workout-sync.ts on the phone side).
@@ -304,6 +325,34 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
         }
     }
 
+    /// Pushes live HR/calories/elapsed/zone to the phone while a
+    /// phone-initiated cardio session is running (see
+    /// `isPhoneInitiatedCardio`). `sendMessage`, not transferUserInfo or
+    /// application context: this needs low latency and we only ever care
+    /// about the *latest* reading, never a backlog — and the Watch is
+    /// guaranteed reachable here, mid-interactive-session with the phone
+    /// that just started it. A dropped update because the Watch was
+    /// momentarily unreachable is fine; the next one a few seconds later
+    /// catches up.
+    func pushCardioLiveUpdate(
+        isRunning: Bool,
+        heartRate: Double,
+        activeCalories: Double,
+        elapsedSeconds: Int,
+        zone: Int?
+    ) {
+        guard WCSession.default.isReachable else { return }
+        var payload: [String: Any] = [
+            "type": "cardioLiveUpdate",
+            "isRunning": isRunning,
+            "heartRate": heartRate,
+            "activeCalories": activeCalories,
+            "elapsedSeconds": elapsedSeconds,
+        ]
+        if let zone { payload["zone"] = zone }
+        WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: nil)
+    }
+
     /// Discards the workout on the phone (deletes it — no partial save).
     func cancelWorkout(workoutId: String, completion: @escaping (Result<Void, Error>) -> Void) {
         pendingCancellation = true
@@ -340,6 +389,52 @@ extension PhoneWorkoutObserver: WCSessionDelegate {
     /// rest) reaches the phone for an already-deleted workout.
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         handleWorkoutClearedIfNeeded(userInfo)
+    }
+
+    /// Phone-initiated requests that expect a reply — currently only the
+    /// cardio start/stop commands (see WatchConnectivityPlugin.swift's
+    /// `sendCardioCommand`). This is the reverse direction of `sendRequest`
+    /// above (Watch asks phone, awaits reply); here the *phone* asks the
+    /// Watch, and this Watch app is the one replying.
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any], replyHandler: @escaping ([String: Any]) -> Void) {
+        guard let type = message["type"] as? String else {
+            replyHandler(["error": "Missing type"])
+            return
+        }
+        switch type {
+        case "startCardio":
+            guard let activityType = message["activityType"] as? String else {
+                replyHandler(["error": "Missing activityType"])
+                return
+            }
+            guard let handler = onCardioStartRequested else {
+                replyHandler(["error": "Watch-App nicht bereit"])
+                return
+            }
+            // WCSession delivers this callback on an arbitrary background
+            // queue, but `handler` ultimately calls into WorkoutManager,
+            // which is @MainActor — hop explicitly rather than relying on
+            // await-a-closure to do it implicitly.
+            Task { @MainActor in
+                let result = await handler(activityType)
+                switch result {
+                case .success:
+                    self.isPhoneInitiatedCardio = true
+                    replyHandler(["started": true])
+                case .failure(let message):
+                    replyHandler(["error": message])
+                }
+            }
+        case "stopCardio":
+            let discard = message["discard"] as? Bool ?? false
+            Task { @MainActor in
+                self.onCardioStopRequested?(discard)
+                self.isPhoneInitiatedCardio = false
+                replyHandler(["done": true])
+            }
+        default:
+            replyHandler(["error": "Unbekannter Request-Typ: \(type)"])
+        }
     }
 
     /// Same "workoutCleared" signal as above, delivered instantly via
