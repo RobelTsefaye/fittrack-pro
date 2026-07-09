@@ -213,6 +213,23 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
         }
     }
 
+    /// Persists a +/-15s rest-timer nudge server-side (see
+    /// rest-timer-adjust route) so the phone bar and Live Activity pick it up
+    /// too — previously this was a purely local overlay on the Watch,
+    /// invisible everywhere else. Fire-and-forget from the caller's
+    /// perspective: the Watch's own countdown already applied the nudge
+    /// optimistically before this was called; the reply just confirms it.
+    func adjustRestTimer(workoutId: String, deltaSeconds: Int, completion: @escaping (Result<Void, Error>) -> Void) {
+        sendRequest(type: "adjustRestTimer", fields: ["workoutId": workoutId, "deltaSeconds": deltaSeconds]) { result in
+            switch result {
+            case .success:
+                completion(.success(()))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+
     /// Applies a just-logged set to `activeWorkout` — the single source of
     /// truth every workout view reads from. Keeps the Watch's own optimistic
     /// update and any later authoritative re-push from the phone flowing

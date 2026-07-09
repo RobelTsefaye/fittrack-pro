@@ -49,7 +49,11 @@ function computeRestTimerEndsAt(workout: WorkoutData): number {
       if (t > anchor) anchor = t;
     }
   }
-  return anchor / 1000 + (workout.restTimerDefaultSeconds ?? DEFAULT_REST_TIMER);
+  return (
+    anchor / 1000 +
+    (workout.restTimerDefaultSeconds ?? DEFAULT_REST_TIMER) +
+    (workout.restTimerAdjustSeconds ?? 0)
+  );
 }
 
 /**

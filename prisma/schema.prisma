@@ -203,6 +203,13 @@ model Workout {
   notes           String?
   durationSeconds Int?
   planSessionId   String?
+  /// Cumulative +/-15s rest-timer adjustment for the *current* rest period —
+  /// the single source every surface (phone bar, Live Activity, Watch) adds
+  /// on top of its own independently-computed anchor+duration, so a nudge
+  /// made from any one of them is reflected on the others. Reset to 0 by the
+  /// sets PATCH route whenever a set is newly marked complete (a fresh rest
+  /// period starts).
+  restTimerAdjustSeconds Int @default(0)
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   planSession      PlanSession?      @relation(fields: [planSessionId], references: [id], onDelete: SetNull)

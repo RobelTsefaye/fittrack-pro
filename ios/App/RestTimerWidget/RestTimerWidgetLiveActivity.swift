@@ -38,25 +38,26 @@ struct RestTimerWidgetLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                // When another Live Activity is also running (e.g. Music),
-                // the system only ever shows *this* activity's compactLeading
-                // — squeezed down to a small badge — and drops compactTrailing
-                // entirely. A bare icon there used to mean the countdown
-                // vanished completely whenever the Island was split; showing
-                // the time itself here means it survives that squeeze.
-                HStack(spacing: 3) {
-                    Image(systemName: "timer")
-                        .foregroundStyle(.orange)
-                    countdownText(context: context)
-                        .font(.caption2.monospacedDigit())
-                }
+                Image(systemName: "timer")
+                    .foregroundStyle(.orange)
             } compactTrailing: {
                 countdownText(context: context)
                     .font(.caption.monospacedDigit())
                     .frame(width: 42)
             } minimal: {
-                Image(systemName: "timer")
+                // This is the slot the system actually falls back to when a
+                // second Live Activity is presented at the same time (e.g.
+                // the built-in Now Playing indicator while Music is
+                // playing) — compactLeading/compactTrailing above are for
+                // when this activity is the *only*/frontmost one. A bare
+                // icon here is exactly why the countdown used to vanish
+                // completely ("only the timer icon shows, not the time")
+                // whenever the Island was split; showing the digits instead
+                // fixes that for the case that was actually broken.
+                countdownText(context: context)
+                    .font(.system(size: 13, weight: .semibold).monospacedDigit())
                     .foregroundStyle(.orange)
+                    .minimumScaleFactor(0.7)
             }
             .keylineTint(.orange)
         }

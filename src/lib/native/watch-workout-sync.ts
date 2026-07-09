@@ -101,6 +101,26 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
       return { set: json.data, personalRecord: json.personalRecord };
     }
 
+    case "adjustRestTimer": {
+      // See rest-timer-adjust route — persists the Watch's own +/-15s nudge
+      // server-side so the phone bar and Live Activity pick it up too,
+      // instead of it staying a Watch-only local overlay.
+      const workoutId = message.workoutId as string;
+      const deltaSeconds = message.deltaSeconds as number;
+      const res = await fetch(`/api/workouts/${workoutId}/rest-timer-adjust`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deltaSeconds }),
+      });
+      if (!res.ok) return { error: `Anpassen fehlgeschlagen (${res.status})` };
+      const detailRes = await fetch(`/api/workouts/${workoutId}`);
+      if (detailRes.ok) {
+        const { data: workout } = (await detailRes.json()) as { data: WorkoutData };
+        await syncActiveWorkoutToWatch(workout);
+      }
+      return { done: true };
+    }
+
     case "finishWorkout": {
       const workoutId = message.workoutId as string;
       // Ack immediately instead of waiting for the complete-request +

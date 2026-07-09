@@ -13,6 +13,10 @@ export const addExerciseToWorkoutSchema = z.object({
   exerciseId: z.string().uuid(),
 });
 
+export const adjustRestTimerSchema = z.object({
+  deltaSeconds: z.number().int().min(-3600).max(3600),
+});
+
 export const addSetSchema = z.object({
   reps: z.number().int().min(0).max(999).optional(),
   weight: z.number().min(0).max(9999).optional(),

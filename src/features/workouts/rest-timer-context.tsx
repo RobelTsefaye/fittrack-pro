@@ -24,6 +24,27 @@ import {
 } from "@/lib/native/local-notifications";
 import { hapticRestTimerExpired } from "@/lib/native/haptics";
 
+/**
+ * Persists a +/-15s nudge server-side (see rest-timer-adjust route) so the
+ * Watch — which computes its own countdown independently from workout data,
+ * see computeRestTimerEndsAt in watch-connectivity.ts — picks it up too.
+ * Previously an adjustment made from this bar (or the Live Activity, synced
+ * in via onRestTimerActivityAdjustment below) never reached the server at
+ * all, so the phone and Watch countdowns could silently drift apart.
+ * Fire-and-forget, matching the other native-bridge calls in this file.
+ */
+function persistRestTimerAdjust(workoutId: string, deltaSeconds: number): void {
+  if (deltaSeconds === 0) return;
+  fetch(`/api/workouts/${workoutId}/rest-timer-adjust`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ deltaSeconds }),
+  }).catch(() => {
+    /* best-effort — the local countdown already reflects the nudge */
+  });
+}
+
 const STORAGE_KEY = "fittrack-rest-v1";
 
 type Persisted = {
@@ -68,6 +89,10 @@ function clearPersisted() {
 
 export type RestTimerOptions = {
   onExpire?: () => void;
+  /** Enables persisting +/-15s adjustments server-side (see adjustTime) so
+   *  the Watch and Live Activity converge on the same countdown. Omitted
+   *  call sites just keep the previous local-only behavior. */
+  workoutId?: string;
 };
 
 export type RestTimerApi = {
@@ -123,6 +148,14 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
   const expireFired = useRef(false);
   const onExpireRef = useRef<(() => void) | undefined>(undefined);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  /** Which workout adjustTime persists nudges against — see RestTimerOptions.workoutId. */
+  const activeWorkoutIdRef = useRef<string | undefined>(undefined);
+  /** Mirrors `endsAt`/`pausedRemaining` synchronously for the Live Activity
+   *  resync effect below, which has empty deps and would otherwise close
+   *  over stale state when computing how much the Dynamic Island buttons
+   *  actually changed the timer by. */
+  const endsAtRef = useRef<number | null>(null);
+  const pausedRemainingRef = useRef<number | null>(null);
 
   const releaseWakeLock = useCallback(() => {
     void wakeLockRef.current?.release?.();
@@ -190,6 +223,11 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     };
   }, [endsAt, pausedRemaining]);
 
+  useEffect(() => {
+    endsAtRef.current = endsAt;
+    pausedRemainingRef.current = pausedRemaining;
+  }, [endsAt, pausedRemaining]);
+
   const isRunning = endsAt != null && pausedRemaining == null && remaining > 0;
   const isPaused = pausedRemaining != null && pausedRemaining > 0;
 
@@ -235,6 +273,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
         void Notification.requestPermission();
       }
       onExpireRef.current = opts?.onExpire;
+      activeWorkoutIdRef.current = opts?.workoutId;
       expireFired.current = false;
       setDoneVisible(false);
       const d = Math.max(1, seconds ?? DEFAULT_REST_TIMER);
@@ -251,6 +290,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
 
   const stop = useCallback(() => {
     onExpireRef.current = undefined;
+    activeWorkoutIdRef.current = undefined;
     expireFired.current = false;
     setEndsAt(null);
     setPausedRemaining(null);
@@ -284,6 +324,9 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
 
   const adjustTime = useCallback((delta: number) => {
     if (delta === 0) return;
+    if (activeWorkoutIdRef.current) {
+      persistRestTimerAdjust(activeWorkoutIdRef.current, delta);
+    }
     if (pausedRemaining != null) {
       setPausedRemaining((prev) => {
         if (prev == null) return prev;
@@ -368,11 +411,30 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
    *  remaining exceeds it, so the progress bar denominator stays sane. */
   useEffect(() => {
     return onRestTimerActivityAdjustment(({ endsAt: nextEndsAt, pausedRemainingSeconds }) => {
+      // Whatever the Dynamic Island / Lock Screen +/-15 buttons changed the
+      // timer by (however many taps happened while backgrounded) also needs
+      // to reach the server — this is the third of three adjustment entry
+      // points (phone bar, Watch, Live Activity) that previously only ever
+      // updated its own local/native state, leaving the others stale.
       if (pausedRemainingSeconds != null) {
+        const delta =
+          pausedRemainingRef.current != null
+            ? pausedRemainingSeconds - pausedRemainingRef.current
+            : 0;
+        if (delta !== 0 && activeWorkoutIdRef.current) {
+          persistRestTimerAdjust(activeWorkoutIdRef.current, delta);
+        }
         setPausedRemaining(pausedRemainingSeconds);
         setDuration((d) => Math.max(d, pausedRemainingSeconds));
         void cancelRestTimerNotification();
       } else if (nextEndsAt != null) {
+        const delta =
+          endsAtRef.current != null
+            ? Math.round((nextEndsAt - endsAtRef.current) / 1000)
+            : 0;
+        if (delta !== 0 && activeWorkoutIdRef.current) {
+          persistRestTimerAdjust(activeWorkoutIdRef.current, delta);
+        }
         setEndsAt(nextEndsAt);
         const remainingSecs = Math.max(0, Math.ceil((nextEndsAt - Date.now()) / 1000));
         setDuration((d) => Math.max(d, remainingSecs));

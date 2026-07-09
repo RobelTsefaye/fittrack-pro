@@ -988,7 +988,7 @@ export function WorkoutDetail({
     const now = Date.now();
     if (now - lastRestTimerStartAtRef.current < 1500) return;
     lastRestTimerStartAtRef.current = now;
-    restTimer.start(defaultRestSeconds, { onExpire: fireRestDone });
+    restTimer.start(defaultRestSeconds, { onExpire: fireRestDone, workoutId: workout?.id });
   }
 
   function onSetCompleted() {

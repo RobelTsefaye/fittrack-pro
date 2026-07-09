@@ -11,6 +11,7 @@
 //
 
 import SwiftUI
+import WatchKit
 
 struct KraftLoggingView: View {
     @ObservedObject var phoneObserver: PhoneWorkoutObserver
@@ -45,7 +46,7 @@ struct KraftLoggingView: View {
 
             if let endsAt = workout.restTimerEndsAt {
                 Section {
-                    RestTimerRow(endsAt: endsAt)
+                    RestTimerRow(endsAt: endsAt, phoneObserver: phoneObserver, workoutId: workout.workoutId)
                 }
             }
 
@@ -180,14 +181,24 @@ private struct ElapsedTimeRow: View {
 /// separate "stop" signal needed.
 private struct RestTimerRow: View {
     let endsAt: Double
+    let phoneObserver: PhoneWorkoutObserver
+    let workoutId: String
 
-    /// +/- nudges the display only on *this* Watch — not synced back to the
-    /// phone (that would need a persisted, server-side adjustment to stay
-    /// race-free the same way `endsAt` itself is). Reset whenever `endsAt`
-    /// actually changes, i.e. a genuinely new rest period started; stable
-    /// across the ~1s re-syncs of the *same* period, since those repeatedly
-    /// carry the identical `endsAt` value.
+    /// Optimistic local nudge shown immediately on tap, before the
+    /// server round trip confirms it — see `adjust(_:)`. Reset whenever
+    /// `endsAt` actually changes: either a genuinely new rest period
+    /// started, or the confirmed, server-computed `endsAt` (which now
+    /// already includes this nudge) came back from that same round trip.
+    /// Stable across the ~1s re-syncs of the *same* period, since those
+    /// repeatedly carry the identical `endsAt` value.
     @State private var adjustSeconds: Double = 0
+
+    /// The phone's "rest over" message only ever reaches the *phone* (a
+    /// local notification there) — the Watch itself never buzzed when rest
+    /// ended, reported as "notification comes but the Watch doesn't
+    /// vibrate." Fires once per rest period, guarded so the ~1s TimelineView
+    /// re-renders after expiry don't repeat it.
+    @State private var expiredHapticFired = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -204,12 +215,12 @@ private struct RestTimerRow: View {
                     }
                     HStack(spacing: 20) {
                         Button {
-                            adjustSeconds -= 15
+                            adjust(-15)
                         } label: {
                             Label("15s", systemImage: "gobackward.15")
                         }
                         Button {
-                            adjustSeconds += 15
+                            adjust(15)
                         } label: {
                             Label("15s", systemImage: "goforward.15")
                         }
@@ -218,10 +229,37 @@ private struct RestTimerRow: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(.orange)
                 }
+            } else {
+                Color.clear.frame(height: 0).onAppear { fireExpiredHapticIfNeeded() }
             }
         }
         .onChange(of: endsAt) { _, _ in
             adjustSeconds = 0
+            expiredHapticFired = false
+        }
+    }
+
+    private func fireExpiredHapticIfNeeded() {
+        guard !expiredHapticFired else { return }
+        expiredHapticFired = true
+        WKInterfaceDevice.current().play(.notification)
+    }
+
+    /// Applies the nudge instantly here, then persists it server-side (see
+    /// PhoneWorkoutObserver.adjustRestTimer) so the phone bar and Live
+    /// Activity — each computing their own countdown independently —
+    /// converge on the same `endsAt` this Watch already shows. Previously
+    /// this only ever touched `adjustSeconds`, invisible everywhere else —
+    /// reported as "the two timers aren't connected."
+    private func adjust(_ delta: Int) {
+        adjustSeconds += Double(delta)
+        phoneObserver.adjustRestTimer(workoutId: workoutId, deltaSeconds: delta) { _ in
+            // Success or failure, nothing further to do here — a successful
+            // round trip pushes a fresh activeWorkout context whose
+            // restTimerEndsAt already includes this delta, which the
+            // onChange(of: endsAt) above then uses to reset the local
+            // overlay to 0. A failed round trip just leaves the optimistic
+            // local nudge in place, same as before this existed.
         }
     }
 

@@ -62,6 +62,16 @@ export async function PATCH(
     data: updateData,
   });
 
+  // A newly-completed set starts a fresh rest period — any +/-15s nudge
+  // carried over from the *previous* period (phone bar, Live Activity, or
+  // Watch) would otherwise silently apply to this new one too.
+  if (parsed.data.isCompleted === true && !existing.isCompleted) {
+    await prisma.workout.update({
+      where: { id: workoutId },
+      data: { restTimerAdjustSeconds: 0 },
+    });
+  }
+
   /** Always reconcile PR for this set so edits (incl. past sessions) stay consistent. */
   await removePersonalRecordForSet(setId);
   let personalRecord = false;

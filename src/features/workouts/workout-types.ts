@@ -40,4 +40,9 @@ export type WorkoutData = {
    *  WorkoutData objects elsewhere don't all need updating. Consumers should
    *  fall back to DEFAULT_REST_TIMER when absent. */
   restTimerDefaultSeconds?: number;
+  /** Cumulative +/-15s nudge for the current rest period (see
+   *  POST /api/workouts/:id/rest-timer-adjust) — added on top of
+   *  restTimerDefaultSeconds by every surface that independently computes
+   *  its own countdown, so a nudge from any one of them lands on the others. */
+  restTimerAdjustSeconds?: number;
 };

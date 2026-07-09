@@ -44,6 +44,8 @@ enum WatchAPIProxy {
             return await startSession(message: message, token: token)
         case "logSet":
             return await logSet(message: message, token: token)
+        case "adjustRestTimer":
+            return await adjustRestTimer(message: message, token: token)
         case "finishWorkout":
             return await finishWorkout(message: message, token: token)
         case "cancelWorkout":
@@ -112,6 +114,32 @@ enum WatchAPIProxy {
                 scheduleRestTimerNotification(endsAt: computeRestTimerEndsAt(workout))
             }
             return (["personalRecord": result.personalRecord], contextUpdate)
+        } catch {
+            return (["error": describeError(error)], nil)
+        }
+    }
+
+    /// Persists a +/-15s nudge from the Watch's own rest-timer row so the
+    /// phone bar and Live Activity pick it up too (see rest-timer-adjust
+    /// route) — this used to be a purely local `adjustSeconds` overlay on the
+    /// Watch, invisible everywhere else, reported as "the two timers aren't
+    /// connected, adjusting one leaves the other."
+    private static func adjustRestTimer(
+        message: [String: Any],
+        token: String
+    ) async -> (reply: [String: Any], contextUpdate: ContextUpdate?) {
+        guard let workoutId = message["workoutId"] as? String,
+              let deltaSeconds = message["deltaSeconds"] as? Int else {
+            return (["error": "Missing workoutId/deltaSeconds"], nil)
+        }
+        do {
+            let _: ApiRestTimerAdjustResponse = try await request(
+                "/api/workouts/\(workoutId)/rest-timer-adjust", method: "PATCH", token: token,
+                body: ["deltaSeconds": deltaSeconds]
+            )
+            let fetched = try? await fetchWorkoutPayload(workoutId: workoutId, token: token)
+            let contextUpdate: ContextUpdate? = fetched.map { .setActiveWorkout(json: $0.json) }
+            return (["done": true], contextUpdate)
         } catch {
             return (["error": describeError(error)], nil)
         }
@@ -337,7 +365,7 @@ enum WatchAPIProxy {
                 if t > anchor { anchor = t }
             }
         }
-        return anchor + (workout.restTimerDefaultSeconds ?? defaultRestSeconds)
+        return anchor + (workout.restTimerDefaultSeconds ?? defaultRestSeconds) + (workout.restTimerAdjustSeconds ?? 0)
     }
 
     private static let isoFormatterWithFractionalSeconds: ISO8601DateFormatter = {
@@ -415,6 +443,9 @@ enum WatchAPIProxy {
 
 // MARK: - API response shapes (only the fields this proxy actually needs)
 
+private struct ApiRestTimerAdjustResponse: Decodable { let data: ApiRestTimerAdjust }
+private struct ApiRestTimerAdjust: Decodable { let restTimerAdjustSeconds: Int }
+
 private struct ApiIdResponse: Decodable { let data: ApiId }
 private struct ApiId: Decodable { let id: String }
 
@@ -427,6 +458,7 @@ private struct ApiWorkout: Decodable {
     let name: String?
     let startedAt: String
     let restTimerDefaultSeconds: Double?
+    let restTimerAdjustSeconds: Double?
     let workoutExercises: [ApiWorkoutExercise]
 }
 private struct ApiWorkoutExercise: Decodable {

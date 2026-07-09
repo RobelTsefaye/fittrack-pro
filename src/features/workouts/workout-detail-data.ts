@@ -41,6 +41,7 @@ export async function getWorkoutDetailData(
     durationSeconds: workout.durationSeconds,
     planSessionId: workout.planSessionId,
     restTimerDefaultSeconds,
+    restTimerAdjustSeconds: workout.restTimerAdjustSeconds,
     workoutExercises: workout.workoutExercises.map((we) => ({
       id: we.id,
       exerciseId: we.exerciseId,
