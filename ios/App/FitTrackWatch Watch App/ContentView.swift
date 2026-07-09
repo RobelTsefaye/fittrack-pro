@@ -319,6 +319,7 @@ private struct WorkoutControlsView: View {
                 isFinishing = false
                 switch result {
                 case .success:
+                    WatchRestTimerNotifications.cancel()
                     // Leave the workout locally right away instead of waiting
                     // for the phone's context-clear push — that push depends
                     // on the phone app being frontmost and its background
@@ -341,6 +342,7 @@ private struct WorkoutControlsView: View {
                 isCancelling = false
                 switch result {
                 case .success:
+                    WatchRestTimerNotifications.cancel()
                     // Same local exit as finish() — pendingCancellation was
                     // set by cancelWorkout, so onChange discards (not saves)
                     // the Watch's HR session.

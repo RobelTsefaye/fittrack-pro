@@ -93,6 +93,13 @@ export type RestTimerOptions = {
    *  the Watch and Live Activity converge on the same countdown. Omitted
    *  call sites just keep the previous local-only behavior. */
   workoutId?: string;
+  /** True total rest duration (progress-bar denominator) when it differs
+   *  from `seconds` — e.g. resuming a rest period that was actually started
+   *  earlier (on the Watch), where `seconds` is just however much is left
+   *  *now*. Defaults to `seconds` when omitted, i.e. "this timer starts
+   *  fresh right now," the previous and still-correct behavior for a set
+   *  completed directly on the phone. */
+  totalDurationSeconds?: number;
 };
 
 export type RestTimerApi = {
@@ -276,9 +283,10 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
       activeWorkoutIdRef.current = opts?.workoutId;
       expireFired.current = false;
       setDoneVisible(false);
-      const d = Math.max(1, seconds ?? DEFAULT_REST_TIMER);
+      const secondsUntilEnd = Math.max(1, seconds ?? DEFAULT_REST_TIMER);
+      const d = Math.max(1, opts?.totalDurationSeconds ?? secondsUntilEnd);
       setDuration(d);
-      const newEndsAt = Date.now() + d * 1000;
+      const newEndsAt = Date.now() + secondsUntilEnd * 1000;
       setEndsAt(newEndsAt);
       setPausedRemaining(null);
       void requestWakeLock();

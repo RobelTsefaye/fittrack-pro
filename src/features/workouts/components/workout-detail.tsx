@@ -36,7 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ROUTES, exercisePath } from "@/lib/constants";
+import { ROUTES, exercisePath, DEFAULT_REST_TIMER } from "@/lib/constants";
 import type { PreviousLogEntry, PreviousSetEntry } from "@/app/api/workouts/[id]/previous-logs/route";
 import { ExercisePickerDialog, type ExercisePickerExercise } from "./exercise-picker-dialog";
 import { SetRow } from "./set-row";
@@ -55,7 +55,11 @@ import {
 } from "@/lib/offline/workout-offline-store";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
 import { hapticWorkoutCompleted, hapticPersonalRecord } from "@/lib/native/haptics";
-import { syncActiveWorkoutToWatch, clearWatchWorkoutState } from "@/lib/native/watch-connectivity";
+import {
+  syncActiveWorkoutToWatch,
+  clearWatchWorkoutState,
+  computeRestTimerEndsAt,
+} from "@/lib/native/watch-connectivity";
 
 function formatShortDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -991,6 +995,31 @@ export function WorkoutDetail({
     restTimer.start(defaultRestSeconds, { onExpire: fireRestDone, workoutId: workout?.id });
   }
 
+  /**
+   * Same as startRestTimer(), but for a completion this component only
+   * learned about after the fact (the poll-detector below, currently the
+   * only caller) — starting fresh from "now" here would restart the full
+   * countdown from whatever moment the phone happened to poll, even if the
+   * set was actually completed (and its rest period already running, e.g.
+   * on the Watch) well before that. Reported as "opening the app retriggers
+   * the timer." Derives the same absolute endsAt computeRestTimerEndsAt
+   * gives the Watch, then expresses it as "seconds from now" so it lands on
+   * that same wall-clock moment regardless of when this fires.
+   */
+  function startRestTimerFromServerAnchor(w: WorkoutData) {
+    const now = Date.now();
+    if (now - lastRestTimerStartAtRef.current < 1500) return;
+    lastRestTimerStartAtRef.current = now;
+    const endsAtSeconds = computeRestTimerEndsAt(w);
+    const totalDuration = (w.restTimerDefaultSeconds ?? DEFAULT_REST_TIMER) + (w.restTimerAdjustSeconds ?? 0);
+    const secondsUntilEnd = Math.max(1, Math.round(endsAtSeconds - now / 1000));
+    restTimer.start(secondsUntilEnd, {
+      onExpire: fireRestDone,
+      workoutId: w.id,
+      totalDurationSeconds: totalDuration,
+    });
+  }
+
   function onSetCompleted() {
     if (isActive) startRestTimer();
     void pushWatchWorkoutState();
@@ -1049,7 +1078,7 @@ export function WorkoutDetail({
     if (known != null && isActive) {
       const hasNewCompletion = [...nowCompleted].some((id) => !known.has(id));
       if (hasNewCompletion) {
-        startRestTimer();
+        startRestTimerFromServerAnchor(workout);
         void pushWatchWorkoutState();
       }
     }

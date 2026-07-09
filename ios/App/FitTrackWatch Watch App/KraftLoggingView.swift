@@ -90,6 +90,25 @@ struct KraftLoggingView: View {
             }
         }
         .navigationTitle(workout.name ?? "Training")
+        // RestTimerRow's own haptic only fires while it's actually on
+        // screen and ticking (needs the Watch app foreground-active) — this
+        // schedules a real watchOS notification as a backstop, delivered
+        // (with its own haptic) even if the app is backgrounded when the
+        // rest period ends. Rescheduled on every new endsAt so it always
+        // reflects the freshest server-computed value, including nudges
+        // from the phone bar or Live Activity.
+        .onChange(of: workout.restTimerEndsAt) { _, newValue in
+            if let newValue {
+                WatchRestTimerNotifications.schedule(endsAt: newValue)
+            } else {
+                WatchRestTimerNotifications.cancel()
+            }
+        }
+        .onAppear {
+            if let endsAt = workout.restTimerEndsAt {
+                WatchRestTimerNotifications.schedule(endsAt: endsAt)
+            }
+        }
     }
 
     @ViewBuilder
@@ -130,6 +149,7 @@ struct KraftLoggingView: View {
             DispatchQueue.main.async {
                 switch result {
                 case .success:
+                    WatchRestTimerNotifications.cancel()
                     // Exit locally right away (tears this view down via
                     // ContentView) instead of depending on the phone's
                     // context-clear push, which can lag or never arrive —

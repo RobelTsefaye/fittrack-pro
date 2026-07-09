@@ -40,7 +40,7 @@ const WatchConnectivity = registerPlugin<WatchConnectivityPlugin>("WatchConnecti
  * answer regardless of which device asks, and it's non-nil from the moment
  * the workout starts (a set doesn't have to be completed first).
  */
-function computeRestTimerEndsAt(workout: WorkoutData): number {
+export function computeRestTimerEndsAt(workout: WorkoutData): number {
   let anchor = new Date(workout.startedAt).getTime();
   for (const we of workout.workoutExercises) {
     for (const s of we.sets) {
