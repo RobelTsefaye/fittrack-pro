@@ -66,7 +66,7 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
 
     // Wide and short — a slim overlay bar, not a big floating tile. Matches
     // CardioPipContentView's own .frame(width:height:).
-    private let contentSize = CGSize(width: 300, height: 120)
+    private let contentSize = CGSize(width: 440, height: 84)
 
     /// When the live relay last delivered a sample — used to let a fresher
     /// native (WatchConnectivity) push always win over a slower poll
@@ -338,6 +338,9 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
         deactivateAudioSession()
         latestSample = nil
         displayedHeartRate = 0
+        zoneSeconds = [:]
+        lastElapsed = nil
+        lastZoneKey = 0
     }
 
     // MARK: - Server poll fallback (devices with no Watch pairing, e.g. iPad)
@@ -396,8 +399,34 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
     /// (e.g. 79 → 91) counts up over a few frames instead of popping.
     private var displayedHeartRate: Double = 0
 
+    /// CUMULATIVE seconds spent in each zone this session (key: zone 1–5, or
+    /// 0 for "below zone 1 / no zone"). The PiP timer shows the TOTAL time in
+    /// the currently-active zone across the whole session — summed even if the
+    /// user left the zone and came back later — not per-interval. Accumulated
+    /// from the Watch's authoritative `elapsedSeconds` (identical on the
+    /// iPad's polled samples): each sample adds the elapsed delta since the
+    /// previous one to whichever zone was active during that slice.
+    private var zoneSeconds: [Int: Int] = [:]
+    private var lastElapsed: Int?
+    private var lastZoneKey = 0
+
     @MainActor private func render(_ sample: CardioLiveSample?) {
-        if let sample { latestSample = sample }
+        if let sample {
+            let key = sample.zone ?? 0
+            if let last = lastElapsed {
+                if sample.elapsedSeconds < last {
+                    // Fresh session (elapsed jumped backwards) → start totals over.
+                    zoneSeconds = [:]
+                } else {
+                    // Attribute the elapsed slice to the zone that was active
+                    // during it (the previous sample's zone).
+                    zoneSeconds[lastZoneKey, default: 0] += sample.elapsedSeconds - last
+                }
+            }
+            lastElapsed = sample.elapsedSeconds
+            lastZoneKey = key
+            latestSample = sample
+        }
         renderFrame()
     }
 
@@ -422,9 +451,14 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
         let bpmForBeat = max(displayedHeartRate, 40)
         let beatPhase = Date().timeIntervalSinceReferenceDate * (bpmForBeat / 60) * 2 * .pi
 
+        // Total time in the currently-active zone this session (see zoneSeconds).
+        let currentZoneKey = latestSample?.zone ?? 0
+        let zoneTotalSeconds = zoneSeconds[currentZoneKey, default: 0]
+
         let content = CardioPipContentView(
             heartRate: displayedHeartRate,
             zone: latestSample?.zone,
+            elapsedSeconds: zoneTotalSeconds,
             beatPhase: beatPhase
         )
         let renderer = ImageRenderer(content: content)

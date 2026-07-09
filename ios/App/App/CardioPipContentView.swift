@@ -12,10 +12,23 @@ import SwiftUI
 struct CardioPipContentView: View {
     let heartRate: Double
     let zone: Int?
+    /// Total seconds spent in the currently-active zone this session
+    /// (cumulative across the whole session, summed even across leaving and
+    /// re-entering the zone) — computed in CardioPictureInPicturePlugin.
+    var elapsedSeconds: Int = 0
     /// Advancing phase (radians) driven by the plugin's 10fps render loop at
     /// the actual bpm — the heart icon scales with sin(beatPhase), so it
     /// visibly beats at the wearer's real heart rate.
     var beatPhase: Double = 0
+
+    /// mm:ss, or h:mm:ss once past an hour.
+    private var elapsedString: String {
+        let s = max(0, elapsedSeconds)
+        let h = s / 3600, m = (s % 3600) / 60, sec = s % 60
+        return h > 0
+            ? String(format: "%d:%02d:%02d", h, m, sec)
+            : String(format: "%d:%02d", m, sec)
+    }
 
     /// Matches ZONE_COLORS in src/app/(app)/workouts/cardio/page.tsx exactly
     /// (which itself matches HeartRateZones.color(for:) in intent, though
@@ -57,31 +70,40 @@ struct CardioPipContentView: View {
         ZStack {
             Color.black
 
-            VStack(spacing: 10) {
-                HStack(spacing: 12) {
-                    Text(zone.map(String.init) ?? "–")
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .foregroundStyle(zoneColor)
-                        .minimumScaleFactor(0.5)
-                        .lineLimit(1)
+            // Single horizontal row so the window can be a genuinely flat,
+            // long bar (see the ~5:1 .frame below) rather than a tall tile.
+            HStack(spacing: 14) {
+                Text(zone.map(String.init) ?? "–")
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .foregroundStyle(zoneColor)
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
 
+                VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 5) {
                         Image(systemName: "heart.fill")
-                            .font(.system(size: 15))
+                            .font(.system(size: 14))
                             .foregroundStyle(.red)
                             // Subtle systole/diastole squeeze at the real bpm.
                             .scaleEffect(1 + 0.08 * sin(beatPhase))
                         Text("\(Int(heartRate.rounded()))")
-                            .font(.system(size: 24, weight: .semibold, design: .rounded))
+                            .font(.system(size: 26, weight: .semibold, design: .rounded))
                             .foregroundStyle(.white)
                             .monospacedDigit()
                     }
+                    Text(elapsedString)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        // Explicit light gray — NOT `.secondary`: ImageRenderer
+                        // renders in light mode, so `.secondary` resolves to a
+                        // dark gray that's unreadable on the black background.
+                        .foregroundStyle(Color.white.opacity(0.7))
+                        .monospacedDigit()
                 }
 
-                // Zone bands — same idea as the web cardio page's band row:
-                // all 5 zones always shown, the active one highlighted, with
-                // a pointer at the live position within it.
-                HStack(spacing: 3) {
+                // Zone bands take the remaining width — all 5 zones always
+                // shown, the active one highlighted, with a pointer at the
+                // live position within it (same idea as the web cardio page).
+                HStack(spacing: 4) {
                     ForEach(1...5, id: \.self) { bandZone in
                         let isActive = bandZone == zone
                         ZStack(alignment: .leading) {
@@ -98,17 +120,17 @@ struct CardioPipContentView: View {
                                 }
                             }
                         }
-                        .frame(height: 7)
+                        .frame(height: 8)
                     }
                 }
             }
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 20)
         }
-        // Wide and short — a slim overlay bar, not a big floating tile.
-        .frame(width: 300, height: 120)
+        // Really flat and long — a slim status bar, ~5:1.
+        .frame(width: 440, height: 84)
     }
 }
 
 #Preview {
-    CardioPipContentView(heartRate: 142, zone: 3)
+    CardioPipContentView(heartRate: 142, zone: 3, elapsedSeconds: 1_275)
 }
