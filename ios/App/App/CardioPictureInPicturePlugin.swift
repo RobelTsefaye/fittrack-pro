@@ -69,23 +69,25 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
     private let contentSize = CGSize(width: 440, height: 84)
 
     /// When the live relay last delivered a sample — used to let a fresher
-    /// native (WatchConnectivity) push always win over a slower poll
-    /// response; see `pollOnce` below.
+    /// native (WatchConnectivity) push always win over a server stream
+    /// response; see `streamOnce` below.
     private var lastNativeUpdateAt = Date.distantPast
 
-    private var pollTask: Task<Void, Never>?
+    private var streamTask: Task<Void, Never>?
     private static let apiBaseURL = "https://fittrack-pro-ashen.vercel.app"
     /// Native relay data (CardioLiveRelay) only ever arrives on the one
     /// device actually paired with the Watch — WCSession.isSupported() is
     /// unconditionally false on iPad, so an iPad running this plugin would
-    /// otherwise show a permanently blank PiP window. Polling the same
-    /// server relay the JS side uses (cardio-live-context.tsx) is the
-    /// fallback; it runs unconditionally rather than only-on-iPad so there's
-    /// no device-type branch to get wrong, and the freshness guard in
-    /// `pollOnce` already makes it a no-op wherever native data is flowing.
-    // 1s — matches the Watch's push cadence; polling faster than the source
-    // data updates buys no extra freshness.
-    private static let pollIntervalNanos: UInt64 = 1_000_000_000
+    /// otherwise show a permanently blank PiP window. Subscribing to the same
+    /// server SSE stream the web view uses (see /api/cardio/live/stream and
+    /// cardio-live-context.tsx) fills that in: updates are pushed within
+    /// ~300ms of the phone's POST. Runs unconditionally rather than
+    /// only-on-iPad so there's no device-type branch to get wrong, and the
+    /// freshness guard in `streamOnce` makes it a no-op wherever native relay
+    /// data is already flowing.
+    // Wait before reconnecting after the stream ends (server closes it at ~50s)
+    // or errors — short, since a reconnect resumes the live view immediately.
+    private static let streamReconnectNanos: UInt64 = 1_000_000_000
 
     @objc func isSupported(_ call: CAPPluginCall) {
         call.resolve(["supported": AVPictureInPictureController.isPictureInPictureSupported()])
@@ -141,7 +143,7 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
                     }
                 }
             }
-            self.startPolling()
+            self.startStreaming()
 
             // Feed the layer continuously so it stays PiP-eligible even
             // before the first relay/poll sample arrives. 10fps (not the
@@ -334,7 +336,7 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
         possibleObservation = nil
         possibleTimeoutTask?.cancel()
         possibleTimeoutTask = nil
-        stopPolling()
+        stopStreaming()
         deactivateAudioSession()
         latestSample = nil
         displayedHeartRate = 0
@@ -343,50 +345,70 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
         lastZoneKey = 0
     }
 
-    // MARK: - Server poll fallback (devices with no Watch pairing, e.g. iPad)
+    // MARK: - Server SSE stream (devices with no Watch pairing, e.g. iPad)
 
-    private func startPolling() {
-        pollTask?.cancel()
+    private func startStreaming() {
+        streamTask?.cancel()
         guard let token = SyncTokenStore.load() else {
             // No token stored on this device (Settings → API Tokens →
             // "Für Hintergrund-Sync verwenden" was never tapped here) —
-            // nothing to poll with. The relay subscription above still
-            // covers this device fine if it happens to be the Watch-paired
-            // iPhone; only a device with neither ends up with a stuck window.
+            // nothing to authenticate the stream with. The relay subscription
+            // above still covers this device fine if it happens to be the
+            // Watch-paired iPhone; only a device with neither ends up blank.
             return
         }
-        pollTask = Task { [weak self] in
+        streamTask = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.pollOnce(token: token)
-                try? await Task.sleep(nanoseconds: Self.pollIntervalNanos)
+                await self?.streamOnce(token: token)
+                // Stream ended (server closed it at ~50s) or errored — pause
+                // briefly, then reconnect for the next window.
+                try? await Task.sleep(nanoseconds: Self.streamReconnectNanos)
             }
         }
     }
 
-    private func stopPolling() {
-        pollTask?.cancel()
-        pollTask = nil
+    private func stopStreaming() {
+        streamTask?.cancel()
+        streamTask = nil
     }
 
-    private func pollOnce(token: String) async {
-        guard let url = URL(string: Self.apiBaseURL + "/api/cardio/live") else { return }
+    /// Opens one SSE connection and applies each `data:` frame until the
+    /// server closes it or the connection drops; the caller loops to reconnect.
+    private func streamOnce(token: String) async {
+        guard let url = URL(string: Self.apiBaseURL + "/api/cardio/live/stream") else { return }
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 70
 
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              let http = response as? HTTPURLResponse, http.statusCode < 400,
-              let decoded = try? JSONDecoder().decode(CardioLiveSnapshotResponse.self, from: data),
-              let sample = decoded.data
+        guard let (bytes, response) = try? await URLSession.shared.bytes(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode < 400
         else { return }
 
-        await MainActor.run {
-            // A native push always wins if it's recent — the poll is only
-            // meant to fill in for a device that never gets one at all.
-            guard Date().timeIntervalSince(self.lastNativeUpdateAt) > 3 else { return }
-            self.render(sample)
-            if !sample.isRunning {
-                self.pipController?.stopPictureInPicture()
+        do {
+            for try await line in bytes.lines {
+                if Task.isCancelled { return }
+                // SSE frames: "data: <json>". Ignore ": ping" heartbeats,
+                // "retry:" directives, and blank separator lines.
+                guard line.hasPrefix("data:") else { continue }
+                let payload = line.dropFirst("data:".count).trimmingCharacters(in: .whitespaces)
+                guard let data = payload.data(using: .utf8),
+                      let decoded = try? JSONDecoder().decode(CardioLiveSnapshotResponse.self, from: data)
+                else { continue }
+
+                await MainActor.run {
+                    // A native relay push always wins if it's recent — the
+                    // stream only fills in for a device that never gets one.
+                    guard Date().timeIntervalSince(self.lastNativeUpdateAt) > 3 else { return }
+                    guard let sample = decoded.data else { return }
+                    self.render(sample)
+                    if !sample.isRunning {
+                        self.pipController?.stopPictureInPicture()
+                    }
+                }
             }
+        } catch {
+            // Connection dropped — the caller's loop reconnects.
         }
     }
 
