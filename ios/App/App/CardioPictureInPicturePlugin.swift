@@ -91,6 +91,17 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
                 return
             }
 
+            // THE prerequisite that was missing: PiP on iOS only becomes
+            // possible while an active `.playback` audio session exists —
+            // without it `isPictureInPicturePossible` never turns true and
+            // `startPictureInPicture()` silently does nothing (no window, no
+            // error). `.mixWithOthers` is deliberate: this feature exists to
+            // float over a video the user is watching in *another* app, and
+            // our PiP has no audio of its own, so we must NOT interrupt that
+            // app's sound. A non-mixing session would kill the movie's audio
+            // the moment PiP starts.
+            self.activateAudioSession()
+
             let layer = self.makeDisplayLayer()
             let contentSource = AVPictureInPictureController.ContentSource(
                 sampleBufferDisplayLayer: layer,
@@ -172,6 +183,24 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    private func activateAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers])
+            try session.setActive(true)
+        } catch {
+            // If this throws, PiP simply won't become possible and the KVO
+            // wait in start() surfaces a real error after its timeout — no
+            // silent failure.
+        }
+    }
+
+    private func deactivateAudioSession() {
+        // notifyOthersOnDeactivation lets whatever app we were mixing over
+        // (the movie the user is watching) resume its normal audio focus.
+        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+    }
+
     private func makeDisplayLayer() -> AVSampleBufferDisplayLayer {
         if let displayLayer, let hostView, hostView.superview != nil {
             return displayLayer
@@ -219,6 +248,7 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
         possibleTimeoutTask?.cancel()
         possibleTimeoutTask = nil
         stopPolling()
+        deactivateAudioSession()
     }
 
     // MARK: - Server poll fallback (devices with no Watch pairing, e.g. iPad)
@@ -423,6 +453,8 @@ extension CardioPictureInPicturePlugin: AVPictureInPictureSampleBufferPlaybackDe
     }
 
     public func pictureInPictureControllerShouldProhibitBackgroundAudioPlayback(_ pictureInPictureController: AVPictureInPictureController) -> Bool {
-        true
+        // false: our PiP is silent and floats over another app's video — we
+        // must not prohibit that app's audio from continuing to play.
+        false
     }
 }
