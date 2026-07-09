@@ -73,6 +73,7 @@ model User {
   settings        UserSettings?
   apiTokens       ApiToken[]
   pushTokens      PushToken[]
+  cardioLiveSnapshot CardioLiveSnapshot?
 
   @@map("users")
 }
@@ -107,6 +108,29 @@ model PushToken {
 
   @@index([userId])
   @@map("push_tokens")
+}
+
+// Relays live cardio (Laufen/Radfahren) HR/calories/zone through the server
+// so a device with no direct Watch pairing — an iPad, or a second iPhone —
+// can still show the live view. A real Apple Watch can only ever pair with
+// one iPhone (WCSession.isSupported() is unconditionally false on iPad and
+// on any non-paired iPhone), so that iPhone POSTs each push here (see
+// cardio-live-context.tsx) and every device polls it. One row per user —
+// each new push overwrites the last; there is no history to keep, only
+// "what's happening right now."
+model CardioLiveSnapshot {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  isRunning      Boolean
+  heartRate      Float
+  activeCalories Float
+  elapsedSeconds Int
+  zone           Int?
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("cardio_live_snapshots")
 }
 
 model UserSettings {
