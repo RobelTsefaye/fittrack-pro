@@ -33,9 +33,9 @@ type Persisted = {
 };
 
 function readPersisted(): Persisted | null {
-  if (typeof sessionStorage === "undefined") return null;
+  if (typeof localStorage === "undefined") return null;
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const p = JSON.parse(raw) as Persisted;
     if (typeof p.duration !== "number") return null;
@@ -52,7 +52,7 @@ function readPersisted(): Persisted | null {
 
 function writePersisted(p: Persisted) {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
   } catch {
     /* ignore */
   }
@@ -60,7 +60,7 @@ function writePersisted(p: Persisted) {
 
 function clearPersisted() {
   try {
-    sessionStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
   } catch {
     /* ignore */
   }
@@ -141,7 +141,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const p = readPersisted();
-    /* sessionStorage restore on mount; must stay synchronous so `hydrated` is set before sibling effects */
+    /* localStorage restore on mount; must stay synchronous so `hydrated` is set before sibling effects */
     /* eslint-disable react-hooks/set-state-in-effect */
     if (p?.pausedRemaining != null && p.pausedRemaining > 0) {
       setPausedRemaining(p.pausedRemaining);

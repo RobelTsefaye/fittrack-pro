@@ -112,6 +112,9 @@ struct WatchSet: Codable, Identifiable, Hashable {
     var reps: Int?
     var weight: Double?
     var isCompleted: Bool
+    // Defaults to false so older cached/preview payloads without this key
+    // (added after isWarmup existed elsewhere) still decode.
+    var isWarmup: Bool = false
     /// Weight/reps from the last session that logged this same set number
     /// for this exercise (see `previous-logs` on the phone side). Nil until
     /// there's history for this exact exercise. Used only as the initial

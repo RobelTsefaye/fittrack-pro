@@ -11,6 +11,33 @@ import { onWatchCardioSaved } from "@/lib/native/watch-connectivity";
 // plenty for daily vitals that only change a few times a day at most.
 const MIN_SYNC_INTERVAL_MS = 15 * 60 * 1000;
 
+// Persists "HealthKit authorization already granted" across app relaunches.
+// authorizedRef alone used to reset to false on every fresh mount — and the
+// WKWebView remounts far more often than a user would expect (iOS evicts
+// backgrounded app processes under memory pressure, same mechanism behind
+// the rest-timer/session-storage bug), so requestHealthKitAuthorization()
+// re-ran on every one of those relaunches. Read once as the ref's initial
+// value so a same-day re-request only happens once for a genuinely fresh
+// install, not every time the process gets evicted and relaunched.
+const AUTHORIZED_STORAGE_KEY = "fittrack-healthkit-authorized";
+
+function readPersistedAuthorized(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  try {
+    return localStorage.getItem(AUTHORIZED_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writePersistedAuthorized() {
+  try {
+    localStorage.setItem(AUTHORIZED_STORAGE_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Replaces the Health Auto Export / Shortcuts bridge for native-app users:
  * requests HealthKit authorization once logged in, then syncs on mount and
@@ -27,7 +54,7 @@ const MIN_SYNC_INTERVAL_MS = 15 * 60 * 1000;
 export function NativeHealthSync() {
   const { status } = useSession();
   const lastSyncRef = useRef(0);
-  const authorizedRef = useRef(false);
+  const authorizedRef = useRef(readPersistedAuthorized());
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -41,6 +68,7 @@ export function NativeHealthSync() {
         const granted = await requestHealthKitAuthorization();
         if (!granted) return;
         authorizedRef.current = true;
+        writePersistedAuthorized();
       }
       const result = await syncHealthKitData();
       if (result.snapshots > 0 || result.workouts > 0) {

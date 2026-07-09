@@ -79,6 +79,9 @@ export const SetRow = memo(function SetRow({
   }
 
   async function saveSet(complete = false) {
+    // Safety net for the checkmark button's disabled state above — never
+    // mark a set done with literally nothing entered, regardless of caller.
+    if (complete && reps.trim() === "" && weight.trim() === "") return;
     setSaving(true);
     const data: Record<string, unknown> = {};
     const rN = parseRepsInput(reps);
@@ -147,6 +150,12 @@ export const SetRow = memo(function SetRow({
   const inputsLocked =
     disabled || (set.isCompleted && !unlockCompleted);
 
+  // Guards against completing a set with nothing entered — e.g. right after
+  // the app relaunches mid-workout, these inputs seed from set.weight/reps
+  // (still null if this set was never actually saved before), and a stray
+  // tap on the checkmark used to silently mark it done with no data at all.
+  const hasAnyValue = reps.trim() !== "" || weight.trim() !== "";
+
   return (
     <div
       className={cn(
@@ -203,7 +212,7 @@ export const SetRow = memo(function SetRow({
               size="icon"
               variant="ghost"
               onClick={() => saveSet(true)}
-              disabled={saving}
+              disabled={saving || !hasAnyValue}
               className="h-11 w-11 sm:h-7 sm:w-7 text-primary hover:bg-primary/10"
             >
               <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5" />

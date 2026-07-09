@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { dashboardCacheTag, workoutsListCacheTag } from "@/lib/constants";
+import { dashboardCacheTag, workoutsListCacheTag, DEFAULT_REST_TIMER } from "@/lib/constants";
 import { updateWorkoutSchema } from "@/features/workouts/schemas";
 
 export async function GET(
@@ -20,24 +20,36 @@ export async function GET(
 
   const { id } = await params;
 
-  const workout = await prisma.workout.findFirst({
-    where: { id, userId },
-    include: {
-      workoutExercises: {
-        include: {
-          exercise: { select: { id: true, name: true, muscleGroup: true, equipment: true } },
-          sets: { orderBy: { setNumber: "asc" } },
+  const [workout, settings] = await Promise.all([
+    prisma.workout.findFirst({
+      where: { id, userId },
+      include: {
+        workoutExercises: {
+          include: {
+            exercise: { select: { id: true, name: true, muscleGroup: true, equipment: true } },
+            sets: { orderBy: { setNumber: "asc" } },
+          },
+          orderBy: { order: "asc" },
         },
-        orderBy: { order: "asc" },
       },
-    },
-  });
+    }),
+    // Included here (not just read separately by the phone's own settings
+    // fetch) so the Watch — via either the JS sync or the native no-phone-
+    // open proxy, neither of which has its own access to user settings —
+    // computes the rest timer from the user's actual configured duration
+    // instead of a hardcoded default. Previously hardcoded to
+    // DEFAULT_REST_TIMER (90s) on both the JS and native side, silently
+    // diverging from whatever the user had set in Settings.
+    prisma.userSettings.findUnique({ where: { userId }, select: { restTimerDefault: true } }),
+  ]);
 
   if (!workout) {
     return NextResponse.json({ error: "Workout not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ data: workout });
+  return NextResponse.json({
+    data: { ...workout, restTimerDefaultSeconds: settings?.restTimerDefault ?? DEFAULT_REST_TIMER },
+  });
 }
 
 export async function PATCH(

@@ -35,4 +35,9 @@ export type WorkoutData = {
   durationSeconds: number | null;
   planSessionId: string | null;
   workoutExercises: WorkoutExerciseData[];
+  /** User's configured rest-timer duration (Settings), only present on the
+   *  GET /api/workouts/:id response — optional so local/offline-constructed
+   *  WorkoutData objects elsewhere don't all need updating. Consumers should
+   *  fall back to DEFAULT_REST_TIMER when absent. */
+  restTimerDefaultSeconds?: number;
 };

@@ -43,9 +43,9 @@ struct SetEntryView: View {
                     .font(.caption)
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
-                Text("Satz \(set.setNumber)")
+                Text(set.isWarmup ? "Warm-up" : "Satz \(set.setNumber)")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(set.isWarmup ? .orange : .secondary)
 
                 HStack(spacing: 12) {
                     CrownStepperField(label: "Gewicht", unit: "kg", value: $weight, step: 1.25, range: 0...400)

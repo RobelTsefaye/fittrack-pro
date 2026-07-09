@@ -81,7 +81,15 @@ struct KraftLoggingView: View {
     @ViewBuilder
     private func setRow(_ set: WatchSet) -> some View {
         HStack {
-            Text("Satz \(set.setNumber)")
+            // isWarmup was missing from the Watch payload entirely — every
+            // set rendered identically as "Satz N", so a warmup set logged
+            // on the phone looked like a normal working set here.
+            if set.isWarmup {
+                Text("Warm-up")
+                    .foregroundStyle(.orange)
+            } else {
+                Text("Satz \(set.setNumber)")
+            }
             Spacer()
             if set.isCompleted {
                 Text("\(formattedWeight(set.weight)) kg × \(set.reps ?? 0)")

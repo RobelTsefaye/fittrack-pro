@@ -300,7 +300,7 @@ enum WatchAPIProxy {
                 if t > anchor { anchor = t }
             }
         }
-        return anchor + defaultRestSeconds
+        return anchor + (workout.restTimerDefaultSeconds ?? defaultRestSeconds)
     }
 
     private static let isoFormatterWithFractionalSeconds: ISO8601DateFormatter = {
@@ -339,6 +339,7 @@ enum WatchAPIProxy {
                     "reps": nullable(s.reps),
                     "weight": nullable(s.weight),
                     "isCompleted": s.isCompleted,
+                    "isWarmup": s.isWarmup,
                     "previousWeight": nullable(prev?.weight),
                     "previousReps": nullable(prev?.reps),
                 ]
@@ -388,6 +389,7 @@ private struct ApiWorkout: Decodable {
     let id: String
     let name: String?
     let startedAt: String
+    let restTimerDefaultSeconds: Double?
     let workoutExercises: [ApiWorkoutExercise]
 }
 private struct ApiWorkoutExercise: Decodable {

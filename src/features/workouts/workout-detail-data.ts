@@ -10,20 +10,27 @@ export async function getWorkoutDetailData(
   userId: string,
   workoutId: string
 ): Promise<WorkoutData | null> {
-  const workout = await prisma.workout.findFirst({
-    where: { id: workoutId, userId },
-    include: {
-      workoutExercises: {
-        include: {
-          exercise: { select: { id: true, name: true, muscleGroup: true, equipment: true } },
-          sets: { orderBy: { setNumber: "asc" } },
+  const [workout, settings] = await Promise.all([
+    prisma.workout.findFirst({
+      where: { id: workoutId, userId },
+      include: {
+        workoutExercises: {
+          include: {
+            exercise: { select: { id: true, name: true, muscleGroup: true, equipment: true } },
+            sets: { orderBy: { setNumber: "asc" } },
+          },
+          orderBy: { order: "asc" },
         },
-        orderBy: { order: "asc" },
       },
-    },
-  });
+    }),
+    // See GET /api/workouts/:id — the Watch (JS sync + native no-phone-open
+    // proxy) has no access to user settings otherwise, so this rides along
+    // on the same response instead of a separate fetch.
+    prisma.userSettings.findUnique({ where: { userId }, select: { restTimerDefault: true } }),
+  ]);
 
   if (!workout) return null;
+  const restTimerDefaultSeconds = settings?.restTimerDefault ?? 90;
 
   return {
     id: workout.id,
@@ -33,6 +40,7 @@ export async function getWorkoutDetailData(
     completedAt: workout.completedAt?.toISOString() ?? null,
     durationSeconds: workout.durationSeconds,
     planSessionId: workout.planSessionId,
+    restTimerDefaultSeconds,
     workoutExercises: workout.workoutExercises.map((we) => ({
       id: we.id,
       exerciseId: we.exerciseId,

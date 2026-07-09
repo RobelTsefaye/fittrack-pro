@@ -49,7 +49,7 @@ function computeRestTimerEndsAt(workout: WorkoutData): number {
       if (t > anchor) anchor = t;
     }
   }
-  return anchor / 1000 + DEFAULT_REST_TIMER;
+  return anchor / 1000 + (workout.restTimerDefaultSeconds ?? DEFAULT_REST_TIMER);
 }
 
 /**
@@ -105,6 +105,7 @@ export function toWatchWorkoutPayload(
             reps: s.reps,
             weight: s.weight,
             isCompleted: s.isCompleted,
+            isWarmup: s.isWarmup,
             previousWeight: prev?.weight ?? null,
             previousReps: prev?.reps ?? null,
           };

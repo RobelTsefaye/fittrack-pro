@@ -1,24 +1,32 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Lock } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { authenticateWithBiometrics, isBiometricLockAvailable } from "@/lib/native/biometric-lock";
 
+// Grace period before a resume re-triggers Face ID — without this, every
+// brief trip out of the app (Control Center, a notification banner, quickly
+// checking another app mid-workout) forced a fresh unlock. Standard
+// "short-absence" grace period used by most banking/secure apps.
+const REAUTH_GRACE_MS = 60_000;
+
 /**
  * Face ID / Touch ID gate for the native app. Renders a blocking lock screen
  * over `children` until authentication succeeds — checked once on mount
- * (cold launch) and again every time the app returns to the foreground
- * (@capacitor/app's 'resume' event, same reliable-foreground-detection
- * pattern as NativeHealthSync). No-ops entirely on web/PWA: isBiometricLockAvailable
+ * (cold launch) and again when the app returns to the foreground after being
+ * backgrounded for longer than REAUTH_GRACE_MS (@capacitor/app's
+ * 'pause'/'resume' events, same reliable-foreground-detection pattern as
+ * NativeHealthSync). No-ops entirely on web/PWA: isBiometricLockAvailable
  * resolves false there, so `locked` never becomes true.
  */
 export function NativeAppLock({ children }: { children: React.ReactNode }) {
   const [enabled, setEnabled] = useState(false);
   const [locked, setLocked] = useState(false);
   const [authenticating, setAuthenticating] = useState(false);
+  const pausedAtRef = useRef<number | null>(null);
 
   const tryUnlock = useCallback(async () => {
     setAuthenticating(true);
@@ -30,6 +38,7 @@ export function NativeAppLock({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
+    let removePauseListener: (() => void) | undefined;
     let removeResumeListener: (() => void) | undefined;
 
     (async () => {
@@ -40,15 +49,30 @@ export function NativeAppLock({ children }: { children: React.ReactNode }) {
       await tryUnlock();
     })();
 
-    const listenerPromise = CapacitorApp.addListener("resume", () => {
+    const pauseListenerPromise = CapacitorApp.addListener("pause", () => {
+      pausedAtRef.current = Date.now();
+    });
+    void pauseListenerPromise.then((handle) => {
+      removePauseListener = () => void handle.remove();
+    });
+
+    const resumeListenerPromise = CapacitorApp.addListener("resume", () => {
+      const pausedAt = pausedAtRef.current;
+      pausedAtRef.current = null;
+      // No recorded pause (e.g. very first resume before 'pause' ever
+      // fired) — treat as "away long enough" and re-lock to be safe.
+      if (pausedAt != null && Date.now() - pausedAt < REAUTH_GRACE_MS) return;
       setLocked(true);
       void tryUnlock();
     });
-    void listenerPromise.then((handle) => {
+    void resumeListenerPromise.then((handle) => {
       removeResumeListener = () => void handle.remove();
     });
 
-    return () => removeResumeListener?.();
+    return () => {
+      removePauseListener?.();
+      removeResumeListener?.();
+    };
   }, [tryUnlock]);
 
   if (!enabled || !locked) return <>{children}</>;
