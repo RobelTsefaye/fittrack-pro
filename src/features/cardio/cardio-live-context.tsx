@@ -17,8 +17,10 @@ const CardioLiveContext = createContext<CardioLiveContextValue>({ live: null });
 // to be running (so starting a session and switching to another device
 // reads as "live"), slower while idle to not hammer the DB with a poll that
 // almost always returns null.
-const POLL_INTERVAL_ACTIVE_MS = 2_000;
-const POLL_INTERVAL_IDLE_MS = 5_000;
+// 1s active matches the Watch's own push cadence — the iPad can't be fresher
+// than the data itself, so polling faster than the source buys nothing.
+const POLL_INTERVAL_ACTIVE_MS = 1_000;
+const POLL_INTERVAL_IDLE_MS = 2_500;
 // If a native push landed more recently than this, a poll response is
 // necessarily older news — skip applying it rather than have the slower
 // server round-trip visibly regress the faster native update.

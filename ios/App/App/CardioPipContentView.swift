@@ -12,6 +12,10 @@ import SwiftUI
 struct CardioPipContentView: View {
     let heartRate: Double
     let zone: Int?
+    /// Advancing phase (radians) driven by the plugin's 10fps render loop at
+    /// the actual bpm — the heart icon scales with sin(beatPhase), so it
+    /// visibly beats at the wearer's real heart rate.
+    var beatPhase: Double = 0
 
     /// Matches ZONE_COLORS in src/app/(app)/workouts/cardio/page.tsx exactly
     /// (which itself matches HeartRateZones.color(for:) in intent, though
@@ -65,6 +69,8 @@ struct CardioPipContentView: View {
                         Image(systemName: "heart.fill")
                             .font(.system(size: 15))
                             .foregroundStyle(.red)
+                            // Subtle systole/diastole squeeze at the real bpm.
+                            .scaleEffect(1 + 0.08 * sin(beatPhase))
                         Text("\(Int(heartRate.rounded()))")
                             .font(.system(size: 24, weight: .semibold, design: .rounded))
                             .foregroundStyle(.white)
