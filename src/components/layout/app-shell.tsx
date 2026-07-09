@@ -1,7 +1,9 @@
 "use client";
 
 import { ActiveWorkoutBanner, type ActiveWorkoutItem } from "@/components/layout/active-workout-banner";
+import { CardioActiveBanner } from "@/components/layout/cardio-active-banner";
 import { RestTimerProvider } from "@/features/workouts/rest-timer-context";
+import { CardioLiveProvider } from "@/features/cardio/cardio-live-context";
 import { MobileTopBar } from "@/components/layout/navbar";
 import { BottomTabBar } from "@/components/layout/bottom-tab-bar";
 
@@ -17,6 +19,7 @@ export function AppShell({
 
       {/* ── Main column ──────────────────────────────────── */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <CardioLiveProvider>
         <RestTimerProvider>
 
           {/* Mobile top bar */}
@@ -24,6 +27,7 @@ export function AppShell({
 
           {/* Active workout strip */}
           <ActiveWorkoutBanner initialActive={initialActiveWorkout} />
+          <CardioActiveBanner />
 
           {/* Scrollable content */}
           <main
@@ -39,6 +43,7 @@ export function AppShell({
           <BottomTabBar />
 
         </RestTimerProvider>
+        </CardioLiveProvider>
       </div>
     </div>
   );

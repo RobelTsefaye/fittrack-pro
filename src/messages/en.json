@@ -300,7 +300,9 @@
     "finishConfirm": "Finish cardio session and save it to Health?",
     "cancelConfirm": "Cancel cardio session? It won't be saved.",
     "endedByWatch": "Ended on your watch.",
-    "backToWorkouts": "Workouts"
+    "backToWorkouts": "Workouts",
+    "activeSessionBanner": "Cardio in progress",
+    "activeSessionBannerAria": "Switch to the active cardio session"
   },
   "plans": {
     "title": "Plans",

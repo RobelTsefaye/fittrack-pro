@@ -12,11 +12,10 @@ import { useI18n } from "@/lib/i18n-provider";
 import {
   startCardioSessionOnWatch,
   stopCardioSessionOnWatch,
-  onCardioLiveUpdate,
   CardioNotNativeError,
   type CardioActivityType,
-  type CardioLiveUpdate,
 } from "@/lib/native/cardio-connectivity";
+import { useCardioLive } from "@/features/cardio/cardio-live-context";
 import {
   HEART_RATE_ZONE_BANDS,
   heartRateZoneLabel,
@@ -45,31 +44,43 @@ function formatElapsed(seconds: number) {
 export default function CardioWorkoutPage() {
   const { t } = useI18n();
   const router = useRouter();
+  const live = useCardioLive();
+  /** Set once this page's own picker starts a session — but the live view
+   *  below shows for *either* this being true or `live` already being
+   *  active on mount, e.g. the user tapped CardioActiveBanner for a session
+   *  started directly on the Watch, which this page never called
+   *  startCardioSessionOnWatch for. */
   const [activityType, setActivityType] = useState<CardioActivityType | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [live, setLive] = useState<CardioLiveUpdate | null>(null);
   const [ending, setEnding] = useState(false);
+  const isLive = !!live?.isRunning || activityType != null;
   /** Guards against double-navigating: both the "ended on the Watch"
    *  live-update path and this page's own finish/cancel buttons lead to the
    *  same router.push, and could otherwise race if a live update lands
    *  right as the user taps a button. */
   const endedRef = useRef(false);
+  /** Distinguishes "no live update has arrived yet" (right after this page's
+   *  own start, briefly) from "one arrived, then the session actually
+   *  ended" (`live` goes back to null either way) — without this, the
+   *  auto-navigate-away effect below would fire immediately on every
+   *  phone-initiated start, before the first push had a chance to land. */
+  const receivedLiveRef = useRef(false);
 
   useEffect(() => {
-    if (!activityType) return;
-    return onCardioLiveUpdate((update) => {
-      setLive(update);
-      if (!update.isRunning && !endedRef.current) {
-        // The session ended on the Watch itself (its own "Beenden"/
-        // "Abbrechen" button, or the 2s wedged-session watchdog) rather than
-        // through this page — leave automatically instead of showing a
-        // frozen, now-stale live view with nothing left to interact with.
-        endedRef.current = true;
-        router.push(ROUTES.workouts);
-      }
-    });
-  }, [activityType, router]);
+    if (live) receivedLiveRef.current = true;
+  }, [live]);
+
+  useEffect(() => {
+    if (!isLive || live != null || !receivedLiveRef.current || endedRef.current) return;
+    // The session ended — on the Watch itself (its own "Beenden"/
+    // "Abbrechen" button, or the 2s wedged-session watchdog), or via this
+    // page's own handleEnd, which already set endedRef and doesn't need
+    // this to fire again — leave automatically instead of showing a frozen,
+    // now-stale live view with nothing left to interact with.
+    endedRef.current = true;
+    router.push(ROUTES.workouts);
+  }, [isLive, live, router]);
 
   async function handleStart(type: CardioActivityType) {
     setError(null);
@@ -107,7 +118,7 @@ export default function CardioWorkoutPage() {
   }
 
   // ── Activity picker ─────────────────────────────────────────────────
-  if (!activityType) {
+  if (!isLive) {
     return (
       <div className="mx-auto max-w-md space-y-6">
         <Link

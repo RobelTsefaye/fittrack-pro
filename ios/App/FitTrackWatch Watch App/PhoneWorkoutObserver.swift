@@ -43,14 +43,6 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     /// the HKWorkoutSession (and its HR measurement) running indefinitely.
     var onActiveWorkoutCleared: ((_ wasCancelled: Bool) -> Void)?
 
-    /// True while the *current* WorkoutManager session was started by a
-    /// phone "Cardio starten" request, as opposed to a Watch-only manual
-    /// start from StartView — gates the periodic live-stats push in
-    /// ContentView, so an ordinary Watch-initiated Laufen/Radfahren session
-    /// doesn't also start streaming to a phone screen nothing navigated the
-    /// user to.
-    @Published var isPhoneInitiatedCardio = false
-
     /// Set once in ContentView.onAppear — a phone-initiated cardio-start
     /// request needs to drive the shared WorkoutManager, which ContentView
     /// (not this observer) owns. Returns the HealthKit-confirmed outcome so
@@ -325,15 +317,13 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
         }
     }
 
-    /// Pushes live HR/calories/elapsed/zone to the phone while a
-    /// phone-initiated cardio session is running (see
-    /// `isPhoneInitiatedCardio`). `sendMessage`, not transferUserInfo or
-    /// application context: this needs low latency and we only ever care
-    /// about the *latest* reading, never a backlog — and the Watch is
-    /// guaranteed reachable here, mid-interactive-session with the phone
-    /// that just started it. A dropped update because the Watch was
-    /// momentarily unreachable is fine; the next one a few seconds later
-    /// catches up.
+    /// Pushes live HR/calories/elapsed/zone to the phone while *any*
+    /// Laufen/Radfahren session is running — Watch-started or
+    /// phone-started, see ContentView's isOutdoorActivity-gated call sites.
+    /// `sendMessage`, not transferUserInfo or application context: this
+    /// needs low latency and we only ever care about the *latest* reading,
+    /// never a backlog. A dropped update because the Watch was momentarily
+    /// unreachable is fine; the next one a second later catches up.
     func pushCardioLiveUpdate(
         isRunning: Bool,
         heartRate: Double,
@@ -420,7 +410,6 @@ extension PhoneWorkoutObserver: WCSessionDelegate {
                 let result = await handler(activityType)
                 switch result {
                 case .success:
-                    self.isPhoneInitiatedCardio = true
                     replyHandler(["started": true])
                 case .failure(let error):
                     replyHandler(["error": error.message])
@@ -471,7 +460,6 @@ extension PhoneWorkoutObserver: WCSessionDelegate {
         let discard = payload["discard"] as? Bool ?? false
         Task { @MainActor in
             self.onCardioStopRequested?(discard)
-            self.isPhoneInitiatedCardio = false
         }
     }
 }

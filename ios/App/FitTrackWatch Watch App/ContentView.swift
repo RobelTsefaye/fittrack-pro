@@ -55,6 +55,10 @@ struct ContentView: View {
     /// logging page (1) — swipe right for controls (0), left for live HR (2).
     @State private var selectedPage = 1
 
+    /// True once at least one live cardio push has gone out for the
+    /// *current* session — see the isRunning onChange below.
+    @State private var lastCardioPushWasActive = false
+
     var body: some View {
         Group {
             if !workoutManager.authorizationGranted {
@@ -135,15 +139,17 @@ struct ContentView: View {
             }
         }
         // Streams HR/calories/elapsed/zone back to the phone every single
-        // second while a phone-initiated cardio session runs — elapsedSeconds
-        // already ticks every 1s from WorkoutManager's own timer, so this
-        // fires on every tick rather than throttling, keeping the phone's
-        // heart rate reading and zone-position pointer as current as the
-        // Watch's own display. Also fires once immediately on isRunning's
-        // true→false edge so the phone learns the session ended without
-        // waiting for the next tick.
+        // second while *any* Laufen/Radfahren session runs — Watch-started
+        // or phone-started, it makes no difference here, so starting a run
+        // directly on the Watch also lights up an active-session banner on
+        // the phone, not just the reverse. elapsedSeconds already ticks
+        // every 1s from WorkoutManager's own timer, so this fires on every
+        // tick rather than throttling, keeping the phone's heart rate
+        // reading and zone-position pointer as current as the Watch's own
+        // display.
         .onChange(of: workoutManager.elapsedSeconds) { _, seconds in
-            guard phoneObserver.isPhoneInitiatedCardio, workoutManager.isRunning else { return }
+            guard workoutManager.isRunning, workoutManager.isOutdoorActivity else { return }
+            lastCardioPushWasActive = true
             phoneObserver.pushCardioLiveUpdate(
                 isRunning: true,
                 heartRate: workoutManager.heartRate,
@@ -153,11 +159,27 @@ struct ContentView: View {
             )
         }
         .onChange(of: workoutManager.isRunning) { wasRunning, isRunning in
-            if wasRunning, !isRunning, phoneObserver.isPhoneInitiatedCardio {
+            if isRunning, workoutManager.isOutdoorActivity {
+                // Fires once immediately on start (not just the periodic
+                // ticker above) so the phone's banner appears right away
+                // instead of waiting up to 1s for the first tick.
+                lastCardioPushWasActive = true
+                phoneObserver.pushCardioLiveUpdate(
+                    isRunning: true,
+                    heartRate: workoutManager.heartRate,
+                    activeCalories: workoutManager.activeCalories,
+                    elapsedSeconds: workoutManager.elapsedSeconds,
+                    zone: workoutManager.currentHeartRateZone
+                )
+            } else if wasRunning, !isRunning, lastCardioPushWasActive {
+                // By this point resetState() already cleared
+                // currentActivityType, so isOutdoorActivity can't tell us
+                // "was the session that just ended a cardio one" anymore —
+                // this flag remembers it from while it was still running.
                 phoneObserver.pushCardioLiveUpdate(
                     isRunning: false, heartRate: 0, activeCalories: 0, elapsedSeconds: 0, zone: nil
                 )
-                phoneObserver.isPhoneInitiatedCardio = false
+                lastCardioPushWasActive = false
             }
         }
         .onChange(of: workoutManager.isRunning) { _, isRunning in

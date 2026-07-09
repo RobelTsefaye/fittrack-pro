@@ -300,7 +300,9 @@
     "finishConfirm": "Cardio-Training beenden und in Health speichern?",
     "cancelConfirm": "Cardio-Training abbrechen? Es wird nicht gespeichert.",
     "endedByWatch": "Auf der Uhr beendet.",
-    "backToWorkouts": "Workouts"
+    "backToWorkouts": "Workouts",
+    "activeSessionBanner": "Cardio läuft",
+    "activeSessionBannerAria": "Zum laufenden Cardio-Training wechseln"
   },
   "plans": {
     "title": "Pläne",
