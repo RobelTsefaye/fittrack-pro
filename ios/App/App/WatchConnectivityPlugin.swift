@@ -1,6 +1,7 @@
 import Foundation
 import Capacitor
 import WatchConnectivity
+import HealthKit
 
 /**
  * Bridges the JS workout state (workout-detail.tsx / rest-timer-context.tsx)
@@ -40,6 +41,10 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
     /// keyed by a requestId chosen by the Watch. JS resolves a request by
     /// calling `respondToRequest` with the same id.
     private var pendingReplies: [String: ([String: Any]) -> Void] = [:]
+
+    /// Only used to launch the Watch app for a cardio start request when it
+    /// isn't already reachable — see `startCardioSession`.
+    private let healthStore = HKHealthStore()
 
     override public func load() {
         guard WCSession.isSupported() else { return }
@@ -161,7 +166,72 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("Missing activityType")
             return
         }
-        sendRequestToWatch(type: "startCardio", fields: ["activityType": activityType], call: call)
+        guard WCSession.isSupported() else {
+            call.reject("Watch nicht unterstützt")
+            return
+        }
+        if WCSession.default.isReachable {
+            sendRequestToWatch(type: "startCardio", fields: ["activityType": activityType], call: call)
+            return
+        }
+        // Not reachable almost always just means the Watch app isn't open —
+        // sendMessage alone gives up right there ("Uhr nicht erreichbar")
+        // even though the Watch is right there on the wrist. startWatchApp
+        // is HealthKit's dedicated API for exactly this: it launches the
+        // paired Watch app (same mechanism Apple's own Fitness app uses to
+        // remote-start a workout), after which it briefly becomes reachable
+        // and the actual "startCardio" command can go through normally.
+        //
+        // Requires *share* authorization for the workout type on the phone
+        // — HealthKitPlugin only ever requests read access, so this has
+        // never been granted here before. Requesting it lazily, right when
+        // it's actually needed (not at app start), same reasoning as every
+        // other permission prompt in this app.
+        healthStore.requestAuthorization(toShare: [HKObjectType.workoutType()], read: nil) { [weak self] _, _ in
+            guard let self else { return }
+            let config = HKWorkoutConfiguration()
+            config.activityType = activityType == "cycling" ? .cycling : .running
+            config.locationType = .outdoor
+            self.healthStore.startWatchApp(with: config) { [weak self] success, error in
+                guard let self else { return }
+                guard success else {
+                    DispatchQueue.main.async {
+                        call.reject(error?.localizedDescription ?? "Uhr konnte nicht gestartet werden")
+                    }
+                    return
+                }
+                self.waitForReachableThenSend(
+                    type: "startCardio", fields: ["activityType": activityType], call: call
+                )
+            }
+        }
+    }
+
+    /// Polls `isReachable` for a few seconds after `startWatchApp` reports
+    /// success — launching the Watch app isn't instantaneous, and there's no
+    /// direct callback for "now it's reachable," only the isReachable
+    /// property itself (or WCSessionDelegate's sessionReachabilityDidChange,
+    /// which would need a call-scoped observer; polling is simpler here for
+    /// a one-shot request with a natural timeout).
+    private func waitForReachableThenSend(
+        type: String,
+        fields: [String: Any],
+        call: CAPPluginCall,
+        attemptsLeft: Int = 8
+    ) {
+        if WCSession.default.isReachable {
+            sendRequestToWatch(type: type, fields: fields, call: call)
+            return
+        }
+        guard attemptsLeft > 0 else {
+            call.reject("Uhr wurde gestartet, antwortet aber nicht — bitte erneut versuchen")
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.waitForReachableThenSend(
+                type: type, fields: fields, call: call, attemptsLeft: attemptsLeft - 1
+            )
+        }
     }
 
     /// Ends (or discards, if `discard: true`) the Watch's cardio session
