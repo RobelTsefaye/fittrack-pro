@@ -99,27 +99,33 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
         WCSession.default.activate()
     }
 
+    /// Decodes a workout JSON payload (same shape from either
+    /// `updateApplicationContext`'s "activeWorkout" key or a sendMessage
+    /// reply's "workoutJSON" — see `startSession` below) and applies it,
+    /// dropping stale pushes for workouts already ended locally.
+    /// Must run on the main thread — callers dispatch first.
+    private func applyActiveWorkout(fromJSON workoutJSON: String) {
+        guard let data = workoutJSON.data(using: .utf8) else {
+            activeWorkout = nil
+            return
+        }
+        do {
+            let workout = try JSONDecoder().decode(WatchActiveWorkout.self, from: data)
+            self.activeWorkout = self.locallyEndedWorkoutIds.contains(workout.workoutId) ? nil : workout
+        } catch {
+            // A decode failure here otherwise looks identical to "no workout
+            // active" — log it so a schema mismatch is visible in the Watch
+            // console instead of silently stranding the user on the picker.
+            print("PhoneWorkoutObserver: failed to decode activeWorkout: \(error)")
+            self.activeWorkout = nil
+        }
+    }
+
     private func apply(_ context: [String: Any]) {
         DispatchQueue.main.async {
             let active = context["active"] as? Bool ?? false
             if active, let workoutJSON = context["activeWorkout"] as? String {
-                if let data = workoutJSON.data(using: .utf8) {
-                    do {
-                        let workout = try JSONDecoder().decode(WatchActiveWorkout.self, from: data)
-                        // Drop stale pushes for workouts already ended on the
-                        // Watch (see locallyEndedWorkoutIds above).
-                        self.activeWorkout = self.locallyEndedWorkoutIds.contains(workout.workoutId) ? nil : workout
-                    } catch {
-                        // A decode failure here otherwise looks identical to
-                        // "no workout active" — log it so a schema mismatch
-                        // is visible in the Watch console instead of silently
-                        // stranding the user on the session picker.
-                        print("PhoneWorkoutObserver: failed to decode activeWorkout: \(error)")
-                        self.activeWorkout = nil
-                    }
-                } else {
-                    self.activeWorkout = nil
-                }
+                self.applyActiveWorkout(fromJSON: workoutJSON)
             } else {
                 self.activeWorkout = nil
             }
@@ -207,15 +213,29 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     }
 
     /// Starts a plan session's workout on the phone (creates real
-    /// Workout/WorkoutExercise/Set rows). Only signals that the request was
-    /// accepted — the actual workout data arrives separately via
-    /// `updateApplicationContext` (see `activeWorkout` above), since the
-    /// phone-side handler does two sequential network calls before it's
-    /// ready, which is too slow to reliably ride the sendMessage reply.
+    /// Workout/WorkoutExercise/Set rows).
+    ///
+    /// The reply carries the workout JSON directly when the native
+    /// background-sync path (WatchAPIProxy) handled the request — it already
+    /// has the fully-built payload in hand before replying, so there's no
+    /// reason to wait on anything else. Applied immediately here rather than
+    /// only via the separate `updateApplicationContext` push (still sent as
+    /// well, for any other already-open Watch screen), which is Apple-
+    /// documented as best-effort/coalesced/delayed and, on top of that, was
+    /// swallowing failures silently — the combination meant the phone had
+    /// genuinely started the workout while the Watch never navigated
+    /// anywhere. The JS-bridge path (phone app open, no background-sync
+    /// token) doesn't send `workoutJSON`; that case still relies on the
+    /// context push exactly as before.
     func startSession(_ session: WatchPlanSession, completion: @escaping (Result<Void, Error>) -> Void) {
         sendRequest(type: "startSession", fields: ["sessionId": session.id]) { result in
             switch result {
-            case .success:
+            case .success(let reply):
+                if let workoutJSON = reply["workoutJSON"] as? String {
+                    DispatchQueue.main.async {
+                        self.applyActiveWorkout(fromJSON: workoutJSON)
+                    }
+                }
                 completion(.success(()))
             case .failure(let error):
                 completion(.failure(error))

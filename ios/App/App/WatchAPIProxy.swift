@@ -73,7 +73,18 @@ enum WatchAPIProxy {
             guard let fetched = try await fetchWorkoutPayload(workoutId: started.data.id, token: token) else {
                 return (["error": "Konnte Workout nicht kodieren"], nil)
             }
-            return (["started": true], .setActiveWorkout(json: fetched.json))
+            // `workoutJSON` rides the sendMessage REPLY directly — see
+            // PhoneWorkoutObserver.startSession, which applies it to
+            // `activeWorkout` immediately instead of only waiting on the
+            // `updateApplicationContext` push below. That push is
+            // Apple-documented as best-effort/coalesced/delayed, and
+            // `pushContextToWatch()` swallows failures silently — for an
+            // interactive "tap to start" action the user is staring at, that
+            // combination meant the phone genuinely started the workout
+            // while the Watch never navigated anywhere. The context update
+            // stays too, so other already-open Watch screens still pick up
+            // the change the way they always have.
+            return (["started": true, "workoutJSON": fetched.json], .setActiveWorkout(json: fetched.json))
         } catch {
             return (["error": describeError(error)], nil)
         }

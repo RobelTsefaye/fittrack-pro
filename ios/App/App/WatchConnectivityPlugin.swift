@@ -327,6 +327,10 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             try WCSession.default.updateApplicationContext(latestContext)
             return true
         } catch {
+            // Was previously swallowed entirely — a failure here used to be
+            // invisible (see WatchAPIProxy.startSession's reply now carrying
+            // the workout JSON directly instead of depending solely on this).
+            NSLog("[WatchConnectivity] updateApplicationContext failed: \(error)")
             return false
         }
     }
