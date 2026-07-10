@@ -16,19 +16,25 @@ struct CardioPipContentView: View {
     /// (cumulative across the whole session, summed even across leaving and
     /// re-entering the zone) — computed in CardioPictureInPicturePlugin.
     var elapsedSeconds: Int = 0
+    /// Total session duration (the Watch's own elapsedSeconds clock) —
+    /// distinct from `elapsedSeconds` above, which is scoped to the current
+    /// zone only.
+    var totalElapsedSeconds: Int = 0
     /// Advancing phase (radians) driven by the plugin's 10fps render loop at
     /// the actual bpm — the heart icon scales with sin(beatPhase), so it
     /// visibly beats at the wearer's real heart rate.
     var beatPhase: Double = 0
 
     /// mm:ss, or h:mm:ss once past an hour.
-    private var elapsedString: String {
-        let s = max(0, elapsedSeconds)
+    private func formatDuration(_ seconds: Int) -> String {
+        let s = max(0, seconds)
         let h = s / 3600, m = (s % 3600) / 60, sec = s % 60
         return h > 0
             ? String(format: "%d:%02d:%02d", h, m, sec)
             : String(format: "%d:%02d", m, sec)
     }
+    private var elapsedString: String { formatDuration(elapsedSeconds) }
+    private var totalElapsedString: String { formatDuration(totalElapsedSeconds) }
 
     /// Matches ZONE_COLORS in src/app/(app)/workouts/cardio/page.tsx exactly
     /// (which itself matches HeartRateZones.color(for:) in intent, though
@@ -73,11 +79,20 @@ struct CardioPipContentView: View {
             // Single horizontal row so the window can be a genuinely flat,
             // long bar (see the ~5:1 .frame below) rather than a tall tile.
             HStack(spacing: 14) {
-                Text(zone.map(String.init) ?? "–")
-                    .font(.system(size: 40, weight: .bold, design: .rounded))
-                    .foregroundStyle(zoneColor)
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
+                VStack(spacing: 1) {
+                    Text(zone.map(String.init) ?? "–")
+                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .foregroundStyle(zoneColor)
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
+                    // Total session duration — distinct from the per-zone
+                    // time on the right (see `totalElapsedSeconds` doc).
+                    Text(totalElapsedString)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.7))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                }
 
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 5) {
@@ -132,5 +147,5 @@ struct CardioPipContentView: View {
 }
 
 #Preview {
-    CardioPipContentView(heartRate: 142, zone: 3, elapsedSeconds: 1_275)
+    CardioPipContentView(heartRate: 142, zone: 3, elapsedSeconds: 1_275, totalElapsedSeconds: 1_930)
 }

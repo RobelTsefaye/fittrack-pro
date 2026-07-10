@@ -93,6 +93,28 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
         call.resolve(["supported": AVPictureInPictureController.isPictureInPictureSupported()])
     }
 
+    /// Best-effort, UNDOCUMENTED/PRIVATE API: `AVPictureInPictureController`
+    /// has no public way to hide just the skip-forward/back squares from its
+    /// system-drawn transport chrome — for a sample-buffer content source,
+    /// Apple always overlays play/pause + skip on tap, since the delegate
+    /// protocol contractually supports both. `controlsStyle` is a private KVC
+    /// property some developers have found reduces that chrome (1 = hide
+    /// playback controls, 2 = also hide close/fullscreen) — not documented,
+    /// not guaranteed stable across OS versions, and blind `setValue(forKey:)`
+    /// on a key the object doesn't recognize raises an uncatchable Objective-C
+    /// exception (crashes the app, not a Swift error) — so this checks
+    /// `responds(to:)` for the presumed underlying `setControlsStyle:` setter
+    /// first and does nothing at all if it's ever removed/renamed.
+    private func applyMinimalControlsIfSupported(_ controller: AVPictureInPictureController) {
+        let selector = Selector(("setControlsStyle:"))
+        guard controller.responds(to: selector) else {
+            NSLog("[CardioPiP] controlsStyle not available on this OS version — using default chrome")
+            return
+        }
+        controller.setValue(1, forKey: "controlsStyle")
+        NSLog("[CardioPiP] applied controlsStyle=1 (private API)")
+    }
+
     @objc func start(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             NSLog("[CardioPiP] start() called")
@@ -124,6 +146,7 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
             let controller = AVPictureInPictureController(contentSource: contentSource)
             controller.delegate = self
             self.pipController = controller
+            self.applyMinimalControlsIfSupported(controller)
 
             // Render whatever the last known sample was immediately, so the
             // window doesn't open on a blank black square while waiting for
@@ -481,6 +504,10 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
             heartRate: displayedHeartRate,
             zone: latestSample?.zone,
             elapsedSeconds: zoneTotalSeconds,
+            // The Watch's own elapsedSeconds already IS the total session
+            // clock (zoneSeconds above is derived FROM it) — no separate
+            // tracking needed.
+            totalElapsedSeconds: latestSample?.elapsedSeconds ?? 0,
             beatPhase: beatPhase
         )
         let renderer = ImageRenderer(content: content)
