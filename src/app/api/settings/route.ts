@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { updateSettingsSchema } from "@/features/settings/schemas";
 import {
@@ -10,13 +10,13 @@ import {
 import { cookies } from "next/headers";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let settings = await prisma.userSettings.findUnique({
-    where: { userId: session.user.id },
+    where: { userId },
   });
 
   if (!settings) {
@@ -25,7 +25,7 @@ export async function GET() {
       cookieStore.get(LOCALE_COOKIE)?.value
     );
     settings = await prisma.userSettings.create({
-      data: { userId: session.user.id, locale: localeFromCookie },
+      data: { userId, locale: localeFromCookie },
     });
   }
 
@@ -40,8 +40,8 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -61,22 +61,22 @@ export async function PATCH(req: NextRequest) {
   ) as typeof patch;
 
   const existing = await prisma.userSettings.findUnique({
-    where: { userId: session.user.id },
+    where: { userId },
   });
 
   if (existing) {
     await prisma.userSettings.update({
-      where: { userId: session.user.id },
+      where: { userId },
       data,
     });
   } else {
     await prisma.userSettings.create({
-      data: { userId: session.user.id, ...data },
+      data: { userId, ...data },
     });
   }
 
   const updated = await prisma.userSettings.findUniqueOrThrow({
-    where: { userId: session.user.id },
+    where: { userId },
   });
 
   const res = NextResponse.json({

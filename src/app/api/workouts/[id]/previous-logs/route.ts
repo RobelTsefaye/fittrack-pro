@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import type { PreviousLogEntry } from "@/features/workouts/previous-logs-types";
 
-export type PreviousSetEntry = {
-  setNumber: number;
-  weight: number | null;
-  reps: number | null;
-  rpe: number | null;
-};
-
-/** Per exercise: ordered array of working sets from the previous session. */
-export type PreviousLogEntry = PreviousSetEntry[] | null;
+export type { PreviousSetEntry, PreviousLogEntry } from "@/features/workouts/previous-logs-types";
 
 /**
  * For each exercise in the current workout, return **all working sets**

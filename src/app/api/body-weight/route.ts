@@ -1,14 +1,14 @@
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { dashboardCacheTag } from "@/lib/constants";
 import { createBodyWeightSchema } from "@/features/tracking/schemas";
 import { parseDateOnlyUtc } from "@/lib/date-only";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
   // `parseDateOnlyUtc` throws on a malformed date; catch it and reject with a
   // 400 rather than letting it bubble up as an opaque 500.
-  const where: Record<string, unknown> = { userId: session.user.id };
+  const where: Record<string, unknown> = { userId };
   try {
     if (from || to) {
       where.date = {};
@@ -53,8 +53,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -74,12 +74,12 @@ export async function POST(req: NextRequest) {
   const entry = await prisma.bodyWeight.upsert({
     where: {
       userId_date: {
-        userId: session.user.id,
+        userId,
         date,
       },
     },
     create: {
-      userId: session.user.id,
+      userId,
       date,
       weight: parsed.data.weight,
       notes,
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  revalidateTag(dashboardCacheTag(session.user.id), "max");
+  revalidateTag(dashboardCacheTag(userId), "max");
 
   return NextResponse.json({
     data: {
