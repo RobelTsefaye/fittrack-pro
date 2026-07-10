@@ -139,6 +139,11 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
             if let score = context["recoveryScore"] as? Int, let level = context["recoveryLevel"] as? String {
                 self.recoveryScore = score
                 self.recoveryLevel = level
+                // Also persist into this device's own App Group container +
+                // nudge WidgetKit — see WatchRecoverySnapshotStore's doc
+                // comment for why the complication needs its own local copy
+                // rather than reading the phone's.
+                WatchRecoverySnapshotStore.save(score: score, level: level)
             }
         }
     }
@@ -328,6 +333,12 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
                     DispatchQueue.main.async {
                         self.recoveryScore = score
                         self.recoveryLevel = level
+                        // Same reasoning as in `apply` — this reply-driven
+                        // path bypasses the context push entirely, so without
+                        // this the complication wouldn't reflect a manual
+                        // refresh until/unless that separate push happened
+                        // to land too.
+                        WatchRecoverySnapshotStore.save(score: score, level: level)
                     }
                 }
                 completion(.success(()))

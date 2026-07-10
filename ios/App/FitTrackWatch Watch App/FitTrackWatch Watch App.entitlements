@@ -4,5 +4,18 @@
 <dict>
 	<key>com.apple.developer.healthkit</key>
 	<true/>
+	<!--
+	  Needed so the Watch app itself can write a local RecoverySnapshot into
+	  this device's own App Group container for FitTrackComplication to read
+	  — App Groups do NOT sync across the iPhone↔Watch boundary (they're
+	  scoped per physical device, not per Apple ID/account), so the identical
+	  suite name on the phone is a SEPARATE, unrelated container. Without this
+	  entitlement here, the complication's data source is permanently empty
+	  on real hardware no matter what the phone ever writes.
+	-->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.robeltsefaye.fittrackpro</string>
+	</array>
 </dict>
 </plist>
