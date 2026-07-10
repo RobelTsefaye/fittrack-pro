@@ -1,41 +1,81 @@
-import { redirect } from "next/navigation";
-import { Suspense } from "react";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+"use client";
+
+import { useEffect, useState } from "react";
+import { RequireAuth } from "@/components/auth/require-auth";
+import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { APP_NAME } from "@/lib/constants";
-import { getAllPersonalRecords, getAchievements } from "@/services/personal-records";
-import { getDashboardSummary } from "@/features/dashboard/queries";
 import { BackButton } from "@/components/layout/back-button";
 import { RecordsView } from "@/features/records/components/records-view";
+import type { PREntry, Achievement } from "@/services/personal-records";
 
-export const metadata = { title: `Personal Records — ${APP_NAME}` };
+type RecordsData = {
+  records: PREntry[];
+  achievements: Achievement[];
+  weightUnit: string;
+  streak: number;
+  totalWorkouts: number;
+  totalPRs: number;
+};
 
-export default async function RecordsPage() {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+// Client component — no server-side auth()/data-fetching (see
+// project-docs/offline-first-roadmap.md Phase 2). Fetches the new /api/records
+// route, which bundles what used to be three separate server-side calls plus
+// a direct settings lookup — no existing route returned all of it together.
+export default function RecordsPage() {
+  const [data, setData] = useState<RecordsData | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
-  const userId = session.user.id;
+  useEffect(() => {
+    document.title = `Personal Records — ${APP_NAME}`;
+    let cancelled = false;
+    setFailed(false);
+    void authenticatedFetch("/api/records", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (cancelled) return;
+        if (json?.data) setData(json.data);
+        else setFailed(true);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [retryCount]);
 
-  const [settings, records, summary] = await Promise.all([
-    prisma.userSettings.findUnique({ where: { userId } }),
-    getAllPersonalRecords(userId),
-    getDashboardSummary(userId),
-  ]);
+  if (!data && failed) {
+    return (
+      <RequireAuth>
+        <BackButton />
+        <div className="flex flex-col items-center gap-3 py-16 text-center">
+          <p className="text-sm text-[var(--sys-label2)]">Records konnten nicht geladen werden.</p>
+          <button
+            type="button"
+            onClick={() => setRetryCount((n) => n + 1)}
+            className="text-sm font-medium text-primary"
+          >
+            Erneut versuchen
+          </button>
+        </div>
+      </RequireAuth>
+    );
+  }
 
-  const achievements = await getAchievements(userId, summary.workoutStreakDays);
-  const weightUnit = settings?.weightUnit ?? "KG";
+  if (!data) return null;
 
   return (
-    <Suspense fallback={null}>
+    <RequireAuth>
       <BackButton />
       <RecordsView
-        records={records}
-        achievements={achievements}
-        weightUnit={weightUnit}
-        streak={summary.workoutStreakDays}
-        totalWorkouts={summary.totalWorkouts}
-        totalPRs={summary.personalRecordsCount}
+        records={data.records}
+        achievements={data.achievements}
+        weightUnit={data.weightUnit}
+        streak={data.streak}
+        totalWorkouts={data.totalWorkouts}
+        totalPRs={data.totalPRs}
       />
-    </Suspense>
+    </RequireAuth>
   );
 }

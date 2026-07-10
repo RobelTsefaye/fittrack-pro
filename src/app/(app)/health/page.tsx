@@ -1,32 +1,50 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { APP_NAME } from "@/lib/constants";
+"use client";
+
+import { useEffect, useState } from "react";
+import { RequireAuth } from "@/components/auth/require-auth";
+import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { BackButton } from "@/components/layout/back-button";
 import { HealthDashboard } from "@/features/health/components/health-dashboard";
-import { getHealthSnapshots } from "@/features/health/health-data";
-import { computeRecovery } from "@/features/health/recovery";
-import { getCardioSummary } from "@/features/health/cardio";
+import type { HealthSnapshot } from "@/features/health/types";
+import type { RecoveryBreakdown } from "@/features/health/recovery";
+import type { CardioSummary } from "@/features/health/cardio";
 
-export const metadata = { title: `Health — ${APP_NAME}` };
+export default function HealthPage() {
+  const [snapshots, setSnapshots] = useState<HealthSnapshot[]>([]);
+  const [recovery, setRecovery] = useState<RecoveryBreakdown | null>(null);
+  const [cardio, setCardio] = useState<CardioSummary | null>(null);
 
-export default async function HealthPage() {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
-
-  const [snapshots, recovery, cardio] = await Promise.all([
-    getHealthSnapshots(session.user.id, 30),
-    computeRecovery(session.user.id),
-    getCardioSummary(session.user.id),
-  ]);
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([
+      authenticatedFetch("/api/health-data?limit=30", { credentials: "include" })
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null),
+      authenticatedFetch("/api/health/recovery", { credentials: "include" })
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null),
+      authenticatedFetch("/api/health/cardio", { credentials: "include" })
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null),
+    ]).then(([snapshotsJson, recoveryJson, cardioJson]) => {
+      if (cancelled) return;
+      if (snapshotsJson?.data) setSnapshots(snapshotsJson.data);
+      if (recoveryJson?.data !== undefined) setRecovery(recoveryJson.data);
+      if (cardioJson?.data !== undefined) setCardio(cardioJson.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
-    <>
+    <RequireAuth>
       <BackButton />
       <HealthDashboard
         initialSnapshots={snapshots}
         initialRecovery={recovery}
         initialCardio={cardio}
       />
-    </>
+    </RequireAuth>
   );
 }

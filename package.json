@@ -6,6 +6,8 @@
     "postinstall": "prisma generate",
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "build:native": "prisma generate && node scripts/build-native.mjs",
+    "sync:native": "npm run build:native && npx cap sync ios",
     "vercel-build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",

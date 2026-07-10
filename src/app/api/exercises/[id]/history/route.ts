@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import {
   computeProgressBySession,
@@ -13,27 +13,27 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id: exerciseId } = await params;
 
-  const exercise = await findExerciseVisibleToUser(exerciseId, session.user.id);
+  const exercise = await findExerciseVisibleToUser(exerciseId, userId);
 
   if (!exercise) {
     return NextResponse.json({ error: "Exercise not found" }, { status: 404 });
   }
 
-  const sets = await fetchCompletedSetsForExercise(session.user.id, exerciseId);
+  const sets = await fetchCompletedSetsForExercise(userId, exerciseId);
 
   const history = mapSetsToHistoryRows(sets);
   const progressBySession = computeProgressBySession(sets);
   const volumeBySession = computeVolumeBySession(sets);
 
   const bestPersonalRecord = await prisma.personalRecord.findFirst({
-    where: { userId: session.user.id, exerciseId },
+    where: { userId, exerciseId },
     orderBy: { estimated1RM: "desc" },
   });
 

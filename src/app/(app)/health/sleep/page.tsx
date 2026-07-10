@@ -1,15 +1,30 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { APP_NAME } from "@/lib/constants";
+"use client";
+
+import { useEffect, useState } from "react";
+import { RequireAuth } from "@/components/auth/require-auth";
+import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { SleepDetail } from "@/features/health/components/sleep-detail";
-import { getHealthSnapshots } from "@/features/health/health-data";
+import type { HealthSnapshot } from "@/features/health/types";
 
-export const metadata = { title: `Schlaf — ${APP_NAME}` };
+export default function SleepPage() {
+  const [snapshots, setSnapshots] = useState<HealthSnapshot[]>([]);
 
-export default async function SleepPage() {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  useEffect(() => {
+    let cancelled = false;
+    void authenticatedFetch("/api/health-data?limit=90", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!cancelled && json?.data) setSnapshots(json.data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const snapshots = await getHealthSnapshots(session.user.id, 90);
-  return <SleepDetail initialSnapshots={snapshots} />;
+  return (
+    <RequireAuth>
+      <SleepDetail initialSnapshots={snapshots} />
+    </RequireAuth>
+  );
 }

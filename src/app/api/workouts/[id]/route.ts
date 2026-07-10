@@ -1,6 +1,5 @@
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { dashboardCacheTag, workoutsListCacheTag, DEFAULT_REST_TIMER } from "@/lib/constants";
@@ -56,15 +55,15 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id } = await params;
 
   const workout = await prisma.workout.findFirst({
-    where: { id, userId: session.user.id },
+    where: { id, userId },
   });
 
   if (!workout) {
@@ -89,8 +88,8 @@ export async function PATCH(
     },
   });
 
-  revalidateTag(dashboardCacheTag(session.user.id), "max");
-  revalidateTag(workoutsListCacheTag(session.user.id), "max");
+  revalidateTag(dashboardCacheTag(userId), "max");
+  revalidateTag(workoutsListCacheTag(userId), "max");
 
   return NextResponse.json({ data: updated });
 }

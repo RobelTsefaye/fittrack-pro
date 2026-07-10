@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { createWorkoutSchema } from "@/features/workouts/schemas";
 import {
@@ -10,8 +10,8 @@ import { revalidateTag } from "next/cache";
 import { dashboardCacheTag, workoutsListCacheTag } from "@/lib/constants";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   const useCache = page === 1 && limit === 50 && statusFilter === null;
 
   if (useCache) {
-    const { items, total } = await getCachedWorkoutsListPage(session.user.id);
+    const { items, total } = await getCachedWorkoutsListPage(userId);
     return NextResponse.json({
       data: items,
       meta: { page: 1, limit: 50, total },
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { items, total } = await getWorkoutsListUncached(
-    session.user.id,
+    userId,
     page,
     limit,
     statusFilter
@@ -51,8 +51,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
   const workout = await prisma.workout.create({
     data: {
-      userId: session.user.id,
+      userId,
       name: parsed.data.name || null,
       startedAt: new Date(),
     },
@@ -82,8 +82,8 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  revalidateTag(dashboardCacheTag(session.user.id), "max");
-  revalidateTag(workoutsListCacheTag(session.user.id), "max");
+  revalidateTag(dashboardCacheTag(userId), "max");
+  revalidateTag(workoutsListCacheTag(userId), "max");
 
   return NextResponse.json({ data: workout }, { status: 201 });
 }

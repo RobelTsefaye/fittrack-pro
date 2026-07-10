@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { createExerciseSchema } from "@/features/exercises/schemas";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search");
 
   const where: Record<string, unknown> = {
-    OR: [{ userId: null }, { userId: session.user.id }],
+    OR: [{ userId: null }, { userId }],
   };
 
   if (muscleGroup && muscleGroup !== "ALL") {
@@ -39,8 +39,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     data: {
       ...parsed.data,
       notes: parsed.data.notes || null,
-      userId: session.user.id,
+      userId,
       isCustom: true,
     },
   });

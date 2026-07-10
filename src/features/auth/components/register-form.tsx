@@ -7,9 +7,10 @@ import Link from "next/link";
 import { Dumbbell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { registerSchema } from "../schemas";
-import { registerUser } from "../actions/register";
 import { useI18n } from "@/lib/i18n-provider";
 import { APP_NAME } from "@/lib/constants";
+import { Capacitor } from "@capacitor/core";
+import { saveNativeAuthToken } from "@/lib/native/native-auth-token";
 
 export function RegisterForm() {
   const { t } = useI18n();
@@ -37,9 +38,14 @@ export function RegisterForm() {
       return;
     }
 
-    const result = await registerUser(formData);
-    if (!result.success) {
-      setError(result.error);
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(parsed.data),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      setError(json?.error ?? t("auth.register.signInFailed"));
       setLoading(false);
       return;
     }
@@ -53,6 +59,22 @@ export function RegisterForm() {
       setError(t("auth.register.signInFailed"));
       setLoading(false);
       return;
+    }
+
+    // Additive, native-only, best-effort — same reasoning as login-form.tsx's
+    // Phase 1 wiring: a fresh registration should also leave a Bearer token
+    // stored for the native shell, not just the cookie session.
+    if (Capacitor.isNativePlatform()) {
+      void fetch("/api/auth/native-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json) => {
+          if (json?.data?.token) void saveNativeAuthToken(json.data.token);
+        })
+        .catch(() => {});
     }
 
     router.push("/dashboard");

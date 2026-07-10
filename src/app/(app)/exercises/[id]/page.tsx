@@ -1,26 +1,14 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { ExerciseDetailView } from "@/features/exercises/components/exercise-detail-view";
+import { ExerciseDetailPageClient } from "./page-client";
 
-export default async function ExerciseDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+// `generateStaticParams` must live in a Server Component file — it can't be
+// exported alongside "use client". The real id is read client-side via
+// useParams() in page-client.tsx; this placeholder only satisfies
+// `output: "export"`'s requirement that every dynamic segment enumerate at
+// least one path to pre-render a shell for (project-docs/offline-first-roadmap.md Phase 2).
+export function generateStaticParams() {
+  return [{ id: "_" }];
+}
 
-  const settings = await prisma.userSettings.findUnique({
-    where: { userId: session.user.id },
-  });
-
-  const { id } = await params;
-
-  return (
-    <ExerciseDetailView
-      exerciseId={id}
-      weightUnit={settings?.weightUnit ?? "KG"}
-    />
-  );
+export default function ExerciseDetailPage() {
+  return <ExerciseDetailPageClient />;
 }

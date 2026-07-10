@@ -1,37 +1,14 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { WorkoutDetail } from "@/features/workouts/components/workout-detail";
-import { getWorkoutDetailData } from "@/features/workouts/workout-detail-data";
-import { SettingsCacher } from "./settings-cacher";
+import { WorkoutPageClient } from "./page-client";
 
-export default async function WorkoutPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+// `generateStaticParams` must live in a Server Component file — it can't be
+// exported alongside "use client". The real id is read client-side via
+// useParams() in page-client.tsx; this placeholder only satisfies
+// `output: "export"`'s requirement that every dynamic segment enumerate at
+// least one path to pre-render a shell for (project-docs/offline-first-roadmap.md Phase 2).
+export function generateStaticParams() {
+  return [{ id: "_" }];
+}
 
-  const { id } = await params;
-  const [settings, initialWorkout] = await Promise.all([
-    prisma.userSettings.findUnique({ where: { userId: session.user.id } }),
-    getWorkoutDetailData(session.user.id, id),
-  ]);
-
-  const weightUnit = settings?.weightUnit ?? "KG";
-  const restTimerDefault = settings?.restTimerDefault ?? 90;
-
-  return (
-    <>
-      {/* Cache settings in localStorage so offline workout start can read them */}
-      <SettingsCacher weightUnit={weightUnit} restTimerDefault={restTimerDefault} />
-      <WorkoutDetail
-        workoutId={id}
-        defaultRestSeconds={restTimerDefault}
-        weightUnit={weightUnit}
-        initialWorkout={initialWorkout}
-      />
-    </>
-  );
+export default function WorkoutPage() {
+  return <WorkoutPageClient />;
 }

@@ -1,15 +1,30 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { APP_NAME } from "@/lib/constants";
+"use client";
+
+import { useEffect, useState } from "react";
+import { RequireAuth } from "@/components/auth/require-auth";
+import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { NutritionDetail } from "@/features/health/components/nutrition-detail";
-import { getHealthSnapshots } from "@/features/health/health-data";
+import type { HealthSnapshot } from "@/features/health/types";
 
-export const metadata = { title: `Ernährung — ${APP_NAME}` };
+export default function NutritionPage() {
+  const [snapshot, setSnapshot] = useState<HealthSnapshot | null>(null);
 
-export default async function NutritionPage() {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  useEffect(() => {
+    let cancelled = false;
+    void authenticatedFetch("/api/health-data?limit=1", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!cancelled && json?.data) setSnapshot(json.data.at(-1) ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const snapshots = await getHealthSnapshots(session.user.id, 1);
-  return <NutritionDetail initialSnapshot={snapshots.at(-1) ?? null} />;
+  return (
+    <RequireAuth>
+      <NutritionDetail initialSnapshot={snapshot} />
+    </RequireAuth>
+  );
 }

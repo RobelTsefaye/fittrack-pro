@@ -1,12 +1,14 @@
-import { Suspense } from "react";
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Trophy, Flame, Dumbbell, Lock, Star, Zap, Award, TrendingUp, Sun, Shield, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
-import { getAllPersonalRecords, getAchievements, type AchievementId } from "@/services/personal-records";
-import { getDashboardSummary } from "@/features/dashboard/queries";
+import { authenticatedFetch } from "@/lib/native/native-auth-token";
+import type { Achievement, AchievementId } from "@/services/personal-records";
 
 const ACHIEVEMENT_CONFIG: Record<
   AchievementId,
@@ -24,10 +26,7 @@ const ACHIEVEMENT_CONFIG: Record<
   earlyBird:       { icon: Sun,        color: "text-amber-400",   bg: "bg-amber-400/10" },
 };
 
-async function AchievementsData({ userId }: { userId: string }) {
-  const summary = await getDashboardSummary(userId);
-  const achievements = await getAchievements(userId, summary.workoutStreakDays);
-
+function AchievementsData({ achievements }: { achievements: Achievement[] }) {
   const unlocked = achievements.filter((a) => a.unlocked);
   const locked = achievements.filter((a) => !a.unlocked);
 
@@ -77,9 +76,31 @@ async function AchievementsData({ userId }: { userId: string }) {
   );
 }
 
-export function AchievementsCard({ userId }: { userId: string }) {
-  return (
-    <Suspense fallback={
+// Client component — was an async Server Component (via Suspense streaming)
+// calling getDashboardSummary + getAchievements directly. Converted to fetch
+// /api/records instead (see project-docs/offline-first-roadmap.md Phase 2),
+// which already computes the identical `getAchievements(userId,
+// summary.workoutStreakDays)` array for the Records page — reusing it here
+// avoids a second, near-duplicate route. `userId` prop dropped, same as
+// MuscleHeatmapCard — the route resolves the user from the request's auth.
+export function AchievementsCard() {
+  const [achievements, setAchievements] = useState<Achievement[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void authenticatedFetch("/api/records", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!cancelled && json?.data?.achievements) setAchievements(json.data.achievements);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (achievements == null) {
+    return (
       <div className="ios-group px-4 py-4 animate-pulse">
         <div className="mb-3 h-5 w-32 rounded bg-muted/60" />
         <div className="grid grid-cols-5 gap-2">
@@ -88,8 +109,8 @@ export function AchievementsCard({ userId }: { userId: string }) {
           ))}
         </div>
       </div>
-    }>
-      <AchievementsData userId={userId} />
-    </Suspense>
-  );
+    );
+  }
+
+  return <AchievementsData achievements={achievements} />;
 }

@@ -8,7 +8,7 @@ import {
   syncRecoveryToWatch,
 } from "@/lib/native/watch-connectivity";
 import type { WorkoutData } from "@/features/workouts/workout-types";
-import type { PreviousLogEntry } from "@/app/api/workouts/[id]/previous-logs/route";
+import type { PreviousLogEntry } from "@/features/workouts/previous-logs-types";
 import { syncHealthKitData } from "@/lib/native/healthkit";
 import { Capacitor } from "@capacitor/core";
 import type { RecoveryBreakdown } from "@/features/health/recovery";

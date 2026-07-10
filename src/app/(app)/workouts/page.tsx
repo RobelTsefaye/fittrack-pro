@@ -1,27 +1,35 @@
-import { Suspense } from "react";
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { APP_NAME } from "@/lib/constants";
-import { getCachedWorkoutsListPage } from "@/features/workouts/workouts-list-data";
+"use client";
+
+import { useEffect, useState } from "react";
+import { RequireAuth } from "@/components/auth/require-auth";
+import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { WorkoutHistoryList } from "@/features/workouts/components/workout-history-list";
 import { WorkoutsPageSkeleton } from "./workouts-page-skeleton";
+import type { WorkoutListItemDTO } from "@/features/workouts/workouts-list-data";
 
-export const metadata = { title: `Workouts — ${APP_NAME}` };
+export default function WorkoutsPage() {
+  const [workouts, setWorkouts] = useState<WorkoutListItemDTO[] | null>(null);
 
-export default async function WorkoutsPage() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    redirect("/login");
-  }
+  useEffect(() => {
+    let cancelled = false;
+    void authenticatedFetch("/api/workouts", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!cancelled && json?.data) setWorkouts(json.data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
-    <Suspense fallback={<WorkoutsPageSkeleton />}>
-      <WorkoutsListBody userId={session.user.id} />
-    </Suspense>
+    <RequireAuth>
+      {workouts === null ? (
+        <WorkoutsPageSkeleton />
+      ) : (
+        <WorkoutHistoryList initialWorkouts={workouts} />
+      )}
+    </RequireAuth>
   );
-}
-
-async function WorkoutsListBody({ userId }: { userId: string }) {
-  const { items } = await getCachedWorkoutsListPage(userId);
-  return <WorkoutHistoryList initialWorkouts={items} />;
 }

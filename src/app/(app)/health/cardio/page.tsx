@@ -1,16 +1,30 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { APP_NAME } from "@/lib/constants";
+"use client";
+
+import { useEffect, useState } from "react";
+import { RequireAuth } from "@/components/auth/require-auth";
+import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { CardioDetail } from "@/features/health/components/cardio-detail";
-import { getCardioSummary } from "@/features/health/cardio";
+import type { CardioSummary } from "@/features/health/cardio";
 
-export const metadata = { title: `Cardio — ${APP_NAME}` };
-export const dynamic = "force-dynamic";
+export default function CardioPage() {
+  const [summary, setSummary] = useState<CardioSummary | null>(null);
 
-export default async function CardioPage() {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  useEffect(() => {
+    let cancelled = false;
+    void authenticatedFetch("/api/health/cardio", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!cancelled && json?.data) setSummary(json.data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const summary = await getCardioSummary(session.user.id);
-  return <CardioDetail summary={summary} />;
+  return (
+    <RequireAuth>
+      {summary && <CardioDetail summary={summary} />}
+    </RequireAuth>
+  );
 }
