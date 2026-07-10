@@ -1,7 +1,7 @@
 # Offline-First Roadmap
 
 **Branch:** `feature/offline-first`
-**Status:** Phase 1 in progress
+**Status:** Phase 1 code complete, awaiting on-device test
 **Last updated:** 2026-07-10
 
 ## Why this is a real rearchitecture, not a patch
@@ -20,10 +20,11 @@ Fixing this properly means: bundle the UI locally (so the app always opens), mov
 ### Phase 1 — Native token-based auth (no offline behavior change yet)
 **Goal:** the native app authenticates via a stored Bearer token instead of (or alongside) the session cookie, so later phases have something to authenticate with once the cookie-based server session is gone.
 
-- [ ] Add local secure token storage on-device (Capacitor Preferences or Keychain-backed plugin)
-- [ ] Native login flow: POST credentials → receive/store an API token (reuses the existing `ApiToken` table + `resolveUserIdForDataApi` Bearer-token path already used by `WatchAPIProxy`/PiP's SSE stream — not new server infra)
-- [ ] Attach the token to API calls from the native shell
-- [ ] **Test:** log in via the native app, confirm data loads exactly as before, cookie session still works for the plain browser — nothing about the shipped app changes yet, this is purely additive
+- [x] Add local secure token storage on-device — `NativeAuthTokenPlugin.swift` (Keychain), deliberately separate from the existing `SyncTokenPlugin`/"Für Hintergrund-Sync verwenden" token (that one's an opt-in native-background convenience; this one is becoming the app's actual login credential — see the plugin's doc comment)
+- [x] Native login flow: `POST /api/auth/native-login` (new route) → mints an `ApiToken` row via the existing `hashApiTokenSecret`/`resolveUserIdForDataApi` path (same one `WatchAPIProxy`/the PiP SSE stream already use) → stored via the plugin above. Wired additively into `login-form.tsx`: fires only when `Capacitor.isNativePlatform()`, alongside the unchanged cookie `signIn()` call, best-effort (a failure here never blocks login)
+- [x] `authenticatedFetch()` helper (`src/lib/native/native-auth-token.ts`) attaches the stored token as `Authorization: Bearer` when present, falls back to plain `fetch` (cookie auth) otherwise — not wired into any page yet, that's Phase 2's job; exists now so it's independently testable
+- [x] **Tested:** `/api/auth/native-login` end-to-end against the dev DB (wrong password → 401, correct password → token, token successfully authenticates a Bearer-protected route, temp user cleaned up). Existing cookie-based browser login re-verified unaffected (redirects to dashboard, no console errors)
+- [ ] **Still needs on-device testing** (Xcode): log in from the actual native app, confirm the Keychain token is saved (no way to verify Keychain behavior from this environment)
 
 ### Phase 2 — Bundle the UI locally; app always opens
 **Goal:** the app opens instantly with zero network — proves the single biggest complaint is fixed, before any caching/sync work exists.
@@ -67,3 +68,4 @@ Fixing this properly means: bundle the UI locally (so the app always opens), mov
 
 ## Log
 - 2026-07-10: Investigated current architecture (`capacitor.config.ts`, 17 server-auth pages, no existing local-storage plugin). Wrote this roadmap. Starting Phase 1.
+- 2026-07-10: Phase 1 code complete — native login route, Keychain token plugin, `authenticatedFetch` helper, wired additively into the login form. Verified server-side end-to-end; on-device Keychain test still pending (needs Xcode/real device).

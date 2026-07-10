@@ -32,15 +32,16 @@
 		AA11BB22CC33DD44EE55FF02 /* RestTimerActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF01 /* RestTimerActivityPlugin.swift */; };
 		AA11BB22CC33DD44EE55FF04 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF03 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift */; };
 		AA11BB22CC33DD44EE55FF06 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF05 /* MainViewController.swift */; };
-		CD01AA1100000000000000B1 /* CardioLiveRelay.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A1 /* CardioLiveRelay.swift */; };
-		CD01AA1100000000000000B2 /* CardioPipContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A2 /* CardioPipContentView.swift */; };
-		CD01AA1100000000000000B3 /* CardioPictureInPicturePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A3 /* CardioPictureInPicturePlugin.swift */; };
-		CD01AA1100000000000000B4 /* AVKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A4 /* AVKit.framework */; };
-		CD01AA1100000000000000B6 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A6 /* SceneDelegate.swift */; };
-		CD01AA1100000000000000B5 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A5 /* AVFoundation.framework */; };
 		AA11BB22CC33DD44EE55FF0A /* ../RestTimerWidget/AdjustRestTimerIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF09 /* ../RestTimerWidget/AdjustRestTimerIntent.swift */; };
 		AA11BB22CC33DD44EE55FF0C /* RestTimerAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF0B /* RestTimerAppShortcuts.swift */; };
 		B37394D1BBAFEEE2853C4204 /* SharedDataPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42D146C0D81D9C9989C9E01F /* SharedDataPlugin.swift */; };
+		CD01AA1100000000000000B1 /* CardioLiveRelay.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A1 /* CardioLiveRelay.swift */; };
+		CD01AA1100000000000000B2 /* CardioPipContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A2 /* CardioPipContentView.swift */; };
+		CD01AA1100000000000000B3 /* CardioPictureInPicturePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A3 /* CardioPictureInPicturePlugin.swift */; };
+		CD01AA1100000000000000B7 /* NativeAuthTokenPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A7 /* NativeAuthTokenPlugin.swift */; };
+		CD01AA1100000000000000B4 /* AVKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A4 /* AVKit.framework */; };
+		CD01AA1100000000000000B5 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A5 /* AVFoundation.framework */; };
+		CD01AA1100000000000000B6 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD01AA1100000000000000A6 /* SceneDelegate.swift */; };
 		DE81AFC34ECCF2849D0B5C36 /* BiometricLockPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */; };
 		F43ED9D36FDFEF1893ED2917 /* WatchConnectivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */; };
 		FC5CCC552F02B0142759F285 /* SyncTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AB29A1B6FE92831C897693B /* SyncTokenStore.swift */; };
@@ -135,13 +136,14 @@
 		AA11BB22CC33DD44EE55FF09 /* ../RestTimerWidget/AdjustRestTimerIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../RestTimerWidget/AdjustRestTimerIntent.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF0B /* RestTimerAppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestTimerAppShortcuts.swift; sourceTree = "<group>"; };
 		B29E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchAPIProxy.swift; sourceTree = "<group>"; };
-		D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricLockPlugin.swift; sourceTree = "<group>"; };
 		CD01AA1100000000000000A1 /* CardioLiveRelay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardioLiveRelay.swift; sourceTree = "<group>"; };
 		CD01AA1100000000000000A2 /* CardioPipContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardioPipContentView.swift; sourceTree = "<group>"; };
 		CD01AA1100000000000000A3 /* CardioPictureInPicturePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardioPictureInPicturePlugin.swift; sourceTree = "<group>"; };
+		CD01AA1100000000000000A7 /* NativeAuthTokenPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAuthTokenPlugin.swift; sourceTree = "<group>"; };
 		CD01AA1100000000000000A4 /* AVKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVKit.framework; path = System/Library/Frameworks/AVKit.framework; sourceTree = SDKROOT; };
-		CD01AA1100000000000000A6 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		CD01AA1100000000000000A5 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		CD01AA1100000000000000A6 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricLockPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -256,6 +258,7 @@
 				CD01AA1100000000000000A1 /* CardioLiveRelay.swift */,
 				CD01AA1100000000000000A2 /* CardioPipContentView.swift */,
 				CD01AA1100000000000000A3 /* CardioPictureInPicturePlugin.swift */,
+				CD01AA1100000000000000A7 /* NativeAuthTokenPlugin.swift */,
 				B29E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift */,
 				D01C07473DEAE926EBB487E0 /* BiometricLockPlugin.swift */,
 				7AB29A1B6FE92831C897693B /* SyncTokenStore.swift */,
@@ -495,6 +498,7 @@
 				CD01AA1100000000000000B1 /* CardioLiveRelay.swift in Sources */,
 				CD01AA1100000000000000B2 /* CardioPipContentView.swift in Sources */,
 				CD01AA1100000000000000B3 /* CardioPictureInPicturePlugin.swift in Sources */,
+				CD01AA1100000000000000B7 /* NativeAuthTokenPlugin.swift in Sources */,
 				A19E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift in Sources */,
 				DE81AFC34ECCF2849D0B5C36 /* BiometricLockPlugin.swift in Sources */,
 				FC5CCC552F02B0142759F285 /* SyncTokenStore.swift in Sources */,

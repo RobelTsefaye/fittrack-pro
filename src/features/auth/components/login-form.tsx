@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { loginSchema } from "../schemas";
 import { useI18n } from "@/lib/i18n-provider";
 import { APP_NAME } from "@/lib/constants";
+import { Capacitor } from "@capacitor/core";
+import { saveNativeAuthToken } from "@/lib/native/native-auth-token";
 
 export function LoginForm() {
   const { t } = useI18n();
@@ -45,6 +47,23 @@ export function LoginForm() {
       setError(t("auth.login.invalidCredentials"));
       setLoading(false);
       return;
+    }
+
+    // Additive, native-only, best-effort: mints and stores a Bearer token
+    // alongside the (unchanged) cookie session — see
+    // project-docs/offline-first-roadmap.md Phase 1. Not used by anything
+    // yet, so a failure here must never block the existing login flow.
+    if (Capacitor.isNativePlatform()) {
+      void fetch("/api/auth/native-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json) => {
+          if (json?.data?.token) void saveNativeAuthToken(json.data.token);
+        })
+        .catch(() => {});
     }
 
     router.push("/dashboard");
