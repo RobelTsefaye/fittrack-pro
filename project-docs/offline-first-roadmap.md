@@ -1,7 +1,7 @@
 # Offline-First Roadmap
 
 **Branch:** `feature/offline-first`
-**Status:** Phase 1 code complete, awaiting on-device test
+**Status:** Phase 1 complete and verified end-to-end
 **Last updated:** 2026-07-10
 
 ## Why this is a real rearchitecture, not a patch
@@ -24,7 +24,7 @@ Fixing this properly means: bundle the UI locally (so the app always opens), mov
 - [x] Native login flow: `POST /api/auth/native-login` (new route) → mints an `ApiToken` row via the existing `hashApiTokenSecret`/`resolveUserIdForDataApi` path (same one `WatchAPIProxy`/the PiP SSE stream already use) → stored via the plugin above. Wired additively into `login-form.tsx`: fires only when `Capacitor.isNativePlatform()`, alongside the unchanged cookie `signIn()` call, best-effort (a failure here never blocks login)
 - [x] `authenticatedFetch()` helper (`src/lib/native/native-auth-token.ts`) attaches the stored token as `Authorization: Bearer` when present, falls back to plain `fetch` (cookie auth) otherwise — not wired into any page yet, that's Phase 2's job; exists now so it's independently testable
 - [x] **Tested:** `/api/auth/native-login` end-to-end against the dev DB (wrong password → 401, correct password → token, token successfully authenticates a Bearer-protected route, temp user cleaned up). Existing cookie-based browser login re-verified unaffected (redirects to dashboard, no console errors)
-- [ ] **Still needs on-device testing** (Xcode): log in from the actual native app, confirm the Keychain token is saved (no way to verify Keychain behavior from this environment)
+- [x] **On-device tested** (Xcode console + Safari Web Inspector, real device): `save`/`load`/`clear` round trip confirmed correct — save → `{success:true}`, load → `{token:"hallo"}`, clear → `{success:true}`, load after clear → `{token:null}`. Full App-target build (App + Watch + Complication + Widget) also verified to compile clean via `xcodebuild`.
 
 ### Phase 2 — Bundle the UI locally; app always opens
 **Goal:** the app opens instantly with zero network — proves the single biggest complaint is fixed, before any caching/sync work exists.
@@ -69,3 +69,4 @@ Fixing this properly means: bundle the UI locally (so the app always opens), mov
 ## Log
 - 2026-07-10: Investigated current architecture (`capacitor.config.ts`, 17 server-auth pages, no existing local-storage plugin). Wrote this roadmap. Starting Phase 1.
 - 2026-07-10: Phase 1 code complete — native login route, Keychain token plugin, `authenticatedFetch` helper, wired additively into the login form. Verified server-side end-to-end; on-device Keychain test still pending (needs Xcode/real device).
+- 2026-07-10: Discovered a full Xcode/xcodebuild toolchain is available in this environment — used it to compile the whole App target (App + Watch + Complication + RestTimerWidget) and to standalone-verify the Keychain save/load/clear logic against the real Security framework before asking for on-device confirmation. Root-caused an early "always undefined" false alarm to an accidental `git checkout main` (from an earlier interrupted merge attempt) silently leaving the working tree on the wrong branch, so Xcode was rebuilding a version without the new plugin file at all — fixed by switching back to `feature/offline-first`. Phase 1 fully confirmed on-device afterward: save/load/clear round trip correct in the real Keychain via Xcode console + Safari Web Inspector.
