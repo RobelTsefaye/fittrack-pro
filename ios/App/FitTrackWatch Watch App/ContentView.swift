@@ -195,6 +195,16 @@ struct ContentView: View {
                 routeTracker.stop()
             }
         }
+        .onChange(of: workoutManager.isPaused) { _, paused in
+            // GPS-Route pausiert im Gleichschritt mit der HR-Session —
+            // sonst zählt die Distanz während einer Pause weiter.
+            guard workoutManager.isOutdoorActivity else { return }
+            if paused {
+                routeTracker.pause()
+            } else {
+                routeTracker.resume()
+            }
+        }
         .onChange(of: phoneObserver.activeWorkout?.workoutId) { _, newId in
             if newId != nil {
                 selectedPage = 1
@@ -493,6 +503,13 @@ private struct LiveWorkoutView: View {
             Text(formattedTime)
                 .font(.system(size: 34, weight: .semibold, design: .rounded))
                 .monospacedDigit()
+                .foregroundStyle(workoutManager.isPaused ? .orange : .primary)
+
+            if workoutManager.isPaused {
+                Text("Pausiert")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
 
             HStack(spacing: 16) {
                 MetricView(
@@ -547,6 +564,22 @@ private struct LiveWorkoutView: View {
             }
 
             if phoneObserver.activeWorkout == nil {
+                if workoutManager.isRunning {
+                    // Pause/Resume der laufenden Cardio-Session — Kraft-
+                    // Workouts haben das schon in WorkoutControlsView, hier
+                    // fehlte es für Laufen/Radfahren komplett.
+                    Button {
+                        workoutManager.isPaused ? workoutManager.resume() : workoutManager.pause()
+                    } label: {
+                        Label(
+                            workoutManager.isPaused ? "Fortsetzen" : "Pausieren",
+                            systemImage: workoutManager.isPaused ? "play.fill" : "pause.fill"
+                        )
+                    }
+                    .tint(.orange)
+                    .padding(.top, 4)
+                }
+
                 // Only offer manual end/cancel for Watch-only sessions —
                 // phone-mirrored workouts stop automatically when finished on
                 // the phone (see ContentView's onChange), avoiding two
