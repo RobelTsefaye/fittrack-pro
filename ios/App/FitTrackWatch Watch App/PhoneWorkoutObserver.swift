@@ -154,12 +154,14 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
         case notReachable
         case serverError(String)
         case timedOut
+        case transportFailed
 
         var errorDescription: String? {
             switch self {
             case .notReachable: return "iPhone nicht erreichbar"
             case .serverError(let message): return message
             case .timedOut: return "iPhone antwortet nicht — ist die App dort geöffnet?"
+            case .transportFailed: return "Verbindung zum iPhone unterbrochen — bitte erneut versuchen"
             }
         }
     }
@@ -208,8 +210,13 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
                     completion(.success(reply))
                 }
             }
-        }, errorHandler: { error in
-            once.run { completion(.failure(error)) }
+        }, errorHandler: { _ in
+            // The raw WCSession transport error here is an English NSError
+            // (e.g. "Message reply not received") — inconsistent with every
+            // other failure path in this app, which surfaces clear German
+            // text. Normalize to the same RequestError family instead of
+            // passing it through as-is.
+            once.run { completion(.failure(RequestError.transportFailed)) }
         })
 
         DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {

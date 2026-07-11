@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { App as CapacitorApp } from "@capacitor/app";
 import { flushAllQueues } from "@/lib/offline/flush-all-queues";
 import { toast } from "sonner";
 
@@ -67,7 +68,24 @@ export function OfflineSyncProvider() {
     // per-navigation warming is needed here at all.
     const onOnline = () => void run();
     window.addEventListener("online", onOnline);
-    return () => window.removeEventListener("online", onOnline);
+
+    // The "online" event alone can be missed while the WKWebView is
+    // suspended in the background (connectivity can change during that
+    // window with nothing there to hear it) — a genuine background flush of
+    // the IndexedDB queue isn't possible at all in that state (no JS
+    // running, see BackgroundSyncManager.swift's doc comment for why that's
+    // native-only and HealthKit-specific), so this is the next best thing:
+    // re-check as soon as the app is foregrounded again. No-ops on web.
+    let removeResumeListener: (() => void) | undefined;
+    const resumeListenerPromise = CapacitorApp.addListener("resume", () => void run());
+    void resumeListenerPromise.then((handle) => {
+      removeResumeListener = () => void handle.remove();
+    });
+
+    return () => {
+      window.removeEventListener("online", onOnline);
+      removeResumeListener?.();
+    };
   }, [pathname, router]);
 
   return null;
