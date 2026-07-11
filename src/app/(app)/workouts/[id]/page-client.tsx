@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { WorkoutDetail } from "@/features/workouts/components/workout-detail";
@@ -9,7 +9,12 @@ import type { WorkoutData } from "@/features/workouts/workout-types";
 import { SettingsCacher } from "./settings-cacher";
 
 export function WorkoutPageClient() {
-  const { id } = useParams<{ id: string }>();
+  const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  // Native navigates here via workoutHref(), which passes the real id as
+  // ?id=... against the pre-rendered placeholder path (see workout-href.ts);
+  // the web build still uses the clean /workouts/<id> path param directly.
+  const id = searchParams.get("id") ?? params.id;
   const [initialWorkout, setInitialWorkout] = useState<WorkoutData | null>(null);
   const [weightUnit, setWeightUnit] = useState<"KG" | "LB">("KG");
   const [restTimerDefault, setRestTimerDefault] = useState(90);

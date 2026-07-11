@@ -24,15 +24,20 @@ export function RestTimerBar({ timer }: RestTimerBarProps) {
 
   return (
     <div
-      className="fixed inset-x-0 top-0 z-50 flex justify-center px-3"
+      className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center px-3"
       style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top, 0px))" }}
       role="status"
       aria-live="polite"
     >
       {/* "Dynamic Island" look — dark capsule regardless of app theme, so it
        *  reads as a native-style notch even though iOS never actually shows
-       *  a Live Activity for the foreground app itself. */}
-      <div className="w-[min(100%,22rem)] overflow-hidden rounded-[1.75rem] bg-black/92 px-4 py-2.5 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-xl supports-[backdrop-filter]:bg-black/85">
+       *  a Live Activity for the foreground app itself. The wrapper above is
+       *  pointer-events-none because it spans the full viewport width (for
+       *  centering) even where the capsule isn't — without this, its empty
+       *  edges silently swallowed taps on whatever sat underneath them
+       *  (e.g. the "Finish workout" button on narrow screens where it lands
+       *  right below the header, inside this bar's full-width hit area). */}
+      <div className="pointer-events-auto w-[min(100%,22rem)] overflow-hidden rounded-[1.75rem] bg-black/92 px-4 py-2.5 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-xl supports-[backdrop-filter]:bg-black/85">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
             <Timer className="h-4 w-4 shrink-0 text-orange-400" />

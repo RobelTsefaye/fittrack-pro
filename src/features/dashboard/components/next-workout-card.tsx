@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Play } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
+import { workoutHref } from "@/lib/workout-href";
 import type { NextPlanSession } from "@/features/dashboard/queries";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
 
@@ -28,7 +29,7 @@ export function NextWorkoutCard({ nextSession }: NextWorkoutCardProps) {
       const json = await res.json();
       if (!res.ok || !json.data?.id) throw new Error();
       notifyActiveWorkoutChanged();
-      router.push(`/workouts/${json.data.id}`);
+      router.push(workoutHref(json.data.id));
     } catch {
       setLoading(false);
     }

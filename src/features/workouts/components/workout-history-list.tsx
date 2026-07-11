@@ -6,6 +6,7 @@ import { Dumbbell, Plus, Trash2, ChevronRight, Clock, Layers } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
+import { workoutHref } from "@/lib/workout-href";
 import { useI18n } from "@/lib/i18n-provider";
 import { tryGetOfflineDb } from "@/lib/offline/db";
 import type { WorkoutListItemDTO } from "@/features/workouts/workouts-list-data";
@@ -221,7 +222,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                     padding: "14px",
                     borderTop: i > 0 ? "1px solid rgba(255,255,255,0.08)" : "none",
                   }}
-                  onClick={() => router.push(`/workouts/${w.id}`)}
+                  onClick={() => router.push(workoutHref(w.id))}
                 >
                   {/* Icon */}
                   <div

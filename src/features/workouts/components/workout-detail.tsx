@@ -33,6 +33,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -359,6 +360,21 @@ export function WorkoutDetail({
   );
   const [offlineOriginSession, setOfflineOriginSession] = useState(false);
   const [pendingQueue, setPendingQueue] = useState(false);
+  // In-app replacement for window.confirm(): native WKWebView JS-dialog
+  // panels can silently fail to appear (observed on-device stuck behind an
+  // await that never resolves — no dialog, no error, no way to proceed) when
+  // another system alert/permission-sheet has recently been shown, which is
+  // common in this app given HealthKit sync retries and the Face ID gate.
+  // This sidesteps the native dialog bridge entirely.
+  const [confirmState, setConfirmState] = useState<{
+    message: string;
+    resolve: (value: boolean) => void;
+  } | null>(null);
+  const askConfirm = useCallback((message: string) => {
+    return new Promise<boolean>((resolve) => {
+      setConfirmState({ message, resolve });
+    });
+  }, []);
   const [previousLogs, setPreviousLogs] = useState<Record<string, PreviousLogEntry>>({});
   const [reviseCompletedSets, setReviseCompletedSets] = useState(false);
   const [completionSummary, setCompletionSummary] = useState<{
@@ -915,7 +931,7 @@ export function WorkoutDetail({
   }
 
   async function removeExercise(weId: string) {
-    if (!confirm(t("workouts.removeExerciseConfirm"))) return;
+    if (!(await askConfirm(t("workouts.removeExerciseConfirm")))) return;
     if (useLocalWrites && workout) {
       const next: WorkoutData = {
         ...workout,
@@ -933,7 +949,7 @@ export function WorkoutDetail({
   }
 
   async function completeWorkout() {
-    if (!confirm(t("workouts.finishConfirm"))) return;
+    if (!(await askConfirm(t("workouts.finishConfirm")))) return;
     if (useLocalWrites && workout) {
       setCompleting(true);
       const completedAt = new Date().toISOString();
@@ -942,45 +958,63 @@ export function WorkoutDetail({
         Math.floor((Date.now() - new Date(workout.startedAt).getTime()) / 1000)
       );
       const next: WorkoutData = { ...workout, completedAt, durationSeconds };
+      // Reflect the completion locally first — this must not get stuck
+      // behind the IndexedDB writes below throwing (e.g. a Dexie hiccup):
+      // the workout is still "done" from the user's perspective even if
+      // queuing the sync op fails, so don't leave the button hung silently.
       setWorkout(next);
-      await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
-      await enqueueWorkoutOp(workoutId, { t: "complete_workout" });
-      setPendingQueue(true);
-      setCompleting(false);
       restTimer.stop();
       notifyActiveWorkoutChanged();
       void hapticWorkoutCompleted();
+      try {
+        await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
+        await enqueueWorkoutOp(workoutId, { t: "complete_workout" });
+        setPendingQueue(true);
+      } catch (err) {
+        console.error("Failed to queue offline workout completion", err);
+      } finally {
+        setCompleting(false);
+      }
       router.refresh();
       return;
     }
     setCompleting(true);
-    const res = await fetch(`/api/workouts/${workoutId}/complete`, {
-      method: "POST",
-      credentials: "include",
-    });
-    setCompleting(false);
-    if (!res.ok) return;
-    const json = (await res.json()) as {
-      comparison?: {
-        hasPrevious: boolean;
-        previousVolume: number;
-        currentVolume: number;
-        volumeDelta: number;
-        volumeDeltaPct: number | null;
+    try {
+      const res = await fetch(`/api/workouts/${workoutId}/complete`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        window.alert(t("workouts.finishFailed"));
+        return;
+      }
+      const json = (await res.json()) as {
+        comparison?: {
+          hasPrevious: boolean;
+          previousVolume: number;
+          currentVolume: number;
+          volumeDelta: number;
+          volumeDeltaPct: number | null;
+        };
+        newPersonalRecords?: number;
       };
-      newPersonalRecords?: number;
-    };
-    if (json.comparison) setCompletionSummary(json.comparison);
-    restTimer.stop();
-    notifyActiveWorkoutChanged();
-    void clearWatchWorkoutState(workoutId);
-    if (json.newPersonalRecords && json.newPersonalRecords > 0) {
-      void hapticPersonalRecord();
-    } else {
-      void hapticWorkoutCompleted();
+      if (json.comparison) setCompletionSummary(json.comparison);
+      restTimer.stop();
+      notifyActiveWorkoutChanged();
+      void clearWatchWorkoutState(workoutId);
+      if (json.newPersonalRecords && json.newPersonalRecords > 0) {
+        void hapticPersonalRecord();
+      } else {
+        void hapticWorkoutCompleted();
+      }
+      await loadWorkout({ silent: true });
+      router.refresh();
+    } catch (err) {
+      console.error("Failed to complete workout", err);
+      window.alert(t("workouts.finishFailed"));
+    } finally {
+      setCompleting(false);
     }
-    await loadWorkout({ silent: true });
-    router.refresh();
   }
 
   /// Wall-clock ms of the last restTimer.start() call, regardless of which
@@ -1105,7 +1139,7 @@ export function WorkoutDetail({
 
   async function deleteCompletedWorkout() {
     if (!workout?.completedAt) return;
-    if (!confirm(t("workouts.deleteCompletedConfirm"))) return;
+    if (!(await askConfirm(t("workouts.deleteCompletedConfirm")))) return;
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       window.alert(t("workouts.deleteCompletedOffline"));
       return;
@@ -1135,7 +1169,7 @@ export function WorkoutDetail({
 
   async function cancelWorkout() {
     if (!workout || workout.completedAt) return;
-    if (!confirm(t("workouts.cancelWorkoutConfirm"))) return;
+    if (!(await askConfirm(t("workouts.cancelWorkoutConfirm")))) return;
 
     setCancelling(true);
     restTimer.stop();
@@ -1461,6 +1495,41 @@ export function WorkoutDetail({
               )}
             </DialogDescription>
           </DialogHeader>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!confirmState}
+        onOpenChange={(open) => {
+          if (!open) {
+            confirmState?.resolve(false);
+            setConfirmState(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{confirmState?.message}</DialogTitle>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                confirmState?.resolve(false);
+                setConfirmState(null);
+              }}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={() => {
+                confirmState?.resolve(true);
+                setConfirmState(null);
+              }}
+            >
+              {t("common.confirm")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

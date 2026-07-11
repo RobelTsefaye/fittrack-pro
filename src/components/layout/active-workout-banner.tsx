@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ChevronRight, Dumbbell } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
+import { workoutHref } from "@/lib/workout-href";
 
 const CHANGED = "fittrack-active-workout-changed";
 
@@ -95,14 +96,24 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
   // there would reintroduce the pop-in/layout-shift this component guards
   // against (see lastFetchedAt comment above).
   if (status === "unauthenticated" || !active) return null;
-  if (pathname === `/workouts/${active.id}`) return null;
+  // On native, the current workout's URL is /workouts/_?id=<id> (see
+  // workout-href.ts); on web it's the plain /workouts/<id> path. Read the
+  // query directly off window.location rather than useSearchParams() — that
+  // hook needs a Suspense boundary, and this component sits at the app-shell
+  // root where every page would have to be wrapped for it.
+  const onActiveWorkoutPage =
+    pathname === `/workouts/${active.id}` ||
+    (pathname === "/workouts/_" &&
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("id") === active.id);
+  if (onActiveWorkoutPage) return null;
 
   const title = active.name?.trim() || t("workouts.workoutFallback");
 
   return (
     <div className="shrink-0 border-b border-primary/15 bg-primary/8 dark:bg-primary/12 px-2 py-1.5">
       <Link
-        href={`/workouts/${active.id}`}
+        href={workoutHref(active.id)}
         className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={t("workouts.activeSessionBannerAria", { name: title })}
       >

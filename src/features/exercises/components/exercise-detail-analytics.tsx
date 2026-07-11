@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n-provider";
+import { workoutHref } from "@/lib/workout-href";
 import { OneRMCalculator } from "./one-rm-calculator";
 import type { ProgressPoint, VolumePoint } from "@/features/exercises/progress-types";
 
@@ -159,7 +160,7 @@ export function ExerciseDetailAnalytics({
                       </td>
                       <td className="px-3 py-2">
                         <Link
-                          href={`/workouts/${row.workoutId}`}
+                          href={workoutHref(row.workoutId)}
                           className={cn(
                             buttonVariants({ variant: "link", size: "sm" }),
                             "h-auto px-0"
