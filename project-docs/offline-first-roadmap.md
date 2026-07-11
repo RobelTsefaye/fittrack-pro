@@ -1,13 +1,11 @@
 # Offline-First Roadmap
 
-**Branch:** `feature/offline-plan-session-start` (Phases 1-5 already merged to `main`)
-**Status:** All 5 phases + the Phase 4 follow-up (offline plan-session start) are code-complete and now **on-device tested and passed**. Phases 1-5 are merged to `main`. **The current branch (`feature/offline-plan-session-start`) has commits not yet merged.**
+**Status:** All 5 phases + the Phase 4 follow-up (offline plan-session start) are code-complete, on-device tested, and **merged to `main`** (`01a6132`). The roadmap is closed out.
 **Last updated:** 2026-07-12
 
 ## ⏭️ Resume here (next session)
 
-1. On-device test for the plan-session offline-start commit (`5ca2479`) **passed**. Merge `feature/offline-plan-session-start` into `main` (mirror the process every other phase used — `git status`/`tsc --noEmit` check, `git checkout main`, `git merge --no-ff`, `tsc --noEmit` again, `git push origin main`). The user asks for this explicitly each time ("ja, merge das") — don't merge without that.
-2. After that merge, the entire roadmap (all 5 phases + the deferred item) is closed out. No further planned work exists in this doc — check with the user before starting anything new here.
+No further planned work exists in this doc — check with the user before starting anything new here. (See "Also still lying around" below for optional cleanup items.)
 
 ### Bug found + fixed during this on-device test round
 Clicking a plan on `/plans` redirected straight back to the dashboard instead of opening it. Root cause: same class of bug as the Phase 4 `workoutHref()` fix — `/plans/[planId]` is statically exported with only a `/plans/_` placeholder pre-rendered (Phase 2), so a real plan id has no matching file on native; the WKWebView's local server falls back to `index.html`, which redirects a logged-in user to `/dashboard`. Fixed with the same pattern:
