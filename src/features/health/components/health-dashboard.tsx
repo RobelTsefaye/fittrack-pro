@@ -21,6 +21,13 @@ import { syncHealthKitData } from "@/lib/native/healthkit";
 import { syncRecoveryWidgetSnapshot } from "@/lib/native/shared-data";
 import { syncRecoveryToWatch } from "@/lib/native/watch-connectivity";
 import dynamic from "next/dynamic";
+import { saveHealthCache, loadHealthCache } from "@/lib/offline/screen-caches";
+
+type HealthDashboardCached = {
+  snapshots: HealthSnapshot[];
+  recovery: RecoveryBreakdown | null;
+  cardio: CardioSummary | null;
+};
 
 const HealthMetricChart = dynamic(
   () => import("./health-metric-chart").then((m) => m.HealthMetricChart),
@@ -57,6 +64,16 @@ export function HealthDashboard({
   const [snapshots, setSnapshots] = useState<HealthSnapshot[]>(initialSnapshots ?? []);
   const [recovery, setRecovery] = useState<RecoveryBreakdown | null>(initialRecovery ?? null);
   const [cardio, setCardio] = useState<CardioSummary | null>(initialCardio ?? null);
+  // Mirrors of the three states above, read inside `load` instead of the
+  // state itself — keeps `load`'s identity stable across renders (it's a
+  // dependency of the mount effect below; if it changed identity every time
+  // a fetch completed, that effect would re-fire and loop forever).
+  const snapshotsRef = useRef(snapshots);
+  const recoveryRef = useRef(recovery);
+  const cardioRef = useRef(cardio);
+  snapshotsRef.current = snapshots;
+  recoveryRef.current = recovery;
+  cardioRef.current = cardio;
   const [loading, setLoading] = useState(!hasInitialData);
   const [refreshing, setRefreshing] = useState(false);
   const [waitingForShortcut, setWaitingForShortcut] = useState(false);
@@ -73,6 +90,23 @@ export function HealthDashboard({
     if (!silent) setLoading(true);
     else setRefreshing(true);
     setFetchError(null);
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const cached = await loadHealthCache<HealthDashboardCached>("dashboard");
+      if (requestId === requestIdRef.current) {
+        if (cached) {
+          setSnapshots(cached.snapshots);
+          setRecovery(cached.recovery);
+          setCardio(cached.cardio);
+        } else {
+          setFetchError("Offline — keine zwischengespeicherten Daten vorhanden.");
+        }
+        setLoading(false);
+        setRefreshing(false);
+      }
+      return;
+    }
+
     try {
       const [snapsRes, recRes, cardioRes] = await Promise.all([
         fetch("/api/health-data?limit=30", { credentials: "include" }),
@@ -83,9 +117,13 @@ export function HealthDashboard({
       if (requestId !== requestIdRef.current) return;
 
       const errors: string[] = [];
+      let nextSnapshots = snapshotsRef.current;
+      let nextRecovery = recoveryRef.current;
+      let nextCardio = cardioRef.current;
       if (snapsRes.ok) {
         const json = (await snapsRes.json()) as { data: HealthSnapshot[] };
-        setSnapshots(json.data);
+        nextSnapshots = json.data;
+        setSnapshots(nextSnapshots);
       } else {
         // Surface the real reason instead of silently rendering the empty state.
         // 500s here usually mean the DB schema is out of sync with Prisma.
@@ -93,7 +131,8 @@ export function HealthDashboard({
       }
       if (recRes.ok) {
         const json = (await recRes.json()) as { data: RecoveryBreakdown };
-        setRecovery(json.data);
+        nextRecovery = json.data;
+        setRecovery(nextRecovery);
         if (json.data.level !== "none") {
           void syncRecoveryWidgetSnapshot(json.data.score, json.data.level);
           void syncRecoveryToWatch(json.data.score, json.data.level);
@@ -103,14 +142,28 @@ export function HealthDashboard({
       }
       if (cardioRes.ok) {
         const json = (await cardioRes.json()) as { data: CardioSummary };
-        setCardio(json.data);
+        nextCardio = json.data;
+        setCardio(nextCardio);
       } else {
         errors.push(`Cardio-Daten konnten nicht geladen werden (${cardioRes.status})`);
       }
       if (errors.length > 0) setFetchError(errors.join(" · "));
+      void saveHealthCache<HealthDashboardCached>("dashboard", {
+        snapshots: nextSnapshots,
+        recovery: nextRecovery,
+        cardio: nextCardio,
+      });
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
-      setFetchError(`Verbindungsfehler: ${err instanceof Error ? err.message : "unbekannt"}`);
+      const cached = await loadHealthCache<HealthDashboardCached>("dashboard");
+      if (requestId !== requestIdRef.current) return;
+      if (cached) {
+        setSnapshots(cached.snapshots);
+        setRecovery(cached.recovery);
+        setCardio(cached.cardio);
+      } else {
+        setFetchError(`Verbindungsfehler: ${err instanceof Error ? err.message : "unbekannt"}`);
+      }
     } finally {
       if (requestId === requestIdRef.current) {
         setLoading(false);

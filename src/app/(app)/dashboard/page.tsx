@@ -10,6 +10,9 @@ import { MuscleHeatmapCard } from "@/features/dashboard/components/muscle-heatma
 import { AchievementsCard } from "@/features/dashboard/components/achievements-card";
 import { DashboardPageSkeleton } from "./dashboard-page-skeleton";
 import type { DashboardClientPayload } from "@/features/dashboard/queries";
+import { saveDashboardCache, loadDashboardCache } from "@/lib/offline/screen-caches";
+
+type DashboardState = { weightUnit: "KG" | "LB"; payload: DashboardClientPayload };
 
 // Client component — no server-side auth()/data-fetching (see
 // project-docs/offline-first-roadmap.md Phase 2). Fetches the new
@@ -21,7 +24,7 @@ import type { DashboardClientPayload } from "@/features/dashboard/queries";
 // in Suspense.
 export default function DashboardPage() {
   const { data: session } = useSession();
-  const [state, setState] = useState<{ weightUnit: "KG" | "LB"; payload: DashboardClientPayload } | null>(null);
+  const [state, setState] = useState<DashboardState | null>(null);
   const [failed, setFailed] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -29,16 +32,38 @@ export default function DashboardPage() {
     document.title = `Dashboard — ${APP_NAME}`;
     let cancelled = false;
     setFailed(false);
-    void authenticatedFetch("/api/dashboard/client-payload", { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
+
+    async function load() {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = await loadDashboardCache<DashboardState>();
+        if (!cancelled) {
+          if (cached) setState(cached);
+          else setFailed(true);
+        }
+        return;
+      }
+      try {
+        const res = await authenticatedFetch("/api/dashboard/client-payload", { credentials: "include" });
+        const json = res.ok ? await res.json() : null;
         if (cancelled) return;
-        if (json?.data) setState(json.data);
+        if (json?.data) {
+          setState(json.data);
+          void saveDashboardCache(json.data);
+        } else {
+          const cached = await loadDashboardCache<DashboardState>();
+          if (cancelled) return;
+          if (cached) setState(cached);
+          else setFailed(true);
+        }
+      } catch {
+        const cached = await loadDashboardCache<DashboardState>();
+        if (cancelled) return;
+        if (cached) setState(cached);
         else setFailed(true);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
+      }
+    }
+
+    void load();
     return () => {
       cancelled = true;
     };

@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ROUTES } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
+import { savePlansCache, loadPlansCache } from "@/lib/offline/screen-caches";
 
 type PlanRow = {
   id: string;
@@ -42,41 +43,33 @@ export function PlansList() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const cached = await loadPlansCache<PlanRow[]>();
+      if (cached) { setPlans(cached); setLoadError(false); }
+      else setLoadError(true);
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch("/api/plans");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      setPlans(json.data ?? []);
+      const data: PlanRow[] = json.data ?? [];
+      setPlans(data);
       setLoadError(false);
+      void savePlansCache(data);
     } catch {
-      setLoadError(true);
+      const cached = await loadPlansCache<PlanRow[]>();
+      if (cached) { setPlans(cached); setLoadError(false); }
+      else setLoadError(true);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Initial fetch inlined (not `load()`) so no setState runs synchronously in
-  // the effect body — `loading` already starts true and the updates below
-  // happen only after awaits. `load` is still used for retry and to refresh
-  // after creating a plan.
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/plans");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        if (!cancelled) {
-          setPlans(json.data ?? []);
-          setLoadError(false);
-        }
-      } catch {
-        if (!cancelled) setLoadError(true);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleCreate(e: React.FormEvent) {

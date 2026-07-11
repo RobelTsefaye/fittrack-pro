@@ -1,35 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { RequireAuth } from "@/components/auth/require-auth";
-import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { WorkoutHistoryList } from "@/features/workouts/components/workout-history-list";
-import { WorkoutsPageSkeleton } from "./workouts-page-skeleton";
-import type { WorkoutListItemDTO } from "@/features/workouts/workouts-list-data";
 
+// WorkoutHistoryList owns its own fetch (cache-then-network via
+// src/lib/offline/db.ts's workoutListCache, same pattern as
+// body-weight-tracker.tsx) and its own loading skeleton — this page used to
+// duplicate that with a separate network-only fetch that had no cache
+// fallback, so it just stayed on WorkoutsPageSkeleton forever whenever
+// offline. See project-docs/offline-first-roadmap.md Phase 3.
 export default function WorkoutsPage() {
-  const [workouts, setWorkouts] = useState<WorkoutListItemDTO[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void authenticatedFetch("/api/workouts", { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        if (!cancelled && json?.data) setWorkouts(json.data);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   return (
     <RequireAuth>
-      {workouts === null ? (
-        <WorkoutsPageSkeleton />
-      ) : (
-        <WorkoutHistoryList initialWorkouts={workouts} />
-      )}
+      <WorkoutHistoryList />
     </RequireAuth>
   );
 }

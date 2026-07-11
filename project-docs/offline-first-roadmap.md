@@ -1,8 +1,8 @@
 # Offline-First Roadmap
 
-**Branch:** `feature/offline-phase2-local-bundle` (Phase 1 + the Phase 2 API layer already merged to `main`)
-**Status:** Phase 2 complete and verified on-device (online: full functionality; offline: app opens to the shell). Ready to merge.
-**Last updated:** 2026-07-10
+**Branch:** `feature/offline-phase3-local-cache` (Phase 1 + 2 already on `main`)
+**Status:** Phase 3 code-complete, verified in the browser (cache writes confirmed via IndexedDB inspection; offline reads confirmed via a `navigator.onLine` override + SPA navigation, for both an empty-state screen and a data-bearing one). On-device airplane-mode test still needed before merge.
+**Last updated:** 2026-07-11
 
 ## Why this is a real rearchitecture, not a patch
 
@@ -42,14 +42,14 @@ Fixing this properly means: bundle the UI locally (so the app always opens), mov
 ### Phase 3 — Local read cache (incremental, screen by screen)
 **Goal:** each screen shows last-known data immediately, refreshes in the background when online, and doesn't go blank when offline.
 
-- [ ] Add local SQLite (`@capacitor-community/sqlite` or similar) as the on-device cache store
-- [ ] Cache-then-network pattern, rolled out one screen at a time so each is independently testable:
-  - [ ] Workouts list
-  - [ ] Exercises list
-  - [ ] Dashboard
-  - [ ] Plans
-  - [ ] Health screens
-- [ ] **Test per screen:** load once online, go offline, relaunch — screen shows the cached data instead of an error
+- [x] **Discovered existing offline infrastructure predating this roadmap**: `src/lib/offline/db.ts` already had a working Dexie (IndexedDB) database with read caches + write queues for Workouts and Body Weight, plus a global `OfflineSyncProvider` that flushes queued writes on reconnect. This was from an earlier PWA-era effort, not reflected in this doc until now. Used Dexie (not `@capacitor-community/sqlite`) for everything below to stay consistent with what's already there — no reason to run two different local-storage mechanisms side by side.
+- [x] **Fixed Workouts list**: `WorkoutHistoryList` already had a complete cache-then-network implementation (`workoutListCache` table) that was never actually invoked — `workouts/page.tsx` did its own separate network-only fetch instead and passed the result down as a prop, so offline this just hung on the page-level skeleton forever. Fixed by having the list own its entire fetch lifecycle (mount effect calls its own `fetchWorkouts`), matching the pattern `body-weight-tracker.tsx` already used correctly.
+- [x] **Exercises list**: the exercise catalog cache (`saveExerciseCatalog`/`loadExerciseCatalog`, in `workout-offline-store.ts`) already existed and was being written to, but nothing ever read it back — a failed fetch just showed an empty list. Added the read-side fallback (`loadFromCatalogCache`, with client-side re-filtering by search/muscleGroup/equipment to match what the server would have returned).
+- [x] **Dashboard, Achievements, Muscle Heatmap, Plans, Health** (dashboard + sleep/recovery/nutrition sub-screens): none of these had any offline cache at all. Added 5 new Dexie tables (`dashboardCache`, `achievementsCache`, `muscleHeatmapCache`, `plansCache`, `healthCache` — the last keyed per sub-screen) via a new `src/lib/offline/screen-caches.ts` (one small file instead of five near-identical ones, since these are pure read caches with no queue/conflict logic, unlike workouts/body-weight). Each screen now: checks `navigator.onLine` first (skips a doomed network round trip when already known offline), saves to cache on a successful fetch, and falls back to cache on either an offline start or a network failure.
+- [x] **Verified in the browser**: visited every updated screen once online, then confirmed via direct IndexedDB inspection that all 7 new/fixed cache tables actually populated (previously 3 of them silently didn't — see below). Then overrode `navigator.onLine = false` and used in-app SPA link clicks (not a full browser reload, which would reset the override) to re-visit Workouts (empty-cache case) and Dashboard (data-bearing case) — both rendered from cache with zero new network requests fired, confirmed via the network log.
+- [x] **Root-caused a debugging dead-end along the way**: initial testing showed `dashboardCache`/`achievementsCache`/`muscleHeatmapCache` staying empty even after adding temporary debug logging that never appeared in the console — traced to the app's pre-existing PWA service worker serving a **stale cached copy of the JS bundle** from an earlier test session (`fittrack-v13-pwa` cache), invisible to normal dev-server restarts because Next dev's chunk filenames aren't content-hashed (so the SW's cache-first match still "hit" on the old content under the same filename). Confirmed via a cache-busting fetch showing the current source WAS being served correctly once the SW's cache was actually bypassed. Not a Phase 3 bug — a pre-existing SW/dev-workflow gotcha, worth remembering for any future "my code changes don't seem to take effect in the browser" confusion.
+- [x] `npx tsc --noEmit`, `npm run build` (normal Vercel path), and `npm run build:native` (static export) all clean.
+- [ ] **On-device test still needed**: airplane mode, force-quit, relaunch — each of Workouts/Exercises/Dashboard/Plans/Health should show last-known data instead of going blank. Browser-based testing (above) proves the mechanism; it doesn't prove the Capacitor/WKWebView IndexedDB implementation behaves identically. Nothing merges to `main` until this passes.
 
 ### Phase 4 — Offline write queue
 **Goal:** logging a set, starting/finishing a workout, etc. work offline and sync once back online.

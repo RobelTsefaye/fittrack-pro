@@ -80,11 +80,11 @@ async function loadWorkoutListCache(): Promise<WorkoutListItem[] | null> {
   try { return JSON.parse(row.payload) as WorkoutListItem[]; } catch { return null; }
 }
 
-export function WorkoutHistoryList({ initialWorkouts }: { initialWorkouts: WorkoutListItemDTO[] }) {
+export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?: WorkoutListItemDTO[] }) {
   const { t } = useI18n();
   const router = useRouter();
   const [workouts, setWorkouts] = useState<WorkoutListItem[]>(() => sortWorkouts(initialWorkouts));
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function deleteCompletedWorkout(id: string) {
@@ -103,8 +103,6 @@ export function WorkoutHistoryList({ initialWorkouts }: { initialWorkouts: Worko
       router.refresh();
     } finally { setDeletingId(null); }
   }
-
-  useEffect(() => { setWorkouts(sortWorkouts(initialWorkouts)); }, [initialWorkouts]);
 
   const fetchWorkouts = useCallback(async () => {
     setLoading(true);
@@ -126,6 +124,10 @@ export function WorkoutHistoryList({ initialWorkouts }: { initialWorkouts: Worko
     }
     setLoading(false);
   }, []);
+
+  useEffect(() => {
+    void fetchWorkouts();
+  }, [fetchWorkouts]);
 
   useEffect(() => {
     const onSynced = () => void fetchWorkouts();

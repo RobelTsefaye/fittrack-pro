@@ -8,6 +8,7 @@ import { ROUTES } from "@/lib/constants";
 import { METRICS } from "../metric-config";
 import { AthleteScale } from "./metric-detail";
 import type { HealthSnapshot } from "../types";
+import { saveHealthCache, loadHealthCache } from "@/lib/offline/screen-caches";
 
 const MetricAreaChart = dynamic(
   () => import("./metric-area-chart").then((m) => m.MetricAreaChart),
@@ -67,12 +68,23 @@ export function SleepDetail({
     if (hasInitialData) return;
     let cancelled = false;
     (async () => {
-      const res = await fetch("/api/health-data?limit=90", { credentials: "include" });
-      if (!res.ok) { if (!cancelled) setLoading(false); return; }
-      const json = (await res.json()) as { data: HealthSnapshot[] };
-      if (!cancelled) {
-        setSnapshots(json.data);
-        setLoading(false);
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = await loadHealthCache<HealthSnapshot[]>("sleep");
+        if (!cancelled) { if (cached) setSnapshots(cached); setLoading(false); }
+        return;
+      }
+      try {
+        const res = await fetch("/api/health-data?limit=90", { credentials: "include" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as { data: HealthSnapshot[] };
+        if (!cancelled) {
+          setSnapshots(json.data);
+          setLoading(false);
+          void saveHealthCache("sleep", json.data);
+        }
+      } catch {
+        const cached = await loadHealthCache<HealthSnapshot[]>("sleep");
+        if (!cancelled) { if (cached) setSnapshots(cached); setLoading(false); }
       }
     })();
     return () => { cancelled = true; };

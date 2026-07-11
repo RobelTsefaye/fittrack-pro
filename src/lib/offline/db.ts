@@ -40,6 +40,37 @@ export type WorkoutListCacheRow = {
   updatedAt: number;
 };
 
+export type DashboardCacheRow = {
+  id: "default";
+  payload: string;
+  updatedAt: number;
+};
+
+export type AchievementsCacheRow = {
+  id: "default";
+  payload: string;
+  updatedAt: number;
+};
+
+export type MuscleHeatmapCacheRow = {
+  id: "default";
+  payload: string;
+  updatedAt: number;
+};
+
+export type PlansCacheRow = {
+  id: "default";
+  payload: string;
+  updatedAt: number;
+};
+
+export type HealthCacheRow = {
+  /** One row per health sub-screen: "dashboard", "sleep", "recovery", "nutrition", "cardio". */
+  id: string;
+  payload: string;
+  updatedAt: number;
+};
+
 class FitTrackOfflineDb extends Dexie {
   workouts!: Table<WorkoutSnapshotRow>;
   queue!: Table<QueueRow>;
@@ -48,6 +79,11 @@ class FitTrackOfflineDb extends Dexie {
   bodyWeightCache!: Table<BodyWeightCacheRow>;
   bodyWeightQueue!: Table<BodyWeightQueueRow>;
   workoutListCache!: Table<WorkoutListCacheRow>;
+  dashboardCache!: Table<DashboardCacheRow>;
+  achievementsCache!: Table<AchievementsCacheRow>;
+  muscleHeatmapCache!: Table<MuscleHeatmapCacheRow>;
+  plansCache!: Table<PlansCacheRow>;
+  healthCache!: Table<HealthCacheRow>;
 
   constructor() {
     super("fittrack_offline_v1");
@@ -67,6 +103,23 @@ class FitTrackOfflineDb extends Dexie {
       bodyWeightCache: "id",
       bodyWeightQueue: "id, sort",
       workoutListCache: "id",
+    });
+    // Phase 3 read caches for the remaining screens (dashboard, records/
+    // achievements, muscle heatmap, plans, health) — see
+    // project-docs/offline-first-roadmap.md.
+    this.version(12).stores({
+      workouts: "id",
+      queue: "id, workoutRouteId, sort",
+      catalog: "id",
+      meta: "id",
+      bodyWeightCache: "id",
+      bodyWeightQueue: "id, sort",
+      workoutListCache: "id",
+      dashboardCache: "id",
+      achievementsCache: "id",
+      muscleHeatmapCache: "id",
+      plansCache: "id",
+      healthCache: "id",
     });
   }
 }
