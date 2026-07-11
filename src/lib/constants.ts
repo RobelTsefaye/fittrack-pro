@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+
 export const APP_NAME = "FitTrack Pro";
 
 /**
@@ -58,7 +60,18 @@ export const ROUTES = {
   more: "/more",
 } as const;
 
+/**
+ * Same problem as `workoutHref`/`planHref` (src/lib/workout-href.ts) — the
+ * static export only pre-renders `/exercises/_`, so a real id has no
+ * matching file on native and falls back to a full reload that lands a
+ * logged-in user back on the dashboard. Routing through the placeholder
+ * with the id as a query param avoids that; exercises/[id]/page-client.tsx
+ * reads it from there. The web build keeps the clean path-based URL.
+ */
 export function exercisePath(id: string) {
+  if (Capacitor.isNativePlatform()) {
+    return `/exercises/_?id=${id}`;
+  }
   return `/exercises/${id}`;
 }
 

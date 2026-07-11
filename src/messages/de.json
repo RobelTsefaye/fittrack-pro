@@ -199,7 +199,8 @@
     "workoutFallback": "Workout",
     "nextWorkoutTitle": "Als Nächstes",
     "nextWorkoutStart": "Training starten",
-    "nextWorkoutStarting": "Startet…"
+    "nextWorkoutStarting": "Startet…",
+    "nextWorkoutOfflineFallback": "Offline nicht aus einem Plan startbar — starte stattdessen manuell."
   },
   "workouts": {
     "title": "Workouts",

@@ -15,9 +15,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ROUTES } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
 import { savePlansCache, loadPlansCache } from "@/lib/offline/screen-caches";
+import { planHref } from "@/lib/workout-href";
 
 type PlanRow = {
   id: string;
@@ -143,7 +143,7 @@ export function PlansList() {
         <ul className="space-y-2">
           {plans.map((p) => (
             <li key={p.id}>
-              <Link href={`${ROUTES.plans}/${p.id}`}>
+              <Link href={planHref(p.id)}>
                 <Card className="transition-colors hover:bg-muted/40">
                   <CardContent className="flex flex-col gap-1 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>

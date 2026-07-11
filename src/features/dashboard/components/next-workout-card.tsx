@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Play } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
 import { workoutHref } from "@/lib/workout-href";
+import { ROUTES } from "@/lib/constants";
 import type { NextPlanSession } from "@/features/dashboard/queries";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
 
@@ -21,6 +23,16 @@ export function NextWorkoutCard({ nextSession }: NextWorkoutCardProps) {
 
   async function handleStart() {
     if (!nextSession) return;
+    // This card only has the session's name/exercise count, not its full
+    // exercise list/targetSets (see NextPlanSession) — nothing here to build
+    // an offline workout from client-side, unlike the plan detail page's own
+    // "Start" button (see plan-session-offline.ts). Degrade to the manual
+    // offline-start flow instead of silently failing.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast.info(t("dashboard.nextWorkoutOfflineFallback"));
+      router.push(ROUTES.newWorkout);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`/api/plan-sessions/${nextSession.sessionId}/start`, {
@@ -32,6 +44,10 @@ export function NextWorkoutCard({ nextSession }: NextWorkoutCardProps) {
       router.push(workoutHref(json.data.id));
     } catch {
       setLoading(false);
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        toast.info(t("dashboard.nextWorkoutOfflineFallback"));
+        router.push(ROUTES.newWorkout);
+      }
     }
   }
 

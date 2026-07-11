@@ -35,6 +35,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROUTES, exercisePath } from "@/lib/constants";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
+import { loadPlanDetailCache, savePlanDetailCache } from "@/lib/offline/screen-caches";
+import { startPlanSessionOffline } from "@/lib/offline/plan-session-offline";
 import { useI18n } from "@/lib/i18n-provider";
 import { ExercisePickerDialog } from "@/features/workouts/components/exercise-picker-dialog";
 
@@ -297,22 +299,46 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
   const load = useCallback(async () => {
     setError(null);
     setLoading(true);
-    const res = await fetch(`/api/plans/${planId}`);
-    if (res.status === 404) {
-      setPlan(null);
-      setError(t("plans.planNotFound"));
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const cached = await loadPlanDetailCache<PlanDetail>(planId);
+      if (cached) {
+        setPlan(cached);
+        setPlanNameDraft(cached.name);
+      } else {
+        setError(t("plans.loadFailed"));
+      }
       setLoading(false);
       return;
     }
-    if (!res.ok) {
-      setError(t("plans.loadFailed"));
-      setLoading(false);
-      return;
+
+    try {
+      const res = await fetch(`/api/plans/${planId}`);
+      if (res.status === 404) {
+        setPlan(null);
+        setError(t("plans.planNotFound"));
+        setLoading(false);
+        return;
+      }
+      if (!res.ok) {
+        setError(t("plans.loadFailed"));
+        setLoading(false);
+        return;
+      }
+      const json = await res.json();
+      const p = json.data as PlanDetail;
+      setPlan(p);
+      setPlanNameDraft(p.name);
+      void savePlanDetailCache(planId, p);
+    } catch {
+      const cached = await loadPlanDetailCache<PlanDetail>(planId);
+      if (cached) {
+        setPlan(cached);
+        setPlanNameDraft(cached.name);
+      } else {
+        setError(t("plans.loadFailed"));
+      }
     }
-    const json = await res.json();
-    const p = json.data as PlanDetail;
-    setPlan(p);
-    setPlanNameDraft(p.name);
     setLoading(false);
   }, [planId, t]);
 
@@ -477,17 +503,48 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
     await load();
   }
 
+  async function startSessionOffline(sessionId: string) {
+    const session = plan?.sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    await startPlanSessionOffline({
+      id: session.id,
+      name: session.name,
+      exercises: session.exercises.map((pse) => ({
+        exerciseId: pse.exerciseId,
+        targetSets: pse.targetSets,
+        exercise: pse.exercise,
+      })),
+    });
+    notifyActiveWorkoutChanged();
+    // Client-generated ids can't be opened directly (see workout-href.ts) —
+    // land on /workouts/new instead, whose mount effect already picks up a
+    // just-queued active offline workout and renders it inline.
+    router.push(ROUTES.newWorkout);
+  }
+
   async function startSession(sessionId: string) {
     setStartingId(sessionId);
-    const res = await fetch(`/api/plan-sessions/${sessionId}/start`, { method: "POST" });
-    setStartingId(null);
-    if (!res.ok) return;
-    const json = await res.json();
-    const id = json.data?.id as string | undefined;
-    if (id) {
-      notifyActiveWorkoutChanged();
-      router.push(workoutHref(id));
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await startSessionOffline(sessionId);
+      setStartingId(null);
+      return;
     }
+    try {
+      const res = await fetch(`/api/plan-sessions/${sessionId}/start`, { method: "POST" });
+      if (!res.ok) {
+        setStartingId(null);
+        return;
+      }
+      const json = await res.json();
+      const id = json.data?.id as string | undefined;
+      if (id) {
+        notifyActiveWorkoutChanged();
+        router.push(workoutHref(id));
+      }
+    } catch {
+      await startSessionOffline(sessionId);
+    }
+    setStartingId(null);
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
