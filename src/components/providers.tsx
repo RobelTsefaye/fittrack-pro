@@ -17,11 +17,24 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
         <NativeAuthFetchPatch />
         <PwaRegister />
-        <NativePushRegister />
-        <NativeHealthSync />
-        <NativeWatchWorkoutSync />
-        <OfflineSyncProvider />
-        <NativeAppLock>{children}</NativeAppLock>
+        {/*
+          These fire real native I/O (HealthKit sync, WatchConnectivity,
+          offline-queue flush) immediately on mount, and NativePushRegister
+          can trigger the system "Allow Notifications?" permission alert. Any
+          of that racing the Face ID prompt below risks the OS canceling
+          the concurrent LocalAuthentication session (observed on-device as
+          BiometricLock.authenticate() rejecting with "Authentication
+          canceled", most reliably offline where the flurry of failed
+          network calls widens the race window). Nesting them inside
+          NativeAppLock defers them until after a successful unlock.
+        */}
+        <NativeAppLock>
+          <NativePushRegister />
+          <NativeHealthSync />
+          <NativeWatchWorkoutSync />
+          <OfflineSyncProvider />
+          {children}
+        </NativeAppLock>
         <Toaster />
       </ThemeProvider>
     </SessionProvider>

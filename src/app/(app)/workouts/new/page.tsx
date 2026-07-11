@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROUTES } from "@/lib/constants";
+import { workoutHref } from "@/lib/workout-href";
 import { useI18n } from "@/lib/i18n-provider";
 import type { WorkoutData } from "@/features/workouts/workout-types";
 import {
@@ -152,7 +153,7 @@ export default function NewWorkoutPage() {
       const id = json.data?.id as string | undefined;
       if (id) {
         notifyActiveWorkoutChanged();
-        router.push(`/workouts/${id}`);
+        router.push(workoutHref(id));
       } else {
         setError(t("workouts.invalidResponse"));
         setSubmitting(false);

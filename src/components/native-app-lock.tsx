@@ -13,14 +13,42 @@ import { authenticateWithBiometrics, isBiometricLockAvailable } from "@/lib/nati
 // "short-absence" grace period used by most banking/secure apps.
 const REAUTH_GRACE_MS = 60_000;
 
+// Some dynamic routes under the static-export build fail to resolve an RSC
+// payload for their real params (only a placeholder param is pre-rendered —
+// see project-docs/offline-first-roadmap.md Phase 2) and Next falls back to
+// a full WebView reload. That reload re-mounts this component from scratch,
+// wiping pausedAtRef, even though the app never actually left the
+// foreground. Persisting the last successful unlock in localStorage (which
+// survives a WebView reload, unlike component state) lets the mount-time
+// check tell "real cold launch" apart from "same session, just reloaded".
+const LAST_UNLOCK_AT_KEY = "fittrack_native_last_unlock_at";
+
+function readLastUnlockAt(): number | null {
+  try {
+    const raw = window.localStorage.getItem(LAST_UNLOCK_AT_KEY);
+    return raw ? Number(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastUnlockAt(at: number) {
+  try {
+    window.localStorage.setItem(LAST_UNLOCK_AT_KEY, String(at));
+  } catch {
+    // ignore (e.g. storage disabled) — worst case, mount always re-locks
+  }
+}
+
 /**
  * Face ID / Touch ID gate for the native app. Renders a blocking lock screen
  * over `children` until authentication succeeds — checked once on mount
- * (cold launch) and again when the app returns to the foreground after being
- * backgrounded for longer than REAUTH_GRACE_MS (@capacitor/app's
- * 'pause'/'resume' events, same reliable-foreground-detection pattern as
- * NativeHealthSync). No-ops entirely on web/PWA: isBiometricLockAvailable
- * resolves false there, so `locked` never becomes true.
+ * (cold launch, or a same-session WebView reload outside the grace period)
+ * and again when the app returns to the foreground after being backgrounded
+ * for longer than REAUTH_GRACE_MS (@capacitor/app's 'pause'/'resume' events,
+ * same reliable-foreground-detection pattern as NativeHealthSync). No-ops
+ * entirely on web/PWA: isBiometricLockAvailable resolves false there, so
+ * `locked` never becomes true.
  */
 export function NativeAppLock({ children }: { children: React.ReactNode }) {
   const [enabled, setEnabled] = useState(false);
@@ -33,6 +61,7 @@ export function NativeAppLock({ children }: { children: React.ReactNode }) {
     const success = await authenticateWithBiometrics();
     setAuthenticating(false);
     setLocked(!success);
+    if (success) writeLastUnlockAt(Date.now());
   }, []);
 
   useEffect(() => {
@@ -45,6 +74,12 @@ export function NativeAppLock({ children }: { children: React.ReactNode }) {
       const available = await isBiometricLockAvailable();
       setEnabled(available);
       if (!available) return;
+      const lastUnlockAt = readLastUnlockAt();
+      if (lastUnlockAt != null && Date.now() - lastUnlockAt < REAUTH_GRACE_MS) {
+        // Recently unlocked in this same session (a hard-navigation reload,
+        // not a genuine relaunch after being away) — skip re-prompting.
+        return;
+      }
       setLocked(true);
       await tryUnlock();
     })();

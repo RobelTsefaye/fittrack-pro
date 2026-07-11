@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "@/components/app-link";
 import { useRouter } from "next/navigation";
+import { workoutHref } from "@/lib/workout-href";
 import { ArrowLeft, GripVertical, Plus, Trash2, Play } from "lucide-react";
 import {
   DndContext,
@@ -485,7 +486,7 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
     const id = json.data?.id as string | undefined;
     if (id) {
       notifyActiveWorkoutChanged();
-      router.push(`/workouts/${id}`);
+      router.push(workoutHref(id));
     }
   }
 
