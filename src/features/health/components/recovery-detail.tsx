@@ -6,6 +6,9 @@ import Link from "@/components/app-link";
 import { ArrowLeft, Moon, Heart, Zap, Dumbbell, Footprints, Wind, Thermometer, AlertTriangle, ChevronRight } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import type { RecoveryBreakdown, RecoveryHistoryPoint } from "../recovery";
+import { saveHealthCache, loadHealthCache } from "@/lib/offline/screen-caches";
+
+type RecoveryDetailCached = { recovery: RecoveryBreakdown; history: RecoveryHistoryPoint[] };
 
 const RecoveryHistoryChart = dynamic(
   () => import("./recovery-history-chart").then((m) => m.RecoveryHistoryChart),
@@ -32,13 +35,30 @@ export function RecoveryDetail({
     if (hasInitialData) return;
     let cancelled = false;
     (async () => {
-      const res = await fetch("/api/health/recovery", { credentials: "include" });
-      if (!res.ok) { if (!cancelled) setLoading(false); return; }
-      const json = (await res.json()) as { data: RecoveryBreakdown; history: RecoveryHistoryPoint[] };
-      if (!cancelled) {
-        setRecovery(json.data);
-        setHistory(json.history ?? []);
-        setLoading(false);
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = await loadHealthCache<RecoveryDetailCached>("recovery");
+        if (!cancelled) {
+          if (cached) { setRecovery(cached.recovery); setHistory(cached.history); }
+          setLoading(false);
+        }
+        return;
+      }
+      try {
+        const res = await fetch("/api/health/recovery", { credentials: "include" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as { data: RecoveryBreakdown; history: RecoveryHistoryPoint[] };
+        if (!cancelled) {
+          setRecovery(json.data);
+          setHistory(json.history ?? []);
+          setLoading(false);
+          void saveHealthCache("recovery", { recovery: json.data, history: json.history ?? [] });
+        }
+      } catch {
+        const cached = await loadHealthCache<RecoveryDetailCached>("recovery");
+        if (!cancelled) {
+          if (cached) { setRecovery(cached.recovery); setHistory(cached.history); }
+          setLoading(false);
+        }
       }
     })();
     return () => { cancelled = true; };

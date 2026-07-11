@@ -12,6 +12,7 @@ import {
   MICRO_TARGETS,
   type NutrientTarget,
 } from "../nutrition-config";
+import { saveHealthCache, loadHealthCache } from "@/lib/offline/screen-caches";
 
 export function NutritionDetail({
   initialSnapshot,
@@ -27,12 +28,24 @@ export function NutritionDetail({
     if (hasInitialData) return;
     let cancelled = false;
     (async () => {
-      const res = await fetch("/api/health-data?limit=1", { credentials: "include" });
-      if (!res.ok) { if (!cancelled) setLoading(false); return; }
-      const json = (await res.json()) as { data: HealthSnapshot[] };
-      if (!cancelled) {
-        setSnapshot(json.data[json.data.length - 1] ?? null);
-        setLoading(false);
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = await loadHealthCache<HealthSnapshot | null>("nutrition");
+        if (!cancelled) { if (cached !== null) setSnapshot(cached); setLoading(false); }
+        return;
+      }
+      try {
+        const res = await fetch("/api/health-data?limit=1", { credentials: "include" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as { data: HealthSnapshot[] };
+        const latest = json.data[json.data.length - 1] ?? null;
+        if (!cancelled) {
+          setSnapshot(latest);
+          setLoading(false);
+          void saveHealthCache("nutrition", latest);
+        }
+      } catch {
+        const cached = await loadHealthCache<HealthSnapshot | null>("nutrition");
+        if (!cancelled) { if (cached !== null) setSnapshot(cached); setLoading(false); }
       }
     })();
     return () => { cancelled = true; };

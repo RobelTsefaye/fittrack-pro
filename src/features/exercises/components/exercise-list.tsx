@@ -11,7 +11,7 @@ import { ExerciseFormDialog } from "./exercise-form-dialog";
 import { ExerciseDeleteDialog } from "./exercise-delete-dialog";
 import { useI18n } from "@/lib/i18n-provider";
 import { ROUTES } from "@/lib/constants";
-import { saveExerciseCatalog } from "@/lib/offline/workout-offline-store";
+import { saveExerciseCatalog, loadExerciseCatalog } from "@/lib/offline/workout-offline-store";
 
 export function ExerciseList({
   initialExercises,
@@ -29,12 +29,35 @@ export function ExerciseList({
   const [editingExercise, setEditingExercise] = useState<ExerciseData | null>(null);
   const [deletingExercise, setDeletingExercise] = useState<ExerciseData | null>(null);
 
+  const loadFromCatalogCache = useCallback(async () => {
+    const catalog = await loadExerciseCatalog();
+    if (!catalog) { setExercises([]); return; }
+    const search = searchParams.get("search")?.toLowerCase() ?? "";
+    const muscleGroup = searchParams.get("muscleGroup");
+    const equipment = searchParams.get("equipment");
+    const filtered = catalog.filter((e) => {
+      if (search && !e.name.toLowerCase().includes(search)) return false;
+      if (muscleGroup && e.muscleGroup !== muscleGroup) return false;
+      if (equipment && e.equipment !== equipment) return false;
+      return true;
+    });
+    setExercises(filtered.map((e) => ({ ...e, notes: null, isCustom: false })));
+  }, [searchParams]);
+
   const fetchExercises = useCallback(async () => {
     setLoading(true);
+    // Offline: the full-catalog cache (populated below on every successful
+    // fetch) is the only thing we have — go straight to it instead of
+    // waiting out a doomed network round trip first.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await loadFromCatalogCache();
+      setLoading(false);
+      return;
+    }
     try {
       const params = new URLSearchParams(searchParams.toString());
       const res = await fetch(`/api/exercises?${params.toString()}`);
-      if (!res.ok) { setExercises([]); return; }
+      if (!res.ok) { await loadFromCatalogCache(); return; }
       const json = await res.json() as { data?: ExerciseData[] };
       const data: ExerciseData[] = json.data ?? [];
       setExercises(data);
@@ -44,11 +67,11 @@ export function ExerciseList({
         );
       }
     } catch {
-      setExercises([]);
+      await loadFromCatalogCache();
     } finally {
       setLoading(false);
     }
-  }, [searchParams]);
+  }, [searchParams, loadFromCatalogCache]);
 
   // Skip the first fetch when the server already provided the matching list.
   const skipNextFetch = useRef(

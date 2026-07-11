@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { MuscleHeatmap } from "./muscle-heatmap";
 import type { MuscleHeatEntry } from "@/services/muscle-heatmap";
 import { authenticatedFetch } from "@/lib/native/native-auth-token";
+import { saveMuscleHeatmapCache, loadMuscleHeatmapCache } from "@/lib/offline/screen-caches";
 
 // Client component — was an async Server Component calling
 // getMuscleVolumeLastDays + a direct settings lookup; converted to fetch the
@@ -11,20 +12,40 @@ import { authenticatedFetch } from "@/lib/native/native-auth-token";
 // project-docs/offline-first-roadmap.md Phase 2). `userId` prop dropped —
 // the route resolves the user from the request's own auth, same as every
 // other converted page/component.
+type MuscleHeatmapCached = { entries: MuscleHeatEntry[]; weightUnit: string };
+
 export function MuscleHeatmapCard() {
   const [data, setData] = useState<MuscleHeatEntry[] | null>(null);
   const [unit, setUnit] = useState("kg");
 
   useEffect(() => {
     let cancelled = false;
-    void authenticatedFetch("/api/dashboard/muscle-heatmap", { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        if (cancelled || !json?.data) return;
-        setData(json.data.entries);
-        setUnit(json.data.weightUnit);
-      })
-      .catch(() => {});
+
+    async function load() {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = await loadMuscleHeatmapCache<MuscleHeatmapCached>();
+        if (!cancelled && cached) { setData(cached.entries); setUnit(cached.weightUnit); }
+        return;
+      }
+      try {
+        const res = await authenticatedFetch("/api/dashboard/muscle-heatmap", { credentials: "include" });
+        const json = res.ok ? await res.json() : null;
+        if (cancelled) return;
+        if (json?.data) {
+          setData(json.data.entries);
+          setUnit(json.data.weightUnit);
+          void saveMuscleHeatmapCache({ entries: json.data.entries, weightUnit: json.data.weightUnit });
+        } else {
+          const cached = await loadMuscleHeatmapCache<MuscleHeatmapCached>();
+          if (!cancelled && cached) { setData(cached.entries); setUnit(cached.weightUnit); }
+        }
+      } catch {
+        const cached = await loadMuscleHeatmapCache<MuscleHeatmapCached>();
+        if (!cancelled && cached) { setData(cached.entries); setUnit(cached.weightUnit); }
+      }
+    }
+
+    void load();
     return () => {
       cancelled = true;
     };

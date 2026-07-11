@@ -64,10 +64,6 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
     private var pendingStartCall: CAPPluginCall?
     private var pendingStopCall: CAPPluginCall?
 
-    // Wide and short — a slim overlay bar, not a big floating tile. Matches
-    // CardioPipContentView's own .frame(width:height:).
-    private let contentSize = CGSize(width: 440, height: 84)
-
     /// When the live relay last delivered a sample — used to let a fresher
     /// native (WatchConnectivity) push always win over a server stream
     /// response; see `streamOnce` below.

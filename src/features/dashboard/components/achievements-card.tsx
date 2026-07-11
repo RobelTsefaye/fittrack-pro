@@ -8,6 +8,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { authenticatedFetch } from "@/lib/native/native-auth-token";
+import { saveAchievementsCache, loadAchievementsCache } from "@/lib/offline/screen-caches";
 import type { Achievement, AchievementId } from "@/services/personal-records";
 
 const ACHIEVEMENT_CONFIG: Record<
@@ -88,12 +89,31 @@ export function AchievementsCard() {
 
   useEffect(() => {
     let cancelled = false;
-    void authenticatedFetch("/api/records", { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        if (!cancelled && json?.data?.achievements) setAchievements(json.data.achievements);
-      })
-      .catch(() => {});
+
+    async function load() {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = await loadAchievementsCache<Achievement[]>();
+        if (!cancelled && cached) setAchievements(cached);
+        return;
+      }
+      try {
+        const res = await authenticatedFetch("/api/records", { credentials: "include" });
+        const json = res.ok ? await res.json() : null;
+        if (cancelled) return;
+        if (json?.data?.achievements) {
+          setAchievements(json.data.achievements);
+          void saveAchievementsCache(json.data.achievements);
+        } else {
+          const cached = await loadAchievementsCache<Achievement[]>();
+          if (!cancelled && cached) setAchievements(cached);
+        }
+      } catch {
+        const cached = await loadAchievementsCache<Achievement[]>();
+        if (!cancelled && cached) setAchievements(cached);
+      }
+    }
+
+    void load();
     return () => {
       cancelled = true;
     };
