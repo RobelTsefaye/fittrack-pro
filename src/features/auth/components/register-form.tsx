@@ -57,11 +57,18 @@ export function RegisterForm() {
     // MissingCSRF failure would otherwise block an otherwise-successful
     // registration.
     if (Capacitor.isNativePlatform()) {
-      void signIn("credentials", {
-        email:    data.email,
-        password: data.password,
-        redirect: false,
-      }).catch(() => {});
+      // Only fire when online — see login-form.tsx's comment: next-auth's
+      // signIn() does a hard `window.location.href` navigation to a
+      // nonexistent /api/auth/error URL when its own getProviders() fetch
+      // fails (as it always does offline), which .catch() can't intercept
+      // since it's not a rejection. That blew away the SPA entirely.
+      if (typeof navigator === "undefined" || navigator.onLine) {
+        void signIn("credentials", {
+          email:    data.email,
+          password: data.password,
+          redirect: false,
+        }).catch(() => {});
+      }
 
       try {
         const res2 = await fetch("/api/auth/native-login", {

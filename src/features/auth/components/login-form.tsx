@@ -49,11 +49,22 @@ export function LoginForm() {
     // below does — surfaced real MissingCSRF cookie failures as a false
     // "invalid email or password" even with correct credentials.
     if (Capacitor.isNativePlatform()) {
-      void signIn("credentials", {
-        email:    data.email,
-        password: data.password,
-        redirect: false,
-      }).catch(() => {});
+      // Only fire this when online. next-auth's own signIn() calls
+      // getProviders() first, which swallows any network failure and
+      // returns null — and when that happens, signIn() does a hard
+      // `window.location.href = ".../api/auth/error"` navigation (not a
+      // thrown rejection, so .catch() never sees it). That URL doesn't
+      // exist in the static native bundle (API routes are excluded from
+      // it), so it blew away the whole SPA and stranded the user on a
+      // broken page that looked like "logged out" — this is what made
+      // login (and any later signIn() retry) appear broken while offline.
+      if (typeof navigator === "undefined" || navigator.onLine) {
+        void signIn("credentials", {
+          email:    data.email,
+          password: data.password,
+          redirect: false,
+        }).catch(() => {});
+      }
 
       try {
         const res = await fetch("/api/auth/native-login", {
