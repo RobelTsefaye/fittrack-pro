@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { updateSetSchema } from "@/features/workouts/schemas";
@@ -100,8 +99,8 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; setId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -112,7 +111,7 @@ export async function DELETE(
       id: setId,
       workoutExercise: {
         workoutId,
-        workout: { userId: session.user.id },
+        workout: { userId },
       },
     },
   });

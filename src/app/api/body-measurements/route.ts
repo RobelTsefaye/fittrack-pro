@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 const schema = z.object({
@@ -17,11 +17,11 @@ const schema = z.object({
 });
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const entries = await prisma.bodyMeasurement.findMany({
-    where: { userId: session.user.id },
+    where: { userId: userId },
     orderBy: { date: "asc" },
   });
 
@@ -33,8 +33,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
   const parsed = schema.safeParse(body);
@@ -43,24 +43,24 @@ export async function POST(req: Request) {
   const { date, ...rest } = parsed.data;
 
   const entry = await prisma.bodyMeasurement.upsert({
-    where: { userId_date: { userId: session.user.id, date: new Date(date) } },
+    where: { userId_date: { userId: userId, date: new Date(date) } },
     update: rest,
-    create: { userId: session.user.id, date: new Date(date), ...rest },
+    create: { userId: userId, date: new Date(date), ...rest },
   });
 
   return NextResponse.json({ data: { ...entry, date: entry.date.toISOString().slice(0, 10) } });
 }
 
 export async function DELETE(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
   await prisma.bodyMeasurement.deleteMany({
-    where: { id, userId: session.user.id },
+    where: { id, userId: userId },
   });
 
   return NextResponse.json({ ok: true });

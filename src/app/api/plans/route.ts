@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { createPlanSchema } from "@/features/plans/schemas";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const plans = await prisma.workoutPlan.findMany({
-    where: { userId: session.user.id },
+    where: { userId },
     orderBy: { updatedAt: "desc" },
     include: {
       _count: { select: { sessions: true } },
@@ -21,8 +21,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
   const plan = await prisma.workoutPlan.create({
     data: {
-      userId: session.user.id,
+      userId,
       name: parsed.data.name,
       description: parsed.data.description ?? null,
     },

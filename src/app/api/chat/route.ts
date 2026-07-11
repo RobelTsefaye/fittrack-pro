@@ -1,6 +1,6 @@
 import { google } from "@ai-sdk/google";
 import { streamText, convertToModelMessages } from "ai";
-import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { buildCoachContext, buildTrainingSummary } from "@/features/ai/context";
 
 export const maxDuration = 10; // Vercel Hobby plan max
@@ -87,8 +87,8 @@ ${nextUp}`;
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return new Response("Unauthorized", { status: 401 });
   }
 
@@ -103,8 +103,8 @@ export async function POST(req: Request) {
   const { messages } = await req.json() as { messages: Parameters<typeof convertToModelMessages>[0] };
 
   const [coachCtx, trainingSummary] = await Promise.all([
-    buildCoachContext(session.user.id),
-    buildTrainingSummary(session.user.id, 8),
+    buildCoachContext(userId),
+    buildTrainingSummary(userId, 8),
   ]);
 
   const systemPrompt = buildSystemPrompt(coachCtx, trainingSummary);

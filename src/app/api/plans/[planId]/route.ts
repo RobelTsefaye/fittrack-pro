@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { updatePlanSchema } from "@/features/plans/schemas";
 
@@ -28,13 +28,13 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ planId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { planId } = await params;
-  const plan = await getOwnedPlan(planId, session.user.id);
+  const plan = await getOwnedPlan(planId, userId);
   if (!plan) {
     return NextResponse.json({ error: "Plan not found" }, { status: 404 });
   }
@@ -46,14 +46,14 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ planId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { planId } = await params;
   const existing = await prisma.workoutPlan.findFirst({
-    where: { id: planId, userId: session.user.id },
+    where: { id: planId, userId },
   });
   if (!existing) {
     return NextResponse.json({ error: "Plan not found" }, { status: 404 });
@@ -85,14 +85,14 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ planId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { planId } = await params;
   const existing = await prisma.workoutPlan.findFirst({
-    where: { id: planId, userId: session.user.id },
+    where: { id: planId, userId },
   });
   if (!existing) {
     return NextResponse.json({ error: "Plan not found" }, { status: 404 });

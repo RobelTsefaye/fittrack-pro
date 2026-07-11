@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import {
   computeProgressBySession,
   fetchCompletedSetsForExercise,
@@ -10,19 +10,19 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ exerciseId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { exerciseId } = await params;
 
-  const exercise = await findExerciseVisibleToUser(exerciseId, session.user.id);
+  const exercise = await findExerciseVisibleToUser(exerciseId, userId);
   if (!exercise) {
     return NextResponse.json({ error: "Exercise not found" }, { status: 404 });
   }
 
-  const sets = await fetchCompletedSetsForExercise(session.user.id, exerciseId, 250);
+  const sets = await fetchCompletedSetsForExercise(userId, exerciseId, 250);
   const progressBySession = computeProgressBySession(sets);
 
   return NextResponse.json({

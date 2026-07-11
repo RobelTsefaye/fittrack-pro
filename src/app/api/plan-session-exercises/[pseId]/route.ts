@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { updatePlanSessionExerciseSchema } from "@/features/plans/schemas";
 
@@ -16,13 +16,13 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ pseId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { pseId } = await params;
-  const existing = await getPseForUser(pseId, session.user.id);
+  const existing = await getPseForUser(pseId, userId);
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -55,13 +55,13 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ pseId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { pseId } = await params;
-  const existing = await getPseForUser(pseId, session.user.id);
+  const existing = await getPseForUser(pseId, userId);
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
