@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const createWorkoutSchema = z.object({
   name: z.string().max(100).optional(),
+  planSessionId: z.string().uuid().optional(),
 });
 
 export const updateWorkoutSchema = z.object({

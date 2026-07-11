@@ -66,11 +66,27 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Only link the workout to a plan session if it's actually the
+  // requesting user's own — used by the offline plan-session-start queue
+  // replay (flush-workout-queue.ts) to restore the link an online start
+  // would set directly; never trust a client-supplied id blindly.
+  let planSessionId: string | null = null;
+  if (parsed.data.planSessionId) {
+    const planSession = await prisma.planSession.findUnique({
+      where: { id: parsed.data.planSessionId },
+      select: { plan: { select: { userId: true } } },
+    });
+    if (planSession?.plan.userId === userId) {
+      planSessionId = parsed.data.planSessionId;
+    }
+  }
+
   const workout = await prisma.workout.create({
     data: {
       userId,
       name: parsed.data.name || null,
       startedAt: new Date(),
+      planSessionId,
     },
     include: {
       workoutExercises: {
