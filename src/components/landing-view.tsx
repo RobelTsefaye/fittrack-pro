@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { Dumbbell, TrendingUp, Brain, ArrowRight, Wifi } from "lucide-react";
 import { APP_NAME } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";

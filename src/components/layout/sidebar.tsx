@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
@@ -63,7 +63,6 @@ function NavItem({
   return (
     <Link
       href={href}
-      prefetch
       onClick={onClick}
       className={cn(
         "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[0.8125rem] font-medium leading-none transition-all duration-150",
@@ -133,7 +132,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       >
         <Link
           href={ROUTES.dashboard}
-          prefetch
           onClick={onClose}
           className="flex items-center gap-2.5 group"
         >

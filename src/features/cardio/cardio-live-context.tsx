@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { Capacitor } from "@capacitor/core";
 import { onCardioLiveUpdate, type CardioLiveUpdate } from "@/lib/native/cardio-connectivity";
 
 type CardioLiveContextValue = {
@@ -60,7 +61,17 @@ export function CardioLiveProvider({ children }: { children: ReactNode }) {
 
   // Primary path: SSE. EventSource auto-reconnects (incl. after the server
   // closes the stream at ~50s), and uses the session cookie automatically.
+  //
+  // Native only: skip SSE entirely. The bundled UI runs from
+  // capacitor://localhost, so a relative STREAM_URL points at the local
+  // bundle (no server) and an absolute one would need CORS the stream route
+  // doesn't send — either way EventSource can't connect and would just
+  // reconnect-churn forever in the background, saturating the WebView. The
+  // paired iPhone gets live updates via the native WatchConnectivity push
+  // (onCardioLiveUpdate) above; every other native device falls back to the
+  // poll below, which goes through the patched fetch → native HTTP bridge.
   useEffect(() => {
+    if (Capacitor.isNativePlatform()) return;
     let cancelled = false;
     const source = new EventSource(STREAM_URL, { withCredentials: true });
 

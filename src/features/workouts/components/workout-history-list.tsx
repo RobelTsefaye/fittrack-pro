@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { Dumbbell, Plus, Trash2, ChevronRight, Clock, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -143,7 +143,6 @@ export function WorkoutHistoryList({ initialWorkouts }: { initialWorkouts: Worko
         <h1 className="page-title">{t("workouts.title")}</h1>
         <Link
           href={ROUTES.newWorkout}
-          prefetch
           className="flex shrink-0 h-9 items-center gap-1.5 rounded-xl px-3.5 font-bold text-[13px] transition-opacity active:opacity-70"
           style={{ background: "#D4FF3A", color: "#0A1300" }}
         >
@@ -168,7 +167,7 @@ export function WorkoutHistoryList({ initialWorkouts }: { initialWorkouts: Worko
             <p className="font-semibold text-[0.9375rem]">{t("workouts.noWorkouts")}</p>
             <p className="mt-1 text-sm" style={{ color: "#9A9AA2" }}>{t("workouts.noWorkoutsHint")}</p>
           </div>
-          <Link href={ROUTES.newWorkout} prefetch
+          <Link href={ROUTES.newWorkout}
             className="flex h-10 w-full max-w-xs items-center justify-center gap-1.5 rounded-xl font-bold text-[15px]"
             style={{ background: "#D4FF3A", color: "#0A1300" }}
           >

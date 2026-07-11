@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { signOut } from "next-auth/react";
 import { useSession } from "next-auth/react";
 import {
@@ -82,7 +82,6 @@ export default function MorePage() {
           <Link
             key={href}
             href={href}
-            prefetch
             className="flex items-center gap-3 px-4 py-3.5 transition-colors"
             style={{
               borderTop: i > 0 ? "1px solid rgba(255,255,255,0.08)" : "none",

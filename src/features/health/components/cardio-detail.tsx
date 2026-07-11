@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import Link from "@/components/app-link";
 import dynamic from "next/dynamic";
 import {
   ArrowLeft, Activity, Clock, Route, Flame, TrendingUp, TrendingDown,

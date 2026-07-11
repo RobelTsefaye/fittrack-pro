@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/app-link";
 import {
   Trophy, Flame, Dumbbell, Lock, Star, Zap, Award, TrendingUp, Sun, Shield, ChevronRight,
 } from "lucide-react";

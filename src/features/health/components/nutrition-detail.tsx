@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { ArrowLeft, Flame, TrendingDown, TrendingUp } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import type { HealthSnapshot } from "../types";

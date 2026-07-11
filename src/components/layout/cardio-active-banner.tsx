@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { usePathname } from "next/navigation";
 import { Activity, ChevronRight } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";

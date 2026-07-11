@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode } from "react";
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { cn } from "@/lib/utils";
 
 interface HealthStatPillProps {

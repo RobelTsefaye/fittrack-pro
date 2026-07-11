@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { Flame, ChevronRight, TrendingDown, TrendingUp } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import type { HealthSnapshot } from "../types";

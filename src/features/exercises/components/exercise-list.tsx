@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { useSearchParams } from "next/navigation";
 import { Dumbbell, Plus, TrendingUp } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";

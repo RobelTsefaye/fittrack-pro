@@ -3,9 +3,13 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Capacitor } from "@capacitor/core";
-import { loadNativeAuthToken } from "@/lib/native/native-auth-token";
+import { getCachedToken, peekCachedToken } from "@/lib/native/auth-token-cache";
 
 export type AuthGateState = "checking" | "authenticated" | "unauthenticated";
+
+function nativeStateFromToken(token: string | null): AuthGateState {
+  return token ? "authenticated" : "unauthenticated";
+}
 
 /**
  * Client-side replacement for middleware.ts's session gate — needed because
@@ -25,13 +29,22 @@ export type AuthGateState = "checking" | "authenticated" | "unauthenticated";
 export function useAuthGate(): AuthGateState {
   const { status } = useSession();
   const isNative = Capacitor.isNativePlatform();
-  const [nativeState, setNativeState] = useState<AuthGateState>(isNative ? "checking" : "authenticated");
+  // Seed from the app-wide cache synchronously: after the first read (the very
+  // first protected page), every later navigation resolves the gate on the
+  // initial render with no Keychain/bridge round trip — so a congested bridge
+  // can never leave a freshly-navigated page stuck on RequireAuth's blank
+  // branch. Only the genuine first mount starts in "checking".
+  const [nativeState, setNativeState] = useState<AuthGateState>(() => {
+    if (!isNative) return "authenticated";
+    const peeked = peekCachedToken();
+    return peeked === undefined ? "checking" : nativeStateFromToken(peeked);
+  });
 
   useEffect(() => {
     if (!isNative) return;
     let cancelled = false;
-    void loadNativeAuthToken().then((token) => {
-      if (!cancelled) setNativeState(token ? "authenticated" : "unauthenticated");
+    void getCachedToken().then((token) => {
+      if (!cancelled) setNativeState(nativeStateFromToken(token));
     });
     return () => {
       cancelled = true;

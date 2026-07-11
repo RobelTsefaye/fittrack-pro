@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { Activity, ChevronRight, TrendingUp, TrendingDown } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import type { CardioSummary } from "../cardio";

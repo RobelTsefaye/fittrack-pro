@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -73,7 +73,6 @@ export function BottomTabBar() {
               <Link
                 key={href}
                 href={href}
-                prefetch={href === ROUTES.workouts || href === ROUTES.coach}
                 aria-current={active ? "page" : undefined}
                 className="relative flex flex-1 flex-col items-center justify-center gap-[3px] transition-opacity active:opacity-60"
               >

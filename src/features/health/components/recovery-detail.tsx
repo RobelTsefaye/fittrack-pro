@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { ArrowLeft, Moon, Heart, Zap, Dumbbell, Footprints, Wind, Thermometer, AlertTriangle, ChevronRight } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import type { RecoveryBreakdown, RecoveryHistoryPoint } from "../recovery";

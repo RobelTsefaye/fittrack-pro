@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { Dumbbell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { registerSchema } from "../schemas";
@@ -11,6 +11,7 @@ import { useI18n } from "@/lib/i18n-provider";
 import { APP_NAME } from "@/lib/constants";
 import { Capacitor } from "@capacitor/core";
 import { saveNativeAuthToken } from "@/lib/native/native-auth-token";
+import { setCachedToken } from "@/lib/native/auth-token-cache";
 
 export function RegisterForm() {
   const { t } = useI18n();
@@ -50,6 +51,44 @@ export function RegisterForm() {
       return;
     }
 
+    // Native: the Bearer token is the real credential (same reasoning as
+    // login-form.tsx). Cookie signIn runs alongside best-effort but must not
+    // gate, since WKWebView's cookie store is unreliable on native and its
+    // MissingCSRF failure would otherwise block an otherwise-successful
+    // registration.
+    if (Capacitor.isNativePlatform()) {
+      void signIn("credentials", {
+        email:    data.email,
+        password: data.password,
+        redirect: false,
+      }).catch(() => {});
+
+      try {
+        const res2 = await fetch("/api/auth/native-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        const json = res2.ok ? await res2.json() : null;
+        const token = json?.data?.token as string | undefined;
+        if (!token) {
+          setError(t("auth.register.signInFailed"));
+          setLoading(false);
+          return;
+        }
+        await saveNativeAuthToken(token);
+        setCachedToken(token);
+      } catch {
+        setError(t("auth.register.signInFailed"));
+        setLoading(false);
+        return;
+      }
+
+      router.push("/dashboard");
+      router.refresh();
+      return;
+    }
+
     const signInResult = await signIn("credentials", {
       email:    data.email,
       password: data.password,
@@ -59,22 +98,6 @@ export function RegisterForm() {
       setError(t("auth.register.signInFailed"));
       setLoading(false);
       return;
-    }
-
-    // Additive, native-only, best-effort — same reasoning as login-form.tsx's
-    // Phase 1 wiring: a fresh registration should also leave a Bearer token
-    // stored for the native shell, not just the cookie session.
-    if (Capacitor.isNativePlatform()) {
-      void fetch("/api/auth/native-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((json) => {
-          if (json?.data?.token) void saveNativeAuthToken(json.data.token);
-        })
-        .catch(() => {});
     }
 
     router.push("/dashboard");

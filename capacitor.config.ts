@@ -14,18 +14,19 @@ const config: CapacitorConfig = {
   ios: {
     contentInset: 'automatic',
   },
-  // The bundled UI (capacitor://localhost) calls the API on a different
-  // origin (the Vercel deployment) — plain fetch()/XHR from a WKWebView is
-  // still subject to standard browser CORS, and none of the API routes send
-  // CORS headers (they were always same-origin before this phase). Routing
-  // through Capacitor's native HTTP bridge instead of the WebView's own
-  // networking sidesteps CORS entirely (native URLSession doesn't enforce it)
-  // without touching every API route.
-  plugins: {
-    CapacitorHttp: {
-      enabled: true,
-    },
-  },
+  // Deliberately NOT enabling `plugins.CapacitorHttp` here — that flag makes
+  // Capacitor patch `window.fetch`/`XMLHttpRequest` globally, which also
+  // rewrites Next.js's OWN internal same-origin fetches (the RSC-payload
+  // `.txt` files under capacitor://localhost that its client router uses for
+  // fast in-app navigation). Routed through the native bridge, those broke in
+  // a way that made the router fall back to a full hard reload on every
+  // single navigation — the entire app (biometric lock, HealthKit sync, push
+  // registration, native re-login) re-ran on every tab tap. Cross-origin API
+  // calls (the Vercel deployment) still need to bypass WKWebView's CORS
+  // enforcement — that's done narrowly instead, via the `CapacitorHttp`
+  // plugin's `request()` JS API called directly and only for those requests,
+  // in native-auth-fetch-patch.tsx. Same-origin requests keep using the
+  // completely unmodified `fetch`.
 };
 
 export default config;
