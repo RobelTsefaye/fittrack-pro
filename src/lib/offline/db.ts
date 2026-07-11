@@ -71,6 +71,16 @@ export type HealthCacheRow = {
   updatedAt: number;
 };
 
+export type PlanDetailCacheRow = {
+  /** Keyed by planId — one row per plan, holds the full detail (sessions +
+   *  exercises + targetSets), unlike `plansCache` which only holds the
+   *  summary list. Needed so a plan session's workout can be built entirely
+   *  client-side while offline (see plan-session-offline.ts). */
+  id: string;
+  payload: string;
+  updatedAt: number;
+};
+
 class FitTrackOfflineDb extends Dexie {
   workouts!: Table<WorkoutSnapshotRow>;
   queue!: Table<QueueRow>;
@@ -84,6 +94,7 @@ class FitTrackOfflineDb extends Dexie {
   muscleHeatmapCache!: Table<MuscleHeatmapCacheRow>;
   plansCache!: Table<PlansCacheRow>;
   healthCache!: Table<HealthCacheRow>;
+  planDetailCache!: Table<PlanDetailCacheRow>;
 
   constructor() {
     super("fittrack_offline_v1");
@@ -120,6 +131,24 @@ class FitTrackOfflineDb extends Dexie {
       muscleHeatmapCache: "id",
       plansCache: "id",
       healthCache: "id",
+    });
+    // Phase 4 follow-up: offline start of a workout from a plan session
+    // needs the full plan detail (exercises + targetSets), not just the
+    // summary list `plansCache` holds.
+    this.version(13).stores({
+      workouts: "id",
+      queue: "id, workoutRouteId, sort",
+      catalog: "id",
+      meta: "id",
+      bodyWeightCache: "id",
+      bodyWeightQueue: "id, sort",
+      workoutListCache: "id",
+      dashboardCache: "id",
+      achievementsCache: "id",
+      muscleHeatmapCache: "id",
+      plansCache: "id",
+      healthCache: "id",
+      planDetailCache: "id",
     });
   }
 }

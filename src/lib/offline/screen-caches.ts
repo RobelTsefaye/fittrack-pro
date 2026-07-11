@@ -99,3 +99,22 @@ export async function loadHealthCache<T>(screen: string): Promise<T | null> {
     return null;
   }
 }
+
+/** `planId` keys the row — full plan detail (sessions + exercises + targetSets), not just the summary `plansCache` holds. */
+export async function savePlanDetailCache<T>(planId: string, payload: T): Promise<void> {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  await db.planDetailCache.put({ id: planId, payload: JSON.stringify(payload), updatedAt: Date.now() });
+}
+
+export async function loadPlanDetailCache<T>(planId: string): Promise<T | null> {
+  const db = tryGetOfflineDb();
+  if (!db) return null;
+  const row = await db.planDetailCache.get(planId);
+  if (!row) return null;
+  try {
+    return JSON.parse(row.payload) as T;
+  } catch {
+    return null;
+  }
+}
