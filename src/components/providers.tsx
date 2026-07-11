@@ -9,11 +9,13 @@ import { NativePushRegister } from "@/components/native-push-register";
 import { NativeHealthSync } from "@/components/native-health-sync";
 import { NativeAppLock } from "@/components/native-app-lock";
 import { NativeWatchWorkoutSync } from "@/components/native-watch-workout-sync";
+import { NativeAuthFetchPatch } from "@/components/native-auth-fetch-patch";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider refetchOnWindowFocus={false} refetchWhenOffline={false}>
       <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+        <NativeAuthFetchPatch />
         <PwaRegister />
         <NativePushRegister />
         <NativeHealthSync />

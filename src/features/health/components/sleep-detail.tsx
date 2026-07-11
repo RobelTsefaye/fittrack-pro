@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { ArrowLeft, Moon } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import { METRICS } from "../metric-config";

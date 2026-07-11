@@ -2,7 +2,7 @@
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import type { WorkoutData } from "@/features/workouts/workout-types";
-import type { PreviousLogEntry } from "@/app/api/workouts/[id]/previous-logs/route";
+import type { PreviousLogEntry } from "@/features/workouts/previous-logs-types";
 import { DEFAULT_REST_TIMER } from "@/lib/constants";
 
 /** Also covers the cardio-remote-control methods (see cardio-connectivity.ts)

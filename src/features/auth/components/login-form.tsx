@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { Dumbbell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { useI18n } from "@/lib/i18n-provider";
 import { APP_NAME } from "@/lib/constants";
 import { Capacitor } from "@capacitor/core";
 import { saveNativeAuthToken } from "@/lib/native/native-auth-token";
+import { setCachedToken } from "@/lib/native/auth-token-cache";
 
 export function LoginForm() {
   const { t } = useI18n();
@@ -37,6 +38,49 @@ export function LoginForm() {
       return;
     }
 
+    // On native, the Bearer token minted below is the actual credential the
+    // rest of the app checks (RequireAuth/useAuthGate — see
+    // project-docs/offline-first-roadmap.md Phase 2), so it has to be the
+    // thing that decides success/failure here. The cookie session is fired
+    // alongside, best-effort: WKWebView's cookie jar and the native HTTP
+    // bridge's cookie store don't reliably stay in sync (native-auth-fetch-
+    // patch.tsx's CapacitorCookies get/setCookie round trip kept coming back
+    // empty in on-device testing), so gating login on it — as the web flow
+    // below does — surfaced real MissingCSRF cookie failures as a false
+    // "invalid email or password" even with correct credentials.
+    if (Capacitor.isNativePlatform()) {
+      void signIn("credentials", {
+        email:    data.email,
+        password: data.password,
+        redirect: false,
+      }).catch(() => {});
+
+      try {
+        const res = await fetch("/api/auth/native-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        const json = res.ok ? await res.json() : null;
+        const token = json?.data?.token as string | undefined;
+        if (!token) {
+          setError(t("auth.login.invalidCredentials"));
+          setLoading(false);
+          return;
+        }
+        await saveNativeAuthToken(token);
+        setCachedToken(token);
+      } catch {
+        setError(t("auth.login.invalidCredentials"));
+        setLoading(false);
+        return;
+      }
+
+      router.push("/dashboard");
+      router.refresh();
+      return;
+    }
+
     const result = await signIn("credentials", {
       email:    data.email,
       password: data.password,
@@ -47,23 +91,6 @@ export function LoginForm() {
       setError(t("auth.login.invalidCredentials"));
       setLoading(false);
       return;
-    }
-
-    // Additive, native-only, best-effort: mints and stores a Bearer token
-    // alongside the (unchanged) cookie session — see
-    // project-docs/offline-first-roadmap.md Phase 1. Not used by anything
-    // yet, so a failure here must never block the existing login flow.
-    if (Capacitor.isNativePlatform()) {
-      void fetch("/api/auth/native-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((json) => {
-          if (json?.data?.token) void saveNativeAuthToken(json.data.token);
-        })
-        .catch(() => {});
     }
 
     router.push("/dashboard");

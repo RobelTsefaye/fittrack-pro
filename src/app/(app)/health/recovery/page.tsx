@@ -1,19 +1,16 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { APP_NAME } from "@/lib/constants";
+"use client";
+
+import { RequireAuth } from "@/components/auth/require-auth";
 import { RecoveryDetail } from "@/features/health/components/recovery-detail";
-import { computeRecovery, computeRecoveryHistory } from "@/features/health/recovery";
 
-export const metadata = { title: `Recovery — ${APP_NAME}` };
-
-export default async function RecoveryPage() {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
-
-  const [recovery, history] = await Promise.all([
-    computeRecovery(session.user.id),
-    computeRecoveryHistory(session.user.id, 30),
-  ]);
-
-  return <RecoveryDetail initialRecovery={recovery} initialHistory={history} />;
+// RecoveryDetail self-fetches when no initial props are given. Passing
+// initialRecovery={null} made it treat "not loaded yet" as "data already
+// provided" (null !== undefined) and skip its own fetch
+// (project-docs/offline-first-roadmap.md Phase 2).
+export default function RecoveryPage() {
+  return (
+    <RequireAuth>
+      <RecoveryDetail />
+    </RequireAuth>
+  );
 }

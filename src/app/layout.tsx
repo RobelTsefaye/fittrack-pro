@@ -65,7 +65,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const locale = await resolveAppLocale();
+  // Static export has no request to read a cookie/session from — resolveAppLocale()
+  // calls cookies()/auth()/Prisma, none of which exist at build time under
+  // `output: "export"`. The native shell always renders this same pre-built
+  // "en" HTML regardless of the visitor; per-user locale there is a Phase 3+
+  // concern (project-docs/offline-first-roadmap.md).
+  const locale = process.env.NATIVE_BUILD === "1" ? "en" : await resolveAppLocale();
   const messages = getMessages(locale);
 
   return (

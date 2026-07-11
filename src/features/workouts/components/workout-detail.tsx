@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, CheckCircle2, Clock, GripVertical, Plus, Timer, Trash2, X } from "lucide-react";
@@ -37,7 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ROUTES, exercisePath, DEFAULT_REST_TIMER } from "@/lib/constants";
-import type { PreviousLogEntry, PreviousSetEntry } from "@/app/api/workouts/[id]/previous-logs/route";
+import type { PreviousLogEntry, PreviousSetEntry } from "@/features/workouts/previous-logs-types";
 import { ExercisePickerDialog, type ExercisePickerExercise } from "./exercise-picker-dialog";
 import { SetRow } from "./set-row";
 import { useRestTimerActions } from "../rest-timer-context";

@@ -1,23 +1,15 @@
-import { notFound, redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { APP_NAME } from "@/lib/constants";
-import { MetricDetail } from "@/features/health/components/metric-detail";
-import { getHealthSnapshots } from "@/features/health/health-data";
-import { METRICS, METRIC_SLUGS, type MetricSlug } from "@/features/health/metric-config";
+import { METRIC_SLUGS } from "@/features/health/metric-config";
+import { MetricPageClient } from "./page-client";
 
-export async function generateMetadata({ params }: { params: Promise<{ metric: string }> }) {
-  const { metric } = await params;
-  const config = METRICS[metric as MetricSlug];
-  return { title: config ? `${config.label} — ${APP_NAME}` : APP_NAME };
+// `generateStaticParams` must live in a Server Component file — it can't be
+// exported alongside "use client". All real metric slugs are known at build
+// time (unlike workout/exercise/plan ids), so list them all instead of a
+// single placeholder — every valid /health/<slug> path gets its own
+// pre-rendered shell (project-docs/offline-first-roadmap.md Phase 2).
+export function generateStaticParams() {
+  return METRIC_SLUGS.map((metric) => ({ metric }));
 }
 
-export default async function MetricPage({ params }: { params: Promise<{ metric: string }> }) {
-  const { metric } = await params;
-  if (!METRIC_SLUGS.includes(metric as MetricSlug)) notFound();
-
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
-
-  const snapshots = await getHealthSnapshots(session.user.id, 90);
-  return <MetricDetail slug={metric as MetricSlug} initialSnapshots={snapshots} />;
+export default function MetricPage() {
+  return <MetricPageClient />;
 }

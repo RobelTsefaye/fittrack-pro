@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { authenticatedFetch } from "@/lib/native/native-auth-token";
-import { MostUsedExercisesView } from "@/features/exercises/components/most-used-exercises-view";
+import { ExerciseDetailView } from "@/features/exercises/components/exercise-detail-view";
 import type { WeightUnit } from "@/generated/prisma/enums";
 
-export default function ExercisesUsagePage() {
+export function ExerciseDetailPageClient() {
+  const { id } = useParams<{ id: string }>();
   const [weightUnit, setWeightUnit] = useState<WeightUnit>("KG");
 
   useEffect(() => {
@@ -24,7 +26,7 @@ export default function ExercisesUsagePage() {
 
   return (
     <RequireAuth>
-      <MostUsedExercisesView weightUnit={weightUnit} />
+      <ExerciseDetailView exerciseId={id} weightUnit={weightUnit} />
     </RequireAuth>
   );
 }

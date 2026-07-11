@@ -1,5 +1,14 @@
 export const APP_NAME = "FitTrack Pro";
 
+/**
+ * Same production host the native Swift side already hardcodes
+ * (WatchAPIProxy.swift, CardioPictureInPicturePlugin.swift) — the statically-
+ * exported native build (project-docs/offline-first-roadmap.md Phase 2) has
+ * no local server behind it, so relative `/api/...` fetches from within it
+ * need to resolve here instead. See src/components/native-auth-fetch-patch.tsx.
+ */
+export const PRODUCTION_API_ORIGIN = "https://fittrack-pro-ashen.vercel.app";
+
 export const MUSCLE_GROUPS = [
   "CHEST",
   "BACK",

@@ -64,6 +64,23 @@ final class RouteLocationTracker: NSObject, ObservableObject {
     func stop() {
         manager.stopUpdatingLocation()
     }
+
+    /// While paused, incoming fixes are ignored entirely — no distance, no
+    /// polyline. GPS keeps running so resume is instant.
+    private(set) var isPaused = false
+
+    func pause() {
+        isPaused = true
+    }
+
+    func resume() {
+        isPaused = false
+        // Movement during the pause must not count: dropping the reference
+        // point means the first fix after resume seeds fresh instead of
+        // producing a delta (and a straight polyline segment) spanning
+        // wherever the user wandered while paused.
+        lastLocation = nil
+    }
 }
 
 extension RouteLocationTracker: CLLocationManagerDelegate {
@@ -82,6 +99,7 @@ extension RouteLocationTracker: CLLocationManagerDelegate {
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         Task { @MainActor in
+            guard !self.isPaused else { return }
             for location in locations where location.horizontalAccuracy >= 0 && location.horizontalAccuracy <= self.minAccuracyMeters {
                 if let last = self.lastLocation {
                     let delta = location.distance(from: last)

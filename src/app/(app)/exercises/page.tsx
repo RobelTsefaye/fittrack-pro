@@ -1,36 +1,28 @@
+"use client";
+
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { APP_NAME } from "@/lib/constants";
+import { RequireAuth } from "@/components/auth/require-auth";
 import { ExerciseList } from "@/features/exercises/components/exercise-list";
 import { ExerciseFilters } from "@/features/exercises/components/exercise-filters";
-import { getExercises } from "@/features/exercises/exercise-data";
 import { BackButton } from "@/components/layout/back-button";
 
-export const metadata = { title: `Exercises — ${APP_NAME}` };
-
-export default async function ExercisesPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ muscleGroup?: string; equipment?: string; search?: string }>;
-}) {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
-
-  const params = await searchParams;
-  const exercises = await getExercises(session.user.id, params);
-
-  const initialQuery = new URLSearchParams(
-    Object.entries(params).filter(([, v]) => v != null) as [string, string][]
-  ).toString();
-
+// Client component — no server-side auth()/searchParams/data-fetching (see
+// project-docs/offline-first-roadmap.md Phase 2). No SSR prefetch of the
+// exercise list either: ExerciseList already falls back to its own client
+// fetch whenever `initialExercises` isn't provided, and ExerciseFilters
+// already reads/writes the query string itself via useSearchParams — so
+// simply not passing server-prefetched props here is enough, nothing else
+// needs converting.
+export default function ExercisesPage() {
   return (
-    <div className="space-y-4">
-      <BackButton />
-      <Suspense>
-        <ExerciseFilters />
-        <ExerciseList initialExercises={exercises} initialQuery={initialQuery} />
-      </Suspense>
-    </div>
+    <RequireAuth>
+      <div className="space-y-4">
+        <BackButton />
+        <Suspense>
+          <ExerciseFilters />
+          <ExerciseList />
+        </Suspense>
+      </div>
+    </RequireAuth>
   );
 }

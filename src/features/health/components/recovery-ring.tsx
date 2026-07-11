@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { Moon, Heart, Zap, Dumbbell, ChevronRight, Footprints, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
 import { ROUTES } from "@/lib/constants";

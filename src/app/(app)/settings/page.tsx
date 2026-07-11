@@ -1,48 +1,51 @@
-import { cookies } from "next/headers";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { APP_NAME } from "@/lib/constants";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { RequireAuth } from "@/components/auth/require-auth";
+import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { BackButton } from "@/components/layout/back-button";
 import { SettingsPageContent } from "@/features/settings/components/settings-page-content";
-import { LOCALE_COOKIE, prismaLocaleFromCookieString } from "@/lib/i18n-config";
 
-export const metadata = { title: `Settings — ${APP_NAME}` };
+type InitialSettings = {
+  locale: "EN" | "DE";
+  weightUnit: "KG" | "LB";
+  theme: "LIGHT" | "DARK" | "SYSTEM";
+  restTimerDefault: number;
+};
 
-export default async function SettingsPage() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return null;
-  }
+const DEFAULT_SETTINGS: InitialSettings = {
+  locale: "EN",
+  weightUnit: "KG",
+  theme: "SYSTEM",
+  restTimerDefault: 90,
+};
 
-  let settings = await prisma.userSettings.findUnique({
-    where: { userId: session.user.id },
-  });
+export default function SettingsPage() {
+  const { data: session } = useSession();
+  const [initial, setInitial] = useState<InitialSettings>(DEFAULT_SETTINGS);
 
-  if (!settings) {
-    const cookieStore = await cookies();
-    const localeFromCookie = prismaLocaleFromCookieString(
-      cookieStore.get(LOCALE_COOKIE)?.value
-    );
-    settings = await prisma.userSettings.create({
-      data: { userId: session.user.id, locale: localeFromCookie },
-    });
-  }
-
-  const initial = {
-    locale: settings.locale,
-    weightUnit: settings.weightUnit,
-    theme: settings.theme,
-    restTimerDefault: settings.restTimerDefault,
-  };
+  useEffect(() => {
+    let cancelled = false;
+    void authenticatedFetch("/api/settings", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!cancelled && json?.data) setInitial(json.data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
-    <>
+    <RequireAuth>
       <BackButton />
       <SettingsPageContent
-        name={session.user.name}
-        email={session.user.email}
+        name={session?.user?.name}
+        email={session?.user?.email}
         initial={initial}
       />
-    </>
+    </RequireAuth>
   );
 }

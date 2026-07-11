@@ -1,24 +1,32 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { APP_NAME } from "@/lib/constants";
+"use client";
+
+import { useEffect, useState } from "react";
+import { RequireAuth } from "@/components/auth/require-auth";
+import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { BackButton } from "@/components/layout/back-button";
 import { BodyTrackingShell } from "@/features/tracking/components/body-tracking-shell";
+import type { WeightUnit } from "@/generated/prisma/enums";
 
-export const metadata = { title: `Body Tracking — ${APP_NAME}` };
+export default function BodyWeightPage() {
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>("KG");
 
-export default async function BodyWeightPage() {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
-
-  const settings = await prisma.userSettings.findUnique({
-    where: { userId: session.user.id },
-  });
+  useEffect(() => {
+    let cancelled = false;
+    void authenticatedFetch("/api/settings", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!cancelled && json?.data?.weightUnit) setWeightUnit(json.data.weightUnit);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
-    <>
+    <RequireAuth>
       <BackButton />
-      <BodyTrackingShell weightUnit={settings?.weightUnit ?? "KG"} />
-    </>
+      <BodyTrackingShell weightUnit={weightUnit} />
+    </RequireAuth>
   );
 }

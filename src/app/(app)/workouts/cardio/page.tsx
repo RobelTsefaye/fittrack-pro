@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/app-link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Bike, CheckCircle2, Flame, Footprints, HeartPulse, PictureInPicture2, Timer as TimerIcon, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
