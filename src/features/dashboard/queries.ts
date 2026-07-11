@@ -294,6 +294,7 @@ export async function getNextPlanSession(userId: string) {
       where: { userId },
       orderBy: { updatedAt: "desc" },
       select: {
+        id: true,
         name: true,
         sessions: {
           orderBy: { order: "asc" },
@@ -320,6 +321,7 @@ export async function getNextPlanSession(userId: string) {
         order: true,
         plan: {
           select: {
+            id: true,
             name: true,
             userId: true,
             sessions: {
@@ -345,6 +347,7 @@ export async function getNextPlanSession(userId: string) {
         return {
           sessionId: next.id,
           sessionName: next.name,
+          planId: planSession.plan.id,
           planName: planSession.plan.name,
           exerciseCount: next._count.exercises,
           lastSessionName: lastPlanned.name,
@@ -375,6 +378,7 @@ export async function getNextPlanSession(userId: string) {
   return {
     sessionId: next.id,
     sessionName: next.name,
+    planId: plan.id,
     planName: plan.name,
     exerciseCount: next._count.exercises,
     lastSessionName: lastWorkout?.name ?? null,
