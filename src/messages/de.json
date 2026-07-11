@@ -49,7 +49,8 @@
       "submitting": "Anmeldung…",
       "noAccount": "Noch kein Konto?",
       "signUp": "Registrieren",
-      "invalidCredentials": "Ungültige E-Mail oder Passwort"
+      "invalidCredentials": "Ungültige E-Mail oder Passwort",
+      "offline": "Keine Internetverbindung — bitte verbinde dich und versuche es erneut."
     },
     "register": {
       "title": "Konto erstellen",

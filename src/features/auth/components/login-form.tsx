@@ -82,7 +82,17 @@ export function LoginForm() {
         await saveNativeAuthToken(token);
         setCachedToken(token);
       } catch {
-        setError(t("auth.login.invalidCredentials"));
+        // A thrown fetch here means the server was never actually reached
+        // (no network) — distinct from the `!token` branch above, which
+        // means the server *was* reached and rejected the credentials.
+        // Lumping both into "Invalid email or password" is misleading: it
+        // tells the user their password is wrong when the real problem is
+        // no connection at all.
+        setError(
+          typeof navigator !== "undefined" && !navigator.onLine
+            ? t("auth.login.offline")
+            : t("auth.login.invalidCredentials")
+        );
         setLoading(false);
         return;
       }

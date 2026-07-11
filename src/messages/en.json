@@ -49,7 +49,8 @@
       "submitting": "Signing in…",
       "noAccount": "Don't have an account?",
       "signUp": "Sign up",
-      "invalidCredentials": "Invalid email or password"
+      "invalidCredentials": "Invalid email or password",
+      "offline": "No internet connection — please reconnect and try again."
     },
     "register": {
       "title": "Create your account",
