@@ -16,3 +16,16 @@ export function workoutHref(id: string) {
   }
   return `/workouts/${id}`;
 }
+
+/**
+ * Same problem as `workoutHref` above, for `/plans/[planId]` — the static
+ * export only pre-renders `/plans/_`, so a real plan id has no matching file
+ * on native and falls back to a full reload (which lands on the SPA's root
+ * route and, for a logged-in user, redirects straight to the dashboard).
+ */
+export function planHref(id: string) {
+  if (Capacitor.isNativePlatform()) {
+    return `/plans/_?id=${id}`;
+  }
+  return `/plans/${id}`;
+}

@@ -1,17 +1,20 @@
 # Offline-First Roadmap
 
 **Branch:** `feature/offline-plan-session-start` (Phases 1-5 already merged to `main`)
-**Status:** All 5 phases + the Phase 4 follow-up (offline plan-session start) are code-complete. Phases 1-5 are merged to `main`. **The current branch (`feature/offline-plan-session-start`) has one commit not yet merged — verified in-browser only, on-device test not yet run.**
-**Last updated:** 2026-07-11
+**Status:** All 5 phases + the Phase 4 follow-up (offline plan-session start) are code-complete and now **on-device tested and passed**. Phases 1-5 are merged to `main`. **The current branch (`feature/offline-plan-session-start`) has commits not yet merged.**
+**Last updated:** 2026-07-12
 
 ## ⏭️ Resume here (next session)
 
-1. On-device test needed for the plan-session offline-start commit (`5ca2479` on `feature/offline-plan-session-start`): see the step-by-step test plan the user was given in this session's chat log, summarized —
-   - Open a plan with at least one day/exercise **online first** (populates the new `planDetailCache`).
-   - Airplane mode, tap "Start this workout" on that plan's detail page → should land on `/workouts/new` with the right name, exercises, and set counts, offline banner showing.
-   - Also check the Dashboard "Next Workout" card offline — should toast + redirect to manual start, not silently fail.
-2. Once confirmed working: merge `feature/offline-plan-session-start` into `main` (mirror the process every other phase used — `git status`/`tsc --noEmit` check, `git checkout main`, `git merge --no-ff`, `tsc --noEmit` again, `git push origin main`). The user asks for this explicitly each time ("ja, merge das") — don't merge without that.
-3. After that merge, the entire roadmap (all 5 phases + the deferred item) is closed out. No further planned work exists in this doc — check with the user before starting anything new here.
+1. On-device test for the plan-session offline-start commit (`5ca2479`) **passed**. Merge `feature/offline-plan-session-start` into `main` (mirror the process every other phase used — `git status`/`tsc --noEmit` check, `git checkout main`, `git merge --no-ff`, `tsc --noEmit` again, `git push origin main`). The user asks for this explicitly each time ("ja, merge das") — don't merge without that.
+2. After that merge, the entire roadmap (all 5 phases + the deferred item) is closed out. No further planned work exists in this doc — check with the user before starting anything new here.
+
+### Bug found + fixed during this on-device test round
+Clicking a plan on `/plans` redirected straight back to the dashboard instead of opening it. Root cause: same class of bug as the Phase 4 `workoutHref()` fix — `/plans/[planId]` is statically exported with only a `/plans/_` placeholder pre-rendered (Phase 2), so a real plan id has no matching file on native; the WKWebView's local server falls back to `index.html`, which redirects a logged-in user to `/dashboard`. Fixed with the same pattern:
+- Added `planHref()` (`src/lib/workout-href.ts`), used in `plans-list.tsx`.
+- `plans/[planId]/page-client.tsx` now reads the id from the `?id=` query param (falling back to the path param on web).
+- Same bug also existed for `exercisePath()` (`src/lib/constants.ts`) — used in 7 files, all confirmed to be simple navigation links (no API-call sites affected). Fixed the same way, plus `exercises/[id]/page-client.tsx` reading the query param.
+- Verified: `tsc --noEmit` clean, `npm run build:native` clean (38 pages), `npx cap sync ios` done. On-device retest after this fix passed.
 
 Also still lying around, unrelated to this roadmap, flagged in earlier phase logs but never cleaned up (sandbox blocked `rm` at the time): `src/components/native-debug-probe.tsx` and `src/features/auth/actions/register.ts` are dead code. Several `scratch_*.ts`/`scratch_*.swift` files at the repo root are leftover one-off debug scripts from past sessions (test-user creation, etc.) — harmless, untracked, safe to ignore or delete.
 
