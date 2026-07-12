@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { ROUTES, exercisePath, DEFAULT_REST_TIMER } from "@/lib/constants";
 import type { PreviousLogEntry, PreviousSetEntry } from "@/features/workouts/previous-logs-types";
+import { loadPreviousLogsCache, savePreviousLogsCache } from "@/lib/offline/screen-caches";
 import { ExercisePickerDialog, type ExercisePickerExercise } from "./exercise-picker-dialog";
 import { SetRow } from "./set-row";
 import { useRestTimerActions } from "../rest-timer-context";
@@ -686,24 +687,41 @@ export function WorkoutDetail({
     };
   }, [workoutId, loadWorkout]);
 
+  // Cache-first: "last time you did this exercise" used to be skipped
+  // entirely whenever writes were local-only (offline, or an unsynced
+  // offline-started workout) — the confirm-and-log flow then showed no
+  // weight/reps hint at all. Reads whatever's cached per exercise (see
+  // previousLogsCache in screen-caches.ts) immediately, then refreshes from
+  // the network when actually online, regardless of `useLocalWrites` — that
+  // flag is about how the CURRENT workout's own writes are routed, not
+  // whether fetching read-only history about OTHER, already-completed
+  // workouts is safe to attempt.
   useEffect(() => {
-    if (!workout || workout.completedAt || useLocalWrites) return;
+    if (!workout || workout.completedAt) return;
+    const exerciseIds = [...new Set(workout.workoutExercises.map((we) => we.exerciseId))];
+    if (exerciseIds.length === 0) return;
     let cancelled = false;
-    void fetch(`/api/workouts/${workoutId}/previous-logs`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((json: { data?: Record<string, PreviousLogEntry> }) => {
-        if (!cancelled && json.data) setPreviousLogs(json.data);
-      });
+    (async () => {
+      const cached = await loadPreviousLogsCache<PreviousLogEntry>(exerciseIds);
+      if (!cancelled && Object.keys(cached).length > 0) {
+        setPreviousLogs((prev) => ({ ...cached, ...prev }));
+      }
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
+      try {
+        const res = await fetch(`/api/workouts/${workoutId}/previous-logs`, { credentials: "include" });
+        const json = (await res.json()) as { data?: Record<string, PreviousLogEntry> };
+        if (!cancelled && json.data) {
+          setPreviousLogs(json.data);
+          void savePreviousLogsCache(json.data);
+        }
+      } catch {
+        // already showing cache (if any) — nothing more to do
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, [
-    workoutId,
-    workout?.id,
-    workout?.completedAt,
-    useLocalWrites,
-    workout?.workoutExercises?.length,
-  ]);
+  }, [workoutId, workout?.id, workout?.completedAt, workout?.workoutExercises?.length]);
 
   useEffect(() => {
     if (workout?.name != null) setNameDraft(workout.name);

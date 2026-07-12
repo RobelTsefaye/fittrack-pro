@@ -121,6 +121,17 @@ export type QueueIdMapRow = {
   setMapJson: string;
 };
 
+export type PreviousLogCacheRow = {
+  /** Keyed by exerciseId — "last time you did THIS exercise" (weight/reps
+   *  per set), independent of any particular workout. Accumulates coverage
+   *  over time: each fetch only returns entries for the current workout's
+   *  exercises, so this is merged in (never wholesale-replaced) — see
+   *  savePreviousLogsCache in screen-caches.ts. */
+  id: string;
+  payload: string;
+  updatedAt: number;
+};
+
 class FitTrackOfflineDb extends Dexie {
   workouts!: Table<WorkoutSnapshotRow>;
   queue!: Table<QueueRow>;
@@ -140,6 +151,7 @@ class FitTrackOfflineDb extends Dexie {
   bodyMeasurementsCache!: Table<BodyMeasurementsCacheRow>;
   recordsCache!: Table<RecordsCacheRow>;
   queueIdMap!: Table<QueueIdMapRow>;
+  previousLogsCache!: Table<PreviousLogCacheRow>;
 
   constructor() {
     super("fittrack_offline_v1");
@@ -247,6 +259,32 @@ class FitTrackOfflineDb extends Dexie {
       bodyMeasurementsCache: "id",
       recordsCache: "id",
       queueIdMap: "id",
+    });
+    // "Last time you did this exercise" (weight/reps per set) used to be
+    // skipped entirely offline (workout-detail.tsx explicitly bailed out
+    // whenever writes were local-only) — this table lets it be shown from
+    // cache instead, keyed per exercise so it accumulates coverage across
+    // sessions rather than being tied to one specific workout.
+    this.version(16).stores({
+      workouts: "id",
+      queue: "id, workoutRouteId, sort",
+      catalog: "id",
+      meta: "id",
+      bodyWeightCache: "id",
+      bodyWeightQueue: "id, sort",
+      workoutListCache: "id",
+      dashboardCache: "id",
+      achievementsCache: "id",
+      muscleHeatmapCache: "id",
+      plansCache: "id",
+      healthCache: "id",
+      planDetailCache: "id",
+      exerciseDetailCache: "id",
+      mostUsedExercisesCache: "id",
+      bodyMeasurementsCache: "id",
+      recordsCache: "id",
+      queueIdMap: "id",
+      previousLogsCache: "id",
     });
   }
 }

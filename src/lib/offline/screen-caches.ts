@@ -193,3 +193,40 @@ export async function loadRecordsCache<T>(): Promise<T | null> {
     return null;
   }
 }
+
+/** Merges each exercise's entry into `previousLogsCache` (never wholesale-
+ *  replaces it) — a single fetch only ever covers the current workout's own
+ *  exercises, so overwriting the whole table would drop coverage for every
+ *  other exercise the user has previously logged. */
+export async function savePreviousLogsCache<T>(byExerciseId: Record<string, T>): Promise<void> {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  const now = Date.now();
+  await db.previousLogsCache.bulkPut(
+    Object.entries(byExerciseId).map(([exerciseId, payload]) => ({
+      id: exerciseId,
+      payload: JSON.stringify(payload),
+      updatedAt: now,
+    }))
+  );
+}
+
+/** Loads whatever's cached for the given exercise ids — missing/uncached
+ *  ones are simply absent from the returned record, not an error. */
+export async function loadPreviousLogsCache<T>(
+  exerciseIds: string[]
+): Promise<Record<string, T>> {
+  const db = tryGetOfflineDb();
+  if (!db || exerciseIds.length === 0) return {};
+  const rows = await db.previousLogsCache.bulkGet(exerciseIds);
+  const result: Record<string, T> = {};
+  rows.forEach((row, i) => {
+    if (!row) return;
+    try {
+      result[exerciseIds[i]] = JSON.parse(row.payload) as T;
+    } catch {
+      // skip corrupt entry
+    }
+  });
+  return result;
+}
