@@ -11,8 +11,16 @@ import { AchievementsCard } from "@/features/dashboard/components/achievements-c
 import { DashboardPageSkeleton } from "./dashboard-page-skeleton";
 import type { DashboardClientPayload } from "@/features/dashboard/queries";
 import { saveDashboardCache, loadDashboardCache } from "@/lib/offline/screen-caches";
+import { saveCachedUser } from "@/lib/cached-user";
 
-type DashboardState = { weightUnit: "KG" | "LB"; payload: DashboardClientPayload };
+type DashboardState = {
+  weightUnit: "KG" | "LB";
+  /** Provided by /api/dashboard/client-payload — the reliable name source on
+   *  native, where the cookie session behind useSession() can silently die
+   *  (see cached-user.ts). Optional: cached payloads predating this field. */
+  userName?: string | null;
+  payload: DashboardClientPayload;
+};
 
 // Client component — no server-side auth()/data-fetching (see
 // project-docs/offline-first-roadmap.md Phase 2). Fetches the new
@@ -49,6 +57,9 @@ export default function DashboardPage() {
         if (json?.data) {
           setState(json.data);
           void saveDashboardCache(json.data);
+          // Keep the display identity fresh for screens that can't rely on
+          // the cookie session (More-page profile) — see cached-user.ts.
+          if (json.data.userName) saveCachedUser({ name: json.data.userName });
         } else {
           const cached = await loadDashboardCache<DashboardState>();
           if (cancelled) return;
@@ -87,7 +98,7 @@ export default function DashboardPage() {
       ) : (
         <div className="space-y-6">
           <DashboardAnalytics
-            userName={session?.user?.name}
+            userName={state.userName ?? session?.user?.name}
             weightUnit={state.weightUnit}
             payload={state.payload}
           />

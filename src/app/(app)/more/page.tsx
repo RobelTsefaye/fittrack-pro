@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import { clearSwCache } from "@/components/pwa-register";
+import { loadCachedUser } from "@/lib/cached-user";
 import { useI18n } from "@/lib/i18n-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
@@ -40,8 +41,18 @@ export default function MorePage() {
   // makes the highlight and the navigation always refer to the same row.
   const [pressedHref, setPressedHref] = useState<string | null>(null);
 
+  // On native the cookie session behind useSession() can silently die while
+  // the Bearer token stays valid — fall back to the last-known identity so
+  // the profile doesn't blank out (see cached-user.ts). Lazy initializer:
+  // localStorage read once, client-side only.
+  const [cachedUser] = useState(() =>
+    typeof window === "undefined" ? {} : loadCachedUser()
+  );
+  const displayName = session?.user?.name ?? cachedUser.name ?? null;
+  const displayEmail = session?.user?.email ?? cachedUser.email ?? null;
+
   const initials =
-    session?.user?.name
+    displayName
       ?.split(" ")
       .map((n) => n[0])
       .join("")
@@ -65,10 +76,10 @@ export default function MorePage() {
         </Avatar>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[0.9375rem] font-semibold text-white">
-            {session?.user?.name ?? "—"}
+            {displayName ?? "—"}
           </p>
           <p className="truncate text-[0.8125rem]" style={{ color: "#9A9AA2" }}>
-            {session?.user?.email ?? ""}
+            {displayEmail ?? ""}
           </p>
         </div>
       </div>

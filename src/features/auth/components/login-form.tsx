@@ -13,6 +13,7 @@ import { APP_NAME } from "@/lib/constants";
 import { Capacitor } from "@capacitor/core";
 import { saveNativeAuthToken } from "@/lib/native/native-auth-token";
 import { setCachedToken } from "@/lib/native/auth-token-cache";
+import { saveCachedUser } from "@/lib/cached-user";
 
 export function LoginForm() {
   const { t } = useI18n();
@@ -81,6 +82,10 @@ export function LoginForm() {
         }
         await saveNativeAuthToken(token);
         setCachedToken(token);
+        // Display identity for screens where the cookie session behind
+        // useSession() may be dead (see cached-user.ts).
+        const user = json?.data?.user as { name?: string | null; email?: string | null } | undefined;
+        if (user) saveCachedUser({ name: user.name ?? null, email: user.email ?? null });
       } catch {
         // A thrown fetch here means the server was never actually reached
         // (no network) — distinct from the `!token` branch above, which
