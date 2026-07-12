@@ -7,6 +7,7 @@ import { APP_NAME } from "@/lib/constants";
 import { BackButton } from "@/components/layout/back-button";
 import { RecordsView } from "@/features/records/components/records-view";
 import type { PREntry, Achievement } from "@/services/personal-records";
+import { saveRecordsCache, loadRecordsCache } from "@/lib/offline/screen-caches";
 
 type RecordsData = {
   records: PREntry[];
@@ -26,20 +27,32 @@ export default function RecordsPage() {
   const [failed, setFailed] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
+  // Cache-first (project-docs/instant-load-roadmap.md Phase B): paint the
+  // last-known payload immediately, then silently refresh in the background.
+  // Only show the failure state when there's truly nothing cached.
   useEffect(() => {
     document.title = `Personal Records — ${APP_NAME}`;
     let cancelled = false;
     setFailed(false);
-    void authenticatedFetch("/api/records", { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        if (cancelled) return;
-        if (json?.data) setData(json.data);
-        else setFailed(true);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
+    (async () => {
+      const cached = await loadRecordsCache<RecordsData>();
+      if (!cancelled && cached) setData(cached);
+
+      void authenticatedFetch("/api/records", { credentials: "include" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json) => {
+          if (cancelled) return;
+          if (json?.data) {
+            setData(json.data);
+            void saveRecordsCache(json.data);
+          } else if (!cached) {
+            setFailed(true);
+          }
+        })
+        .catch(() => {
+          if (!cancelled && !cached) setFailed(true);
+        });
+    })();
     return () => {
       cancelled = true;
     };

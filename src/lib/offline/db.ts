@@ -81,6 +81,33 @@ export type PlanDetailCacheRow = {
   updatedAt: number;
 };
 
+export type ExerciseDetailCacheRow = {
+  /** Keyed by exerciseId — one row per exercise's history/analytics payload.
+   *  Shared by exercise-detail-view.tsx and most-used-exercises-view.tsx's
+   *  detail pane (project-docs/instant-load-roadmap.md Phase B). */
+  id: string;
+  payload: string;
+  updatedAt: number;
+};
+
+export type MostUsedExercisesCacheRow = {
+  id: "default";
+  payload: string;
+  updatedAt: number;
+};
+
+export type BodyMeasurementsCacheRow = {
+  id: "default";
+  payload: string;
+  updatedAt: number;
+};
+
+export type RecordsCacheRow = {
+  id: "default";
+  payload: string;
+  updatedAt: number;
+};
+
 class FitTrackOfflineDb extends Dexie {
   workouts!: Table<WorkoutSnapshotRow>;
   queue!: Table<QueueRow>;
@@ -95,6 +122,10 @@ class FitTrackOfflineDb extends Dexie {
   plansCache!: Table<PlansCacheRow>;
   healthCache!: Table<HealthCacheRow>;
   planDetailCache!: Table<PlanDetailCacheRow>;
+  exerciseDetailCache!: Table<ExerciseDetailCacheRow>;
+  mostUsedExercisesCache!: Table<MostUsedExercisesCacheRow>;
+  bodyMeasurementsCache!: Table<BodyMeasurementsCacheRow>;
+  recordsCache!: Table<RecordsCacheRow>;
 
   constructor() {
     super("fittrack_offline_v1");
@@ -149,6 +180,29 @@ class FitTrackOfflineDb extends Dexie {
       plansCache: "id",
       healthCache: "id",
       planDetailCache: "id",
+    });
+    // Phase B (project-docs/instant-load-roadmap.md): new cache tables for
+    // the screens that had no offline/cache story at all yet — exercise
+    // detail (+ most-used's detail pane, same shape), the most-used list,
+    // body measurements, and records.
+    this.version(14).stores({
+      workouts: "id",
+      queue: "id, workoutRouteId, sort",
+      catalog: "id",
+      meta: "id",
+      bodyWeightCache: "id",
+      bodyWeightQueue: "id, sort",
+      workoutListCache: "id",
+      dashboardCache: "id",
+      achievementsCache: "id",
+      muscleHeatmapCache: "id",
+      plansCache: "id",
+      healthCache: "id",
+      planDetailCache: "id",
+      exerciseDetailCache: "id",
+      mostUsedExercisesCache: "id",
+      bodyMeasurementsCache: "id",
+      recordsCache: "id",
     });
   }
 }

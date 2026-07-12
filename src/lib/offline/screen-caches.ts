@@ -118,3 +118,78 @@ export async function loadPlanDetailCache<T>(planId: string): Promise<T | null> 
     return null;
   }
 }
+
+/** `exerciseId` keys the row — the history/analytics payload for one exercise
+ *  (project-docs/instant-load-roadmap.md Phase B). Shared by
+ *  exercise-detail-view.tsx and most-used-exercises-view.tsx's detail pane. */
+export async function saveExerciseDetailCache<T>(exerciseId: string, payload: T): Promise<void> {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  await db.exerciseDetailCache.put({ id: exerciseId, payload: JSON.stringify(payload), updatedAt: Date.now() });
+}
+
+export async function loadExerciseDetailCache<T>(exerciseId: string): Promise<T | null> {
+  const db = tryGetOfflineDb();
+  if (!db) return null;
+  const row = await db.exerciseDetailCache.get(exerciseId);
+  if (!row) return null;
+  try {
+    return JSON.parse(row.payload) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveMostUsedExercisesCache<T>(payload: T): Promise<void> {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  await db.mostUsedExercisesCache.put({ id: "default", payload: JSON.stringify(payload), updatedAt: Date.now() });
+}
+
+export async function loadMostUsedExercisesCache<T>(): Promise<T | null> {
+  const db = tryGetOfflineDb();
+  if (!db) return null;
+  const row = await db.mostUsedExercisesCache.get("default");
+  if (!row) return null;
+  try {
+    return JSON.parse(row.payload) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveBodyMeasurementsCache<T>(payload: T): Promise<void> {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  await db.bodyMeasurementsCache.put({ id: "default", payload: JSON.stringify(payload), updatedAt: Date.now() });
+}
+
+export async function loadBodyMeasurementsCache<T>(): Promise<T | null> {
+  const db = tryGetOfflineDb();
+  if (!db) return null;
+  const row = await db.bodyMeasurementsCache.get("default");
+  if (!row) return null;
+  try {
+    return JSON.parse(row.payload) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveRecordsCache<T>(payload: T): Promise<void> {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  await db.recordsCache.put({ id: "default", payload: JSON.stringify(payload), updatedAt: Date.now() });
+}
+
+export async function loadRecordsCache<T>(): Promise<T | null> {
+  const db = tryGetOfflineDb();
+  if (!db) return null;
+  const row = await db.recordsCache.get("default");
+  if (!row) return null;
+  try {
+    return JSON.parse(row.payload) as T;
+  } catch {
+    return null;
+  }
+}

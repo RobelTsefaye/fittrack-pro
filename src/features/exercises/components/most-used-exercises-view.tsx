@@ -15,6 +15,12 @@ import {
   type AnalyticsHistoryRow,
 } from "./exercise-detail-analytics";
 import type { ProgressPoint, VolumePoint } from "@/features/exercises/progress-types";
+import {
+  saveMostUsedExercisesCache,
+  loadMostUsedExercisesCache,
+  saveExerciseDetailCache,
+  loadExerciseDetailCache,
+} from "@/lib/offline/screen-caches";
 
 type UsageRow = {
   exercise: {
@@ -38,6 +44,14 @@ function formatLabel(value: string) {
 interface MostUsedExercisesViewProps {
   weightUnit: "KG" | "LB";
 }
+
+type ExerciseHistoryPayload = {
+  exercise: { name: string; muscleGroup: string; equipment: string };
+  history: AnalyticsHistoryRow[];
+  progressBySession: ProgressPoint[];
+  volumeBySession: VolumePoint[];
+  bestPersonalRecord: AnalyticsBestPr | null;
+};
 
 export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps) {
   const { t } = useI18n();
@@ -71,12 +85,23 @@ export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps
     equipment: string;
   } | null>(null);
 
-  // Initial usage fetch. Inlined so no setState runs synchronously in the
-  // effect body (usageLoading already starts true); state updates all happen
-  // after an await.
+  // Cache-first (project-docs/instant-load-roadmap.md Phase B): paint the
+  // last-known usage list immediately, then silently refresh in the
+  // background. Only the "no cache at all" path shows a loading/error state.
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const cached = await loadMostUsedExercisesCache<UsageRow[]>();
+      if (cancelled) return;
+      if (cached) {
+        setUsage(cached);
+        setUsageError(false);
+        setUsageLoading(false);
+        if (cached.length > 0) {
+          setSelectedId((prev) => prev ?? cached[0].exercise.id);
+        }
+      }
+
       try {
         const res = await fetch("/api/exercises/most-used");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -88,8 +113,9 @@ export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps
         if (list.length > 0) {
           setSelectedId((prev) => prev ?? list[0].exercise.id);
         }
+        void saveMostUsedExercisesCache(list);
       } catch {
-        if (!cancelled) setUsageError(true);
+        if (!cancelled && !cached) setUsageError(true);
       } finally {
         if (!cancelled) setUsageLoading(false);
       }
@@ -99,20 +125,16 @@ export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps
 
   const histLoading = selectedId != null && selectedId !== loadedId;
 
-  // Load the selected exercise's history. `loadedId` is set at the end (even
-  // on failure) so the derived `histLoading` clears; no synchronous loading
-  // toggle inside the effect.
+  // Cache-first (project-docs/instant-load-roadmap.md Phase B), same
+  // exerciseDetailCache exercise-detail-view.tsx writes to — a plain click
+  // through from here can already be warm. `loadedId` is set as soon as
+  // *anything* (cache or fresh) renders, so the derived `histLoading` clears
+  // immediately on a cache hit instead of waiting on the network.
   useEffect(() => {
     if (!selectedId) return;
     let cancelled = false;
     (async () => {
-      try {
-        const res = await fetch(`/api/exercises/${selectedId}/history`);
-        if (cancelled) return;
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        if (cancelled) return;
-        const d = json.data;
+      const applyPayload = (d: ExerciseHistoryPayload) => {
         setMeta({
           name: d.exercise.name,
           muscleGroup: d.exercise.muscleGroup,
@@ -122,9 +144,28 @@ export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps
         setProgressBySession(d.progressBySession ?? []);
         setVolumeBySession(d.volumeBySession ?? []);
         setBestPr(d.bestPersonalRecord ?? null);
+      };
+
+      const cached = await loadExerciseDetailCache<ExerciseHistoryPayload>(selectedId);
+      if (cancelled) return;
+      if (cached) {
+        applyPayload(cached);
         setHistError(false);
+        setLoadedId(selectedId);
+      }
+
+      try {
+        const res = await fetch(`/api/exercises/${selectedId}/history`);
+        if (cancelled) return;
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (cancelled) return;
+        const d = json.data as ExerciseHistoryPayload;
+        applyPayload(d);
+        setHistError(false);
+        void saveExerciseDetailCache(selectedId, d);
       } catch {
-        if (!cancelled) setHistError(true);
+        if (!cancelled && !cached) setHistError(true);
       } finally {
         if (!cancelled) setLoadedId(selectedId);
       }

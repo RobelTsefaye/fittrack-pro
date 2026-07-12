@@ -1,14 +1,14 @@
 # Instant-Load Roadmap (cache-first everywhere)
 
 **Branch:** `feature/instant-load-cache-first` — nothing lands on `main` until the whole rollout is done and verified on-device. Every commit for this effort goes on this branch only.
-**Status:** Phase A complete (13/13 screens, 2 predating this branch on `main`) and verified in-browser with a genuine simulated-offline test (see Log) — not just a fast-localhost illusion. `npx tsc --noEmit`, `npm run build`, and `npm run sync:native` all clean. Phase B not started. On-device verification still outstanding.
+**Status:** Phase A and Phase B are both code-complete. `npx tsc --noEmit`, `npm run build`, and `npm run build:native` + `npx cap sync ios` all clean. On-device verification still outstanding for both phases.
 **Last updated:** 2026-07-12
 
 ## ⏭️ Resume here (next session)
 
-1. Phase A is code-complete, builds clean, and passed an in-browser simulated-offline check — but still needs an **on-device** check (real WKWebView/IndexedDB, not Chrome devtools) before Phase B starts: airplane mode, force-quit, relaunch, confirm every Phase A screen shows last-known data instantly.
-2. After that passes, start Phase B (screens with no cache at all yet — see that section below). Each Phase B screen needs a new cache table in `src/lib/offline/db.ts` + save/load helpers in `screen-caches.ts` (bump the Dexie version, same pattern as `planDetailCache` in `project-docs/offline-first-roadmap.md` Phase 4-follow-up) before it can even get the cache-first read-order treatment — more work per screen than Phase A was.
-3. This is all on `feature/instant-load-cache-first`. **Do not merge to `main`** until the user explicitly asks, per their original instruction for this branch.
+1. Both phases are code-complete and build clean, but still need an **on-device** check (real WKWebView/IndexedDB, not Chrome devtools): airplane mode, force-quit, relaunch, confirm every screen from both phases shows last-known data instantly. Also worth spot-checking online-but-slow behavior (no visible skeleton flash on a returning screen).
+2. This is all on `feature/instant-load-cache-first`. **Do not merge to `main`** until the user explicitly asks, per their original instruction for this branch.
+3. Unrelated but relevant context living in this branch's history (not part of this roadmap, don't touch without reason): `e4f8102` replaced WKWebView's unreliable `navigator.onLine` with the native `@capacitor/network` status — every Phase A/B screen's `navigator.onLine` check depends on that patch being mounted (`NativeOnlineStatusPatch` in `providers.tsx`) to behave correctly on-device.
 
 ## Goal
 
@@ -74,16 +74,20 @@ These 11 screens already have a working IndexedDB cache (Phase 3) but still gate
 
 **Phase A is complete.**
 
-## Phase B — screens with no cache at all yet (lower priority, do after Phase A)
+## Phase B — screens with no cache at all yet
 
-These fetch from the network with no offline/cache story whatsoever today — worse than Phase A (they don't even have a fallback), but also more work per screen (need a new cache table + save/load helpers in `src/lib/offline/screen-caches.ts` and `db.ts`, not just a read-order flip). Don't start these until Phase A is fully done and verified.
+These fetched from the network with no offline/cache story whatsoever — worse than Phase A (no fallback at all), and more work per screen (new cache table + save/load helpers, not just a read-order flip).
 
-- [ ] `src/features/exercises/components/exercise-detail-view.tsx` (single exercise detail + history)
-- [ ] `src/features/exercises/components/most-used-exercises-view.tsx`
-- [ ] `src/features/health/components/cardio-detail.tsx`
-- [ ] `src/features/health/components/metric-detail.tsx` (generic health metric drill-down)
-- [ ] `src/features/tracking/components/body-measurements-tracker.tsx`
-- [ ] Records page (`/records`) — confirm current data-loading approach before scoping; not yet audited as of this writing.
+- [x] `src/features/exercises/components/exercise-detail-view.tsx` — new `exerciseDetailCache` table (keyed by exerciseId)
+- [x] `src/features/exercises/components/most-used-exercises-view.tsx` — new `mostUsedExercisesCache` table for the usage list; its detail pane shares `exerciseDetailCache` with the screen above (identical payload shape, same exercise history endpoint)
+- [x] `src/features/health/components/cardio-detail.tsx` (fetch actually lives in the page wrapper, `app/(app)/health/cardio/page.tsx`) — reused the existing generic `healthCache` table with a new `"cardio"` key, no schema change
+- [x] `src/features/health/components/metric-detail.tsx` — reused `healthCache` with a `"metric-detail"` key (same raw 90-day snapshot payload regardless of which metric slug is being viewed)
+- [x] `src/features/tracking/components/body-measurements-tracker.tsx` — new `bodyMeasurementsCache` table; the post-save/delete `load()` refresh also updates the cache, only the initial-mount fetch got the cache-first read order
+- [x] Records page (`/records`) — audited: no cache at all, network-only. New `recordsCache` table.
+
+New tables added in Dexie `version(14)` (`src/lib/offline/db.ts`): `exerciseDetailCache`, `mostUsedExercisesCache`, `bodyMeasurementsCache`, `recordsCache`. Cardio and metric-detail deliberately did NOT get new tables — reused the already-generic `healthCache` (keyed by string) instead, avoiding two near-empty single-purpose tables.
+
+**Phase B is complete.**
 
 Deliberately excluded from both phases (checked, not applicable):
 - `src/app/(app)/workouts/new/page.tsx`, `workout-detail.tsx`, `set-row.tsx` — these aren't read screens, they're the offline *write* flow (Phase 4 of the offline-first roadmap already covers them with its own snapshot/queue mechanism, which is a different and already-solved problem).
@@ -93,11 +97,11 @@ Deliberately excluded from both phases (checked, not applicable):
 
 ## Verification checklist (do this before considering the branch done)
 
-- [x] `npx tsc --noEmit` clean after each batch of changes (don't wait until the very end to typecheck — catch mistakes early) — done throughout Phase A
-- [x] `npm run build` (normal Vercel path) still succeeds — verified after Phase A
-- [x] `npm run build:native` + `npm run sync:native` succeed — verified after Phase A
+- [x] `npx tsc --noEmit` clean after each batch of changes (don't wait until the very end to typecheck — catch mistakes early) — done throughout Phase A and Phase B
+- [x] `npm run build` (normal Vercel path) still succeeds — verified after Phase A and Phase B
+- [x] `npm run build:native` + `npx cap sync ios` succeed — verified after Phase A and Phase B
 - [x] In-browser spot check — verified on dashboard + plans list (see Log). Went further than a reload check: logged in, visited dashboard (cache populated), then forced `navigator.onLine = false` via `Object.defineProperty` + dispatched a real `offline` event, then navigated **client-side** (SPA `<a>` click, not a full reload — a full reload would have reset the `onLine` override) to `/dashboard` and `/plans`. Both rendered fully populated instantly with **zero** new network requests fired (confirmed via the request log) — proof it's genuinely cache-first, not just "the local dev server is fast enough to look instant."
-- [ ] On-device test: airplane mode, force-quit, relaunch — every Phase A screen should show its last-known data instantly, same as Phase 3 already established, but now ALSO true when online. Still needed — the in-browser check above proves the logic works, but not the native WKWebView/IndexedDB path specifically.
+- [ ] On-device test: airplane mode, force-quit, relaunch — every screen from both phases should show its last-known data instantly, same as Phase 3 already established, but now ALSO true when online. Still needed — the in-browser check above proves the logic works, but not the native WKWebView/IndexedDB path specifically. Phase B's new IndexedDB tables (Dexie version bump to 14) also need a real-device confirmation that the upgrade runs cleanly on an existing installed app.
 - [ ] Only after all of the above: merge to `main` following the same process every other phase in this repo has used (`git checkout main`, `git merge --no-ff`, `tsc --noEmit` again, `git push origin main`) — **do this only when explicitly asked**, per the user's instruction for this branch.
 
 ## Log
@@ -105,3 +109,4 @@ Deliberately excluded from both phases (checked, not applicable):
 - 2026-07-12: Roadmap created. Proof-of-concept already shipped on `main` for `dashboard/page.tsx` and `workout-history-list.tsx` (same session, just before this branch was cut) — this doc formalizes rolling the same pattern out to the other 11 already-cached screens (Phase A) and, after that, to the 6 screens with no cache at all yet (Phase B). Branch `feature/instant-load-cache-first` created off `main`; per explicit user instruction, nothing gets committed to `main` again until this entire effort is reviewed and the user asks for the merge.
 - 2026-07-12: Phase A completed — all 11 remaining screens flipped to cache-first across 3 commits (`983d650` plans list/detail + muscle heatmap + achievements, `6e69839` exercise list + body-weight tracker, `6b3030b` health dashboard + sleep/recovery/nutrition detail). Reviewed `exercise-picker-dialog.tsx` and deliberately left it unchanged (on-demand dialog, already branches cleanly, no skeleton-wait problem to fix). Two special cases preserved carefully rather than blindly templated: `plan-detail-view.tsx`'s 404 stays authoritative (clears a stale cache instead of showing a deleted plan), and `body-weight-tracker.tsx`'s "pending offline ops" case still skips the background network fetch entirely (not just defers it) to avoid clobbering the correct optimistic local view with a stale server one. `tsc --noEmit`, `npm run build`, and `npm run sync:native` all verified clean after the full batch. Not yet spot-checked in-browser or on-device — that's the next step before Phase B starts.
 - 2026-07-12: In-browser verification done. Created a temp test user with a plan + completed workout, logged in via the local dev server, visited `/dashboard` (populating `dashboardCache`), then simulated a real offline transition (`navigator.onLine` override + `offline` event) and navigated client-side (not a full reload, which would've reset the override) to `/dashboard` and `/plans`. Both rendered fully instantly with the request log confirming zero new network calls — this is the strongest available proof short of an actual device that the cache-first paint is real and not just "localhost is fast." Test user cleaned up afterward. On-device verification is the only remaining item before Phase B can start.
+- 2026-07-12: Phase B completed. Added 4 new Dexie tables (`exerciseDetailCache`, `mostUsedExercisesCache`, `bodyMeasurementsCache`, `recordsCache`, version bump to 14) and flipped all 6 listed screens to cache-first. Reused the existing generic `healthCache` table (new `"cardio"` and `"metric-detail"` keys) for cardio and metric-detail instead of adding two more single-purpose tables. `most-used-exercises-view.tsx`'s detail pane shares `exerciseDetailCache` with `exercise-detail-view.tsx` — same underlying exercise-history payload, so a click-through from one screen to the other can already be warm. `tsc --noEmit`, `npm run build`, and `npm run build:native` + `npx cap sync ios` all verified clean. Also confirmed while working: the app's earlier "thinks it's offline" symptom the user hit was already fixed further back in this branch's history by two prior commits — `efb519a` (18 API routes were cookie-only `auth()`, ignoring the native Bearer token, so requests 401'd even when genuinely online) and `e4f8102` (WKWebView's `navigator.onLine` is unreliable — replaced with the real `@capacitor/network` status via `NativeOnlineStatusPatch`). Both phases' screens depend on that patch to read `navigator.onLine` correctly on-device. On-device verification (both phases) is the only remaining item before this branch can be considered for merge.
