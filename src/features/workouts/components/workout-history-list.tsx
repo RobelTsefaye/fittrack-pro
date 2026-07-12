@@ -106,11 +106,16 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
   }
 
   const fetchWorkouts = useCallback(async () => {
-    setLoading(true);
+    // Cache-first, always — paints the last-known list instantly instead of
+    // blocking on the network, then a fresh fetch below quietly replaces it.
+    const cached = await loadWorkoutListCache();
+    if (cached) {
+      setWorkouts(sortWorkouts(cached));
+      setLoading(false);
+    }
     if (typeof navigator !== "undefined" && !navigator.onLine) {
-      const cached = await loadWorkoutListCache();
-      if (cached) setWorkouts(sortWorkouts(cached));
-      setLoading(false); return;
+      if (!cached) setLoading(false);
+      return;
     }
     try {
       const res = await fetch("/api/workouts?limit=50");
@@ -120,8 +125,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
       setWorkouts(sorted);
       await saveWorkoutListCache(sorted);
     } catch {
-      const cached = await loadWorkoutListCache();
-      if (cached) setWorkouts(cached);
+      // already showing cache (if any) — nothing more to do
     }
     setLoading(false);
   }, []);

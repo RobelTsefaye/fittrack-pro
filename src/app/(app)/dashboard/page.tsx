@@ -42,12 +42,17 @@ export default function DashboardPage() {
     setFailed(false);
 
     async function load() {
+      // Cache-first, always — even online. Paints the last-known dashboard
+      // instantly (no skeleton wait) instead of blocking on the network,
+      // then a fresh fetch below quietly replaces it once it lands. This is
+      // what makes the app feel "as fast as offline" all the time, not just
+      // when actually offline.
+      const cached = await loadDashboardCache<DashboardState>();
+      if (cancelled) return;
+      if (cached) setState(cached);
+
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        const cached = await loadDashboardCache<DashboardState>();
-        if (!cancelled) {
-          if (cached) setState(cached);
-          else setFailed(true);
-        }
+        if (!cached) setFailed(true);
         return;
       }
       try {
@@ -60,17 +65,11 @@ export default function DashboardPage() {
           // Keep the display identity fresh for screens that can't rely on
           // the cookie session (More-page profile) — see cached-user.ts.
           if (json.data.userName) saveCachedUser({ name: json.data.userName });
-        } else {
-          const cached = await loadDashboardCache<DashboardState>();
-          if (cancelled) return;
-          if (cached) setState(cached);
-          else setFailed(true);
+        } else if (!cached) {
+          setFailed(true);
         }
       } catch {
-        const cached = await loadDashboardCache<DashboardState>();
-        if (cancelled) return;
-        if (cached) setState(cached);
-        else setFailed(true);
+        if (!cached) setFailed(true);
       }
     }
 
