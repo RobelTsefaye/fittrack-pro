@@ -65,17 +65,24 @@ export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
   }, []);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    // Cache-first, always — paints the last-known entries instantly instead
+    // of blocking on the network.
+    const cached = await loadBodyWeightCache();
+    if (cached) {
+      setEntries(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
 
-    // Check if there are pending offline ops — if so use cache only
+    // Pending offline ops: the server's view doesn't reflect them yet, so a
+    // background fetch here would clobber the correct optimistic local view
+    // with a stale one — stay on cache only until the queue flushes (see the
+    // "reload after sync completes" effect below).
     const pending = await bodyWeightQueueCount();
     if (pending > 0 || !navigator.onLine) {
-      const cached = await loadBodyWeightCache();
-      if (cached) {
-        setEntries(cached);
-        setLoading(false);
-        return;
-      }
+      setLoading(false);
+      return;
     }
 
     try {
@@ -86,9 +93,7 @@ export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
       setEntries(data);
       await saveBodyWeightCache(data);
     } catch {
-      // Fall back to cache if network fails
-      const cached = await loadBodyWeightCache();
-      if (cached) setEntries(cached);
+      // already showing cache (if any) — nothing more to do
     }
 
     setLoading(false);
