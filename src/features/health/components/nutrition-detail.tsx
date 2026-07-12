@@ -28,9 +28,14 @@ export function NutritionDetail({
     if (hasInitialData) return;
     let cancelled = false;
     (async () => {
+      // Cache-first, always — paints the last-known snapshot instantly
+      // instead of blocking on the network.
+      const cached = await loadHealthCache<HealthSnapshot | null>("nutrition");
+      if (cancelled) return;
+      if (cached !== null) { setSnapshot(cached); setLoading(false); }
+
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        const cached = await loadHealthCache<HealthSnapshot | null>("nutrition");
-        if (!cancelled) { if (cached !== null) setSnapshot(cached); setLoading(false); }
+        if (cached === null) setLoading(false);
         return;
       }
       try {
@@ -40,12 +45,12 @@ export function NutritionDetail({
         const latest = json.data[json.data.length - 1] ?? null;
         if (!cancelled) {
           setSnapshot(latest);
-          setLoading(false);
           void saveHealthCache("nutrition", latest);
         }
       } catch {
-        const cached = await loadHealthCache<HealthSnapshot | null>("nutrition");
-        if (!cancelled) { if (cached !== null) setSnapshot(cached); setLoading(false); }
+        // already showing cache (if any) — nothing more to do
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
