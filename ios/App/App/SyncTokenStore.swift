@@ -6,8 +6,8 @@ import Security
  * same `ftp_…` token used for AI endpoints / /api/export) in the Keychain so
  * BackgroundSyncManager can authenticate a background HealthKit sync without
  * needing an active WKWebView session cookie. The web layer writes this once
- * via BiometricLockPlugin's sibling — SyncTokenPlugin.storeToken — after the
- * user pastes/generates a token in Settings.
+ * via SyncTokenPlugin.storeToken after the user pastes/generates a token in
+ * Settings.
  */
 enum SyncTokenStore {
     private static let service = "com.robeltsefaye.fittrackpro.synctoken"

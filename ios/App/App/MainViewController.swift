@@ -17,7 +17,6 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(HealthKitPlugin())
         bridge?.registerPluginInstance(RestTimerActivityPlugin())
         bridge?.registerPluginInstance(WatchConnectivityPlugin())
-        bridge?.registerPluginInstance(BiometricLockPlugin())
         bridge?.registerPluginInstance(SyncTokenPlugin())
         bridge?.registerPluginInstance(SharedDataPlugin())
         bridge?.registerPluginInstance(CardioPictureInPicturePlugin())
