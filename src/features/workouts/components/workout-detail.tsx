@@ -965,20 +965,21 @@ export function WorkoutDetail({
       // queuing the sync op fails, so don't leave the button hung silently.
       setWorkout(next);
       restTimer.stop();
-      notifyActiveWorkoutChanged();
       void hapticWorkoutCompleted();
-      // Patch the Workouts list's own cache immediately instead of leaving
-      // it to show stale "still active" data until its own next network
-      // fetch lands — that cache only reflects what the server last
-      // returned, which predates this offline completion entirely.
-      void patchWorkoutListCacheEntry(workoutId, { completedAt, durationSeconds });
       try {
+        // Patch the Workouts list's own cache — and only THEN notify — so
+        // a listener that reacts to the notification (workout-history-
+        // list.tsx refetching) reads already-correct data instead of racing
+        // an unawaited write. That cache only reflects what the server
+        // last returned, which predates this offline completion entirely.
+        await patchWorkoutListCacheEntry(workoutId, { completedAt, durationSeconds });
         await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
         await enqueueWorkoutOp(workoutId, { t: "complete_workout" });
         setPendingQueue(true);
       } catch (err) {
         console.error("Failed to queue offline workout completion", err);
       } finally {
+        notifyActiveWorkoutChanged();
         setCompleting(false);
       }
       router.refresh();
@@ -1007,16 +1008,17 @@ export function WorkoutDetail({
       };
       if (json.comparison) setCompletionSummary(json.comparison);
       restTimer.stop();
-      notifyActiveWorkoutChanged();
       if (json.data) {
         // Same reasoning as the offline branch above — patch the Workouts
-        // list's cache immediately rather than leaving it to show stale
-        // "still active" data until its own next network fetch lands.
-        void patchWorkoutListCacheEntry(workoutId, {
+        // list's cache, and only THEN notify, so a listener that reacts to
+        // the notification reads already-correct data instead of racing an
+        // unawaited write.
+        await patchWorkoutListCacheEntry(workoutId, {
           completedAt: json.data.completedAt,
           durationSeconds: json.data.durationSeconds,
         });
       }
+      notifyActiveWorkoutChanged();
       void clearWatchWorkoutState(workoutId);
       if (json.newPersonalRecords && json.newPersonalRecords > 0) {
         void hapticPersonalRecord();
