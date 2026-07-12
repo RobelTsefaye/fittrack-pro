@@ -22,7 +22,13 @@ export function OfflineSyncProvider() {
           if (!result.ok && result.error && result.error !== "offline") {
             toast.error(`Sync failed: ${result.error}`);
           }
-          if (result.ok && result.newServerWorkoutId) {
+          // `newServerWorkoutId` can be set even on a partial failure — the
+          // workout itself got created and renamed mid-flush before a LATER
+          // op (an exercise/set/complete) failed (see flush-workout-queue.ts).
+          // Still navigate away from the old id so the user isn't left
+          // looking at a route that's about to stop resolving locally, but
+          // only announce full success with the toast.
+          if (result.newServerWorkoutId) {
             const prefix = `/workouts/${routeId}`;
             if (
               pathname === prefix ||
@@ -32,7 +38,7 @@ export function OfflineSyncProvider() {
             ) {
               router.replace(`/workouts/${result.newServerWorkoutId}`);
             }
-            toast.success("Offline workout saved to your account.");
+            if (result.ok) toast.success("Offline workout saved to your account.");
           }
         }
 

@@ -9,6 +9,7 @@ import { ROUTES } from "@/lib/constants";
 import { workoutHref } from "@/lib/workout-href";
 import { useI18n } from "@/lib/i18n-provider";
 import { tryGetOfflineDb } from "@/lib/offline/db";
+import { listOfflineOriginWorkouts } from "@/lib/offline/workout-offline-store";
 import type { WorkoutListItemDTO } from "@/features/workouts/workouts-list-data";
 
 type WorkoutListItem = WorkoutListItemDTO;
@@ -81,6 +82,31 @@ async function loadWorkoutListCache(): Promise<WorkoutListItem[] | null> {
   try { return JSON.parse(row.payload) as WorkoutListItem[]; } catch { return null; }
 }
 
+/** The server-backed list (cache or fresh fetch) only knows about workouts
+ *  the server has already seen — a workout started and even finished fully
+ *  offline is invisible there until the write queue syncs. Merges in
+ *  anything still local under its own client id so it doesn't just vanish
+ *  from the list in the meantime. */
+async function mergeOfflineWorkouts(list: WorkoutListItem[]): Promise<WorkoutListItem[]> {
+  const local = await listOfflineOriginWorkouts();
+  if (local.length === 0) return list;
+  const known = new Set(list.map((w) => w.id));
+  const extra: WorkoutListItem[] = local
+    .filter((w) => !known.has(w.id))
+    .map((w) => ({
+      id: w.id,
+      name: w.name,
+      startedAt: w.startedAt,
+      completedAt: w.completedAt,
+      durationSeconds: w.durationSeconds,
+      workoutExercises: w.workoutExercises.map((we) => ({
+        exercise: { id: we.exercise.id, name: we.exercise.name },
+        sets: we.sets.map((s) => ({ id: s.id })),
+      })),
+    }));
+  return [...list, ...extra];
+}
+
 export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?: WorkoutListItemDTO[] }) {
   const { t } = useI18n();
   const router = useRouter();
@@ -108,22 +134,25 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
   const fetchWorkouts = useCallback(async () => {
     // Cache-first, always — paints the last-known list instantly instead of
     // blocking on the network, then a fresh fetch below quietly replaces it.
+    // Either way, merge in anything still local-only (started/finished
+    // offline, not yet synced) so it doesn't disappear from the list.
     const cached = await loadWorkoutListCache();
     if (cached) {
-      setWorkouts(sortWorkouts(cached));
+      setWorkouts(sortWorkouts(await mergeOfflineWorkouts(cached)));
       setLoading(false);
     }
     if (typeof navigator !== "undefined" && !navigator.onLine) {
-      if (!cached) setLoading(false);
+      if (!cached) setWorkouts(sortWorkouts(await mergeOfflineWorkouts([])));
+      setLoading(false);
       return;
     }
     try {
       const res = await fetch("/api/workouts?limit=50");
       const json = await res.json();
       const data: WorkoutListItem[] = json.data ?? [];
-      const sorted = sortWorkouts(data);
+      const sorted = sortWorkouts(await mergeOfflineWorkouts(data));
       setWorkouts(sorted);
-      await saveWorkoutListCache(sorted);
+      await saveWorkoutListCache(data);
     } catch {
       // already showing cache (if any) — nothing more to do
     }

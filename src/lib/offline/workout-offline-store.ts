@@ -81,6 +81,26 @@ export async function deleteWorkoutSnapshot(workoutId: string): Promise<void> {
   await db.workouts.delete(workoutId);
 }
 
+/** Every locally-tracked workout that started offline and hasn't finished
+ *  syncing yet (flush-workout-queue.ts renames it away from offlineOrigin
+ *  once it fully lands) — used to merge still-local workouts into the
+ *  Workouts list, which otherwise only knows about what the server has
+ *  already seen (see workout-history-list.tsx). */
+export async function listOfflineOriginWorkouts(): Promise<WorkoutData[]> {
+  const db = tryGetOfflineDb();
+  if (!db) return [];
+  const rows = await db.workouts.filter((r) => r.offlineOrigin === 1).toArray();
+  return rows
+    .map((r) => {
+      try {
+        return JSON.parse(r.payload) as WorkoutData;
+      } catch {
+        return null;
+      }
+    })
+    .filter((d): d is WorkoutData => d !== null);
+}
+
 export type CatalogExercise = {
   id: string;
   name: string;
@@ -114,4 +134,49 @@ export async function distinctQueuedWorkoutIds(): Promise<string[]> {
   const db = getOfflineDb();
   const rows = await db.queue.toArray();
   return [...new Set(rows.map((r) => r.workoutRouteId))];
+}
+
+/** Repoints every still-queued op for `oldId` at `newId` — used once
+ *  `post_workout` resolves a real server id, so a retry after a later
+ *  mid-batch failure finds the remaining ops under the id it should now
+ *  use (see flush-workout-queue.ts). */
+export async function rekeyWorkoutQueue(oldId: string, newId: string): Promise<void> {
+  const db = getOfflineDb();
+  const rows = await db.queue.where("workoutRouteId").equals(oldId).toArray();
+  if (rows.length === 0) return;
+  await db.queue.bulkPut(rows.map((r) => ({ ...r, workoutRouteId: newId })));
+}
+
+export async function saveQueueIdMap(
+  routeWorkoutId: string,
+  weMap: Map<string, string>,
+  setMap: Map<string, string>
+): Promise<void> {
+  const db = getOfflineDb();
+  await db.queueIdMap.put({
+    id: routeWorkoutId,
+    weMapJson: JSON.stringify([...weMap]),
+    setMapJson: JSON.stringify([...setMap]),
+  });
+}
+
+export async function loadQueueIdMap(
+  routeWorkoutId: string
+): Promise<{ weMap: Map<string, string>; setMap: Map<string, string> }> {
+  const db = getOfflineDb();
+  const row = await db.queueIdMap.get(routeWorkoutId);
+  if (!row) return { weMap: new Map(), setMap: new Map() };
+  try {
+    return {
+      weMap: new Map(JSON.parse(row.weMapJson)),
+      setMap: new Map(JSON.parse(row.setMapJson)),
+    };
+  } catch {
+    return { weMap: new Map(), setMap: new Map() };
+  }
+}
+
+export async function deleteQueueIdMap(routeWorkoutId: string): Promise<void> {
+  const db = getOfflineDb();
+  await db.queueIdMap.delete(routeWorkoutId);
 }

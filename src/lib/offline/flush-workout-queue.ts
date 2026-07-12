@@ -1,14 +1,29 @@
 import type { WorkoutData } from "@/features/workouts/workout-types";
 import {
   deleteWorkoutSnapshot,
+  deleteQueueIdMap,
   listQueueForWorkout,
+  loadQueueIdMap,
   loadWorkoutSnapshot,
+  rekeyWorkoutQueue,
   removeQueueEntries,
+  saveQueueIdMap,
   saveWorkoutSnapshot,
 } from "./workout-offline-store";
 
 /**
  * Replays queued mutations against the API (cookies). Call only when `navigator.onLine`.
+ *
+ * Each op is removed from the queue (and, for post_workout/post_exercise/
+ * post_set, its resolved server id persisted) IMMEDIATELY after it succeeds
+ * — not batched until the whole run finishes. A transient failure partway
+ * through (a genuine network blip, or the "online" event firing just before
+ * the radio is actually up) used to leave every earlier-succeeded op still
+ * queued, so the next retry replayed them from scratch: a second
+ * `post_workout` created a duplicate server-side workout while the first
+ * attempt's half-finished one lingered "active" forever, invisible locally.
+ * Removing/persisting per-op as it lands means a retry only ever replays
+ * what genuinely didn't make it, however many attempts it takes.
  */
 export async function flushWorkoutQueue(
   routeWorkoutId: string
@@ -17,20 +32,19 @@ export async function flushWorkoutQueue(
     return { ok: false, error: "offline" };
   }
 
-  const q = await listQueueForWorkout(routeWorkoutId);
-  if (q.length === 0) {
-    return { ok: true };
-  }
-
-  const snap = await loadWorkoutSnapshot(routeWorkoutId);
+  let currentId = routeWorkoutId;
+  const snap = await loadWorkoutSnapshot(currentId);
   if (!snap) {
     return { ok: false, error: "no_snapshot" };
   }
 
-  const weMap = new Map<string, string>();
-  const setMap = new Map<string, string>();
-  let serverWorkoutId: string | null = snap.offlineOrigin ? null : routeWorkoutId;
-  const queueIdsToDelete: string[] = [];
+  const q = await listQueueForWorkout(currentId);
+  if (q.length === 0) {
+    return { ok: true };
+  }
+
+  let serverWorkoutId: string | null = snap.offlineOrigin ? null : currentId;
+  const { weMap, setMap } = await loadQueueIdMap(currentId);
 
   const api = (path: string, init?: RequestInit) =>
     fetch(path, { ...init, credentials: "include" });
@@ -47,9 +61,19 @@ export async function flushWorkoutQueue(
           });
           if (!res.ok) throw new Error(`post_workout ${res.status}`);
           const json = (await res.json()) as { data?: { id: string } };
-          serverWorkoutId = json.data?.id ?? null;
-          if (!serverWorkoutId) throw new Error("no_workout_id");
-          queueIdsToDelete.push(row.id);
+          const newId = json.data?.id ?? null;
+          if (!newId) throw new Error("no_workout_id");
+          serverWorkoutId = newId;
+          await removeQueueEntries([row.id]);
+          // Persist the resolved id immediately: rekey the remaining queued
+          // ops + any already-resolved exercise/set ids onto it, and rename
+          // the local snapshot, so a later failure in THIS SAME run doesn't
+          // redo this step on the next attempt.
+          await rekeyWorkoutQueue(currentId, newId);
+          await saveQueueIdMap(newId, weMap, setMap);
+          await deleteWorkoutSnapshot(currentId);
+          await saveWorkoutSnapshot(newId, { ...snap.data, id: newId }, false);
+          currentId = newId;
           break;
         }
         case "patch_workout": {
@@ -60,7 +84,7 @@ export async function flushWorkoutQueue(
             body: JSON.stringify({ name: op.name }),
           });
           if (!res.ok) throw new Error(`patch_workout ${res.status}`);
-          queueIdsToDelete.push(row.id);
+          await removeQueueEntries([row.id]);
           break;
         }
         case "post_exercise": {
@@ -75,7 +99,8 @@ export async function flushWorkoutQueue(
           const wid = json.data?.id;
           if (!wid) throw new Error("no_we_id");
           weMap.set(op.clientWeId, wid);
-          queueIdsToDelete.push(row.id);
+          await removeQueueEntries([row.id]);
+          await saveQueueIdMap(currentId, weMap, setMap);
           break;
         }
         case "post_set": {
@@ -91,7 +116,8 @@ export async function flushWorkoutQueue(
           const sid = json.data?.set?.id;
           if (!sid) throw new Error("no_set_id");
           setMap.set(op.clientSetId, sid);
-          queueIdsToDelete.push(row.id);
+          await removeQueueEntries([row.id]);
+          await saveQueueIdMap(currentId, weMap, setMap);
           break;
         }
         case "patch_set": {
@@ -103,7 +129,7 @@ export async function flushWorkoutQueue(
             body: JSON.stringify(op.body),
           });
           if (!res.ok) throw new Error(`patch_set ${res.status}`);
-          queueIdsToDelete.push(row.id);
+          await removeQueueEntries([row.id]);
           break;
         }
         case "delete_set": {
@@ -113,7 +139,7 @@ export async function flushWorkoutQueue(
             method: "DELETE",
           });
           if (!res.ok) throw new Error(`delete_set ${res.status}`);
-          queueIdsToDelete.push(row.id);
+          await removeQueueEntries([row.id]);
           break;
         }
         case "delete_we": {
@@ -123,14 +149,14 @@ export async function flushWorkoutQueue(
             method: "DELETE",
           });
           if (!res.ok) throw new Error(`delete_we ${res.status}`);
-          queueIdsToDelete.push(row.id);
+          await removeQueueEntries([row.id]);
           break;
         }
         case "complete_workout": {
           if (!serverWorkoutId) throw new Error("no_server_workout");
           const res = await api(`/api/workouts/${serverWorkoutId}/complete`, { method: "POST" });
           if (!res.ok && res.status !== 404) throw new Error(`complete_workout ${res.status}`);
-          queueIdsToDelete.push(row.id);
+          await removeQueueEntries([row.id]);
           break;
         }
         default:
@@ -140,12 +166,11 @@ export async function flushWorkoutQueue(
 
     if (!serverWorkoutId) throw new Error("no_server_workout");
 
-    await removeQueueEntries(queueIdsToDelete);
+    await deleteQueueIdMap(currentId);
 
     const fres = await fetch(`/api/workouts/${serverWorkoutId}`, { credentials: "include" });
     if (fres.ok) {
       const j = (await fres.json()) as { data: WorkoutData };
-      await deleteWorkoutSnapshot(routeWorkoutId);
       await saveWorkoutSnapshot(serverWorkoutId, j.data, false);
     }
 
@@ -155,6 +180,12 @@ export async function flushWorkoutQueue(
     return { ok: true, newServerWorkoutId };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { ok: false, error: msg };
+    // Even on failure, if `post_workout` already resolved and renamed things
+    // this run, tell the caller — its in-memory tracking (e.g. which
+    // routeId `/workouts/new`'s mount effect is watching) should follow the
+    // rename immediately rather than waiting for a fully successful retry.
+    const newServerWorkoutId =
+      snap.offlineOrigin && currentId !== routeWorkoutId ? currentId : undefined;
+    return { ok: false, error: msg, newServerWorkoutId };
   }
 }
