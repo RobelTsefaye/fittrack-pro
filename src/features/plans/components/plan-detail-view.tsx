@@ -298,16 +298,20 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
 
   const load = useCallback(async () => {
     setError(null);
-    setLoading(true);
+
+    // Cache-first, always — paints the last-known plan instantly instead of
+    // blocking on the network, then a fresh fetch below quietly replaces it.
+    const cached = await loadPlanDetailCache<PlanDetail>(planId);
+    if (cached) {
+      setPlan(cached);
+      setPlanNameDraft(cached.name);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
 
     if (typeof navigator !== "undefined" && !navigator.onLine) {
-      const cached = await loadPlanDetailCache<PlanDetail>(planId);
-      if (cached) {
-        setPlan(cached);
-        setPlanNameDraft(cached.name);
-      } else {
-        setError(t("plans.loadFailed"));
-      }
+      if (!cached) setError(t("plans.loadFailed"));
       setLoading(false);
       return;
     }
@@ -315,13 +319,16 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
     try {
       const res = await fetch(`/api/plans/${planId}`);
       if (res.status === 404) {
+        // Authoritative: the plan is genuinely gone server-side, so a stale
+        // cached copy would be actively misleading — clear it rather than
+        // leaving it on screen.
         setPlan(null);
         setError(t("plans.planNotFound"));
         setLoading(false);
         return;
       }
       if (!res.ok) {
-        setError(t("plans.loadFailed"));
+        if (!cached) setError(t("plans.loadFailed"));
         setLoading(false);
         return;
       }
@@ -331,13 +338,7 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
       setPlanNameDraft(p.name);
       void savePlanDetailCache(planId, p);
     } catch {
-      const cached = await loadPlanDetailCache<PlanDetail>(planId);
-      if (cached) {
-        setPlan(cached);
-        setPlanNameDraft(cached.name);
-      } else {
-        setError(t("plans.loadFailed"));
-      }
+      if (!cached) setError(t("plans.loadFailed"));
     }
     setLoading(false);
   }, [planId, t]);
