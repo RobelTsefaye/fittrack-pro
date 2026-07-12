@@ -165,8 +165,16 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
 
   useEffect(() => {
     const onSynced = () => void fetchWorkouts();
+    // Fires the instant a workout starts/finishes (workout-detail.tsx), not
+    // just after a full offline-queue sync — so a list left mounted in the
+    // background (rare with the App Router, but happens on fast back/forward
+    // nav) refreshes immediately instead of only on its own next mount.
+    window.addEventListener("fittrack-active-workout-changed", onSynced);
     window.addEventListener("fittrack-offline-synced", onSynced);
-    return () => window.removeEventListener("fittrack-offline-synced", onSynced);
+    return () => {
+      window.removeEventListener("fittrack-active-workout-changed", onSynced);
+      window.removeEventListener("fittrack-offline-synced", onSynced);
+    };
   }, [fetchWorkouts]);
 
   const groups = groupWorkouts(workouts);

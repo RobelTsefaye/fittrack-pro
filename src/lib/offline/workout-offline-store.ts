@@ -1,5 +1,9 @@
 import type { WorkoutData } from "@/features/workouts/workout-types";
 import type { QueuedWorkoutOp } from "./queue-types";
+// Type-only — the module also does `import { prisma }` etc., but a
+// type-only import is erased at compile time, so none of that server-only
+// code ends up in this client-bundled file.
+import type { WorkoutListItemDTO } from "@/features/workouts/workouts-list-data";
 import { getOfflineDb, tryGetOfflineDb } from "./db";
 
 export function isBrowserOffline(): boolean {
@@ -99,6 +103,33 @@ export async function listOfflineOriginWorkouts(): Promise<WorkoutData[]> {
       }
     })
     .filter((d): d is WorkoutData => d !== null);
+}
+
+/** Patches a single entry in the Workouts list's own cache (`workoutListCache`,
+ *  see workout-history-list.tsx) in place — called right when a workout's
+ *  completedAt actually changes (workout-detail.tsx's completeWorkout,
+ *  online or offline), instead of waiting for the list's own next
+ *  cache-first mount to show stale "still active" data until a fresh
+ *  network fetch lands. No-ops if the workout isn't in that cache yet
+ *  (e.g. it only exists locally so far — mergeOfflineWorkouts already
+ *  reflects its real state directly from the snapshot). */
+export async function patchWorkoutListCacheEntry(
+  id: string,
+  patch: Partial<Pick<WorkoutListItemDTO, "completedAt" | "durationSeconds">>
+): Promise<void> {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  const row = await db.workoutListCache.get("default");
+  if (!row) return;
+  try {
+    const list = JSON.parse(row.payload) as WorkoutListItemDTO[];
+    const idx = list.findIndex((w) => w.id === id);
+    if (idx === -1) return;
+    list[idx] = { ...list[idx], ...patch };
+    await db.workoutListCache.put({ id: "default", payload: JSON.stringify(list), updatedAt: Date.now() });
+  } catch {
+    // Corrupt cache entry — leave it, the next full network fetch overwrites it anyway.
+  }
 }
 
 export type CatalogExercise = {

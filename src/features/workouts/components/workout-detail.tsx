@@ -51,6 +51,7 @@ import {
   enqueueWorkoutOp,
   listQueueForWorkout,
   loadWorkoutSnapshot,
+  patchWorkoutListCacheEntry,
   removeQueueEntries,
   saveWorkoutSnapshot,
 } from "@/lib/offline/workout-offline-store";
@@ -966,6 +967,11 @@ export function WorkoutDetail({
       restTimer.stop();
       notifyActiveWorkoutChanged();
       void hapticWorkoutCompleted();
+      // Patch the Workouts list's own cache immediately instead of leaving
+      // it to show stale "still active" data until its own next network
+      // fetch lands — that cache only reflects what the server last
+      // returned, which predates this offline completion entirely.
+      void patchWorkoutListCacheEntry(workoutId, { completedAt, durationSeconds });
       try {
         await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
         await enqueueWorkoutOp(workoutId, { t: "complete_workout" });
@@ -989,6 +995,7 @@ export function WorkoutDetail({
         return;
       }
       const json = (await res.json()) as {
+        data?: { completedAt: string; durationSeconds: number };
         comparison?: {
           hasPrevious: boolean;
           previousVolume: number;
@@ -1001,6 +1008,15 @@ export function WorkoutDetail({
       if (json.comparison) setCompletionSummary(json.comparison);
       restTimer.stop();
       notifyActiveWorkoutChanged();
+      if (json.data) {
+        // Same reasoning as the offline branch above — patch the Workouts
+        // list's cache immediately rather than leaving it to show stale
+        // "still active" data until its own next network fetch lands.
+        void patchWorkoutListCacheEntry(workoutId, {
+          completedAt: json.data.completedAt,
+          durationSeconds: json.data.durationSeconds,
+        });
+      }
       void clearWatchWorkoutState(workoutId);
       if (json.newPersonalRecords && json.newPersonalRecords > 0) {
         void hapticPersonalRecord();
