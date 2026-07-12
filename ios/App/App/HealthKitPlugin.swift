@@ -157,9 +157,11 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 if !current.isEmpty { sessions.append(current) }
             }
 
-            struct SessionTotals { let day: String; let source: String; let deep: Double; let rem: Double; let asleep: Double; let end: Date }
+            struct SessionTotals { let day: String; let source: String; let deep: Double; let rem: Double; let asleep: Double; let start: Date; let end: Date }
             let sessionTotals: [SessionTotals] = sessions.compactMap { session in
-                guard let source = session.first?.source, let sessionEnd = session.map(\.end).max() else { return nil }
+                guard let source = session.first?.source,
+                      let sessionEnd = session.map(\.end).max(),
+                      let sessionStart = session.map(\.start).min() else { return nil }
                 var deep = 0.0, rem = 0.0, asleep = 0.0
                 for s in session {
                     let hours = s.end.timeIntervalSince(s.start) / 3600.0
@@ -174,19 +176,19 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 }
                 // The whole session belongs to the day it ENDS on (wake-up day),
                 // not the day any individual sample within it ends on.
-                return SessionTotals(day: dateKey(sessionEnd), source: source, deep: deep, rem: rem, asleep: asleep, end: sessionEnd)
+                return SessionTotals(day: dateKey(sessionEnd), source: source, deep: deep, rem: rem, asleep: asleep, start: sessionStart, end: sessionEnd)
             }
 
             // Pick the winning session per day: prefer stage detail (deep+rem > 0),
             // tie-break by total sleep duration. This also naturally picks the
             // main overnight session over a same-day nap in the rare case both
             // end up attributed to the same wake-up day.
-            var bestByDay: [String: (deep: Double, rem: Double, total: Double, hasStages: Bool)] = [:]
+            var bestByDay: [String: (deep: Double, rem: Double, total: Double, hasStages: Bool, start: Date)] = [:]
             for session in sessionTotals {
                 let total = session.deep + session.rem + session.asleep
                 guard total > 0 else { continue }
                 let hasStages = session.deep > 0 || session.rem > 0
-                let candidate = (deep: session.deep, rem: session.rem, total: total, hasStages: hasStages)
+                let candidate = (deep: session.deep, rem: session.rem, total: total, hasStages: hasStages, start: session.start)
                 if let current = bestByDay[session.day] {
                     let candidateWins = (hasStages && !current.hasStages) || (hasStages == current.hasStages && total > current.total)
                     if candidateWins { bestByDay[session.day] = candidate }
@@ -195,11 +197,23 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 }
             }
 
+            let bedtimeFormatter: DateFormatter = {
+                let f = DateFormatter()
+                f.dateFormat = "HH:mm"
+                f.timeZone = TimeZone.current
+                return f
+            }()
+
             for (dayKey, best) in bestByDay {
                 ensureRecord(dayKey)
                 results[dayKey]?["sleepDuration"] = best.total
                 results[dayKey]?["sleepDeepMinutes"] = Int(best.deep * 60)
                 results[dayKey]?["sleepRemMinutes"] = Int(best.rem * 60)
+                // The session's earliest sample start — same "when did this
+                // night's sleep begin" definition the old Health Auto Export
+                // import used, just computed straight from the sleep session
+                // instead of relying on a third-party app to have sent it.
+                results[dayKey]?["sleepBedtime"] = bedtimeFormatter.string(from: best.start)
             }
             } // resultsQueue.sync
         }
