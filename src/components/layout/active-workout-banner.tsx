@@ -9,6 +9,7 @@ import { useI18n } from "@/lib/i18n-provider";
 import { workoutHref } from "@/lib/workout-href";
 import { Capacitor } from "@capacitor/core";
 import { WatchConnectivity } from "@/lib/native/watch-connectivity";
+import { getCachedToken } from "@/lib/native/auth-token-cache";
 
 const CHANGED = "fittrack-active-workout-changed";
 
@@ -20,6 +21,17 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
   const { t } = useI18n();
   const pathname = usePathname();
   const { status } = useSession();
+  // Native authentication is bearer-token based. The cookie session backing
+  // useSession() is only best-effort in WKWebView and can expire while that
+  // token remains valid, so it must not hide a real active workout.
+  const [nativeToken, setNativeToken] = useState<boolean | null>(
+    Capacitor.isNativePlatform() ? null : true
+  );
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    void getCachedToken().then((token) => setNativeToken(token != null));
+  }, []);
+  const isNative = Capacitor.isNativePlatform();
   const [active, setActive] = useState<ActiveItem | null>(initialActive);
   const [nativeWatchOffline, setNativeWatchOffline] = useState<NativeWatchOfflineItem | null>(null);
   // Server already gave us an accurate snapshot for the very first paint —
@@ -39,7 +51,7 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
     // No synchronous setState here — this is invoked straight from effect
     // bodies, and a sync setActive would trip React 19's set-state-in-effect
     // rule. The signed-out case is handled by the render guard below instead.
-    if (status !== "authenticated") return;
+    if (isNative ? nativeToken !== true : status !== "authenticated") return;
     lastFetchedAt.current = Date.now();
     try {
       const res = await fetch("/api/workouts?status=active&limit=1", { credentials: "include" });
@@ -62,7 +74,7 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
     } catch {
       setActive(null);
     }
-  }, [status]);
+  }, [status, isNative, nativeToken]);
 
   // Route changes only refetch when the data is stale — without the guard
   // every tab switch fires an extra API call before the page can settle.
@@ -139,7 +151,8 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
       </div>
     );
   }
-  if (status === "unauthenticated" || !active) return null;
+  const signedOut = isNative ? nativeToken === false : status === "unauthenticated";
+  if (signedOut || !active) return null;
   // On native, the current workout's URL is /workouts/_?id=<id> (see
   // workout-href.ts); on web it's the plain /workouts/<id> path. Read the
   // query directly off window.location rather than useSearchParams() — that
