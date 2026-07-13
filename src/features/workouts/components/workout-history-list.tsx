@@ -131,7 +131,9 @@ async function mergeOfflineWorkouts(list: WorkoutListItem[]): Promise<WorkoutLis
         // rendered, otherwise a fast background replay races the history UI.
         const waitingForCompletion = workout.queue?.some(({ kind }) => kind === "completeWorkout") ?? false;
         if (!workout.endedAt && !waitingForCompletion) continue;
-        const id = workout.serverWorkoutId ?? workout.id;
+        // A local UUID has no `/api/workouts/:id` resource yet. Mark it so
+        // the row stays visible but cannot navigate to a guaranteed 404.
+        const id = workout.serverWorkoutId ?? `watch-offline:${workout.id}`;
         const endedAt = workout.endedAt ?? workout.startedAt;
         const durationSeconds = Math.max(0, Math.round(
           (new Date(endedAt).getTime() - new Date(workout.startedAt).getTime()) / 1000
@@ -304,6 +306,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
           >
             {group.items.map((w, i) => {
               const isActive = !w.completedAt;
+              const isAwaitingSync = w.id.startsWith("watch-offline:");
               const exerciseCount = w.workoutExercises.length;
               const setCount = w.workoutExercises.reduce((n, we) => n + we.sets.length, 0);
               const dur = formatDuration(w.durationSeconds);
@@ -312,7 +315,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                 <button
                   key={w.id}
                   type="button"
-                  className="group w-full cursor-pointer text-left transition-colors"
+                  className="group w-full text-left transition-colors"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -320,7 +323,10 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                     padding: "14px",
                     borderTop: i > 0 ? "1px solid rgba(255,255,255,0.08)" : "none",
                   }}
-                  onClick={() => router.push(workoutHref(w.id))}
+                  aria-disabled={isAwaitingSync || undefined}
+                  onClick={() => {
+                    if (!isAwaitingSync) router.push(workoutHref(w.id));
+                  }}
                 >
                   {/* Icon */}
                   <div
@@ -360,6 +366,14 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                           }}
                         >
                           LIVE
+                        </span>
+                      )}
+                      {isAwaitingSync && (
+                        <span
+                          className="shrink-0 rounded-md px-1.5 py-[2px] text-[10px] font-bold uppercase tracking-[0.06em]"
+                          style={{ background: "rgba(255,184,77,0.14)", color: "#FFB84D" }}
+                        >
+                          SYNC
                         </span>
                       )}
                     </div>
@@ -406,7 +420,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
 
                   {/* Right */}
                   <div className="flex shrink-0 items-center gap-1">
-                    {!isActive && (
+                    {!isActive && !isAwaitingSync && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -423,10 +437,12 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    <ChevronRight
-                      className="h-4 w-4"
-                      style={{ color: "#5E5E66" }}
-                    />
+                    {!isAwaitingSync && (
+                      <ChevronRight
+                        className="h-4 w-4"
+                        style={{ color: "#5E5E66" }}
+                      />
+                    )}
                   </div>
                 </button>
               );
