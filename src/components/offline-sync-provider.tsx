@@ -3,7 +3,9 @@
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { App as CapacitorApp } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import { flushAllQueues } from "@/lib/offline/flush-all-queues";
+import { WatchConnectivity } from "@/lib/native/watch-connectivity";
 import { toast } from "sonner";
 
 export function OfflineSyncProvider() {
@@ -16,6 +18,16 @@ export function OfflineSyncProvider() {
       if (typeof navigator === "undefined" || !navigator.onLine || busy.current) return;
       busy.current = true;
       try {
+        // The Watch-started queue is native/App-Group state, not IndexedDB,
+        // so flush it explicitly alongside the web queues. This covers a
+        // Wi-Fi connection that regains internet without a new NWPath change.
+        if (Capacitor.isNativePlatform()) {
+          try {
+            await WatchConnectivity.flushPendingOfflineWorkout();
+          } catch {
+            // The regular queue flush below still runs; native retry is best-effort.
+          }
+        }
         const { workouts, bodyWeight } = await flushAllQueues();
 
         for (const { routeId, result } of workouts) {

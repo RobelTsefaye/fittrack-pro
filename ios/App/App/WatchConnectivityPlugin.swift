@@ -27,6 +27,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "updatePendingOfflineWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "completePendingOfflineWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancelPendingOfflineWorkout", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "flushPendingOfflineWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "syncRecoverySnapshot", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "respondToRequest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "startCardioSession", returnType: CAPPluginReturnPromise),
@@ -217,6 +218,16 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             WatchOfflineWorkoutStore.save(pending)
         }
         call.resolve()
+    }
+
+    /// Foreground safety net for the native Watch queue. NWPathMonitor only
+    /// notices network-interface changes; a Wi-Fi network gaining actual
+    /// internet access later can otherwise leave a finished workout queued.
+    @objc func flushPendingOfflineWorkout(_ call: CAPPluginCall) {
+        Task {
+            let flushed = await WatchAPIProxy.flushPendingOfflineWorkout()
+            call.resolve(["flushed": flushed])
+        }
     }
 
     /// Pushes the Recovery Score to the Watch for HealthDashboardView —

@@ -473,6 +473,10 @@ extension PhoneWorkoutObserver: WCSessionDelegate {
 
     private func handleWorkoutClearedIfNeeded(_ payload: [String: Any]) {
         guard payload["type"] as? String == "workoutCleared" else { return }
+        // This callback is delivered while the Watch app can be backgrounded,
+        // where KraftLoggingView's onChange is not guaranteed to run. Cancel
+        // the system-scheduled rest alert here, not only from the visible UI.
+        WatchRestTimerNotifications.cancel()
         DispatchQueue.main.async {
             if let workoutId = payload["workoutId"] as? String {
                 // Guards against a still-in-flight application-context push
