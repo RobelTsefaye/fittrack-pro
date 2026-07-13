@@ -370,6 +370,15 @@ enum WatchAPIProxy {
 
     private static func startOfflineSession(sessionId: String) -> (reply: [String: Any], contextUpdate: ContextUpdate?) {
         if let existing = WatchOfflineWorkoutStore.load() {
+            // A completed/cancelled queue remains durable until it can reach
+            // the server. It is not an active workout and must never be
+            // handed back to the Watch as a fresh session on the next tap.
+            // `handle` already flushes before startSession when online; when
+            // still offline, keep the terminal operation safe and explain
+            // why a new standalone queue cannot be created yet.
+            if existing.queue.contains(where: { $0.kind == .completeWorkout || $0.kind == .deleteWorkout }) {
+                return (["error": "Vorheriges Offline-Training wartet noch auf Synchronisierung. Bitte kurz online gehen und danach erneut starten."], nil)
+            }
             let json = jsonString(buildOfflineWatchWorkoutPayload(existing)) ?? "{}"
             return (["started": true, "workoutJSON": json], .setActiveWorkout(json: json))
         }
