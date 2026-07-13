@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { WifiOff } from "lucide-react";
@@ -8,6 +8,7 @@ import { useI18n } from "@/lib/i18n-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
+import { loadCachedUser } from "@/lib/cached-user";
 
 /* ── Page-title lookup for the mobile top bar ───────────────────── */
 function usePageTitle() {
@@ -50,7 +51,12 @@ export function MobileTopBar() {
     () => true
   );
 
-  const initials = session?.user?.name
+  // On native the cookie session behind useSession() can silently die while
+  // the Bearer token stays valid, leaving this blank/"?" even when fully
+  // logged in — see cached-user.ts.
+  const [cachedUser] = useState(() => (typeof window === "undefined" ? {} : loadCachedUser()));
+  const displayName = session?.user?.name ?? cachedUser.name;
+  const initials = displayName
     ?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) ?? "?";
 
   return (

@@ -7,6 +7,7 @@ import { ArrowLeft, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import { METRICS, type MetricSlug, type ScaleBand } from "../metric-config";
 import type { HealthSnapshot } from "../types";
+import { saveHealthCache, loadHealthCache } from "@/lib/offline/screen-caches";
 
 const MetricAreaChart = dynamic(
   () => import("./metric-area-chart").then((m) => m.MetricAreaChart),
@@ -32,15 +33,29 @@ export function MetricDetail({
   const [loading, setLoading] = useState(!hasInitialData);
   const [range, setRange] = useState<Range>(30);
 
+  // Cache-first (project-docs/instant-load-roadmap.md Phase B): paint the
+  // last-known snapshots immediately, then silently refresh in the
+  // background. Reuses the generic `healthCache` table (keyed
+  // "metric-detail" — same raw 90-day payload regardless of which metric
+  // slug is being viewed, only the client-side field/chart differs).
   useEffect(() => {
     if (hasInitialData) return;
     let cancelled = false;
     (async () => {
+      const cached = await loadHealthCache<HealthSnapshot[]>("metric-detail");
+      if (!cancelled && cached) {
+        setSnapshots(cached);
+        setLoading(false);
+      }
+
       try {
         const res = await fetch("/api/health-data?limit=90", { credentials: "include" });
         if (!res.ok) return;
         const json = (await res.json()) as { data: HealthSnapshot[] };
-        if (!cancelled) setSnapshots(json.data);
+        if (!cancelled) {
+          setSnapshots(json.data);
+          void saveHealthCache("metric-detail", json.data);
+        }
       } catch {
         // Network failure — fall through to clear the spinner below.
       } finally {

@@ -9,6 +9,21 @@ import { workoutHref } from "@/lib/workout-href";
 import { ROUTES } from "@/lib/constants";
 import type { NextPlanSession } from "@/features/dashboard/queries";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
+import { loadPlanDetailCache } from "@/lib/offline/screen-caches";
+import { startPlanSessionOffline } from "@/lib/offline/plan-session-offline";
+
+type CachedPlanDetail = {
+  id: string;
+  sessions: {
+    id: string;
+    name: string;
+    exercises: {
+      exerciseId: string;
+      targetSets: number;
+      exercise: { id: string; name: string; muscleGroup: string; equipment: string };
+    }[];
+  }[];
+};
 
 interface NextWorkoutCardProps {
   nextSession: NextPlanSession;
@@ -21,14 +36,37 @@ export function NextWorkoutCard({ nextSession }: NextWorkoutCardProps) {
 
   if (!nextSession) return null;
 
+  // This card only has the session's name/exercise count itself (see
+  // NextPlanSession) — but it does have planId, and the plan detail page
+  // caches the FULL plan (exercises + targetSets) under that id whenever it
+  // loads online (see plan-detail-view.tsx). If the user's visited that
+  // plan before, we can build the offline workout from that cached copy
+  // instead of degrading to the manual-start fallback.
+  async function tryStartOffline(): Promise<boolean> {
+    if (!nextSession) return false;
+    const cached = await loadPlanDetailCache<CachedPlanDetail>(nextSession.planId);
+    const session = cached?.sessions.find((s) => s.id === nextSession.sessionId);
+    if (!session) return false;
+    await startPlanSessionOffline({
+      id: session.id,
+      name: session.name,
+      exercises: session.exercises.map((pse) => ({
+        exerciseId: pse.exerciseId,
+        targetSets: pse.targetSets,
+        exercise: pse.exercise,
+      })),
+    });
+    notifyActiveWorkoutChanged();
+    router.push(ROUTES.newWorkout);
+    return true;
+  }
+
   async function handleStart() {
     if (!nextSession) return;
-    // This card only has the session's name/exercise count, not its full
-    // exercise list/targetSets (see NextPlanSession) — nothing here to build
-    // an offline workout from client-side, unlike the plan detail page's own
-    // "Start" button (see plan-session-offline.ts). Degrade to the manual
-    // offline-start flow instead of silently failing.
     if (typeof navigator !== "undefined" && !navigator.onLine) {
+      if (await tryStartOffline()) return;
+      // No cached copy of this plan to build from — fall back to manual
+      // start instead of silently failing.
       toast.info(t("dashboard.nextWorkoutOfflineFallback"));
       router.push(ROUTES.newWorkout);
       return;
@@ -45,6 +83,7 @@ export function NextWorkoutCard({ nextSession }: NextWorkoutCardProps) {
     } catch {
       setLoading(false);
       if (typeof navigator !== "undefined" && !navigator.onLine) {
+        if (await tryStartOffline()) return;
         toast.info(t("dashboard.nextWorkoutOfflineFallback"));
         router.push(ROUTES.newWorkout);
       }

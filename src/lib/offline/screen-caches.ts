@@ -118,3 +118,117 @@ export async function loadPlanDetailCache<T>(planId: string): Promise<T | null> 
     return null;
   }
 }
+
+/** `exerciseId` keys the row — the history/analytics payload for one exercise
+ *  (project-docs/instant-load-roadmap.md Phase B). Shared by
+ *  exercise-detail-view.tsx and most-used-exercises-view.tsx's detail pane. */
+export async function saveExerciseDetailCache<T>(exerciseId: string, payload: T): Promise<void> {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  await db.exerciseDetailCache.put({ id: exerciseId, payload: JSON.stringify(payload), updatedAt: Date.now() });
+}
+
+export async function loadExerciseDetailCache<T>(exerciseId: string): Promise<T | null> {
+  const db = tryGetOfflineDb();
+  if (!db) return null;
+  const row = await db.exerciseDetailCache.get(exerciseId);
+  if (!row) return null;
+  try {
+    return JSON.parse(row.payload) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveMostUsedExercisesCache<T>(payload: T): Promise<void> {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  await db.mostUsedExercisesCache.put({ id: "default", payload: JSON.stringify(payload), updatedAt: Date.now() });
+}
+
+export async function loadMostUsedExercisesCache<T>(): Promise<T | null> {
+  const db = tryGetOfflineDb();
+  if (!db) return null;
+  const row = await db.mostUsedExercisesCache.get("default");
+  if (!row) return null;
+  try {
+    return JSON.parse(row.payload) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveBodyMeasurementsCache<T>(payload: T): Promise<void> {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  await db.bodyMeasurementsCache.put({ id: "default", payload: JSON.stringify(payload), updatedAt: Date.now() });
+}
+
+export async function loadBodyMeasurementsCache<T>(): Promise<T | null> {
+  const db = tryGetOfflineDb();
+  if (!db) return null;
+  const row = await db.bodyMeasurementsCache.get("default");
+  if (!row) return null;
+  try {
+    return JSON.parse(row.payload) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveRecordsCache<T>(payload: T): Promise<void> {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  await db.recordsCache.put({ id: "default", payload: JSON.stringify(payload), updatedAt: Date.now() });
+}
+
+export async function loadRecordsCache<T>(): Promise<T | null> {
+  const db = tryGetOfflineDb();
+  if (!db) return null;
+  const row = await db.recordsCache.get("default");
+  if (!row) return null;
+  try {
+    return JSON.parse(row.payload) as T;
+  } catch {
+    return null;
+  }
+}
+
+/** Merges each exercise's entry into `previousLogsCache` (never wholesale-
+ *  replaces it) — a single fetch only ever covers the current workout's own
+ *  exercises, so overwriting the whole table would drop coverage for every
+ *  other exercise the user has previously logged. */
+export async function savePreviousLogsCache<T>(byExerciseId: Record<string, T>): Promise<void> {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  const now = Date.now();
+  await db.previousLogsCache.bulkPut(
+    Object.entries(byExerciseId)
+      .filter(([, payload]) => payload != null)
+      .map(([exerciseId, payload]) => ({
+      id: exerciseId,
+      payload: JSON.stringify(payload),
+      updatedAt: now,
+      }))
+  );
+}
+
+/** Loads whatever's cached for the given exercise ids — missing/uncached
+ *  ones are simply absent from the returned record, not an error. */
+export async function loadPreviousLogsCache<T>(
+  exerciseIds: string[]
+): Promise<Record<string, T>> {
+  const db = tryGetOfflineDb();
+  if (!db || exerciseIds.length === 0) return {};
+  const rows = await db.previousLogsCache.bulkGet(exerciseIds);
+  const result: Record<string, T> = {};
+  rows.forEach((row, i) => {
+    if (!row) return;
+    try {
+      result[exerciseIds[i]] = JSON.parse(row.payload) as T;
+    } catch {
+      // skip corrupt entry
+    }
+  });
+  return result;
+}

@@ -68,9 +68,14 @@ export function SleepDetail({
     if (hasInitialData) return;
     let cancelled = false;
     (async () => {
+      // Cache-first, always — paints the last-known nights instantly
+      // instead of blocking on the network.
+      const cached = await loadHealthCache<HealthSnapshot[]>("sleep");
+      if (cancelled) return;
+      if (cached) { setSnapshots(cached); setLoading(false); }
+
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        const cached = await loadHealthCache<HealthSnapshot[]>("sleep");
-        if (!cancelled) { if (cached) setSnapshots(cached); setLoading(false); }
+        if (!cached) setLoading(false);
         return;
       }
       try {
@@ -79,12 +84,12 @@ export function SleepDetail({
         const json = (await res.json()) as { data: HealthSnapshot[] };
         if (!cancelled) {
           setSnapshots(json.data);
-          setLoading(false);
           void saveHealthCache("sleep", json.data);
         }
       } catch {
-        const cached = await loadHealthCache<HealthSnapshot[]>("sleep");
-        if (!cancelled) { if (cached) setSnapshots(cached); setLoading(false); }
+        // already showing cache (if any) — nothing more to do
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };

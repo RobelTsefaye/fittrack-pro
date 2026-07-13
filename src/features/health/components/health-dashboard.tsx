@@ -87,8 +87,26 @@ export function HealthDashboard({
 
   const load = useCallback(async (silent = false) => {
     const requestId = ++requestIdRef.current;
-    if (!silent) setLoading(true);
-    else setRefreshing(true);
+
+    // Cache-first, always — paints the last-known snapshot instantly
+    // instead of blocking on the network. Skipped when `silent` (an
+    // explicit background refresh, e.g. after returning from Shortcuts) —
+    // that path should keep showing whatever's already on screen, not
+    // regress to a possibly-older cached copy.
+    let paintedFromCache = false;
+    if (!silent) {
+      const cached = await loadHealthCache<HealthDashboardCached>("dashboard");
+      if (requestId === requestIdRef.current && cached) {
+        setSnapshots(cached.snapshots);
+        setRecovery(cached.recovery);
+        setCardio(cached.cardio);
+        setLoading(false);
+        paintedFromCache = true;
+      }
+    }
+
+    if (!silent && !paintedFromCache) setLoading(true);
+    else if (silent) setRefreshing(true);
     setFetchError(null);
 
     if (typeof navigator !== "undefined" && !navigator.onLine) {

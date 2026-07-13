@@ -22,11 +22,13 @@ export function MuscleHeatmapCard() {
     let cancelled = false;
 
     async function load() {
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
-        const cached = await loadMuscleHeatmapCache<MuscleHeatmapCached>();
-        if (!cancelled && cached) { setData(cached.entries); setUnit(cached.weightUnit); }
-        return;
-      }
+      // Cache-first, always — paints the last-known heatmap instantly
+      // instead of blocking on the network.
+      const cached = await loadMuscleHeatmapCache<MuscleHeatmapCached>();
+      if (cancelled) return;
+      if (cached) { setData(cached.entries); setUnit(cached.weightUnit); }
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
       try {
         const res = await authenticatedFetch("/api/dashboard/muscle-heatmap", { credentials: "include" });
         const json = res.ok ? await res.json() : null;
@@ -35,13 +37,9 @@ export function MuscleHeatmapCard() {
           setData(json.data.entries);
           setUnit(json.data.weightUnit);
           void saveMuscleHeatmapCache({ entries: json.data.entries, weightUnit: json.data.weightUnit });
-        } else {
-          const cached = await loadMuscleHeatmapCache<MuscleHeatmapCached>();
-          if (!cancelled && cached) { setData(cached.entries); setUnit(cached.weightUnit); }
         }
       } catch {
-        const cached = await loadMuscleHeatmapCache<MuscleHeatmapCached>();
-        if (!cancelled && cached) { setData(cached.entries); setUnit(cached.weightUnit); }
+        // already showing cache (if any) — nothing more to do
       }
     }
 

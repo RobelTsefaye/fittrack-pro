@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { Plus, Trash2, ChevronDown, ChevronUp, Ruler } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { saveBodyMeasurementsCache, loadBodyMeasurementsCache } from "@/lib/offline/screen-caches";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,8 +109,10 @@ export function BodyMeasurementsTracker() {
       const res = await fetch("/api/body-measurements");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      setEntries(json.data ?? []);
+      const data = json.data ?? [];
+      setEntries(data);
       setLoadError(false);
+      void saveBodyMeasurementsCache(data);
     } catch {
       setLoadError(true);
     } finally {
@@ -117,24 +120,35 @@ export function BodyMeasurementsTracker() {
     }
   }, []);
 
-  // Initial fetch. Kept inline (rather than calling `load()`) so no setState
-  // runs synchronously in the effect body — `loading` already starts `true`,
-  // and every state update below happens only after an await, satisfying
-  // React 19's set-state-in-effect rule and avoiding a cascading re-render.
+  // Cache-first (project-docs/instant-load-roadmap.md Phase B): paint the
+  // last-known entries immediately, then silently refresh in the background.
+  // Kept inline (rather than calling `load()`) so no setState runs
+  // synchronously in the effect body — every state update happens only after
+  // an await, satisfying React 19's set-state-in-effect rule.
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const cached = await loadBodyMeasurementsCache<Entry[]>();
+      if (cancelled) return;
+      if (cached) {
+        setEntries(cached);
+        setLoadError(false);
+        setLoading(false);
+      }
+
       try {
         const res = await fetch("/api/body-measurements");
         if (cancelled) return;
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (!cancelled) {
-          setEntries(json.data ?? []);
+          const data = json.data ?? [];
+          setEntries(data);
           setLoadError(false);
+          void saveBodyMeasurementsCache(data);
         }
       } catch {
-        if (!cancelled) setLoadError(true);
+        if (!cancelled && !cached) setLoadError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }

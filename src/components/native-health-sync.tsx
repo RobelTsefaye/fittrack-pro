@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useSession } from "next-auth/react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { requestHealthKitAuthorization, syncHealthKitData } from "@/lib/native/healthkit";
@@ -10,6 +9,7 @@ import { onWatchCardioSaved } from "@/lib/native/watch-connectivity";
 // Avoid re-syncing on every tab-visibility flicker — once every 15 min is
 // plenty for daily vitals that only change a few times a day at most.
 const MIN_SYNC_INTERVAL_MS = 15 * 60 * 1000;
+const HOURLY_SYNC_INTERVAL_MS = 60 * 60 * 1000;
 
 // Persists "HealthKit authorization already granted" across app relaunches.
 // authorizedRef alone used to reset to false on every fresh mount — and the
@@ -52,13 +52,10 @@ function writePersistedAuthorized() {
  * as a fallback for web/PWA, where 'resume' isn't available.
  */
 export function NativeHealthSync() {
-  const { status } = useSession();
   const lastSyncRef = useRef(0);
   const authorizedRef = useRef(readPersistedAuthorized());
 
   useEffect(() => {
-    if (status !== "authenticated") return;
-
     async function sync() {
       const now = Date.now();
       if (now - lastSyncRef.current < MIN_SYNC_INTERVAL_MS) return;
@@ -72,11 +69,12 @@ export function NativeHealthSync() {
       }
       const result = await syncHealthKitData();
       if (result.snapshots > 0 || result.workouts > 0) {
-        console.log(`[healthkit] synced ${result.snapshots} days, ${result.workouts} workouts`);
+        console.log(`[healthkit] synced ${result.snapshots} days, ${result.workouts} workouts from ${result.days} days`);
       }
     }
 
     void sync();
+    const hourlySync = window.setInterval(() => void sync(), HOURLY_SYNC_INTERVAL_MS);
 
     // Watch just saved a cardio session and no background-sync token is
     // stored (the native side handles it itself otherwise). Bypasses the
@@ -105,9 +103,10 @@ export function NativeHealthSync() {
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.clearInterval(hourlySync);
       removeResumeListener?.();
     };
-  }, [status]);
+  }, []);
 
   return null;
 }

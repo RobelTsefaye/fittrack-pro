@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n-provider";
+import { saveExerciseDetailCache, loadExerciseDetailCache } from "@/lib/offline/screen-caches";
 import {
   ExerciseDetailAnalytics,
   type AnalyticsBestPr,
@@ -28,6 +29,14 @@ interface ExerciseDetailViewProps {
   weightUnit: "KG" | "LB";
 }
 
+type ExerciseHistoryPayload = {
+  exercise: { name: string; muscleGroup: string; equipment: string };
+  history: AnalyticsHistoryRow[];
+  progressBySession: ProgressPoint[];
+  volumeBySession: VolumePoint[];
+  bestPersonalRecord: AnalyticsBestPr | null;
+};
+
 export function ExerciseDetailView({ exerciseId, weightUnit }: ExerciseDetailViewProps) {
   const { t } = useI18n();
   const [loading, setLoading] = useState(true);
@@ -40,29 +49,15 @@ export function ExerciseDetailView({ exerciseId, weightUnit }: ExerciseDetailVie
   const [volumeBySession, setVolumeBySession] = useState<VolumePoint[]>([]);
   const [bestPr, setBestPr] = useState<AnalyticsBestPr | null>(null);
 
-  // Fetch history for the exercise. Inlined in the effect (rather than a
-  // useCallback called synchronously from it) so every state update happens
-  // after an await — `loading` already starts `true`, satisfying React 19's
-  // set-state-in-effect rule. Re-runs when the exercise or locale changes; a
-  // cancel flag drops results from a superseded fetch.
+  // Cache-first (project-docs/instant-load-roadmap.md Phase B): paint the
+  // last-known payload immediately on mount, then silently refresh from the
+  // network in the background. Only shows the skeleton/error state when
+  // there's truly nothing cached yet. Re-runs when the exercise or locale
+  // changes; a cancel flag drops results from a superseded fetch.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const res = await fetch(`/api/exercises/${exerciseId}/history`);
-        if (cancelled) return;
-        if (res.status === 404) {
-          setError(t("exercises.notFound"));
-          return;
-        }
-        if (!res.ok) {
-          setError(t("exercises.loadFailed"));
-          return;
-        }
-        const json = await res.json();
-        if (cancelled) return;
-        const d = json.data;
-        setError(null);
+      const applyPayload = (d: ExerciseHistoryPayload) => {
         setName(d.exercise.name);
         setMuscleGroup(d.exercise.muscleGroup);
         setEquipment(d.exercise.equipment);
@@ -70,8 +65,35 @@ export function ExerciseDetailView({ exerciseId, weightUnit }: ExerciseDetailVie
         setProgressBySession(d.progressBySession ?? []);
         setVolumeBySession(d.volumeBySession ?? []);
         setBestPr(d.bestPersonalRecord ?? null);
+      };
+
+      const cached = await loadExerciseDetailCache<ExerciseHistoryPayload>(exerciseId);
+      if (cancelled) return;
+      if (cached) {
+        applyPayload(cached);
+        setError(null);
+        setLoading(false);
+      }
+
+      try {
+        const res = await fetch(`/api/exercises/${exerciseId}/history`);
+        if (cancelled) return;
+        if (res.status === 404) {
+          if (!cached) setError(t("exercises.notFound"));
+          return;
+        }
+        if (!res.ok) {
+          if (!cached) setError(t("exercises.loadFailed"));
+          return;
+        }
+        const json = await res.json();
+        if (cancelled) return;
+        const d = json.data as ExerciseHistoryPayload;
+        setError(null);
+        applyPayload(d);
+        void saveExerciseDetailCache(exerciseId, d);
       } catch {
-        if (!cancelled) setError(t("exercises.loadFailed"));
+        if (!cancelled && !cached) setError(t("exercises.loadFailed"));
       } finally {
         if (!cancelled) setLoading(false);
       }

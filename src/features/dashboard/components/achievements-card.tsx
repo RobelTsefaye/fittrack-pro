@@ -91,11 +91,13 @@ export function AchievementsCard() {
     let cancelled = false;
 
     async function load() {
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
-        const cached = await loadAchievementsCache<Achievement[]>();
-        if (!cancelled && cached) setAchievements(cached);
-        return;
-      }
+      // Cache-first, always — paints the last-known achievements instantly
+      // instead of blocking on the network.
+      const cached = await loadAchievementsCache<Achievement[]>();
+      if (cancelled) return;
+      if (cached) setAchievements(cached);
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
       try {
         const res = await authenticatedFetch("/api/records", { credentials: "include" });
         const json = res.ok ? await res.json() : null;
@@ -103,13 +105,9 @@ export function AchievementsCard() {
         if (json?.data?.achievements) {
           setAchievements(json.data.achievements);
           void saveAchievementsCache(json.data.achievements);
-        } else {
-          const cached = await loadAchievementsCache<Achievement[]>();
-          if (!cancelled && cached) setAchievements(cached);
         }
       } catch {
-        const cached = await loadAchievementsCache<Achievement[]>();
-        if (!cancelled && cached) setAchievements(cached);
+        // already showing cache (if any) — nothing more to do
       }
     }
 

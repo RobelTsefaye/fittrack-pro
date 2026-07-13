@@ -35,12 +35,18 @@ export function RecoveryDetail({
     if (hasInitialData) return;
     let cancelled = false;
     (async () => {
+      // Cache-first, always — paints the last-known score instantly
+      // instead of blocking on the network.
+      const cached = await loadHealthCache<RecoveryDetailCached>("recovery");
+      if (cancelled) return;
+      if (cached) {
+        setRecovery(cached.recovery);
+        setHistory(cached.history);
+        setLoading(false);
+      }
+
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        const cached = await loadHealthCache<RecoveryDetailCached>("recovery");
-        if (!cancelled) {
-          if (cached) { setRecovery(cached.recovery); setHistory(cached.history); }
-          setLoading(false);
-        }
+        if (!cached) setLoading(false);
         return;
       }
       try {
@@ -50,15 +56,12 @@ export function RecoveryDetail({
         if (!cancelled) {
           setRecovery(json.data);
           setHistory(json.history ?? []);
-          setLoading(false);
           void saveHealthCache("recovery", { recovery: json.data, history: json.history ?? [] });
         }
       } catch {
-        const cached = await loadHealthCache<RecoveryDetailCached>("recovery");
-        if (!cancelled) {
-          if (cached) { setRecovery(cached.recovery); setHistory(cached.history); }
-          setLoading(false);
-        }
+        // already showing cache (if any) — nothing more to do
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };

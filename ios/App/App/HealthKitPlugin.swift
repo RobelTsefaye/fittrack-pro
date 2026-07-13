@@ -40,6 +40,9 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             .heartRate, .restingHeartRate, .heartRateVariabilitySDNN,
             .respiratoryRate, .stepCount, .activeEnergyBurned,
             .basalEnergyBurned, .appleExerciseTime, .vo2Max,
+            .dietaryEnergyConsumed, .dietaryProtein, .dietaryCarbohydrates,
+            .dietaryFatTotal, .dietaryFiber, .dietarySugar, .dietarySodium,
+            .dietaryCaffeine, .dietaryWater,
         ]
         for id in quantityIds {
             if let t = HKObjectType.quantityType(forIdentifier: id) { types.insert(t) }
@@ -75,9 +78,9 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
     /// of `snapshotSchema` in `/api/health-data/route.ts` (date, sleepDuration,
     /// sleepDeepMinutes, sleepRemMinutes, restingHeartRate, heartRateAvg, hrv,
     /// respiratoryRate, wristTemperature, steps, activeCalories,
-    /// exerciseMinutes, calories, vo2Max).
+    /// exerciseMinutes, calories, vo2Max, and nutrition intake fields).
     @objc func queryDailySnapshots(_ call: CAPPluginCall) {
-        let days = call.getInt("days") ?? 14
+        let days = call.getInt("days") ?? 90
         let calendar = Calendar(identifier: .gregorian)
         let now = Date()
         guard let startDate = calendar.date(byAdding: .day, value: -days, to: now) else {
@@ -157,10 +160,12 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 if !current.isEmpty { sessions.append(current) }
             }
 
-            struct SessionTotals { let day: String; let source: String; let deep: Double; let rem: Double; let asleep: Double; let end: Date }
+            struct SessionTotals { let day: String; let source: String; let deep: Double; let rem: Double; let asleep: Double; let inBed: Double; let start: Date; let end: Date }
             let sessionTotals: [SessionTotals] = sessions.compactMap { session in
-                guard let source = session.first?.source, let sessionEnd = session.map(\.end).max() else { return nil }
-                var deep = 0.0, rem = 0.0, asleep = 0.0
+                guard let source = session.first?.source,
+                      let sessionEnd = session.map(\.end).max(),
+                      let sessionStart = session.map(\.start).min() else { return nil }
+                var deep = 0.0, rem = 0.0, asleep = 0.0, inBed = 0.0
                 for s in session {
                     let hours = s.end.timeIntervalSince(s.start) / 3600.0
                     switch s.value {
@@ -169,24 +174,30 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                     case HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue,
                          HKCategoryValueSleepAnalysis.asleepCore.rawValue,
                          HKCategoryValueSleepAnalysis.asleep.rawValue: asleep += hours
+                    case HKCategoryValueSleepAnalysis.inBed.rawValue: inBed += hours
                     default: break
                     }
                 }
                 // The whole session belongs to the day it ENDS on (wake-up day),
                 // not the day any individual sample within it ends on.
-                return SessionTotals(day: dateKey(sessionEnd), source: source, deep: deep, rem: rem, asleep: asleep, end: sessionEnd)
+                return SessionTotals(day: dateKey(sessionEnd), source: source, deep: deep, rem: rem, asleep: asleep, inBed: inBed, start: sessionStart, end: sessionEnd)
             }
 
             // Pick the winning session per day: prefer stage detail (deep+rem > 0),
             // tie-break by total sleep duration. This also naturally picks the
             // main overnight session over a same-day nap in the rare case both
             // end up attributed to the same wake-up day.
-            var bestByDay: [String: (deep: Double, rem: Double, total: Double, hasStages: Bool)] = [:]
+            var bestByDay: [String: (deep: Double, rem: Double, total: Double, hasStages: Bool, start: Date, end: Date)] = [:]
             for session in sessionTotals {
-                let total = session.deep + session.rem + session.asleep
+                // Some sources provide only an in-bed interval, while Apple
+                // Watch supplies sleep stages. Prefer the stage/asleep total
+                // whenever available; otherwise retain the in-bed interval as
+                // the documented final fallback instead of dropping the night.
+                let stagedTotal = session.deep + session.rem + session.asleep
+                let total = stagedTotal > 0 ? stagedTotal : session.inBed
                 guard total > 0 else { continue }
                 let hasStages = session.deep > 0 || session.rem > 0
-                let candidate = (deep: session.deep, rem: session.rem, total: total, hasStages: hasStages)
+                let candidate = (deep: session.deep, rem: session.rem, total: total, hasStages: hasStages, start: session.start, end: session.end)
                 if let current = bestByDay[session.day] {
                     let candidateWins = (hasStages && !current.hasStages) || (hasStages == current.hasStages && total > current.total)
                     if candidateWins { bestByDay[session.day] = candidate }
@@ -195,11 +206,24 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 }
             }
 
+            let bedtimeFormatter: DateFormatter = {
+                let f = DateFormatter()
+                f.dateFormat = "HH:mm"
+                f.timeZone = TimeZone.current
+                return f
+            }()
+
             for (dayKey, best) in bestByDay {
                 ensureRecord(dayKey)
                 results[dayKey]?["sleepDuration"] = best.total
                 results[dayKey]?["sleepDeepMinutes"] = Int(best.deep * 60)
                 results[dayKey]?["sleepRemMinutes"] = Int(best.rem * 60)
+                // The session's earliest sample start — same "when did this
+                // night's sleep begin" definition the old Health Auto Export
+                // import used, just computed straight from the sleep session
+                // instead of relying on a third-party app to have sent it.
+                results[dayKey]?["sleepBedtime"] = bedtimeFormatter.string(from: best.start)
+                results[dayKey]?["sleepWakeTime"] = bedtimeFormatter.string(from: best.end)
             }
             } // resultsQueue.sync
         }
@@ -210,12 +234,26 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             (.restingHeartRate, "restingHeartRate", HKUnit.count().unitDivided(by: .minute())),
             (.heartRate, "heartRateAvg", HKUnit.count().unitDivided(by: .minute())),
             (.respiratoryRate, "respiratoryRate", HKUnit.count().unitDivided(by: .minute())),
+            // HealthKit's canonical VO₂max dimension is ml/(kg*min). The
+            // slash-separated spelling used previously is a different unit
+            // expression; passing it to `doubleValue(for:)` can raise an
+            // Objective-C exception and terminate the app.
+            (.vo2Max, "vo2Max", HKUnit(from: "ml/kg*min")),
         ]
         let sumFields: [(HKQuantityTypeIdentifier, String, HKUnit)] = [
             (.stepCount, "steps", .count()),
             (.activeEnergyBurned, "activeCalories", .kilocalorie()),
             (.basalEnergyBurned, "calories", .kilocalorie()),
             (.appleExerciseTime, "exerciseMinutes", .minute()),
+            (.dietaryEnergyConsumed, "dietaryCalories", .kilocalorie()),
+            (.dietaryProtein, "protein", .gram()),
+            (.dietaryCarbohydrates, "carbs", .gram()),
+            (.dietaryFatTotal, "fat", .gram()),
+            (.dietaryFiber, "fiber", .gram()),
+            (.dietarySugar, "sugar", .gram()),
+            (.dietarySodium, "sodium", .gramUnit(with: .milli)),
+            (.dietaryCaffeine, "caffeine", .gramUnit(with: .milli)),
+            (.dietaryWater, "water", .literUnit(with: .milli)),
         ]
         let maxFields: [(HKQuantityTypeIdentifier, String, HKUnit)] = [
             (.heartRateVariabilitySDNN, "hrv", .secondUnit(with: .milli)),
@@ -223,6 +261,10 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
 
         func runStatsQuery(id: HKQuantityTypeIdentifier, field: String, unit: HKUnit, option: HKStatisticsOptions, extract: @escaping (HKStatistics) -> Double?) {
             guard let type = HKObjectType.quantityType(forIdentifier: id) else { return }
+            // `HKQuantity.doubleValue(for:)` raises an Objective-C exception
+            // for incompatible units, which Swift cannot catch. Skip only
+            // this metric rather than risking the entire native process.
+            guard type.is(compatibleWith: unit) else { return }
             group.enter()
             var interval = DateComponents()
             interval.day = 1
@@ -258,6 +300,7 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         // bug by 12 hours instead of fixing it.
         func runOvernightVitalQuery(id: HKQuantityTypeIdentifier, field: String, extract: @escaping (HKStatistics) -> Double?) {
             guard let type = HKObjectType.quantityType(forIdentifier: id) else { return }
+            guard type.is(compatibleWith: HKUnit(from: "degC")) else { return }
             group.enter()
             var interval = DateComponents()
             interval.day = 1
@@ -289,13 +332,12 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         // real value whenever the phone was carried while the watch was worn
         // (the normal case). Fix: use .separateBySource and take ONLY the
         // source whose name contains "Watch" — the Watch is the single
-        // source of truth here, matching what the Watch's own Fitness app
-        // displays. Days with no Watch-sourced data (e.g. Watch not worn/
-        // charging) are simply skipped rather than falling back to the
-        // phone, so the field stays absent instead of silently showing a
-        // different device's number.
-        func runWatchOnlySumQuery(id: HKQuantityTypeIdentifier, field: String, unit: HKUnit) {
+        // source of truth whenever it is present. If it is absent (Watch not
+        // worn/charging), use HealthKit's aggregate for the remaining sources
+        // so iPhone-only days do not disappear from the app.
+        func runPreferredSourceSumQuery(id: HKQuantityTypeIdentifier, field: String, unit: HKUnit) {
             guard let type = HKObjectType.quantityType(forIdentifier: id) else { return }
+            guard type.is(compatibleWith: unit) else { return }
             group.enter()
             var interval = DateComponents()
             interval.day = 1
@@ -306,9 +348,9 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 defer { group.leave() }
                 var pending: [(String, Double)] = []
                 collection?.enumerateStatistics(from: startDate, to: now) { stats, _ in
-                    guard let sources = stats.sources else { return }
-                    guard let watchSource = sources.first(where: { $0.name.localizedCaseInsensitiveContains("watch") }) else { return }
-                    guard let value = stats.sumQuantity(for: watchSource)?.doubleValue(for: unit) else { return }
+                    let watchSource = stats.sources?.first(where: { $0.name.localizedCaseInsensitiveContains("watch") })
+                    let quantity = watchSource.flatMap { stats.sumQuantity(for: $0) } ?? stats.sumQuantity()
+                    guard let value = quantity?.doubleValue(for: unit) else { return }
                     pending.append((dateKey(stats.startDate), value))
                 }
                 resultsQueue.sync {
@@ -325,7 +367,7 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             runStatsQuery(id: id, field: field, unit: unit, option: .discreteAverage) { $0.averageQuantity()?.doubleValue(for: unit) }
         }
         for (id, field, unit) in sumFields {
-            runWatchOnlySumQuery(id: id, field: field, unit: unit)
+            runPreferredSourceSumQuery(id: id, field: field, unit: unit)
         }
         for (id, field, unit) in maxFields {
             runStatsQuery(id: id, field: field, unit: unit, option: .discreteMax) { $0.maximumQuantity()?.doubleValue(for: unit) }

@@ -37,7 +37,9 @@ enum BackgroundSyncManager {
     static func schedule() {
         guard SyncTokenStore.load() != nil else { return }
         let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
-        request.earliestBeginDate = Date(timeIntervalSinceNow: 4 * 60 * 60) // ~4h minimum gap
+        // iOS treats this as a best-effort earliest time, not a guaranteed
+        // hourly schedule. Foreground/resume sync remains the reliable path.
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 1 * 60 * 60)
         try? BGTaskScheduler.shared.submit(request)
     }
 

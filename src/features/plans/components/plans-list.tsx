@@ -42,11 +42,17 @@ export function PlansList() {
   const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    // Cache-first, always — paints the last-known list instantly instead of
+    // blocking on the network, then a fresh fetch below quietly replaces it.
+    const cached = await loadPlansCache<PlanRow[]>();
+    if (cached) {
+      setPlans(cached);
+      setLoadError(false);
+      setLoading(false);
+    }
+
     if (typeof navigator !== "undefined" && !navigator.onLine) {
-      const cached = await loadPlansCache<PlanRow[]>();
-      if (cached) { setPlans(cached); setLoadError(false); }
-      else setLoadError(true);
+      if (!cached) setLoadError(true);
       setLoading(false);
       return;
     }
@@ -59,9 +65,7 @@ export function PlansList() {
       setLoadError(false);
       void savePlansCache(data);
     } catch {
-      const cached = await loadPlansCache<PlanRow[]>();
-      if (cached) { setPlans(cached); setLoadError(false); }
-      else setLoadError(true);
+      if (!cached) setLoadError(true);
     } finally {
       setLoading(false);
     }

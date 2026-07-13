@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "@/components/app-link";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
@@ -23,6 +24,7 @@ import { APP_NAME, ROUTES } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
 import { clearSwCache } from "@/components/pwa-register";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { loadCachedUser } from "@/lib/cached-user";
 
 interface SidebarProps {
   open?: boolean;
@@ -100,7 +102,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const { t } = useI18n();
   const { data: session } = useSession();
 
-  const initials = session?.user?.name
+  // On native the cookie session behind useSession() can silently die while
+  // the Bearer token stays valid, leaving this blank/"?" even when fully
+  // logged in — see cached-user.ts.
+  const [cachedUser] = useState(() => (typeof window === "undefined" ? {} : loadCachedUser()));
+  const displayName = session?.user?.name ?? cachedUser.name;
+  const initials = displayName
     ?.split(" ")
     .map((n) => n[0])
     .join("")
@@ -226,10 +233,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           </Avatar>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[0.8rem] font-semibold leading-tight text-sidebar-foreground">
-              {session?.user?.name ?? "—"}
+              {displayName ?? "—"}
             </p>
             <p className="truncate text-[0.7rem] leading-tight text-sidebar-foreground/45">
-              {session?.user?.email ?? ""}
+              {session?.user?.email ?? cachedUser.email ?? ""}
             </p>
           </div>
           <ChevronRight className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/25 transition-transform group-hover:translate-x-0.5" />

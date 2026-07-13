@@ -45,19 +45,17 @@ export function ExerciseList({
   }, [searchParams]);
 
   const fetchExercises = useCallback(async () => {
-    setLoading(true);
-    // Offline: the full-catalog cache (populated below on every successful
-    // fetch) is the only thing we have — go straight to it instead of
-    // waiting out a doomed network round trip first.
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      await loadFromCatalogCache();
-      setLoading(false);
-      return;
-    }
+    // Cache-first, always — paints the last-known (filtered) catalog
+    // instantly instead of blocking on the network, then a fresh fetch
+    // below quietly replaces it if online.
+    await loadFromCatalogCache();
+    setLoading(false);
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
     try {
       const params = new URLSearchParams(searchParams.toString());
       const res = await fetch(`/api/exercises?${params.toString()}`);
-      if (!res.ok) { await loadFromCatalogCache(); return; }
+      if (!res.ok) return;
       const json = await res.json() as { data?: ExerciseData[] };
       const data: ExerciseData[] = json.data ?? [];
       setExercises(data);
@@ -67,9 +65,7 @@ export function ExerciseList({
         );
       }
     } catch {
-      await loadFromCatalogCache();
-    } finally {
-      setLoading(false);
+      // already showing cache (if any) — nothing more to do
     }
   }, [searchParams, loadFromCatalogCache]);
 

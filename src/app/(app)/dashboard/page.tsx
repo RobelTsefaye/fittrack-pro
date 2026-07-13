@@ -11,8 +11,16 @@ import { AchievementsCard } from "@/features/dashboard/components/achievements-c
 import { DashboardPageSkeleton } from "./dashboard-page-skeleton";
 import type { DashboardClientPayload } from "@/features/dashboard/queries";
 import { saveDashboardCache, loadDashboardCache } from "@/lib/offline/screen-caches";
+import { saveCachedUser } from "@/lib/cached-user";
 
-type DashboardState = { weightUnit: "KG" | "LB"; payload: DashboardClientPayload };
+type DashboardState = {
+  weightUnit: "KG" | "LB";
+  /** Provided by /api/dashboard/client-payload — the reliable name source on
+   *  native, where the cookie session behind useSession() can silently die
+   *  (see cached-user.ts). Optional: cached payloads predating this field. */
+  userName?: string | null;
+  payload: DashboardClientPayload;
+};
 
 // Client component — no server-side auth()/data-fetching (see
 // project-docs/offline-first-roadmap.md Phase 2). Fetches the new
@@ -34,12 +42,17 @@ export default function DashboardPage() {
     setFailed(false);
 
     async function load() {
+      // Cache-first, always — even online. Paints the last-known dashboard
+      // instantly (no skeleton wait) instead of blocking on the network,
+      // then a fresh fetch below quietly replaces it once it lands. This is
+      // what makes the app feel "as fast as offline" all the time, not just
+      // when actually offline.
+      const cached = await loadDashboardCache<DashboardState>();
+      if (cancelled) return;
+      if (cached) setState(cached);
+
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        const cached = await loadDashboardCache<DashboardState>();
-        if (!cancelled) {
-          if (cached) setState(cached);
-          else setFailed(true);
-        }
+        if (!cached) setFailed(true);
         return;
       }
       try {
@@ -49,17 +62,14 @@ export default function DashboardPage() {
         if (json?.data) {
           setState(json.data);
           void saveDashboardCache(json.data);
-        } else {
-          const cached = await loadDashboardCache<DashboardState>();
-          if (cancelled) return;
-          if (cached) setState(cached);
-          else setFailed(true);
+          // Keep the display identity fresh for screens that can't rely on
+          // the cookie session (More-page profile) — see cached-user.ts.
+          if (json.data.userName) saveCachedUser({ name: json.data.userName });
+        } else if (!cached) {
+          setFailed(true);
         }
       } catch {
-        const cached = await loadDashboardCache<DashboardState>();
-        if (cancelled) return;
-        if (cached) setState(cached);
-        else setFailed(true);
+        if (!cached) setFailed(true);
       }
     }
 
@@ -87,7 +97,7 @@ export default function DashboardPage() {
       ) : (
         <div className="space-y-6">
           <DashboardAnalytics
-            userName={session?.user?.name}
+            userName={state.userName ?? session?.user?.name}
             weightUnit={state.weightUnit}
             payload={state.payload}
           />
