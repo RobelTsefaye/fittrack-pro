@@ -10,9 +10,23 @@ import { workoutHref } from "@/lib/workout-href";
 import { useI18n } from "@/lib/i18n-provider";
 import { tryGetOfflineDb } from "@/lib/offline/db";
 import { listOfflineOriginWorkouts } from "@/lib/offline/workout-offline-store";
+import { Capacitor } from "@capacitor/core";
+import { WatchConnectivity } from "@/lib/native/watch-connectivity";
 import type { WorkoutListItemDTO } from "@/features/workouts/workouts-list-data";
 
 type WorkoutListItem = WorkoutListItemDTO;
+type NativeTerminalWorkout = {
+  id: string;
+  serverWorkoutId?: string;
+  name: string;
+  startedAt: string;
+  endedAt?: string | null;
+  queue?: Array<{ kind?: string }>;
+  workoutExercises: Array<{
+    exercise: { id: string; name: string };
+    sets: Array<{ id: string }>;
+  }>;
+};
 
 function formatDay(iso: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(iso));
@@ -89,7 +103,6 @@ async function loadWorkoutListCache(): Promise<WorkoutListItem[] | null> {
  *  from the list in the meantime. */
 async function mergeOfflineWorkouts(list: WorkoutListItem[]): Promise<WorkoutListItem[]> {
   const local = await listOfflineOriginWorkouts();
-  if (local.length === 0) return list;
   const known = new Set(list.map((w) => w.id));
   const extra: WorkoutListItem[] = local
     .filter((w) => !known.has(w.id))
@@ -104,6 +117,40 @@ async function mergeOfflineWorkouts(list: WorkoutListItem[]): Promise<WorkoutLis
         sets: we.sets.map((s) => ({ id: s.id })),
       })),
     }));
+  // Native Watch queues live in the App Group rather than IndexedDB. A
+  // completed offline Watch workout should therefore stay visible in history
+  // while its terminal upload is waiting/retrying, instead of disappearing
+  // until the server happens to receive it.
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { terminalJSON } = await WatchConnectivity.getTerminalOfflineWorkouts();
+      const terminal = terminalJSON ? JSON.parse(terminalJSON) as NativeTerminalWorkout[] : [];
+      for (const workout of terminal) {
+        if (!workout.queue?.some(({ kind }) => kind === "completeWorkout")) continue;
+        const id = workout.serverWorkoutId ?? workout.id;
+        const endedAt = workout.endedAt ?? workout.startedAt;
+        const durationSeconds = Math.max(0, Math.round(
+          (new Date(endedAt).getTime() - new Date(workout.startedAt).getTime()) / 1000
+        ));
+        const item: WorkoutListItem = {
+          id,
+          name: workout.name,
+          startedAt: workout.startedAt,
+          completedAt: endedAt,
+          durationSeconds,
+          workoutExercises: workout.workoutExercises.map((we) => ({
+            exercise: { id: we.exercise.id, name: we.exercise.name },
+            sets: we.sets.map((set) => ({ id: set.id })),
+          })),
+        };
+        const serverIndex = list.findIndex((entry) => entry.id === id);
+        if (serverIndex >= 0) list[serverIndex] = item;
+        else if (!known.has(id)) extra.push(item);
+      }
+    } catch {
+      // The regular server/IndexedDB list remains usable if native state is unavailable.
+    }
+  }
   return [...list, ...extra];
 }
 

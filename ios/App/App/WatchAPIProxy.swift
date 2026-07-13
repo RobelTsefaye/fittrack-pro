@@ -34,7 +34,7 @@ enum WatchAPIProxy {
     enum ContextUpdate {
         case setActiveWorkout(json: String)
         case setRecovery(score: Int, level: String)
-        case clear
+        case clear(workoutId: String?)
     }
 
     static func handle(
@@ -201,16 +201,17 @@ enum WatchAPIProxy {
             return (["error": "Missing workoutId"], nil)
         }
         if var pending = WatchOfflineWorkoutStore.load(), pending.id == workoutId {
+            pending.endedAt = ISO8601DateFormatter().string(from: Date())
             if !pending.queue.contains(where: { $0.kind == .completeWorkout }) {
                 pending.queue.append(WatchQueuedOp(kind: .completeWorkout))
             }
             WatchOfflineWorkoutStore.deferTerminalWorkout(pending)
             WatchOfflineWorkoutStore.clear()
-            return (["done": true], .clear)
+            return (["done": true], .clear(workoutId: workoutId))
         }
         do {
             try await requestNoContent("/api/workouts/\(workoutId)/complete", method: "POST", token: token)
-            return (["done": true], .clear)
+            return (["done": true], .clear(workoutId: workoutId))
         } catch {
             return (["error": describeError(error)], nil)
         }
@@ -234,11 +235,11 @@ enum WatchAPIProxy {
                 WatchOfflineWorkoutStore.deferTerminalWorkout(pending)
                 WatchOfflineWorkoutStore.clear()
             }
-            return (["done": true], .clear)
+            return (["done": true], .clear(workoutId: workoutId))
         }
         do {
             try await requestNoContent("/api/workouts/\(workoutId)", method: "DELETE", token: token)
-            return (["done": true], .clear)
+            return (["done": true], .clear(workoutId: workoutId))
         } catch {
             return (["error": describeError(error)], nil)
         }
@@ -398,6 +399,7 @@ enum WatchAPIProxy {
             planSessionId: session.id,
             name: session.name,
             startedAt: iso.string(from: Date()),
+            endedAt: nil,
             workoutExercises: session.exercises.map { template in
                 OfflineWorkoutExercise(
                     id: UUID().uuidString,
@@ -430,7 +432,7 @@ enum WatchAPIProxy {
                     WatchOfflineWorkoutStore.updateTerminalWorkout($0)
                 }
                 WatchOfflineWorkoutStore.removeTerminalWorkout(id: terminal.id)
-                replayContextHandler?(.clear)
+                replayContextHandler?(.clear(workoutId: terminal.id))
             } catch {
                 WatchOfflineWorkoutStore.updateTerminalWorkout(terminal)
                 return false
@@ -443,7 +445,7 @@ enum WatchAPIProxy {
                 WatchOfflineWorkoutStore.save($0)
             }
             if endsWorkoutOnReplay {
-                replayContextHandler?(.clear)
+                replayContextHandler?(.clear(workoutId: pending.id))
             } else if let workoutId = pending.serverWorkoutId {
                 try await reconcilePendingWorkout(&pending, token: token)
                 if let fetched = try await fetchWorkoutPayload(workoutId: workoutId, token: token) {

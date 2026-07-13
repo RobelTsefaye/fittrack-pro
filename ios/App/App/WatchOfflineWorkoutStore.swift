@@ -139,6 +139,7 @@ struct PendingOfflineWorkout: Codable {
     let planSessionId: String
     var name: String
     let startedAt: String
+    var endedAt: String?
     var workoutExercises: [OfflineWorkoutExercise]
     var restTimerAdjustSeconds: Double
     var queue: [WatchQueuedOp]

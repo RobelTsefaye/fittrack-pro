@@ -24,6 +24,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "clearWorkoutState", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "pushPlanCatalog", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getPendingOfflineWorkout", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getTerminalOfflineWorkouts", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "updatePendingOfflineWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "completePendingOfflineWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancelPendingOfflineWorkout", returnType: CAPPluginReturnPromise),
@@ -69,9 +70,10 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             case .setRecovery(let score, let level):
                 self.latestContext["recoveryScore"] = score
                 self.latestContext["recoveryLevel"] = level
-            case .clear:
+            case .clear(let workoutId):
                 self.latestContext["active"] = false
                 self.latestContext.removeValue(forKey: "activeWorkout")
+                self.publishWorkoutEnded(workoutId: workoutId)
             }
             self.pushContextToWatch()
         }
@@ -122,21 +124,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         // primitive already used for the Watch → phone "cardioSaved" signal
         // below — so this reaches PhoneWorkoutObserver.didReceiveUserInfo
         // independently of whatever state pushContext's context dict is in.
-        var clearedInfo: [String: Any] = ["type": "workoutCleared"]
-        if let workoutId = call.getString("workoutId") {
-            clearedInfo["workoutId"] = workoutId
-        }
-        WCSession.default.transferUserInfo(clearedInfo)
-        // Also fire a `sendMessage` — the one channel WatchConnectivity
-        // actually delivers instantly, but only while the Watch is reachable
-        // (roughly: its screen is on and it's in Bluetooth/WiFi range), and
-        // silently doesn't send at all otherwise. That's fine here: it's
-        // purely a latency shortcut for "stop the HR session right now" when
-        // the Watch is actually on the wrist to receive it — transferUserInfo
-        // above is what guarantees eventual delivery regardless.
-        if WCSession.default.isReachable {
-            WCSession.default.sendMessage(clearedInfo, replyHandler: nil, errorHandler: nil)
-        }
+        publishWorkoutEnded(workoutId: call.getString("workoutId"))
         pushContext(call)
     }
 
@@ -177,6 +165,16 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         call.resolve(["pendingJSON": json])
     }
 
+    @objc func getTerminalOfflineWorkouts(_ call: CAPPluginCall) {
+        let workouts = WatchOfflineWorkoutStore.loadTerminalWorkouts()
+        guard let data = try? JSONEncoder().encode(workouts),
+              let json = String(data: data, encoding: .utf8) else {
+            call.resolve(["terminalJSON": "[]"])
+            return
+        }
+        call.resolve(["terminalJSON": json])
+    }
+
     /// Saves an edit made in the phone's normal workout editor to the native
     /// Watch queue. It deliberately does not touch IndexedDB: there must be
     /// exactly one replay queue for a Watch-started offline workout.
@@ -197,6 +195,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("Offline-Training nicht gefunden")
             return
         }
+        pending.endedAt = ISO8601DateFormatter().string(from: Date())
         if !pending.queue.contains(where: { $0.kind == .completeWorkout }) {
             pending.queue.append(WatchQueuedOp(kind: .completeWorkout))
         }
@@ -414,6 +413,21 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    /// Clears all timer surfaces, not only the Watch application context.
+    /// `updateApplicationContext` can be delayed, so terminal native replay
+    /// also sends the reliable user-info signal and notifies the WebView.
+    private func publishWorkoutEnded(workoutId: String?) {
+        var clearedInfo: [String: Any] = ["type": "workoutCleared"]
+        if let workoutId { clearedInfo["workoutId"] = workoutId }
+        WCSession.default.transferUserInfo(clearedInfo)
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage(clearedInfo, replyHandler: nil, errorHandler: nil)
+        }
+        var payload: [String: Any] = [:]
+        if let workoutId { payload["workoutId"] = workoutId }
+        notifyListeners("watchWorkoutEnded", data: payload)
+    }
+
     /// Same as `pushContext(_:)` but callable from the native request proxy
     /// below, which has no `CAPPluginCall` to resolve/reject (it isn't
     /// triggered by a JS call at all).
@@ -520,9 +534,10 @@ extension WatchConnectivityPlugin: WCSessionDelegate {
                         self.latestContext["recoveryScore"] = score
                         self.latestContext["recoveryLevel"] = level
                         self.latestContext["recoveryUpdatedAt"] = Date().timeIntervalSince1970
-                    case .clear:
+                    case .clear(let workoutId):
                         self.latestContext["active"] = false
                         self.latestContext.removeValue(forKey: "activeWorkout")
+                        self.publishWorkoutEnded(workoutId: workoutId)
                     }
                     self.pushContextToWatch()
                 }
