@@ -1,18 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import { useSession } from "next-auth/react";
 import type { PreviousLogEntry } from "@/features/workouts/previous-logs-types";
 import { savePreviousLogsCache } from "@/lib/offline/screen-caches";
 
 /** Opportunistically seeds all prior exercise logs while online, rather than
  * waiting until each exercise happens to appear in an active workout. */
 export function PreviousLogsCacheWarmer() {
-  const { status } = useSession();
-
   useEffect(() => {
-    if (status !== "authenticated") return;
-
     let cancelled = false;
     async function warm() {
       if (typeof navigator === "undefined" || !navigator.onLine) return;
@@ -32,7 +27,7 @@ export function PreviousLogsCacheWarmer() {
       cancelled = true;
       window.removeEventListener("online", warm);
     };
-  }, [status]);
+  }, []);
 
   return null;
 }

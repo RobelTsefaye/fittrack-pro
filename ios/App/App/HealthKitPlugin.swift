@@ -227,7 +227,11 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             (.restingHeartRate, "restingHeartRate", HKUnit.count().unitDivided(by: .minute())),
             (.heartRate, "heartRateAvg", HKUnit.count().unitDivided(by: .minute())),
             (.respiratoryRate, "respiratoryRate", HKUnit.count().unitDivided(by: .minute())),
-            (.vo2Max, "vo2Max", HKUnit(from: "ml/kg/min")),
+            // HealthKit's canonical VO₂max dimension is ml/(kg*min). The
+            // slash-separated spelling used previously is a different unit
+            // expression; passing it to `doubleValue(for:)` can raise an
+            // Objective-C exception and terminate the app.
+            (.vo2Max, "vo2Max", HKUnit(from: "ml/kg*min")),
         ]
         let sumFields: [(HKQuantityTypeIdentifier, String, HKUnit)] = [
             (.stepCount, "steps", .count()),
@@ -250,6 +254,10 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
 
         func runStatsQuery(id: HKQuantityTypeIdentifier, field: String, unit: HKUnit, option: HKStatisticsOptions, extract: @escaping (HKStatistics) -> Double?) {
             guard let type = HKObjectType.quantityType(forIdentifier: id) else { return }
+            // `HKQuantity.doubleValue(for:)` raises an Objective-C exception
+            // for incompatible units, which Swift cannot catch. Skip only
+            // this metric rather than risking the entire native process.
+            guard type.is(compatibleWith: unit) else { return }
             group.enter()
             var interval = DateComponents()
             interval.day = 1
@@ -285,6 +293,7 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         // bug by 12 hours instead of fixing it.
         func runOvernightVitalQuery(id: HKQuantityTypeIdentifier, field: String, extract: @escaping (HKStatistics) -> Double?) {
             guard let type = HKObjectType.quantityType(forIdentifier: id) else { return }
+            guard type.is(compatibleWith: HKUnit(from: "degC")) else { return }
             group.enter()
             var interval = DateComponents()
             interval.day = 1
@@ -321,6 +330,7 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         // so iPhone-only days do not disappear from the app.
         func runPreferredSourceSumQuery(id: HKQuantityTypeIdentifier, field: String, unit: HKUnit) {
             guard let type = HKObjectType.quantityType(forIdentifier: id) else { return }
+            guard type.is(compatibleWith: unit) else { return }
             group.enter()
             var interval = DateComponents()
             interval.day = 1
