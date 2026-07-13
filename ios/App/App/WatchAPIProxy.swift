@@ -429,7 +429,7 @@ enum WatchAPIProxy {
     /// must not monopolize the active slot while it waits for connectivity.
     @discardableResult
     static func flushPendingOfflineWorkout() async -> Bool {
-        guard let token = SyncTokenStore.load() else { return false }
+        guard let token = SyncTokenStore.loadForBackgroundUse() else { return false }
 
         for var terminal in WatchOfflineWorkoutStore.loadTerminalWorkouts() {
             let wasCompleted = terminal.queue.contains { $0.kind == .completeWorkout }

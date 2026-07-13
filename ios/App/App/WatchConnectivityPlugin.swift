@@ -562,7 +562,7 @@ extension WatchConnectivityPlugin: WCSessionDelegate {
             return
         }
 
-        if let token = SyncTokenStore.load() {
+        if let token = SyncTokenStore.loadForBackgroundUse() {
             Task {
                 let (reply, contextUpdate) = await WatchAPIProxy.handle(type: type, message: message, token: token)
                 if let contextUpdate {
@@ -636,7 +636,7 @@ extension WatchConnectivityPlugin: WCSessionDelegate {
     /// foreground / no-token case. Fire-and-forget — a dropped sample is
     /// superseded by the next one ~1s later.
     private func relayCardioLiveToServer(_ message: [String: Any]) {
-        guard let token = SyncTokenStore.load() else { return }
+        guard let token = SyncTokenStore.loadForBackgroundUse() else { return }
         guard let url = URL(string: Self.serverBaseURL + "/api/cardio/live") else { return }
 
         var body: [String: Any] = [
@@ -670,7 +670,7 @@ extension WatchConnectivityPlugin: WCSessionDelegate {
     /// the request handling above.
     public func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         guard userInfo["type"] as? String == "cardioSaved" else { return }
-        if let token = SyncTokenStore.load() {
+        if let token = SyncTokenStore.loadForBackgroundUse() {
             Task {
                 // Small grace period: the workout the Watch just saved needs a
                 // moment to replicate into the phone's HealthKit store. If

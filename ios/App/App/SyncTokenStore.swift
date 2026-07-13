@@ -49,4 +49,18 @@ enum SyncTokenStore {
         ]
         SecItemDelete(query as CFDictionary)
     }
+
+    /// Token to use for native/background authenticated requests (Watch replay,
+    /// background HealthKit sync, cardio proxy). The dedicated background-sync
+    /// token above is *opt-in* — a user only has one after manually enabling
+    /// "Für Hintergrund-Sync verwenden" in Settings. Every logged-in native
+    /// install, however, already has a valid `NativeAuthTokenStore` login token
+    /// that the server accepts as an identical `Authorization: Bearer` API
+    /// token. Falling back to it means Watch-started offline workouts actually
+    /// upload for every signed-in user instead of silently staying queued
+    /// forever (the workout never reaches the server → "Workout not found")
+    /// whenever background sync was never explicitly enabled.
+    static func loadForBackgroundUse() -> String? {
+        return load() ?? NativeAuthTokenStore.load()
+    }
 }
