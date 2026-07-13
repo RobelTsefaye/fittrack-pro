@@ -388,7 +388,7 @@ enum WatchAPIProxy {
                     id: UUID().uuidString,
                     exercise: template.exercise,
                     sets: (1...max(0, template.targetSets)).map { number in
-                        OfflineWorkoutSet(id: UUID().uuidString, setNumber: number, weight: nil, reps: nil, isCompleted: false, completedAt: nil)
+                        OfflineWorkoutSet(id: UUID().uuidString, setNumber: number, weight: nil, reps: nil, isWarmup: false, isCompleted: false, completedAt: nil)
                     }
                 )
             },
@@ -419,26 +419,35 @@ enum WatchAPIProxy {
                         pending.serverWorkoutId = started.data.id
                         guard let fetched = try await fetchWorkoutPayload(workoutId: started.data.id, token: token) else { throw RequestError.decode }
                         let serverExercises = fetched.workout.workoutExercises
-                        guard serverExercises.count == pending.workoutExercises.count else { throw RequestError.decode }
-                        for (index, localExercise) in pending.workoutExercises.enumerated() {
-                            let serverExercise = serverExercises[index]
+                        // The phone may have added/removed exercises or sets
+                        // before the connection returned. Map the common
+                        // prefix now; `reconcilePendingWorkout` below creates
+                        // and removes the rest once the server workout exists.
+                        var unmatchedServerExercises = serverExercises
+                        for localExercise in pending.workoutExercises {
+                            // Match by exercise identity instead of just
+                            // position: deleting exercise 1 on the phone
+                            // before first replay must not turn exercise 2
+                            // into exercise 1 on the server.
+                            guard let serverIndex = unmatchedServerExercises.firstIndex(where: {
+                                $0.exercise.id == localExercise.exercise.id
+                            }) else { continue }
+                            let serverExercise = unmatchedServerExercises.remove(at: serverIndex)
                             pending.workoutExerciseIdMap[localExercise.id] = serverExercise.id
-                            guard serverExercise.sets.count == localExercise.sets.count else { throw RequestError.decode }
-                            for (setIndex, localSet) in localExercise.sets.enumerated() {
+                            for (setIndex, localSet) in localExercise.sets.enumerated() where setIndex < serverExercise.sets.count {
                                 pending.setIdMap[localSet.id] = serverExercise.sets[setIndex].id
                             }
                         }
                     }
                 case .patchSet:
-                    guard let workoutId = pending.serverWorkoutId,
-                          let localSetId = op.clientSetId,
-                          let serverSetId = pending.setIdMap[localSetId] else { throw RequestError.decode }
-                    var body: [String: Any] = ["isCompleted": op.isCompleted ?? true]
-                    if let weight = op.weight { body["weight"] = weight }
-                    if let reps = op.reps { body["reps"] = reps }
-                    let _: ApiSetPatchResponse = try await request("/api/workouts/\(workoutId)/sets/\(serverSetId)", method: "PATCH", token: token, body: body)
+                    // Desired state is persisted as a whole by the phone and
+                    // reconciled below. Keeping old per-set queue entries is
+                    // harmless and preserves compatibility with Watch-only
+                    // logging, but replaying them separately is redundant.
+                    break
                 case .completeWorkout:
                     guard let workoutId = pending.serverWorkoutId else { throw RequestError.decode }
+                    try await reconcilePendingWorkout(&pending, token: token)
                     try await requestNoContent("/api/workouts/\(workoutId)/complete", method: "POST", token: token)
                 case .deleteWorkout:
                     if let workoutId = pending.serverWorkoutId {
@@ -451,9 +460,11 @@ enum WatchAPIProxy {
 
             if endsWorkoutOnReplay {
                 replayContextHandler?(.clear)
-            } else if let workoutId = pending.serverWorkoutId,
-               let fetched = try await fetchWorkoutPayload(workoutId: workoutId, token: token) {
+            } else if let workoutId = pending.serverWorkoutId {
+                try await reconcilePendingWorkout(&pending, token: token)
+                if let fetched = try await fetchWorkoutPayload(workoutId: workoutId, token: token) {
                 replayContextHandler?(.setActiveWorkout(json: fetched.json))
+                }
             }
             WatchOfflineWorkoutStore.clear()
             return true
@@ -461,6 +472,88 @@ enum WatchAPIProxy {
             WatchOfflineWorkoutStore.save(pending)
             return false
         }
+    }
+
+    /// Applies the native queue's current desired workout shape after its
+    /// server workout exists. This makes the phone editor fully usable while
+    /// offline (including exercise/set add/remove and reordering) without a
+    /// competing JavaScript replay queue.
+    private static func reconcilePendingWorkout(_ pending: inout PendingOfflineWorkout, token: String) async throws {
+        guard let workoutId = pending.serverWorkoutId else { throw RequestError.decode }
+        guard var fetched = try await fetchWorkoutPayload(workoutId: workoutId, token: token) else { throw RequestError.decode }
+        var serverExercises = fetched.workout.workoutExercises
+
+        // Remove server exercises that no longer have a desired local peer.
+        let desiredExerciseIds = Set(pending.workoutExercises.map(\.id))
+        for (localId, serverId) in Array(pending.workoutExerciseIdMap) where !desiredExerciseIds.contains(localId) {
+            try await requestNoContent("/api/workouts/\(workoutId)/exercises/\(serverId)", method: "DELETE", token: token)
+            pending.workoutExerciseIdMap.removeValue(forKey: localId)
+        }
+        // A local delete can happen before the initial server workout is ever
+        // created, so it has no old local→server mapping yet. Any remaining
+        // unmapped initial row is therefore intentionally absent locally.
+        let mappedExerciseIds = Set(pending.workoutExerciseIdMap.values)
+        for server in serverExercises where !mappedExerciseIds.contains(server.id) {
+            try await requestNoContent("/api/workouts/\(workoutId)/exercises/\(server.id)", method: "DELETE", token: token)
+        }
+
+        // Add exercise rows that were created from the phone while offline.
+        for local in pending.workoutExercises where pending.workoutExerciseIdMap[local.id] == nil {
+            let created: ApiIdResponse = try await request(
+                "/api/workouts/\(workoutId)/exercises", method: "POST", token: token,
+                body: ["exerciseId": local.exercise.id]
+            )
+            pending.workoutExerciseIdMap[local.id] = created.data.id
+        }
+
+        guard let refreshed = try await fetchWorkoutPayload(workoutId: workoutId, token: token) else { throw RequestError.decode }
+        fetched = refreshed
+        serverExercises = fetched.workout.workoutExercises
+        let serverById = Dictionary(uniqueKeysWithValues: serverExercises.map { ($0.id, $0) })
+
+        for localExercise in pending.workoutExercises {
+            guard let serverExerciseId = pending.workoutExerciseIdMap[localExercise.id],
+                  let serverExercise = serverById[serverExerciseId] else { throw RequestError.decode }
+            let desiredSetIds = Set(localExercise.sets.map(\.id))
+            for (localSetId, serverSetId) in Array(pending.setIdMap) where !desiredSetIds.contains(localSetId) {
+                // Only delete mappings belonging to this exercise. A set id
+                // is globally unique, so checking the current server row is
+                // sufficient and avoids touching another exercise's sets.
+                if serverExercise.sets.contains(where: { $0.id == serverSetId }) {
+                    try await requestNoContent("/api/workouts/\(workoutId)/sets/\(serverSetId)", method: "DELETE", token: token)
+                    pending.setIdMap.removeValue(forKey: localSetId)
+                }
+            }
+            let mappedServerSetIds = Set(localExercise.sets.compactMap { pending.setIdMap[$0.id] })
+            for serverSet in serverExercise.sets where !mappedServerSetIds.contains(serverSet.id) {
+                try await requestNoContent("/api/workouts/\(workoutId)/sets/\(serverSet.id)", method: "DELETE", token: token)
+            }
+            for localSet in localExercise.sets where pending.setIdMap[localSet.id] == nil {
+                let created: ApiCreateSetResponse = try await request(
+                    "/api/workouts/\(workoutId)/exercises/\(serverExerciseId)/sets", method: "POST", token: token,
+                    body: localSet.isWarmup ? ["isWarmup": true] : [:]
+                )
+                pending.setIdMap[localSet.id] = created.data.set.id
+            }
+        }
+
+        // Re-fetch after creates/deletes, then patch every desired set. This
+        // is idempotent and also covers Watch-only logs made before the phone
+        // editor was opened.
+        for localExercise in pending.workoutExercises {
+            for localSet in localExercise.sets {
+                guard let serverSetId = pending.setIdMap[localSet.id] else { throw RequestError.decode }
+                var body: [String: Any] = ["isCompleted": localSet.isCompleted]
+                if let weight = localSet.weight { body["weight"] = weight }
+                if let reps = localSet.reps { body["reps"] = reps }
+                let _: ApiSetPatchResponse = try await request("/api/workouts/\(workoutId)/sets/\(serverSetId)", method: "PATCH", token: token, body: body)
+            }
+        }
+        let order = pending.workoutExercises.compactMap { pending.workoutExerciseIdMap[$0.id] }
+        if order.count == pending.workoutExercises.count {
+            try await requestNoContent("/api/workouts/\(workoutId)/exercises/reorder", method: "POST", token: token, body: ["ids": order])
+        }
+        WatchOfflineWorkoutStore.save(pending)
     }
 
     private static func buildOfflineWatchWorkoutPayload(_ pending: PendingOfflineWorkout) -> [String: Any] {
@@ -474,7 +567,7 @@ enum WatchAPIProxy {
                     "id": exercise.id,
                     "exercise": ["id": exercise.exercise.id, "name": exercise.exercise.name, "muscleGroup": exercise.exercise.muscleGroup],
                     "sets": exercise.sets.map { set in
-                        ["id": set.id, "setNumber": set.setNumber, "reps": nullable(set.reps), "weight": nullable(set.weight), "isCompleted": set.isCompleted, "isWarmup": false, "previousWeight": NSNull(), "previousReps": NSNull()]
+                        ["id": set.id, "setNumber": set.setNumber, "reps": nullable(set.reps), "weight": nullable(set.weight), "isCompleted": set.isCompleted, "isWarmup": set.isWarmup, "previousWeight": NSNull(), "previousReps": NSNull()]
                     },
                 ]
             },
@@ -510,8 +603,8 @@ enum WatchAPIProxy {
         return decoded
     }
 
-    private static func requestNoContent(_ path: String, method: String, token: String) async throws {
-        _ = try await rawRequest(path, method: method, token: token, body: nil)
+    private static func requestNoContent(_ path: String, method: String, token: String, body: [String: Any]? = nil) async throws {
+        _ = try await rawRequest(path, method: method, token: token, body: body)
     }
 
     private static func rawRequest(
@@ -682,6 +775,10 @@ private struct ApiPreviousSetEntry: Decodable {
 private struct ApiSetPatchResponse: Decodable {
     let personalRecord: Bool
 }
+private struct ApiCreateSetResponse: Decodable {
+    let data: ApiCreatedSet
+}
+private struct ApiCreatedSet: Decodable { let set: ApiId }
 
 private extension HKWorkoutActivityType {
     /// Same mapping as HealthKitPlugin.displayName (fileprivate there) — the

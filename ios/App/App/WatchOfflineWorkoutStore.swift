@@ -37,12 +37,75 @@ enum WatchOfflineWorkoutStore {
               let data = try? JSONEncoder().encode(catalog) else { return nil }
         return String(data: data, encoding: .utf8)
     }
+
+    /// The phone editor works with the same lightweight workout shape as the
+    /// web app. Persist its desired state here, rather than putting it in the
+    /// WebView's IndexedDB queue: this native queue is the sole replay owner.
+    @discardableResult
+    static func updatePending(fromWorkoutJSON json: String) -> PendingOfflineWorkout? {
+        guard var pending = load(),
+              let data = json.data(using: .utf8),
+              let editor = try? JSONDecoder().decode(OfflineEditorWorkout.self, from: data),
+              editor.id == pending.id else { return nil }
+
+        pending.name = editor.name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? editor.name!.trimmingCharacters(in: .whitespacesAndNewlines)
+            : pending.name
+        pending.workoutExercises = editor.workoutExercises.enumerated().map { index, exercise in
+            OfflineWorkoutExercise(
+                id: exercise.id,
+                exercise: OfflineExerciseInfo(
+                    id: exercise.exercise.id,
+                    name: exercise.exercise.name,
+                    muscleGroup: exercise.exercise.muscleGroup
+                ),
+                sets: exercise.sets.map { set in
+                    OfflineWorkoutSet(
+                        id: set.id,
+                        setNumber: set.setNumber,
+                        weight: set.weight,
+                        reps: set.reps,
+                        isWarmup: set.isWarmup,
+                        isCompleted: set.isCompleted,
+                        completedAt: set.completedAt
+                    )
+                }
+            )
+        }
+        save(pending)
+        return pending
+    }
+}
+
+private struct OfflineEditorWorkout: Decodable {
+    let id: String
+    let name: String?
+    let workoutExercises: [OfflineEditorExercise]
+}
+private struct OfflineEditorExercise: Decodable {
+    let id: String
+    let exercise: OfflineEditorExerciseInfo
+    let sets: [OfflineEditorSet]
+}
+private struct OfflineEditorExerciseInfo: Decodable {
+    let id: String
+    let name: String
+    let muscleGroup: String
+}
+private struct OfflineEditorSet: Decodable {
+    let id: String
+    let setNumber: Int
+    let reps: Int?
+    let weight: Double?
+    let isWarmup: Bool
+    let isCompleted: Bool
+    let completedAt: String?
 }
 
 struct PendingOfflineWorkout: Codable {
     let id: String
     let planSessionId: String
-    let name: String
+    var name: String
     let startedAt: String
     var workoutExercises: [OfflineWorkoutExercise]
     var restTimerAdjustSeconds: Double
@@ -65,8 +128,34 @@ struct OfflineWorkoutSet: Codable {
     let setNumber: Int
     var weight: Double?
     var reps: Int?
+    var isWarmup: Bool
     var isCompleted: Bool
     var completedAt: String?
+
+    init(id: String, setNumber: Int, weight: Double?, reps: Int?, isWarmup: Bool = false, isCompleted: Bool, completedAt: String?) {
+        self.id = id
+        self.setNumber = setNumber
+        self.weight = weight
+        self.reps = reps
+        self.isWarmup = isWarmup
+        self.isCompleted = isCompleted
+        self.completedAt = completedAt
+    }
+
+    // Queues written before warm-up sets became editable have no `isWarmup`
+    // key. Decode those durable records as ordinary working sets instead of
+    // dropping an in-progress offline workout on app upgrade.
+    private enum CodingKeys: String, CodingKey { case id, setNumber, weight, reps, isWarmup, isCompleted, completedAt }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        setNumber = try values.decode(Int.self, forKey: .setNumber)
+        weight = try values.decodeIfPresent(Double.self, forKey: .weight)
+        reps = try values.decodeIfPresent(Int.self, forKey: .reps)
+        isWarmup = try values.decodeIfPresent(Bool.self, forKey: .isWarmup) ?? false
+        isCompleted = try values.decode(Bool.self, forKey: .isCompleted)
+        completedAt = try values.decodeIfPresent(String.self, forKey: .completedAt)
+    }
 }
 
 struct WatchQueuedOp: Codable {

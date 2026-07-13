@@ -24,6 +24,9 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "clearWorkoutState", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "pushPlanCatalog", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getPendingOfflineWorkout", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "updatePendingOfflineWorkout", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "completePendingOfflineWorkout", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "cancelPendingOfflineWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "syncRecoverySnapshot", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "respondToRequest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "startCardioSession", returnType: CAPPluginReturnPromise),
@@ -171,6 +174,49 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         call.resolve(["pendingJSON": json])
+    }
+
+    /// Saves an edit made in the phone's normal workout editor to the native
+    /// Watch queue. It deliberately does not touch IndexedDB: there must be
+    /// exactly one replay queue for a Watch-started offline workout.
+    @objc func updatePendingOfflineWorkout(_ call: CAPPluginCall) {
+        guard let workoutJSON = call.getString("workoutJSON"),
+              let pending = WatchOfflineWorkoutStore.updatePending(fromWorkoutJSON: workoutJSON),
+              let data = try? JSONEncoder().encode(pending),
+              let pendingJSON = String(data: data, encoding: .utf8) else {
+            call.reject("Offline-Training nicht gefunden")
+            return
+        }
+        call.resolve(["pendingJSON": pendingJSON])
+    }
+
+    @objc func completePendingOfflineWorkout(_ call: CAPPluginCall) {
+        guard let workoutId = call.getString("workoutId"),
+              var pending = WatchOfflineWorkoutStore.load(), pending.id == workoutId else {
+            call.reject("Offline-Training nicht gefunden")
+            return
+        }
+        if !pending.queue.contains(where: { $0.kind == .completeWorkout }) {
+            pending.queue.append(WatchQueuedOp(kind: .completeWorkout))
+            WatchOfflineWorkoutStore.save(pending)
+        }
+        call.resolve()
+    }
+
+    @objc func cancelPendingOfflineWorkout(_ call: CAPPluginCall) {
+        guard let workoutId = call.getString("workoutId"),
+              var pending = WatchOfflineWorkoutStore.load(), pending.id == workoutId else {
+            call.reject("Offline-Training nicht gefunden")
+            return
+        }
+        if pending.serverWorkoutId == nil {
+            WatchOfflineWorkoutStore.clear()
+        } else if !pending.queue.contains(where: { $0.kind == .deleteWorkout }) {
+            pending.queue.removeAll { $0.kind == .completeWorkout }
+            pending.queue.append(WatchQueuedOp(kind: .deleteWorkout))
+            WatchOfflineWorkoutStore.save(pending)
+        }
+        call.resolve()
     }
 
     /// Pushes the Recovery Score to the Watch for HealthDashboardView —

@@ -57,11 +57,57 @@ import {
 } from "@/lib/offline/workout-offline-store";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
 import { hapticWorkoutCompleted, hapticPersonalRecord } from "@/lib/native/haptics";
+import { Capacitor } from "@capacitor/core";
 import {
   syncActiveWorkoutToWatch,
   clearWatchWorkoutState,
   computeRestTimerEndsAt,
+  WatchConnectivity,
 } from "@/lib/native/watch-connectivity";
+
+type NativeWatchPending = {
+  id: string;
+  planSessionId: string;
+  name: string;
+  startedAt: string;
+  restTimerAdjustSeconds?: number;
+  queue?: Array<{ kind?: string }>;
+  workoutExercises: Array<{
+    id: string;
+    exercise: { id: string; name: string; muscleGroup: string };
+    sets: Array<{
+      id: string; setNumber: number; reps: number | null; weight: number | null;
+      isWarmup?: boolean; isCompleted: boolean; completedAt: string | null;
+    }>;
+  }>;
+};
+
+function nativeWatchPendingToWorkout(pending: NativeWatchPending): WorkoutData {
+  return {
+    id: pending.id,
+    name: pending.name,
+    notes: null,
+    startedAt: pending.startedAt,
+    completedAt: null,
+    durationSeconds: null,
+    planSessionId: pending.planSessionId,
+    restTimerDefaultSeconds: DEFAULT_REST_TIMER,
+    restTimerAdjustSeconds: pending.restTimerAdjustSeconds ?? 0,
+    workoutExercises: pending.workoutExercises.map((we, order) => ({
+      id: we.id,
+      exerciseId: we.exercise.id,
+      order,
+      notes: null,
+      isCompleted: false,
+      exercise: { ...we.exercise, equipment: "OTHER" },
+      sets: we.sets.map((set) => ({
+        ...set,
+        rpe: null,
+        isWarmup: set.isWarmup ?? false,
+      })),
+    })),
+  };
+}
 
 function formatShortDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -361,6 +407,10 @@ export function WorkoutDetail({
   );
   const [offlineOriginSession, setOfflineOriginSession] = useState(false);
   const [pendingQueue, setPendingQueue] = useState(false);
+  // A Watch-started workout that has not reached the server yet lives in the
+  // native App Group queue. Treat it as local for UI purposes, but never put
+  // a second copy of its operations in IndexedDB.
+  const [nativeWatchOffline, setNativeWatchOffline] = useState(false);
   // In-app replacement for window.confirm(): native WKWebView JS-dialog
   // panels can silently fail to appear (observed on-device stuck behind an
   // await that never resolves — no dialog, no error, no way to proceed) when
@@ -401,7 +451,7 @@ export function WorkoutDetail({
 
   const isActive = workout && !workout.completedAt;
   const weightLabel = weightUnit === "LB" ? "lb" : "kg";
-  const useLocalWrites = !netOnline || offlineOriginSession || pendingQueue;
+  const useLocalWrites = nativeWatchOffline || !netOnline || offlineOriginSession || pendingQueue;
 
   // Ordered exercise list — kept in sync with workout state
   const [exerciseIds, setExerciseIds] = useState<string[]>([]);
@@ -519,6 +569,17 @@ export function WorkoutDetail({
 
     setExerciseIds(newIds);
 
+    if (nativeWatchOffline) {
+      const byId = new Map(workout.workoutExercises.map((we) => [we.id, we]));
+      const next: WorkoutData = {
+        ...workout,
+        workoutExercises: newIds.map((id, i) => ({ ...byId.get(id)!, order: i + 1 })),
+      };
+      setWorkout(next);
+      await persistLocal(next, { t: "patch_workout", name: next.name });
+      return;
+    }
+
     // Reorder workout state locally
     setWorkout((prev) => {
       if (!prev) return prev;
@@ -587,6 +648,25 @@ export function WorkoutDetail({
     const isStale = () => requestId !== loadRequestIdRef.current;
 
     try {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { pendingJSON } = await WatchConnectivity.getPendingOfflineWorkout();
+          const pending = pendingJSON ? JSON.parse(pendingJSON) as NativeWatchPending : null;
+          const ended = pending?.queue?.some(({ kind }) => kind === "completeWorkout" || kind === "deleteWorkout");
+          if (pending?.id === workoutId && !ended) {
+            if (!isStale()) {
+              setWorkout(nativeWatchPendingToWorkout(pending));
+              setNativeWatchOffline(true);
+              setOfflineOriginSession(false);
+              setPendingQueue(false);
+            }
+            return;
+          }
+          if (!isStale()) setNativeWatchOffline(false);
+        } catch {
+          // The normal server/IndexedDB paths below remain available.
+        }
+      }
       const queued = await listQueueForWorkout(workoutId);
       if (queued.length > 0) {
         const snap = await loadWorkoutSnapshot(workoutId);
@@ -732,6 +812,10 @@ export function WorkoutDetail({
   }, [workout?.id]);
 
   async function persistLocal(next: WorkoutData, op: Parameters<typeof enqueueWorkoutOp>[1]) {
+    if (nativeWatchOffline) {
+      await WatchConnectivity.updatePendingOfflineWorkout({ workoutJSON: JSON.stringify(next) });
+      return;
+    }
     await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
     await enqueueWorkoutOp(workoutId, op);
     setPendingQueue(true);
@@ -825,6 +909,12 @@ export function WorkoutDetail({
         workoutExercises: [...workout.workoutExercises, newWe],
       };
       setWorkout(next);
+      if (nativeWatchOffline) {
+        await persistLocal(next, { t: "post_exercise", exerciseId: ex.id, clientWeId: weId });
+        setAddingExercise(false);
+        setPickerOpen(false);
+        return;
+      }
       await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
       await enqueueWorkoutOp(workoutId, { t: "post_exercise", exerciseId: ex.id, clientWeId: weId });
       await enqueueWorkoutOp(workoutId, {
@@ -968,6 +1058,22 @@ export function WorkoutDetail({
 
   async function completeWorkout() {
     if (!(await askConfirm(t("workouts.finishConfirm")))) return;
+    if (nativeWatchOffline && workout) {
+      setCompleting(true);
+      restTimer.stop();
+      try {
+        await WatchConnectivity.completePendingOfflineWorkout({ workoutId });
+        notifyActiveWorkoutChanged();
+        void clearWatchWorkoutState(workoutId);
+        void hapticWorkoutCompleted();
+        router.push(ROUTES.workouts);
+      } catch {
+        window.alert(t("workouts.finishFailed"));
+      } finally {
+        setCompleting(false);
+      }
+      return;
+    }
     if (useLocalWrites && workout) {
       setCompleting(true);
       const completedAt = new Date().toISOString();
@@ -1212,6 +1318,18 @@ export function WorkoutDetail({
     // here strands the Watch in a KraftLoggingView for a workout that no
     // longer exists (the complete path already does this; cancel didn't).
     void clearWatchWorkoutState(workoutId);
+
+    if (nativeWatchOffline) {
+      try {
+        await WatchConnectivity.cancelPendingOfflineWorkout({ workoutId });
+        notifyActiveWorkoutChanged();
+        window.location.href = ROUTES.workouts;
+      } catch {
+        window.alert(t("workouts.cancelWorkoutFailed"));
+        setCancelling(false);
+      }
+      return;
+    }
 
     // Offline / local-writes path: just wipe IndexedDB and queue, then navigate
     if (useLocalWrites || offlineOriginSession) {
