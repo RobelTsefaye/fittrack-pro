@@ -160,12 +160,12 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 if !current.isEmpty { sessions.append(current) }
             }
 
-            struct SessionTotals { let day: String; let source: String; let deep: Double; let rem: Double; let asleep: Double; let start: Date; let end: Date }
+            struct SessionTotals { let day: String; let source: String; let deep: Double; let rem: Double; let asleep: Double; let inBed: Double; let start: Date; let end: Date }
             let sessionTotals: [SessionTotals] = sessions.compactMap { session in
                 guard let source = session.first?.source,
                       let sessionEnd = session.map(\.end).max(),
                       let sessionStart = session.map(\.start).min() else { return nil }
-                var deep = 0.0, rem = 0.0, asleep = 0.0
+                var deep = 0.0, rem = 0.0, asleep = 0.0, inBed = 0.0
                 for s in session {
                     let hours = s.end.timeIntervalSince(s.start) / 3600.0
                     switch s.value {
@@ -174,24 +174,30 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                     case HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue,
                          HKCategoryValueSleepAnalysis.asleepCore.rawValue,
                          HKCategoryValueSleepAnalysis.asleep.rawValue: asleep += hours
+                    case HKCategoryValueSleepAnalysis.inBed.rawValue: inBed += hours
                     default: break
                     }
                 }
                 // The whole session belongs to the day it ENDS on (wake-up day),
                 // not the day any individual sample within it ends on.
-                return SessionTotals(day: dateKey(sessionEnd), source: source, deep: deep, rem: rem, asleep: asleep, start: sessionStart, end: sessionEnd)
+                return SessionTotals(day: dateKey(sessionEnd), source: source, deep: deep, rem: rem, asleep: asleep, inBed: inBed, start: sessionStart, end: sessionEnd)
             }
 
             // Pick the winning session per day: prefer stage detail (deep+rem > 0),
             // tie-break by total sleep duration. This also naturally picks the
             // main overnight session over a same-day nap in the rare case both
             // end up attributed to the same wake-up day.
-            var bestByDay: [String: (deep: Double, rem: Double, total: Double, hasStages: Bool, start: Date)] = [:]
+            var bestByDay: [String: (deep: Double, rem: Double, total: Double, hasStages: Bool, start: Date, end: Date)] = [:]
             for session in sessionTotals {
-                let total = session.deep + session.rem + session.asleep
+                // Some sources provide only an in-bed interval, while Apple
+                // Watch supplies sleep stages. Prefer the stage/asleep total
+                // whenever available; otherwise retain the in-bed interval as
+                // the documented final fallback instead of dropping the night.
+                let stagedTotal = session.deep + session.rem + session.asleep
+                let total = stagedTotal > 0 ? stagedTotal : session.inBed
                 guard total > 0 else { continue }
                 let hasStages = session.deep > 0 || session.rem > 0
-                let candidate = (deep: session.deep, rem: session.rem, total: total, hasStages: hasStages, start: session.start)
+                let candidate = (deep: session.deep, rem: session.rem, total: total, hasStages: hasStages, start: session.start, end: session.end)
                 if let current = bestByDay[session.day] {
                     let candidateWins = (hasStages && !current.hasStages) || (hasStages == current.hasStages && total > current.total)
                     if candidateWins { bestByDay[session.day] = candidate }
@@ -217,6 +223,7 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 // import used, just computed straight from the sleep session
                 // instead of relying on a third-party app to have sent it.
                 results[dayKey]?["sleepBedtime"] = bedtimeFormatter.string(from: best.start)
+                results[dayKey]?["sleepWakeTime"] = bedtimeFormatter.string(from: best.end)
             }
             } // resultsQueue.sync
         }

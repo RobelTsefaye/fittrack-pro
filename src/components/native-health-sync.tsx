@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useSession } from "next-auth/react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { requestHealthKitAuthorization, syncHealthKitData } from "@/lib/native/healthkit";
@@ -53,13 +52,10 @@ function writePersistedAuthorized() {
  * as a fallback for web/PWA, where 'resume' isn't available.
  */
 export function NativeHealthSync() {
-  const { status } = useSession();
   const lastSyncRef = useRef(0);
   const authorizedRef = useRef(readPersistedAuthorized());
 
   useEffect(() => {
-    if (status !== "authenticated") return;
-
     async function sync() {
       const now = Date.now();
       if (now - lastSyncRef.current < MIN_SYNC_INTERVAL_MS) return;
@@ -110,7 +106,7 @@ export function NativeHealthSync() {
       window.clearInterval(hourlySync);
       removeResumeListener?.();
     };
-  }, [status]);
+  }, []);
 
   return null;
 }
