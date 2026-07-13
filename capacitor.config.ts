@@ -13,6 +13,10 @@ const config: CapacitorConfig = {
   webDir: 'out',
   ios: {
     contentInset: 'automatic',
+    // Capacitor's debug bridge logs plugin responses verbatim. Native auth
+    // tokens travel through that bridge from the Keychain to JS, so keeping
+    // logging enabled would expose them in Xcode/Console output.
+    loggingBehavior: 'none',
   },
   // Deliberately NOT enabling `plugins.CapacitorHttp` here — that flag makes
   // Capacitor patch `window.fetch`/`XMLHttpRequest` globally, which also
