@@ -253,8 +253,10 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
     /// internet access later can otherwise leave a finished workout queued.
     @objc func flushPendingOfflineWorkout(_ call: CAPPluginCall) {
         Task {
-            let flushed = await WatchAPIProxy.flushPendingOfflineWorkout()
-            call.resolve(["flushed": flushed])
+            let result = await WatchAPIProxy.flushPendingOfflineWorkout()
+            var payload: [String: Any] = ["flushed": result.ok]
+            if let error = result.error { payload["error"] = error }
+            call.resolve(payload)
         }
     }
 

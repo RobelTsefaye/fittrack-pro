@@ -459,8 +459,8 @@ enum WatchAPIProxy {
     /// that arrives mid-flush is dropped here; the next trigger (they fire
     /// often) drains whatever it added.
     @discardableResult
-    static func flushPendingOfflineWorkout() async -> Bool {
-        guard await flushGate.begin() else { return true }
+    static func flushPendingOfflineWorkout() async -> (ok: Bool, error: String?) {
+        guard await flushGate.begin() else { return (true, nil) }
         let result = await performFlush()
         await flushGate.end()
         return result
@@ -469,10 +469,13 @@ enum WatchAPIProxy {
     private static let flushGate = FlushGate()
 
     @discardableResult
-    private static func performFlush() async -> Bool {
-        guard let token = SyncTokenStore.loadForBackgroundUse() else { return false }
+    private static func performFlush() async -> (ok: Bool, error: String?) {
+        guard let token = SyncTokenStore.loadForBackgroundUse() else {
+            return (false, "Kein Login-Token verfügbar")
+        }
 
         var allSucceeded = true
+        var lastError: String?
         for var terminal in WatchOfflineWorkoutStore.loadTerminalWorkouts() {
             let wasCompleted = terminal.queue.contains { $0.kind == .completeWorkout }
             do {
@@ -500,11 +503,12 @@ enum WatchAPIProxy {
                 // move on — it's retried on the next flush.
                 WatchOfflineWorkoutStore.updateTerminalWorkout(terminal)
                 allSucceeded = false
+                lastError = describeError(error)
                 continue
             }
         }
 
-        guard var pending = WatchOfflineWorkoutStore.load() else { return allSucceeded }
+        guard var pending = WatchOfflineWorkoutStore.load() else { return (allSucceeded, lastError) }
         do {
             let endsWorkoutOnReplay = try await replayPendingWorkout(&pending, token: token) {
                 WatchOfflineWorkoutStore.save($0)
@@ -522,10 +526,10 @@ enum WatchAPIProxy {
                 }
             }
             WatchOfflineWorkoutStore.clear()
-            return allSucceeded
+            return (allSucceeded, lastError)
         } catch {
             WatchOfflineWorkoutStore.save(pending)
-            return false
+            return (false, describeError(error))
         }
     }
 
@@ -765,7 +769,19 @@ enum WatchAPIProxy {
         if case RequestError.http(let status) = error {
             return "Anfrage fehlgeschlagen (\(status))"
         }
-        return "Netzwerkfehler"
+        if case RequestError.decode = error {
+            // Thrown when a server response's shape didn't match what the
+            // replay expected — e.g. a set/exercise count mismatch during id
+            // remapping (WatchAPIProxy.reconcilePendingWorkout). Distinct
+            // from a plain network failure so a stuck-forever job is
+            // diagnosable from the toast alone, without an attached Xcode
+            // console.
+            return "Antwort nicht wie erwartet (decode)"
+        }
+        if case RequestError.badURL = error {
+            return "Ungültige URL"
+        }
+        return "Netzwerkfehler: \((error as NSError).localizedDescription)"
     }
 
     // MARK: - Payload shaping (mirrors toWatchWorkoutPayload in watch-connectivity.ts)

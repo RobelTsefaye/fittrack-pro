@@ -51,7 +51,14 @@ export function OfflineSyncProvider() {
         // Wi-Fi connection that regains internet without a new NWPath change.
         if (Capacitor.isNativePlatform()) {
           try {
-            await WatchConnectivity.flushPendingOfflineWorkout();
+            const watchResult = await WatchConnectivity.flushPendingOfflineWorkout();
+            // Surface a persistently failing Watch sync (e.g. a stuck
+            // "SYNC" badge in the Workouts list) instead of silently
+            // retrying forever with no diagnostic trail — mirrors the
+            // toast the IndexedDB queue flush already shows below.
+            if (!watchResult.flushed && watchResult.error) {
+              toast.error(`Watch-Sync fehlgeschlagen: ${watchResult.error}`);
+            }
           } catch {
             // The regular queue flush below still runs; native retry is best-effort.
           }
