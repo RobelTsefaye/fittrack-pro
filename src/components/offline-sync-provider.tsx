@@ -69,14 +69,26 @@ export function OfflineSyncProvider() {
           // looking at a route that's about to stop resolving locally, but
           // only announce full success with the toast.
           if (result.newServerWorkoutId) {
+            // On native, a workout page is always `/workouts/_?id=<routeId>`
+            // (see workout-href.ts) — the real route only resolves as a
+            // query param, never as a `/workouts/<routeId>` path segment.
+            // Comparing against the web-style path here always missed on
+            // native, so the redirect below never fired: the page stayed on
+            // the now-stale local id, its own "fittrack-offline-synced"
+            // listener (workout-detail.tsx) re-fetched that id, and the
+            // server correctly said 404 — surfacing "Workout not found" for
+            // an offline workout that had in fact synced successfully.
             const prefix = `/workouts/${routeId}`;
+            const onThisWorkout = Capacitor.isNativePlatform()
+              ? pathname === "/workouts/_" &&
+                new URLSearchParams(window.location.search).get("id") === routeId
+              : pathname === prefix || pathname.startsWith(`${prefix}/`);
             if (
-              pathname === prefix ||
-              pathname.startsWith(`${prefix}/`) ||
+              onThisWorkout ||
               // Offline workouts render inline on /workouts/new
               pathname === "/workouts/new"
             ) {
-              router.replace(`/workouts/${result.newServerWorkoutId}`);
+              router.replace(workoutHref(result.newServerWorkoutId));
             }
             if (result.ok) toast.success("Offline workout saved to your account.");
           }
