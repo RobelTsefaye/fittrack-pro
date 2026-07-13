@@ -10,6 +10,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Must register BEFORE applicationDidFinishLaunching returns — BGTaskScheduler
         // throws at runtime if you register a task identifier any later than this.
         BackgroundSyncManager.register()
+        OfflineWorkoutReachabilityMonitor.shared.start()
         return true
     }
 
