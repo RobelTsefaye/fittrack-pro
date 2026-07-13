@@ -55,6 +55,9 @@ enum BackgroundSyncManager {
 
     private static func performSync() async -> Bool {
         guard let token = SyncTokenStore.load() else { return false }
+        // The queue is independent of HealthKit and must get a chance to
+        // replay even if HealthKit is temporarily unavailable.
+        _ = await WatchAPIProxy.flushPendingOfflineWorkout()
         guard HKHealthStore.isHealthDataAvailable() else { return false }
 
         let calendar = Calendar.current

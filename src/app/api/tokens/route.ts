@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import {
   apiTokenPrefixLabel,
   generateApiTokenSecret,
@@ -13,14 +13,14 @@ const createSchema = z.object({
 });
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const data = await prisma.apiToken.findMany({
-      where: { userId: session.user.id },
+      where: { userId },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -47,8 +47,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await resolveUserIdForDataApi();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
 
     const row = await prisma.apiToken.create({
       data: {
-        userId: session.user.id,
+        userId,
         name: parsed.data.name?.length ? parsed.data.name : null,
         tokenHash,
         tokenPrefix,

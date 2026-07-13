@@ -27,6 +27,9 @@ enum WatchAPIProxy {
     /// app's own settings, never synced to the Watch), so this is a
     /// reasonable fixed fallback for the no-phone-open path specifically.
     private static let defaultRestSeconds: Double = 90
+    /// Installed by WatchConnectivityPlugin so a successful replay can replace
+    /// the Watch's local UUID with the server workout payload.
+    static var replayContextHandler: ((ContextUpdate) -> Void)?
 
     enum ContextUpdate {
         case setActiveWorkout(json: String)
@@ -39,6 +42,12 @@ enum WatchAPIProxy {
         message: [String: Any],
         token: String
     ) async -> (reply: [String: Any], contextUpdate: ContextUpdate?) {
+        // Covers a process that was force-quit while offline and only wakes
+        // now because the Watch sent another request. Do not flush first when
+        // this exact request still targets the local UUID: a successful flush
+        // would replace it with a server id halfway through this request.
+        let targetsPendingLocalWorkout = (message["workoutId"] as? String).map { WatchOfflineWorkoutStore.load()?.id == $0 } ?? false
+        if !targetsPendingLocalWorkout { _ = await flushPendingOfflineWorkout() }
         switch type {
         case "startSession":
             return await startSession(message: message, token: token)
@@ -86,7 +95,8 @@ enum WatchAPIProxy {
             // the change the way they always have.
             return (["started": true, "workoutJSON": fetched.json], .setActiveWorkout(json: fetched.json))
         } catch {
-            return (["error": describeError(error)], nil)
+            guard isTransportError(error) else { return (["error": describeError(error)], nil) }
+            return startOfflineSession(sessionId: sessionId)
         }
     }
 
@@ -101,6 +111,27 @@ enum WatchAPIProxy {
         var body: [String: Any] = ["isCompleted": true]
         if let weight = message["weight"] as? Double { body["weight"] = weight }
         if let reps = message["reps"] as? Int { body["reps"] = reps }
+
+        if var pending = WatchOfflineWorkoutStore.load(), pending.id == workoutId {
+            guard let index = pending.workoutExercises.indices.first(where: {
+                pending.workoutExercises[$0].sets.contains(where: { $0.id == setId })
+            }), let setIndex = pending.workoutExercises[index].sets.firstIndex(where: { $0.id == setId }) else {
+                return (["error": "Set nicht gefunden"], nil)
+            }
+            pending.workoutExercises[index].sets[setIndex].weight = body["weight"] as? Double
+            pending.workoutExercises[index].sets[setIndex].reps = body["reps"] as? Int
+            pending.workoutExercises[index].sets[setIndex].isCompleted = true
+            pending.workoutExercises[index].sets[setIndex].completedAt = ISO8601DateFormatter().string(from: Date())
+            if let queued = pending.queue.firstIndex(where: { $0.kind == .patchSet && $0.clientSetId == setId }) {
+                pending.queue[queued] = WatchQueuedOp(kind: .patchSet, clientSetId: setId, weight: body["weight"] as? Double, reps: body["reps"] as? Int, isCompleted: true)
+            } else {
+                pending.queue.append(WatchQueuedOp(kind: .patchSet, clientSetId: setId, weight: body["weight"] as? Double, reps: body["reps"] as? Int, isCompleted: true))
+            }
+            WatchOfflineWorkoutStore.save(pending)
+            let json = jsonString(buildOfflineWatchWorkoutPayload(pending)) ?? "{}"
+            scheduleRestTimerNotification(endsAt: offlineRestTimerEndsAt(pending))
+            return (["personalRecord": false], .setActiveWorkout(json: json))
+        }
 
         do {
             let result: ApiSetPatchResponse = try await request(
@@ -143,6 +174,12 @@ enum WatchAPIProxy {
               let deltaSeconds = message["deltaSeconds"] as? Int else {
             return (["error": "Missing workoutId/deltaSeconds"], nil)
         }
+        if var pending = WatchOfflineWorkoutStore.load(), pending.id == workoutId {
+            pending.restTimerAdjustSeconds += Double(deltaSeconds)
+            WatchOfflineWorkoutStore.save(pending)
+            let json = jsonString(buildOfflineWatchWorkoutPayload(pending)) ?? "{}"
+            return (["done": true], .setActiveWorkout(json: json))
+        }
         do {
             let _: ApiRestTimerAdjustResponse = try await request(
                 "/api/workouts/\(workoutId)/rest-timer-adjust", method: "PATCH", token: token,
@@ -163,6 +200,13 @@ enum WatchAPIProxy {
         guard let workoutId = message["workoutId"] as? String else {
             return (["error": "Missing workoutId"], nil)
         }
+        if var pending = WatchOfflineWorkoutStore.load(), pending.id == workoutId {
+            if !pending.queue.contains(where: { $0.kind == .completeWorkout }) {
+                pending.queue.append(WatchQueuedOp(kind: .completeWorkout))
+                WatchOfflineWorkoutStore.save(pending)
+            }
+            return (["done": true], .clear)
+        }
         do {
             try await requestNoContent("/api/workouts/\(workoutId)/complete", method: "POST", token: token)
             return (["done": true], .clear)
@@ -177,6 +221,16 @@ enum WatchAPIProxy {
     ) async -> (reply: [String: Any], contextUpdate: ContextUpdate?) {
         guard let workoutId = message["workoutId"] as? String else {
             return (["error": "Missing workoutId"], nil)
+        }
+        if var pending = WatchOfflineWorkoutStore.load(), pending.id == workoutId {
+            if pending.serverWorkoutId == nil {
+                WatchOfflineWorkoutStore.clear()
+            } else if !pending.queue.contains(where: { $0.kind == .deleteWorkout }) {
+                pending.queue.removeAll { $0.kind == .completeWorkout }
+                pending.queue.append(WatchQueuedOp(kind: .deleteWorkout))
+                WatchOfflineWorkoutStore.save(pending)
+            }
+            return (["done": true], .clear)
         }
         do {
             try await requestNoContent("/api/workouts/\(workoutId)", method: "DELETE", token: token)
@@ -312,12 +366,138 @@ enum WatchAPIProxy {
         }
     }
 
+    // MARK: - Native Watch offline queue
+
+    private static func startOfflineSession(sessionId: String) -> (reply: [String: Any], contextUpdate: ContextUpdate?) {
+        if let existing = WatchOfflineWorkoutStore.load() {
+            let json = jsonString(buildOfflineWatchWorkoutPayload(existing)) ?? "{}"
+            return (["started": true, "workoutJSON": json], .setActiveWorkout(json: json))
+        }
+        guard let session = WatchOfflineWorkoutStore.loadPlanCatalog()?.session(id: sessionId) else {
+            return (["error": "Plan ist offline nicht verfügbar – bitte einmal mit geöffneter Telefon-App synchronisieren"], nil)
+        }
+
+        let iso = ISO8601DateFormatter()
+        let pending = PendingOfflineWorkout(
+            id: UUID().uuidString,
+            planSessionId: session.id,
+            name: session.name,
+            startedAt: iso.string(from: Date()),
+            workoutExercises: session.exercises.map { template in
+                OfflineWorkoutExercise(
+                    id: UUID().uuidString,
+                    exercise: template.exercise,
+                    sets: (1...max(0, template.targetSets)).map { number in
+                        OfflineWorkoutSet(id: UUID().uuidString, setNumber: number, weight: nil, reps: nil, isCompleted: false, completedAt: nil)
+                    }
+                )
+            },
+            restTimerAdjustSeconds: 0,
+            queue: [WatchQueuedOp(kind: .postWorkout)],
+            serverWorkoutId: nil,
+            workoutExerciseIdMap: [:],
+            setIdMap: [:]
+        )
+        WatchOfflineWorkoutStore.save(pending)
+        let json = jsonString(buildOfflineWatchWorkoutPayload(pending)) ?? "{}"
+        return (["started": true, "workoutJSON": json], .setActiveWorkout(json: json))
+    }
+
+    /// Replays exactly one persisted queue in order. Each successful mutation
+    /// is committed to the App Group before the next one starts, making a
+    /// connection loss mid-replay safe and idempotent on the next trigger.
+    @discardableResult
+    static func flushPendingOfflineWorkout() async -> Bool {
+        guard var pending = WatchOfflineWorkoutStore.load(), let token = SyncTokenStore.load() else { return false }
+        let endsWorkoutOnReplay = pending.queue.contains { $0.kind == .completeWorkout || $0.kind == .deleteWorkout }
+        do {
+            while let op = pending.queue.first {
+                switch op.kind {
+                case .postWorkout:
+                    if pending.serverWorkoutId == nil {
+                        let started: ApiIdResponse = try await request("/api/plan-sessions/\(pending.planSessionId)/start", method: "POST", token: token)
+                        pending.serverWorkoutId = started.data.id
+                        guard let fetched = try await fetchWorkoutPayload(workoutId: started.data.id, token: token) else { throw RequestError.decode }
+                        let serverExercises = fetched.workout.workoutExercises
+                        guard serverExercises.count == pending.workoutExercises.count else { throw RequestError.decode }
+                        for (index, localExercise) in pending.workoutExercises.enumerated() {
+                            let serverExercise = serverExercises[index]
+                            pending.workoutExerciseIdMap[localExercise.id] = serverExercise.id
+                            guard serverExercise.sets.count == localExercise.sets.count else { throw RequestError.decode }
+                            for (setIndex, localSet) in localExercise.sets.enumerated() {
+                                pending.setIdMap[localSet.id] = serverExercise.sets[setIndex].id
+                            }
+                        }
+                    }
+                case .patchSet:
+                    guard let workoutId = pending.serverWorkoutId,
+                          let localSetId = op.clientSetId,
+                          let serverSetId = pending.setIdMap[localSetId] else { throw RequestError.decode }
+                    var body: [String: Any] = ["isCompleted": op.isCompleted ?? true]
+                    if let weight = op.weight { body["weight"] = weight }
+                    if let reps = op.reps { body["reps"] = reps }
+                    let _: ApiSetPatchResponse = try await request("/api/workouts/\(workoutId)/sets/\(serverSetId)", method: "PATCH", token: token, body: body)
+                case .completeWorkout:
+                    guard let workoutId = pending.serverWorkoutId else { throw RequestError.decode }
+                    try await requestNoContent("/api/workouts/\(workoutId)/complete", method: "POST", token: token)
+                case .deleteWorkout:
+                    if let workoutId = pending.serverWorkoutId {
+                        try await requestNoContent("/api/workouts/\(workoutId)", method: "DELETE", token: token)
+                    }
+                }
+                pending.queue.removeFirst()
+                WatchOfflineWorkoutStore.save(pending)
+            }
+
+            if endsWorkoutOnReplay {
+                replayContextHandler?(.clear)
+            } else if let workoutId = pending.serverWorkoutId,
+               let fetched = try await fetchWorkoutPayload(workoutId: workoutId, token: token) {
+                replayContextHandler?(.setActiveWorkout(json: fetched.json))
+            }
+            WatchOfflineWorkoutStore.clear()
+            return true
+        } catch {
+            WatchOfflineWorkoutStore.save(pending)
+            return false
+        }
+    }
+
+    private static func buildOfflineWatchWorkoutPayload(_ pending: PendingOfflineWorkout) -> [String: Any] {
+        [
+            "id": pending.id,
+            "name": pending.name,
+            "startedAt": pending.startedAt,
+            "restTimerEndsAt": offlineRestTimerEndsAt(pending),
+            "workoutExercises": pending.workoutExercises.map { exercise in
+                [
+                    "id": exercise.id,
+                    "exercise": ["id": exercise.exercise.id, "name": exercise.exercise.name, "muscleGroup": exercise.exercise.muscleGroup],
+                    "sets": exercise.sets.map { set in
+                        ["id": set.id, "setNumber": set.setNumber, "reps": nullable(set.reps), "weight": nullable(set.weight), "isCompleted": set.isCompleted, "isWarmup": false, "previousWeight": NSNull(), "previousReps": NSNull()]
+                    },
+                ]
+            },
+        ]
+    }
+
+    private static func offlineRestTimerEndsAt(_ pending: PendingOfflineWorkout) -> Double {
+        let latest = pending.workoutExercises.flatMap(\.sets).compactMap { $0.completedAt.flatMap(parseDate)?.timeIntervalSince1970 }.max()
+        let started = parseDate(pending.startedAt)?.timeIntervalSince1970 ?? Date().timeIntervalSince1970
+        return (latest ?? started) + defaultRestSeconds + pending.restTimerAdjustSeconds
+    }
+
     // MARK: - Networking
 
     private enum RequestError: Error {
         case http(Int)
         case decode
         case badURL
+    }
+
+    private static func isTransportError(_ error: Error) -> Bool {
+        if case RequestError.http = error { return false }
+        return true
     }
 
     private static func request<T: Decodable>(

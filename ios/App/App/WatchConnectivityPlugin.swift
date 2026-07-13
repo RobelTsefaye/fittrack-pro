@@ -54,6 +54,22 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
         WCSession.default.activate()
+        WatchAPIProxy.replayContextHandler = { [weak self] update in
+            guard let self else { return }
+            switch update {
+            case .setActiveWorkout(let json):
+                self.latestContext["active"] = true
+                self.latestContext["activeWorkout"] = json
+                self.latestContext["updatedAt"] = Date().timeIntervalSince1970
+            case .setRecovery(let score, let level):
+                self.latestContext["recoveryScore"] = score
+                self.latestContext["recoveryLevel"] = level
+            case .clear:
+                self.latestContext["active"] = false
+                self.latestContext.removeValue(forKey: "activeWorkout")
+            }
+            self.pushContextToWatch()
+        }
     }
 
     @objc func isSupported(_ call: CAPPluginCall) {
@@ -133,6 +149,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("Missing catalog")
             return
         }
+        WatchOfflineWorkoutStore.savePlanCatalog(catalog)
         latestContext["planCatalog"] = catalog
         latestContext["planCatalogUpdatedAt"] = Date().timeIntervalSince1970
         pushContext(call)
