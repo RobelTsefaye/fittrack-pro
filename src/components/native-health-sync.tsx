@@ -69,7 +69,7 @@ export function NativeHealthSync() {
       }
       const result = await syncHealthKitData();
       if (result.snapshots > 0 || result.workouts > 0) {
-        console.log(`[healthkit] synced ${result.snapshots} days, ${result.workouts} workouts`);
+        console.log(`[healthkit] synced ${result.snapshots} days, ${result.workouts} workouts from ${result.days} days`);
       }
     }
 
