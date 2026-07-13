@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "@/components/app-link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { Capacitor } from "@capacitor/core";
 import { ChevronRight, Dumbbell } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
 import { workoutHref } from "@/lib/workout-href";
+import { getCachedToken } from "@/lib/native/auth-token-cache";
 
 const CHANGED = "fittrack-active-workout-changed";
 
@@ -17,6 +19,21 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
   const { t } = useI18n();
   const pathname = usePathname();
   const { status } = useSession();
+  // On native, `status` comes from a cookie-backed session that's only
+  // best-effort synced (see project-docs/offline-first-roadmap.md Phase 2)
+  // and can silently die while the actual Bearer-token login stays valid —
+  // that would otherwise both stop this banner's fetch (line below) AND hide
+  // it outright via the render guard further down, for a user who's fully
+  // logged in and using the rest of the app normally. `null` = not checked
+  // yet, `true`/`false` = a real Keychain-backed answer.
+  const [nativeToken, setNativeToken] = useState<boolean | null>(
+    Capacitor.isNativePlatform() ? null : true
+  );
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    void getCachedToken().then((token) => setNativeToken(token != null));
+  }, []);
+  const isNative = Capacitor.isNativePlatform();
   const [active, setActive] = useState<ActiveItem | null>(initialActive);
   // Server already gave us an accurate snapshot for the very first paint —
   // skip the redundant client refetch on mount so the banner can't pop
@@ -35,7 +52,7 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
     // No synchronous setState here — this is invoked straight from effect
     // bodies, and a sync setActive would trip React 19's set-state-in-effect
     // rule. The signed-out case is handled by the render guard below instead.
-    if (status !== "authenticated") return;
+    if (isNative ? nativeToken !== true : status !== "authenticated") return;
     lastFetchedAt.current = Date.now();
     try {
       const res = await fetch("/api/workouts?status=active&limit=1", { credentials: "include" });
@@ -58,7 +75,7 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
     } catch {
       setActive(null);
     }
-  }, [status]);
+  }, [status, isNative, nativeToken]);
 
   // Route changes only refetch when the data is stale — without the guard
   // every tab switch fires an extra API call before the page can settle.
@@ -95,7 +112,11 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
   // stays visible during the brief client-side "loading" phase — hiding it
   // there would reintroduce the pop-in/layout-shift this component guards
   // against (see lastFetchedAt comment above).
-  if (status === "unauthenticated" || !active) return null;
+  // On native, only hide for a *confirmed* logged-out state (nativeToken ===
+  // false) — the old `status === "unauthenticated"` check would also hide it
+  // for a live token whose cookie session simply never synced.
+  const signedOut = isNative ? nativeToken === false : status === "unauthenticated";
+  if (signedOut || !active) return null;
   // On native, the current workout's URL is /workouts/_?id=<id> (see
   // workout-href.ts); on web it's the plain /workouts/<id> path. Read the
   // query directly off window.location rather than useSearchParams() — that

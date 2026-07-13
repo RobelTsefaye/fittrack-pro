@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
+import { getCachedToken } from "@/lib/native/auth-token-cache";
 import { requestHealthKitAuthorization, syncHealthKitData } from "@/lib/native/healthkit";
 import { onWatchCardioSaved } from "@/lib/native/watch-connectivity";
 
@@ -56,9 +57,23 @@ export function NativeHealthSync() {
   const { status } = useSession();
   const lastSyncRef = useRef(0);
   const authorizedRef = useRef(readPersistedAuthorized());
+  // On native, gate on the actual Bearer token (via getCachedToken()) rather
+  // than useSession().status — that cookie-backed session is only
+  // best-effort synced on native (see project-docs/offline-first-roadmap.md
+  // Phase 2) and can silently die while the token stays valid, which would
+  // otherwise stop HealthKit sync entirely with everything else in the app
+  // still working. Web has no such split (no Bearer token there), so it
+  // keeps using the session status directly.
+  const [nativeReady, setNativeReady] = useState(!Capacitor.isNativePlatform());
 
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (!Capacitor.isNativePlatform()) return;
+    void getCachedToken().then((token) => setNativeReady(token != null));
+  }, []);
+
+  useEffect(() => {
+    const ready = Capacitor.isNativePlatform() ? nativeReady : status === "authenticated";
+    if (!ready) return;
 
     async function sync() {
       const now = Date.now();
@@ -110,7 +125,7 @@ export function NativeHealthSync() {
       window.clearInterval(hourlySync);
       removeResumeListener?.();
     };
-  }, [status]);
+  }, [status, nativeReady]);
 
   return null;
 }
