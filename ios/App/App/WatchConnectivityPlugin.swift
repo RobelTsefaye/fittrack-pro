@@ -166,7 +166,14 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func getTerminalOfflineWorkouts(_ call: CAPPluginCall) {
-        let workouts = WatchOfflineWorkoutStore.loadTerminalWorkouts()
+        // Include successfully replayed completions too. The history WebView
+        // can otherwise mount after the background replay removed the terminal
+        // job but before its own server/cache fetch has observed the workout.
+        let terminal = WatchOfflineWorkoutStore.loadTerminalWorkouts()
+        let recent = WatchOfflineWorkoutStore.loadRecentCompletedWorkouts()
+        let workouts = terminal + recent.filter { completed in
+            !terminal.contains(where: { $0.id == completed.id })
+        }
         guard let data = try? JSONEncoder().encode(workouts),
               let json = String(data: data, encoding: .utf8) else {
             call.resolve(["terminalJSON": "[]"])

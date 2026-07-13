@@ -7,6 +7,7 @@ enum WatchOfflineWorkoutStore {
     private static let suite = "group.com.robeltsefaye.fittrackpro"
     private static let pendingKey = "watchPendingOfflineWorkout"
     private static let terminalKey = "watchTerminalOfflineWorkouts"
+    private static let recentCompletedKey = "watchRecentCompletedOfflineWorkouts"
     private static let catalogKey = "watchCachedPlanCatalog"
 
     static func load() -> PendingOfflineWorkout? {
@@ -50,6 +51,25 @@ enum WatchOfflineWorkoutStore {
 
     static func removeTerminalWorkout(id: String) {
         saveTerminalWorkouts(loadTerminalWorkouts().filter { $0.id != id })
+    }
+
+    /// A completed Watch workout can finish replaying before the WebView has
+    /// mounted its history page. Keep a tiny native receipt after a successful
+    /// upload so that page can merge it with (or temporarily stand in for) a
+    /// stale server/cache response instead of making the workout disappear.
+    static func loadRecentCompletedWorkouts() -> [PendingOfflineWorkout] {
+        guard let data = UserDefaults(suiteName: suite)?.data(forKey: recentCompletedKey) else { return [] }
+        return (try? JSONDecoder().decode([PendingOfflineWorkout].self, from: data)) ?? []
+    }
+
+    static func archiveCompletedWorkout(_ workout: PendingOfflineWorkout) {
+        var workouts = loadRecentCompletedWorkouts().filter { $0.id != workout.id }
+        workouts.insert(workout, at: 0)
+        // This is only a presentation backstop, not another replay queue.
+        // Bound it so native storage never grows with workout history.
+        if workouts.count > 20 { workouts.removeLast(workouts.count - 20) }
+        guard let data = try? JSONEncoder().encode(workouts) else { return }
+        UserDefaults(suiteName: suite)?.set(data, forKey: recentCompletedKey)
     }
 
     static func loadPlanCatalog() -> WatchCachedPlanCatalog? {

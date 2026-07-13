@@ -427,9 +427,13 @@ enum WatchAPIProxy {
         guard let token = SyncTokenStore.load() else { return false }
 
         for var terminal in WatchOfflineWorkoutStore.loadTerminalWorkouts() {
+            let wasCompleted = terminal.queue.contains { $0.kind == .completeWorkout }
             do {
                 _ = try await replayPendingWorkout(&terminal, token: token) {
                     WatchOfflineWorkoutStore.updateTerminalWorkout($0)
+                }
+                if wasCompleted {
+                    WatchOfflineWorkoutStore.archiveCompletedWorkout(terminal)
                 }
                 WatchOfflineWorkoutStore.removeTerminalWorkout(id: terminal.id)
                 replayContextHandler?(.clear(workoutId: terminal.id))

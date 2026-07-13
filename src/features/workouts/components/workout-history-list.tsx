@@ -126,7 +126,11 @@ async function mergeOfflineWorkouts(list: WorkoutListItem[]): Promise<WorkoutLis
       const { terminalJSON } = await WatchConnectivity.getTerminalOfflineWorkouts();
       const terminal = terminalJSON ? JSON.parse(terminalJSON) as NativeTerminalWorkout[] : [];
       for (const workout of terminal) {
-        if (!workout.queue?.some(({ kind }) => kind === "completeWorkout")) continue;
+        // Queued terminal jobs retain `completeWorkout`; jobs that already
+        // replayed have an empty queue but an `endedAt` receipt. Both must be
+        // rendered, otherwise a fast background replay races the history UI.
+        const waitingForCompletion = workout.queue?.some(({ kind }) => kind === "completeWorkout") ?? false;
+        if (!workout.endedAt && !waitingForCompletion) continue;
         const id = workout.serverWorkoutId ?? workout.id;
         const endedAt = workout.endedAt ?? workout.startedAt;
         const durationSeconds = Math.max(0, Math.round(
@@ -144,7 +148,13 @@ async function mergeOfflineWorkouts(list: WorkoutListItem[]): Promise<WorkoutLis
           })),
         };
         const serverIndex = list.findIndex((entry) => entry.id === id);
-        if (serverIndex >= 0) list[serverIndex] = item;
+        // Once the server has returned its completed record, it is the source
+        // of truth. Only a still-pending terminal job may replace an active
+        // server row; the short-lived native receipt merely fills a cache/API
+        // gap and must not permanently shadow later server edits.
+        if (serverIndex >= 0) {
+          if (waitingForCompletion) list[serverIndex] = item;
+        }
         else if (!known.has(id)) extra.push(item);
       }
     } catch {
