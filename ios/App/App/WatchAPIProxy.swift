@@ -521,7 +521,15 @@ enum WatchAPIProxy {
             case .completeWorkout:
                 guard let workoutId = pending.serverWorkoutId else { throw RequestError.decode }
                 try await reconcilePendingWorkout(&pending, token: token)
-                try await requestNoContent("/api/workouts/\(workoutId)/complete", method: "POST", token: token)
+                do {
+                    try await requestNoContent("/api/workouts/\(workoutId)/complete", method: "POST", token: token)
+                } catch RequestError.http(404) {
+                    // The workout was deleted server-side before this completion
+                    // replayed (e.g. cleaned up during testing). Nothing left to
+                    // complete — treat as done so the job drains instead of
+                    // 404-ing forever on every retry. Mirrors the JS flush,
+                    // which also ignores a 404 on complete.
+                }
             case .deleteWorkout:
                 if let workoutId = pending.serverWorkoutId {
                     do {
