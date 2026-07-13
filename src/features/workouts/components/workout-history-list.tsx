@@ -131,9 +131,17 @@ async function mergeOfflineWorkouts(list: WorkoutListItem[]): Promise<WorkoutLis
         // rendered, otherwise a fast background replay races the history UI.
         const waitingForCompletion = workout.queue?.some(({ kind }) => kind === "completeWorkout") ?? false;
         if (!workout.endedAt && !waitingForCompletion) continue;
-        // A local UUID has no `/api/workouts/:id` resource yet. Mark it so
-        // the row stays visible but cannot navigate to a guaranteed 404.
-        const id = workout.serverWorkoutId ?? `watch-offline:${workout.id}`;
+        // A native queue receiving an id only means its POST reached the
+        // server; it does not mean the web API can read that workout yet.
+        // Keep the row non-navigable until this very list response confirms
+        // the server record, otherwise tapping it races straight into 404.
+        const serverIndex = workout.serverWorkoutId
+          ? list.findIndex((entry) => entry.id === workout.serverWorkoutId)
+          : -1;
+        const serverConfirmed = serverIndex >= 0;
+        const id = serverConfirmed
+          ? workout.serverWorkoutId!
+          : `watch-offline:${workout.id}`;
         const endedAt = workout.endedAt ?? workout.startedAt;
         const durationSeconds = Math.max(0, Math.round(
           (new Date(endedAt).getTime() - new Date(workout.startedAt).getTime()) / 1000
@@ -149,12 +157,11 @@ async function mergeOfflineWorkouts(list: WorkoutListItem[]): Promise<WorkoutLis
             sets: we.sets.map((set) => ({ id: set.id })),
           })),
         };
-        const serverIndex = list.findIndex((entry) => entry.id === id);
         // Once the server has returned its completed record, it is the source
         // of truth. Only a still-pending terminal job may replace an active
         // server row; the short-lived native receipt merely fills a cache/API
         // gap and must not permanently shadow later server edits.
-        if (serverIndex >= 0) {
+        if (serverConfirmed) {
           if (waitingForCompletion) list[serverIndex] = item;
         }
         else if (!known.has(id)) extra.push(item);
