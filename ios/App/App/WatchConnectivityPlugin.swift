@@ -28,6 +28,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "updatePendingOfflineWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "completePendingOfflineWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancelPendingOfflineWorkout", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "forgetWatchOfflineWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "flushPendingOfflineWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getWorkoutRekeyMap", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "syncRecoverySnapshot", returnType: CAPPluginReturnPromise),
@@ -245,6 +246,19 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             WatchOfflineWorkoutStore.deferTerminalWorkout(pending)
             WatchOfflineWorkoutStore.clear()
         }
+        call.resolve()
+    }
+
+    /// Purges a workout's native App-Group traces after the phone deletes it
+    /// server-side. Without this the recent-completed presentation backstop
+    /// keeps rendering the deleted workout as a frozen "watch-offline:" SYNC
+    /// row forever (its server id can never be re-confirmed against the list).
+    @objc func forgetWatchOfflineWorkout(_ call: CAPPluginCall) {
+        guard let workoutId = call.getString("workoutId") else {
+            call.reject("Missing workoutId")
+            return
+        }
+        WatchOfflineWorkoutStore.forget(workoutId: workoutId)
         call.resolve()
     }
 

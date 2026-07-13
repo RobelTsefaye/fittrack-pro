@@ -73,6 +73,28 @@ enum WatchOfflineWorkoutStore {
         UserDefaults(suiteName: suite)?.set(data, forKey: recentCompletedKey)
     }
 
+    /// Purges every native trace of a workout, matched by either its local
+    /// UUID or its resolved server id, across the terminal queue, the
+    /// recent-completed presentation backstop, and the rekey map. Called when
+    /// the user deletes a (already-synced) Watch workout from the phone: the
+    /// server DELETE alone left the recent-completed archive entry behind,
+    /// which `mergeOfflineWorkouts` then rendered forever as a frozen
+    /// `watch-offline:` SYNC row (its serverWorkoutId can never again be
+    /// confirmed against the workouts list once the server record is gone).
+    static func forget(workoutId id: String) {
+        let matches: (PendingOfflineWorkout) -> Bool = { $0.id == id || $0.serverWorkoutId == id }
+        let terminal = loadTerminalWorkouts().filter { !matches($0) }
+        saveTerminalWorkouts(terminal)
+        let recent = loadRecentCompletedWorkouts().filter { !matches($0) }
+        if let data = try? JSONEncoder().encode(recent) {
+            UserDefaults(suiteName: suite)?.set(data, forKey: recentCompletedKey)
+        }
+        let rekey = loadRekeyMap().filter { $0.localId != id && $0.serverWorkoutId != id }
+        if let data = try? JSONEncoder().encode(rekey) {
+            UserDefaults(suiteName: suite)?.set(data, forKey: rekeyMapKey)
+        }
+    }
+
     /// A cold app launch can flush and rekey a Watch workout (via
     /// OfflineWorkoutReachabilityMonitor, started from AppDelegate) before the
     /// WebView has even loaded, let alone registered its `watchWorkoutSynced`

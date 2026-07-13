@@ -1383,6 +1383,18 @@ export function WorkoutDetail({
       } catch {
         /* ignore IDB */
       }
+      // A Watch workout also leaves a native App-Group receipt (terminal
+      // queue / recent-completed backstop). Without clearing it, the list's
+      // mergeOfflineWorkouts keeps rendering the just-deleted workout as a
+      // frozen "SYNC" row forever, since its server id can no longer be
+      // confirmed against the workouts list. Best-effort, native only.
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await WatchConnectivity.forgetWatchOfflineWorkout({ workoutId });
+        } catch {
+          /* ignore — no native receipt for this workout */
+        }
+      }
       router.push(ROUTES.workouts);
       router.refresh();
     } finally {
