@@ -700,6 +700,31 @@ export function WorkoutDetail({
           // Leave the loading skeleton up instead of flashing "Workout not
           // found" for the split second before the new route mounts.
           if (rekeyRedirectingRef.current) return;
+          // Same rekey, but the live event never reached us: a cold app
+          // launch can flush/rekey this exact workout in native code (see
+          // OfflineWorkoutReachabilityMonitor, started from AppDelegate)
+          // before the WebView loaded far enough to register that listener,
+          // so the notification was silently dropped. The durable map is the
+          // backstop — look the old id up before believing a real 404.
+          if (Capacitor.isNativePlatform()) {
+            try {
+              const { rekeyMapJSON } = await WatchConnectivity.getWorkoutRekeyMap();
+              const entries = rekeyMapJSON
+                ? (JSON.parse(rekeyMapJSON) as Array<{ localId: string; serverWorkoutId: string }>)
+                : [];
+              const match = entries.find((e) => e.localId === workoutId);
+              if (match) {
+                if (!isStale()) {
+                  rekeyRedirectingRef.current = true;
+                  setRekeyRedirecting(true);
+                  router.replace(workoutHref(match.serverWorkoutId));
+                }
+                return;
+              }
+            } catch {
+              // Fall through to the normal 404 handling below.
+            }
+          }
           // A real 404 means we successfully reached the server and it
           // authoritatively says this workout is gone — e.g. cancelled from
           // the Watch while this page was open. That's different from "we
@@ -756,7 +781,7 @@ export function WorkoutDetail({
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [workoutId, t]);
+  }, [workoutId, t, router]);
 
   const hasInitialData = useRef(initialWorkout != null);
   useEffect(() => {

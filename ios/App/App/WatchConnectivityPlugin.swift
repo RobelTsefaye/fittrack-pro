@@ -29,6 +29,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "completePendingOfflineWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancelPendingOfflineWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "flushPendingOfflineWorkout", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getWorkoutRekeyMap", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "syncRecoverySnapshot", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "respondToRequest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "startCardioSession", returnType: CAPPluginReturnPromise),
@@ -75,6 +76,15 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
                 self.latestContext.removeValue(forKey: "activeWorkout")
                 self.publishWorkoutEnded(workoutId: workoutId)
             case .rekeyWorkout(let localId, let serverWorkoutId):
+                // Persist before notifying: a cold app launch can replay and
+                // rekey before the WebView has loaded far enough to register
+                // this listener, in which case notifyListeners below is a
+                // silent no-op (nothing queues/replays a Capacitor event for
+                // a listener that attaches later). The durable log lets the
+                // next screen that asks about `localId` (getWorkoutRekeyMap)
+                // find its way to `serverWorkoutId` regardless of whether
+                // anyone was listening live.
+                WatchOfflineWorkoutStore.recordRekey(localId: localId, serverWorkoutId: serverWorkoutId)
                 // Phone-only signal: the Watch has no concept of the local
                 // UUID route, so there is nothing to push to it here.
                 self.notifyListeners("watchWorkoutSynced", data: [
@@ -246,6 +256,22 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             let flushed = await WatchAPIProxy.flushPendingOfflineWorkout()
             call.resolve(["flushed": flushed])
         }
+    }
+
+    /// Backstop for the app-relaunch race: OfflineWorkoutReachabilityMonitor
+    /// starts in AppDelegate and can flush/rekey a Watch workout before the
+    /// WebView has loaded far enough to register `watchWorkoutSynced`, so
+    /// that live event can be missed entirely. Any screen holding a
+    /// since-superseded local id calls this on load to resolve it to its
+    /// server id instead of surfacing a false "not found".
+    @objc func getWorkoutRekeyMap(_ call: CAPPluginCall) {
+        let entries = WatchOfflineWorkoutStore.loadRekeyMap()
+        guard let data = try? JSONEncoder().encode(entries),
+              let json = String(data: data, encoding: .utf8) else {
+            call.resolve(["rekeyMapJSON": "[]"])
+            return
+        }
+        call.resolve(["rekeyMapJSON": json])
     }
 
     /// Pushes the Recovery Score to the Watch for HealthDashboardView —

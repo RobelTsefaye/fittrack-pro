@@ -8,6 +8,7 @@ enum WatchOfflineWorkoutStore {
     private static let pendingKey = "watchPendingOfflineWorkout"
     private static let terminalKey = "watchTerminalOfflineWorkouts"
     private static let recentCompletedKey = "watchRecentCompletedOfflineWorkouts"
+    private static let rekeyMapKey = "watchWorkoutRekeyMap"
     private static let catalogKey = "watchCachedPlanCatalog"
 
     static func load() -> PendingOfflineWorkout? {
@@ -70,6 +71,29 @@ enum WatchOfflineWorkoutStore {
         if workouts.count > 20 { workouts.removeLast(workouts.count - 20) }
         guard let data = try? JSONEncoder().encode(workouts) else { return }
         UserDefaults(suiteName: suite)?.set(data, forKey: recentCompletedKey)
+    }
+
+    /// A cold app launch can flush and rekey a Watch workout (via
+    /// OfflineWorkoutReachabilityMonitor, started from AppDelegate) before the
+    /// WebView has even loaded, let alone registered its `watchWorkoutSynced`
+    /// listener — that in-flight notifyListeners call is simply dropped, no
+    /// one was listening yet. This durable log is the backstop: whichever
+    /// screen next asks about the old local id (typically the workout detail
+    /// page reopened from a stale route) can look it up here instead of
+    /// treating a since-synced workout as a genuine 404.
+    static func loadRekeyMap() -> [RekeyEntry] {
+        guard let data = UserDefaults(suiteName: suite)?.data(forKey: rekeyMapKey) else { return [] }
+        return (try? JSONDecoder().decode([RekeyEntry].self, from: data)) ?? []
+    }
+
+    static func recordRekey(localId: String, serverWorkoutId: String) {
+        var entries = loadRekeyMap().filter { $0.localId != localId }
+        entries.insert(RekeyEntry(localId: localId, serverWorkoutId: serverWorkoutId), at: 0)
+        // Same bound as the completed-workout backstop above — this is a
+        // lookup aid, not a growing history.
+        if entries.count > 20 { entries.removeLast(entries.count - 20) }
+        guard let data = try? JSONEncoder().encode(entries) else { return }
+        UserDefaults(suiteName: suite)?.set(data, forKey: rekeyMapKey)
     }
 
     static func loadPlanCatalog() -> WatchCachedPlanCatalog? {
@@ -218,6 +242,11 @@ struct WatchQueuedOp: Codable {
     var weight: Double?
     var reps: Int?
     var isCompleted: Bool?
+}
+
+struct RekeyEntry: Codable {
+    let localId: String
+    let serverWorkoutId: String
 }
 
 // Mirrors the compact catalog JSON already sent to the Watch. This app target
