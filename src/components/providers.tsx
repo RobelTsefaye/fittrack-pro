@@ -10,6 +10,7 @@ import { NativeHealthSync } from "@/components/native-health-sync";
 import { NativeWatchWorkoutSync } from "@/components/native-watch-workout-sync";
 import { NativeAuthFetchPatch } from "@/components/native-auth-fetch-patch";
 import { NativeOnlineStatusPatch } from "@/components/native-online-status-patch";
+import { PreviousLogsCacheWarmer } from "@/components/previous-logs-cache-warmer";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -22,6 +23,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <NativeHealthSync />
         <NativeWatchWorkoutSync />
         <OfflineSyncProvider />
+        <PreviousLogsCacheWarmer />
         {children}
         <Toaster />
       </ThemeProvider>

@@ -203,11 +203,13 @@ export async function savePreviousLogsCache<T>(byExerciseId: Record<string, T>):
   if (!db) return;
   const now = Date.now();
   await db.previousLogsCache.bulkPut(
-    Object.entries(byExerciseId).map(([exerciseId, payload]) => ({
+    Object.entries(byExerciseId)
+      .filter(([, payload]) => payload != null)
+      .map(([exerciseId, payload]) => ({
       id: exerciseId,
       payload: JSON.stringify(payload),
       updatedAt: now,
-    }))
+      }))
   );
 }
 

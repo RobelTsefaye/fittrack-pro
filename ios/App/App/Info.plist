@@ -25,7 +25,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>FitTrack Pro liest deine Gesundheitsdaten (Schlaf, Herzfrequenz, HRV, Atemfrequenz, Handgelenk-Temperatur, Workouts), um deinen täglichen Recovery-Score zu berechnen.</string>
+	<string>FitTrack Pro liest deine Gesundheitsdaten (Schlaf, Aktivität, Herzwerte, VO₂max, Handgelenk-Temperatur, Workouts sowie Ernährung und Flüssigkeit), um deine Trainings- und Gesundheitswerte darzustellen.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>FitTrack Pro benötigt keinen Schreibzugriff auf Apple Health — dies wird nur zur Vollständigkeit der HealthKit-Autorisierung angezeigt.</string>
 	<key>NSFaceIDUsageDescription</key>

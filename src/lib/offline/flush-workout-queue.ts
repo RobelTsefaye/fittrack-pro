@@ -1,11 +1,10 @@
 import type { WorkoutData } from "@/features/workouts/workout-types";
 import {
-  deleteWorkoutSnapshot,
   deleteQueueIdMap,
   listQueueForWorkout,
   loadQueueIdMap,
   loadWorkoutSnapshot,
-  rekeyWorkoutQueue,
+  rekeyWorkoutLocalState,
   removeQueueEntries,
   saveQueueIdMap,
   saveWorkoutSnapshot,
@@ -33,13 +32,18 @@ export async function flushWorkoutQueue(
   }
 
   let currentId = routeWorkoutId;
-  const snap = await loadWorkoutSnapshot(currentId);
-  if (!snap) {
-    return { ok: false, error: "no_snapshot" };
-  }
-
   const q = await listQueueForWorkout(currentId);
   if (q.length === 0) {
+    return { ok: true };
+  }
+
+  const snap = await loadWorkoutSnapshot(currentId);
+  if (!snap) {
+    // A cancelled/deleted workout from an older app version can leave queue
+    // rows behind. They cannot be replayed without their snapshot, so prune
+    // them as successful housekeeping rather than showing a toast forever.
+    await removeQueueEntries(q.map((row) => row.id));
+    await deleteQueueIdMap(currentId);
     return { ok: true };
   }
 
@@ -64,15 +68,11 @@ export async function flushWorkoutQueue(
           const newId = json.data?.id ?? null;
           if (!newId) throw new Error("no_workout_id");
           serverWorkoutId = newId;
-          await removeQueueEntries([row.id]);
-          // Persist the resolved id immediately: rekey the remaining queued
-          // ops + any already-resolved exercise/set ids onto it, and rename
-          // the local snapshot, so a later failure in THIS SAME run doesn't
-          // redo this step on the next attempt.
-          await rekeyWorkoutQueue(currentId, newId);
-          await saveQueueIdMap(newId, weMap, setMap);
-          await deleteWorkoutSnapshot(currentId);
-          await saveWorkoutSnapshot(newId, { ...snap.data, id: newId }, false);
+          // Rekey queue, id mappings, and snapshot as one IndexedDB
+          // transaction, including removal of the now-completed POST. The
+          // new snapshot is committed before the old one is removed, so a
+          // termination cannot create an orphaned queue or lose the POST.
+          await rekeyWorkoutLocalState(currentId, newId, snap.data, weMap, setMap, row.id);
           currentId = newId;
           break;
         }

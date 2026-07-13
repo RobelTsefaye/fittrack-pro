@@ -92,6 +92,16 @@ export const SECONDARY_TARGETS: NutrientTarget[] = [
     description: "Wichtig für Elektrolytbalance, aber zu viel erhöht den Blutdruck. WHO-Limit: 2300 mg.",
   },
   {
+    key: "caffeine",
+    label: "Koffein",
+    unit: "mg",
+    target: 400,
+    direction: "limit",
+    color: "#AF52DE",
+    decimals: 0,
+    description: "Für gesunde Erwachsene gelten bis zu 400 mg pro Tag meist als unbedenklich. Späte Einnahme kann den Schlaf beeinträchtigen.",
+  },
+  {
     key: "water",
     label: "Wasser",
     unit: "ml",

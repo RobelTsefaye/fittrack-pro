@@ -48,12 +48,11 @@ import { sortSetsForDisplay } from "../set-sort";
 import { useI18n } from "@/lib/i18n-provider";
 import type { WorkoutData, WorkoutExerciseData, WorkoutSetData } from "@/features/workouts/workout-types";
 import {
-  deleteWorkoutSnapshot,
   enqueueWorkoutOp,
   listQueueForWorkout,
   loadWorkoutSnapshot,
   patchWorkoutListCacheEntry,
-  removeQueueEntries,
+  purgeWorkoutLocal,
   saveWorkoutSnapshot,
 } from "@/lib/offline/workout-offline-store";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
@@ -614,7 +613,7 @@ export function WorkoutDetail({
           // is still correct): don't resurrect a stale cached copy here, or
           // the phone keeps showing a workout that no longer exists anywhere.
           try {
-            await deleteWorkoutSnapshot(workoutId);
+            await purgeWorkoutLocal(workoutId);
           } catch {
             /* ignore IDB */
           }
@@ -1192,7 +1191,7 @@ export function WorkoutDetail({
         return;
       }
       try {
-        await deleteWorkoutSnapshot(workoutId);
+        await purgeWorkoutLocal(workoutId);
       } catch {
         /* ignore IDB */
       }
@@ -1217,9 +1216,7 @@ export function WorkoutDetail({
     // Offline / local-writes path: just wipe IndexedDB and queue, then navigate
     if (useLocalWrites || offlineOriginSession) {
       try {
-        const queued = await listQueueForWorkout(workoutId);
-        if (queued.length > 0) await removeQueueEntries(queued.map((q) => q.id));
-        await deleteWorkoutSnapshot(workoutId);
+        await purgeWorkoutLocal(workoutId);
       } catch {
         /* ignore IDB errors */
       }
@@ -1241,7 +1238,7 @@ export function WorkoutDetail({
         setCancelling(false);
         return;
       }
-      try { await deleteWorkoutSnapshot(workoutId); } catch { /* ignore */ }
+      try { await purgeWorkoutLocal(workoutId); } catch { /* ignore */ }
       notifyActiveWorkoutChanged();
       router.push(ROUTES.workouts);
       router.refresh();

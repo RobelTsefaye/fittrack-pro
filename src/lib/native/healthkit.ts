@@ -40,7 +40,7 @@ export async function requestHealthKitAuthorization(): Promise<boolean> {
  *
  * Call this on app foreground/resume — see native-health-sync.tsx.
  */
-export async function syncHealthKitData(days = 14): Promise<{ snapshots: number; workouts: number }> {
+export async function syncHealthKitData(days = 90): Promise<{ snapshots: number; workouts: number }> {
   if (!Capacitor.isNativePlatform()) return { snapshots: 0, workouts: 0 };
 
   let snapshotCount = 0;

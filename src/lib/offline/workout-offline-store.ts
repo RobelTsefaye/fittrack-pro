@@ -85,6 +85,19 @@ export async function deleteWorkoutSnapshot(workoutId: string): Promise<void> {
   await db.workouts.delete(workoutId);
 }
 
+/** Removes every piece of local state for a workout together. Keeping this in
+ * one helper prevents a deleted snapshot from leaving replayable queue rows
+ * behind (which would otherwise fail forever during the next sync). */
+export async function purgeWorkoutLocal(workoutId: string): Promise<void> {
+  const db = getOfflineDb();
+  await db.transaction("rw", db.queue, db.queueIdMap, db.workouts, async () => {
+    const queued = await db.queue.where("workoutRouteId").equals(workoutId).primaryKeys();
+    if (queued.length > 0) await db.queue.bulkDelete(queued as string[]);
+    await db.queueIdMap.delete(workoutId);
+    await db.workouts.delete(workoutId);
+  });
+}
+
 /** Every locally-tracked workout that started offline and hasn't finished
  *  syncing yet (flush-workout-queue.ts renames it away from offlineOrigin
  *  once it fully lands) — used to merge still-local workouts into the
@@ -176,6 +189,40 @@ export async function rekeyWorkoutQueue(oldId: string, newId: string): Promise<v
   const rows = await db.queue.where("workoutRouteId").equals(oldId).toArray();
   if (rows.length === 0) return;
   await db.queue.bulkPut(rows.map((r) => ({ ...r, workoutRouteId: newId })));
+}
+
+/** Atomically moves an offline-origin workout to its server id after the
+ * server has accepted `post_workout`. Write the new snapshot before removing
+ * the old one so an app termination can never leave queued work snapshotless. */
+export async function rekeyWorkoutLocalState(
+  oldId: string,
+  newId: string,
+  data: WorkoutData,
+  weMap: Map<string, string>,
+  setMap: Map<string, string>,
+  completedQueueEntryId: string
+): Promise<void> {
+  const db = getOfflineDb();
+  await db.transaction("rw", db.queue, db.queueIdMap, db.workouts, async () => {
+    await db.queue.delete(completedQueueEntryId);
+    const rows = await db.queue.where("workoutRouteId").equals(oldId).toArray();
+    if (rows.length > 0) {
+      await db.queue.bulkPut(rows.map((row) => ({ ...row, workoutRouteId: newId })));
+    }
+    await db.workouts.put({
+      id: newId,
+      payload: JSON.stringify({ ...data, id: newId }),
+      offlineOrigin: 0,
+      updatedAt: Date.now(),
+    });
+    await db.queueIdMap.put({
+      id: newId,
+      weMapJson: JSON.stringify([...weMap]),
+      setMapJson: JSON.stringify([...setMap]),
+    });
+    await db.queueIdMap.delete(oldId);
+    await db.workouts.delete(oldId);
+  });
 }
 
 export async function saveQueueIdMap(

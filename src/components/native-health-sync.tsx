@@ -10,6 +10,7 @@ import { onWatchCardioSaved } from "@/lib/native/watch-connectivity";
 // Avoid re-syncing on every tab-visibility flicker — once every 15 min is
 // plenty for daily vitals that only change a few times a day at most.
 const MIN_SYNC_INTERVAL_MS = 15 * 60 * 1000;
+const HOURLY_SYNC_INTERVAL_MS = 60 * 60 * 1000;
 
 // Persists "HealthKit authorization already granted" across app relaunches.
 // authorizedRef alone used to reset to false on every fresh mount — and the
@@ -77,6 +78,7 @@ export function NativeHealthSync() {
     }
 
     void sync();
+    const hourlySync = window.setInterval(() => void sync(), HOURLY_SYNC_INTERVAL_MS);
 
     // Watch just saved a cardio session and no background-sync token is
     // stored (the native side handles it itself otherwise). Bypasses the
@@ -105,6 +107,7 @@ export function NativeHealthSync() {
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.clearInterval(hourlySync);
       removeResumeListener?.();
     };
   }, [status]);

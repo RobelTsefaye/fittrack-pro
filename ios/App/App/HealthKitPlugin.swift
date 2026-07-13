@@ -40,6 +40,9 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             .heartRate, .restingHeartRate, .heartRateVariabilitySDNN,
             .respiratoryRate, .stepCount, .activeEnergyBurned,
             .basalEnergyBurned, .appleExerciseTime, .vo2Max,
+            .dietaryEnergyConsumed, .dietaryProtein, .dietaryCarbohydrates,
+            .dietaryFatTotal, .dietaryFiber, .dietarySugar, .dietarySodium,
+            .dietaryCaffeine, .dietaryWater,
         ]
         for id in quantityIds {
             if let t = HKObjectType.quantityType(forIdentifier: id) { types.insert(t) }
@@ -75,9 +78,9 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
     /// of `snapshotSchema` in `/api/health-data/route.ts` (date, sleepDuration,
     /// sleepDeepMinutes, sleepRemMinutes, restingHeartRate, heartRateAvg, hrv,
     /// respiratoryRate, wristTemperature, steps, activeCalories,
-    /// exerciseMinutes, calories, vo2Max).
+    /// exerciseMinutes, calories, vo2Max, and nutrition intake fields).
     @objc func queryDailySnapshots(_ call: CAPPluginCall) {
-        let days = call.getInt("days") ?? 14
+        let days = call.getInt("days") ?? 90
         let calendar = Calendar(identifier: .gregorian)
         let now = Date()
         guard let startDate = calendar.date(byAdding: .day, value: -days, to: now) else {
@@ -224,12 +227,22 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             (.restingHeartRate, "restingHeartRate", HKUnit.count().unitDivided(by: .minute())),
             (.heartRate, "heartRateAvg", HKUnit.count().unitDivided(by: .minute())),
             (.respiratoryRate, "respiratoryRate", HKUnit.count().unitDivided(by: .minute())),
+            (.vo2Max, "vo2Max", HKUnit(from: "ml/kg/min")),
         ]
         let sumFields: [(HKQuantityTypeIdentifier, String, HKUnit)] = [
             (.stepCount, "steps", .count()),
             (.activeEnergyBurned, "activeCalories", .kilocalorie()),
             (.basalEnergyBurned, "calories", .kilocalorie()),
             (.appleExerciseTime, "exerciseMinutes", .minute()),
+            (.dietaryEnergyConsumed, "dietaryCalories", .kilocalorie()),
+            (.dietaryProtein, "protein", .gram()),
+            (.dietaryCarbohydrates, "carbs", .gram()),
+            (.dietaryFatTotal, "fat", .gram()),
+            (.dietaryFiber, "fiber", .gram()),
+            (.dietarySugar, "sugar", .gram()),
+            (.dietarySodium, "sodium", .gramUnit(with: .milli)),
+            (.dietaryCaffeine, "caffeine", .gramUnit(with: .milli)),
+            (.dietaryWater, "water", .literUnit(with: .milli)),
         ]
         let maxFields: [(HKQuantityTypeIdentifier, String, HKUnit)] = [
             (.heartRateVariabilitySDNN, "hrv", .secondUnit(with: .milli)),
@@ -303,12 +316,10 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         // real value whenever the phone was carried while the watch was worn
         // (the normal case). Fix: use .separateBySource and take ONLY the
         // source whose name contains "Watch" — the Watch is the single
-        // source of truth here, matching what the Watch's own Fitness app
-        // displays. Days with no Watch-sourced data (e.g. Watch not worn/
-        // charging) are simply skipped rather than falling back to the
-        // phone, so the field stays absent instead of silently showing a
-        // different device's number.
-        func runWatchOnlySumQuery(id: HKQuantityTypeIdentifier, field: String, unit: HKUnit) {
+        // source of truth whenever it is present. If it is absent (Watch not
+        // worn/charging), use HealthKit's aggregate for the remaining sources
+        // so iPhone-only days do not disappear from the app.
+        func runPreferredSourceSumQuery(id: HKQuantityTypeIdentifier, field: String, unit: HKUnit) {
             guard let type = HKObjectType.quantityType(forIdentifier: id) else { return }
             group.enter()
             var interval = DateComponents()
@@ -320,9 +331,9 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 defer { group.leave() }
                 var pending: [(String, Double)] = []
                 collection?.enumerateStatistics(from: startDate, to: now) { stats, _ in
-                    guard let sources = stats.sources else { return }
-                    guard let watchSource = sources.first(where: { $0.name.localizedCaseInsensitiveContains("watch") }) else { return }
-                    guard let value = stats.sumQuantity(for: watchSource)?.doubleValue(for: unit) else { return }
+                    let watchSource = stats.sources?.first(where: { $0.name.localizedCaseInsensitiveContains("watch") })
+                    let quantity = watchSource.flatMap { stats.sumQuantity(for: $0) } ?? stats.sumQuantity()
+                    guard let value = quantity?.doubleValue(for: unit) else { return }
                     pending.append((dateKey(stats.startDate), value))
                 }
                 resultsQueue.sync {
@@ -339,7 +350,7 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             runStatsQuery(id: id, field: field, unit: unit, option: .discreteAverage) { $0.averageQuantity()?.doubleValue(for: unit) }
         }
         for (id, field, unit) in sumFields {
-            runWatchOnlySumQuery(id: id, field: field, unit: unit)
+            runPreferredSourceSumQuery(id: id, field: field, unit: unit)
         }
         for (id, field, unit) in maxFields {
             runStatsQuery(id: id, field: field, unit: unit, option: .discreteMax) { $0.maximumQuantity()?.doubleValue(for: unit) }
