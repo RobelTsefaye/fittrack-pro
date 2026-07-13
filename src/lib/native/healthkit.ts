@@ -11,6 +11,45 @@ interface HealthKitPlugin {
 
 const HealthKit = registerPlugin<HealthKitPlugin>("HealthKit");
 
+const INITIAL_SYNC_DAYS = 90;
+const ROUTINE_SYNC_DAYS = 2;
+const LAST_SUCCESSFUL_SYNC_KEY = "fittrack-healthkit-last-successful-sync";
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export type HealthKitSyncResult = {
+  snapshots: number;
+  workouts: number;
+  days: number;
+  completed: boolean;
+};
+
+let activeSync: Promise<HealthKitSyncResult> | null = null;
+
+function daysToSync(now: number): number {
+  try {
+    const lastSuccessfulSync = Number(localStorage.getItem(LAST_SUCCESSFUL_SYNC_KEY));
+    if (!Number.isFinite(lastSuccessfulSync) || lastSuccessfulSync <= 0 || lastSuccessfulSync > now) {
+      return INITIAL_SYNC_DAYS;
+    }
+
+    // Re-read yesterday even after a successful sync: sleep and Watch data
+    // regularly settle after midnight. If the app was offline, fill the gap
+    // plus that one-day safety overlap.
+    const missedDays = Math.ceil((now - lastSuccessfulSync) / DAY_MS);
+    return Math.min(INITIAL_SYNC_DAYS, Math.max(ROUTINE_SYNC_DAYS, missedDays + 1));
+  } catch {
+    return INITIAL_SYNC_DAYS;
+  }
+}
+
+function markSyncSuccessful(now: number) {
+  try {
+    localStorage.setItem(LAST_SUCCESSFUL_SYNC_KEY, String(now));
+  } catch {
+    // A later sync can safely fall back to the initial import window.
+  }
+}
+
 /**
  * Requests HealthKit read access. Safe to call unconditionally — no-ops on
  * web/PWA where the native plugin isn't registered.
@@ -29,25 +68,42 @@ export async function requestHealthKitAuthorization(): Promise<boolean> {
 }
 
 /**
- * Pulls the last `days` of vitals + workouts directly from HealthKit and
+ * Pulls recent vitals + workouts directly from HealthKit and
  * posts them to the same /api/health-data endpoint Health Auto Export uses.
- * Daily snapshots are posted in the PLAIN (non-HAE) shape the endpoint
- * already supports — one POST per day is unnecessary; the endpoint accepts
- * a single object per call, so we send them sequentially. Workouts are
+ * The first successful native sync imports 90 days. Subsequent syncs read
+ * today + yesterday, or fill any days missed while the app was offline.
+ * Workouts are
  * wrapped in the HAE-compatible `{ data: { workouts: [...] } }` envelope so
  * the existing transformHAEWorkout() parsing/unit-normalization is reused
  * without any backend changes.
  *
  * Call this on app foreground/resume — see native-health-sync.tsx.
  */
-export async function syncHealthKitData(days = 90): Promise<{ snapshots: number; workouts: number }> {
-  if (!Capacitor.isNativePlatform()) return { snapshots: 0, workouts: 0 };
+export function syncHealthKitData(days?: number): Promise<HealthKitSyncResult> {
+  if (!Capacitor.isNativePlatform()) {
+    return Promise.resolve({ snapshots: 0, workouts: 0, days: 0, completed: false });
+  }
+  // Auto-sync on app launch and a manual refresh can overlap. Share one
+  // in-flight operation so they do not both scan and upload the same days.
+  if (activeSync) return activeSync;
 
+  const now = Date.now();
+  const syncDays = days ?? daysToSync(now);
+  activeSync = runHealthKitSync(syncDays, now).finally(() => {
+    activeSync = null;
+  });
+  return activeSync;
+}
+
+async function runHealthKitSync(days: number, now: number): Promise<HealthKitSyncResult> {
   let snapshotCount = 0;
   let workoutCount = 0;
+  let snapshotsCompleted = false;
+  let workoutsCompleted = false;
 
   try {
     const { data: snapshots } = await HealthKit.queryDailySnapshots({ days });
+    let allSnapshotsUploaded = true;
     for (const snapshot of snapshots) {
       const res = await fetch("/api/health-data", {
         method: "POST",
@@ -56,7 +112,9 @@ export async function syncHealthKitData(days = 90): Promise<{ snapshots: number;
         body: JSON.stringify(snapshot),
       });
       if (res.ok) snapshotCount++;
+      else allSnapshotsUploaded = false;
     }
+    snapshotsCompleted = allSnapshotsUploaded;
   } catch (err) {
     console.error("[healthkit] daily snapshot sync failed", err);
   }
@@ -73,11 +131,16 @@ export async function syncHealthKitData(days = 90): Promise<{ snapshots: number;
       if (res.ok) {
         const json = (await res.json()) as { workoutsImported?: number };
         workoutCount = json.workoutsImported ?? workouts.length;
+      } else {
+        return { snapshots: snapshotCount, workouts: workoutCount, days, completed: false };
       }
     }
+    workoutsCompleted = true;
   } catch (err) {
     console.error("[healthkit] workout sync failed", err);
   }
 
-  return { snapshots: snapshotCount, workouts: workoutCount };
+  const completed = snapshotsCompleted && workoutsCompleted;
+  if (completed) markSyncSuccessful(now);
+  return { snapshots: snapshotCount, workouts: workoutCount, days, completed };
 }

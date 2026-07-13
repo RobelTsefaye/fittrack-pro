@@ -80,11 +80,6 @@ export async function removeQueueEntries(ids: string[]): Promise<void> {
   await db.queue.bulkDelete(ids);
 }
 
-export async function deleteWorkoutSnapshot(workoutId: string): Promise<void> {
-  const db = getOfflineDb();
-  await db.workouts.delete(workoutId);
-}
-
 /** Removes every piece of local state for a workout together. Keeping this in
  * one helper prevents a deleted snapshot from leaving replayable queue rows
  * behind (which would otherwise fail forever during the next sync). */
@@ -178,17 +173,6 @@ export async function distinctQueuedWorkoutIds(): Promise<string[]> {
   const db = getOfflineDb();
   const rows = await db.queue.toArray();
   return [...new Set(rows.map((r) => r.workoutRouteId))];
-}
-
-/** Repoints every still-queued op for `oldId` at `newId` — used once
- *  `post_workout` resolves a real server id, so a retry after a later
- *  mid-batch failure finds the remaining ops under the id it should now
- *  use (see flush-workout-queue.ts). */
-export async function rekeyWorkoutQueue(oldId: string, newId: string): Promise<void> {
-  const db = getOfflineDb();
-  const rows = await db.queue.where("workoutRouteId").equals(oldId).toArray();
-  if (rows.length === 0) return;
-  await db.queue.bulkPut(rows.map((r) => ({ ...r, workoutRouteId: newId })));
 }
 
 /** Atomically moves an offline-origin workout to its server id after the

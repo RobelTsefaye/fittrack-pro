@@ -1,32 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
-import { Capacitor } from "@capacitor/core";
-import { getCachedToken } from "@/lib/native/auth-token-cache";
+import { useEffect } from "react";
 import type { PreviousLogEntry } from "@/features/workouts/previous-logs-types";
 import { savePreviousLogsCache } from "@/lib/offline/screen-caches";
 
 /** Opportunistically seeds all prior exercise logs while online, rather than
  * waiting until each exercise happens to appear in an active workout.
  *
- * On native, gated on the actual Bearer token (via getCachedToken()) rather
- * than useSession().status — that cookie-backed session is only
- * best-effort synced on native and can silently die while the token stays
- * valid. Web keeps using the session status. */
+ * Deliberately has no auth-status gate at all: useSession().status is a
+ * cookie-backed session that's only best-effort synced on native and can
+ * silently die while the actual Bearer-token login stays valid (see
+ * project-docs/offline-first-roadmap.md Phase 2) — gating on it stopped this
+ * warmer from ever running for an affected user. The fetch below is
+ * self-guarding instead (NativeAuthFetchPatch attaches the real token
+ * automatically; an unauthenticated request just 401s and `!response.ok`
+ * bails), so there's nothing to check upfront. */
 export function PreviousLogsCacheWarmer() {
-  const { status } = useSession();
-  const [nativeReady, setNativeReady] = useState(!Capacitor.isNativePlatform());
-
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-    void getCachedToken().then((token) => setNativeReady(token != null));
-  }, []);
-
-  useEffect(() => {
-    const ready = Capacitor.isNativePlatform() ? nativeReady : status === "authenticated";
-    if (!ready) return;
-
     let cancelled = false;
     async function warm() {
       if (typeof navigator === "undefined" || !navigator.onLine) return;
@@ -46,7 +36,7 @@ export function PreviousLogsCacheWarmer() {
       cancelled = true;
       window.removeEventListener("online", warm);
     };
-  }, [status, nativeReady]);
+  }, []);
 
   return null;
 }

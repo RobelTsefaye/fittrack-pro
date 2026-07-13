@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useEffect, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
-import { getCachedToken } from "@/lib/native/auth-token-cache";
 import { requestHealthKitAuthorization, syncHealthKitData } from "@/lib/native/healthkit";
 import { onWatchCardioSaved } from "@/lib/native/watch-connectivity";
 
@@ -52,29 +50,20 @@ function writePersistedAuthorized() {
  * on it alone meant re-syncs often only happened on a full cold app launch,
  * leaving steps/calories looking stale for hours. visibilitychange is kept
  * as a fallback for web/PWA, where 'resume' isn't available.
+ *
+ * Deliberately has no auth-status gate: useSession().status is a
+ * cookie-backed session that's only best-effort synced on native and can
+ * silently die while the actual Bearer-token login stays valid (see
+ * project-docs/offline-first-roadmap.md Phase 2) — gating on it stopped
+ * HealthKit sync entirely for an affected user with everything else in the
+ * app still working. syncHealthKitData()'s own fetch is self-guarding
+ * instead (NativeAuthFetchPatch attaches the real token automatically).
  */
 export function NativeHealthSync() {
-  const { status } = useSession();
   const lastSyncRef = useRef(0);
   const authorizedRef = useRef(readPersistedAuthorized());
-  // On native, gate on the actual Bearer token (via getCachedToken()) rather
-  // than useSession().status — that cookie-backed session is only
-  // best-effort synced on native (see project-docs/offline-first-roadmap.md
-  // Phase 2) and can silently die while the token stays valid, which would
-  // otherwise stop HealthKit sync entirely with everything else in the app
-  // still working. Web has no such split (no Bearer token there), so it
-  // keeps using the session status directly.
-  const [nativeReady, setNativeReady] = useState(!Capacitor.isNativePlatform());
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-    void getCachedToken().then((token) => setNativeReady(token != null));
-  }, []);
-
-  useEffect(() => {
-    const ready = Capacitor.isNativePlatform() ? nativeReady : status === "authenticated";
-    if (!ready) return;
-
     async function sync() {
       const now = Date.now();
       if (now - lastSyncRef.current < MIN_SYNC_INTERVAL_MS) return;
@@ -88,7 +77,7 @@ export function NativeHealthSync() {
       }
       const result = await syncHealthKitData();
       if (result.snapshots > 0 || result.workouts > 0) {
-        console.log(`[healthkit] synced ${result.snapshots} days, ${result.workouts} workouts`);
+        console.log(`[healthkit] synced ${result.snapshots} days, ${result.workouts} workouts from ${result.days} days`);
       }
     }
 
@@ -125,7 +114,7 @@ export function NativeHealthSync() {
       window.clearInterval(hourlySync);
       removeResumeListener?.();
     };
-  }, [status, nativeReady]);
+  }, []);
 
   return null;
 }
