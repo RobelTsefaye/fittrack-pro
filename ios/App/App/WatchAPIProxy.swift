@@ -26,7 +26,7 @@ enum WatchAPIProxy {
     /// has no access to the user's saved preference (that lives in the web
     /// app's own settings, never synced to the Watch), so this is a
     /// reasonable fixed fallback for the no-phone-open path specifically.
-    private static let defaultRestSeconds: Double = 90
+    private static let defaultRestSeconds: Double = 180
     /// Installed by WatchConnectivityPlugin so a successful replay can replace
     /// the Watch's local UUID with the server workout payload.
     static var replayContextHandler: ((ContextUpdate) -> Void)?

@@ -38,7 +38,7 @@ export const EQUIPMENT_TYPES = [
   "OTHER",
 ] as const;
 
-export const DEFAULT_REST_TIMER = 90;
+export const DEFAULT_REST_TIMER = 180;
 
 export const ROUTES = {
   home: "/",

@@ -7,10 +7,13 @@ import { useSession } from "next-auth/react";
 import { ChevronRight, Dumbbell } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
 import { workoutHref } from "@/lib/workout-href";
+import { Capacitor } from "@capacitor/core";
+import { WatchConnectivity } from "@/lib/native/watch-connectivity";
 
 const CHANGED = "fittrack-active-workout-changed";
 
 type ActiveItem = { id: string; name: string | null; startedAt: string };
+type NativeWatchOfflineItem = { id: string; name: string; startedAt: string; queue?: Array<{ kind?: string }> };
 export type ActiveWorkoutItem = ActiveItem;
 
 export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: ActiveItem | null }) {
@@ -18,6 +21,7 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
   const pathname = usePathname();
   const { status } = useSession();
   const [active, setActive] = useState<ActiveItem | null>(initialActive);
+  const [nativeWatchOffline, setNativeWatchOffline] = useState<NativeWatchOfflineItem | null>(null);
   // Server already gave us an accurate snapshot for the very first paint —
   // skip the redundant client refetch on mount so the banner can't pop
   // in/out mid-tap right after navigation (that shift used to make taps on
@@ -89,12 +93,47 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
     };
   }, [fetchActive]);
 
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let cancelled = false;
+    async function loadNativeWatchOffline() {
+      try {
+        const { pendingJSON } = await WatchConnectivity.getPendingOfflineWorkout();
+        const pending = pendingJSON ? JSON.parse(pendingJSON) as NativeWatchOfflineItem : null;
+        const ended = pending?.queue?.some(({ kind }) => kind === "completeWorkout" || kind === "deleteWorkout");
+        if (!cancelled) setNativeWatchOffline(ended ? null : pending);
+      } catch {
+        if (!cancelled) setNativeWatchOffline(null);
+      }
+    }
+    void loadNativeWatchOffline();
+    const interval = window.setInterval(() => void loadNativeWatchOffline(), 10_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
+
   // Signed out (or session expired): hide the banner outright rather than
   // clearing `active` state from within fetchActive. Deliberately checks for
   // "unauthenticated" (not !== "authenticated") so the server-provided banner
   // stays visible during the brief client-side "loading" phase — hiding it
   // there would reintroduce the pop-in/layout-shift this component guards
   // against (see lastFetchedAt comment above).
+  if (nativeWatchOffline) {
+    return (
+      <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/10 px-2 py-1.5">
+        <div className="flex items-center gap-3 rounded-xl px-3 py-2">
+          <Dumbbell className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />
+          <span className="min-w-0 truncate text-sm">
+            <span className="font-semibold text-foreground">Watch-Training offline aktiv</span>
+            <span className="mx-1.5 text-[var(--sys-label3)]">—</span>
+            <span className="text-[var(--sys-label2)]">{nativeWatchOffline.name}</span>
+          </span>
+        </div>
+      </div>
+    );
+  }
   if (status === "unauthenticated" || !active) return null;
   // On native, the current workout's URL is /workouts/_?id=<id> (see
   // workout-href.ts); on web it's the plain /workouts/<id> path. Read the

@@ -15,6 +15,7 @@ export interface WatchConnectivityPlugin {
   syncActiveWorkout(options: { workoutJSON: string }): Promise<void>;
   clearWorkoutState(options: { workoutId?: string }): Promise<void>;
   pushPlanCatalog(options: { catalog: string }): Promise<void>;
+  getPendingOfflineWorkout(): Promise<{ pendingJSON?: string }>;
   syncRecoverySnapshot(options: { score: number; level: string }): Promise<void>;
   respondToRequest(options: { requestId: string; payload: Record<string, unknown> }): Promise<void>;
   startCardioSession(options: { activityType: "running" | "cycling" }): Promise<{ started: true }>;

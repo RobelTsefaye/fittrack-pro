@@ -23,6 +23,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "syncActiveWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clearWorkoutState", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "pushPlanCatalog", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getPendingOfflineWorkout", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "syncRecoverySnapshot", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "respondToRequest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "startCardioSession", returnType: CAPPluginReturnPromise),
@@ -156,6 +157,20 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         latestContext["planCatalog"] = catalog
         latestContext["planCatalogUpdatedAt"] = Date().timeIntervalSince1970
         pushContext(call)
+    }
+
+    /// Lets the phone WebView show a Watch-started offline workout without
+    /// writing it into IndexedDB's separate queue (which would duplicate the
+    /// native replay). The UI treats this as display-only until replay creates
+    /// the authoritative server workout.
+    @objc func getPendingOfflineWorkout(_ call: CAPPluginCall) {
+        guard let pending = WatchOfflineWorkoutStore.load(),
+              let data = try? JSONEncoder().encode(pending),
+              let json = String(data: data, encoding: .utf8) else {
+            call.resolve([:])
+            return
+        }
+        call.resolve(["pendingJSON": json])
     }
 
     /// Pushes the Recovery Score to the Watch for HealthDashboardView —
