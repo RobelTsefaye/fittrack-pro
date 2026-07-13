@@ -614,17 +614,36 @@ enum WatchAPIProxy {
             }
         }
 
-        // Re-fetch after creates/deletes, then patch every desired set. This
-        // is idempotent and also covers Watch-only logs made before the phone
-        // editor was opened.
+        // Patch every desired set. This is idempotent and also covers
+        // Watch-only logs made before the phone editor was opened.
+        //
+        // These per-set PATCHes are independent writes (each targets a
+        // different set row), and doing them one sequential round-trip at a
+        // time was the dominant cost of a Watch sync: N × the full network
+        // latency. On a real connection that left the freshly-created workout
+        // showing as "active" for many seconds before its completion could
+        // run — the "erst live, dann finished, und dauert ewig" symptom. Run
+        // them concurrently instead; URLSession pools/multiplexes the
+        // connections, so this collapses the whole set-write phase to roughly
+        // one round-trip. The reorder + complete steps still run strictly
+        // after, because the task group is fully awaited here.
+        var patchJobs: [(setId: String, body: [String: Any])] = []
         for localExercise in pending.workoutExercises {
             for localSet in localExercise.sets {
                 guard let serverSetId = pending.setIdMap[localSet.id] else { throw RequestError.decode }
                 var body: [String: Any] = ["isCompleted": localSet.isCompleted]
                 if let weight = localSet.weight { body["weight"] = weight }
                 if let reps = localSet.reps { body["reps"] = reps }
-                let _: ApiSetPatchResponse = try await request("/api/workouts/\(workoutId)/sets/\(serverSetId)", method: "PATCH", token: token, body: body)
+                patchJobs.append((serverSetId, body))
             }
+        }
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for job in patchJobs {
+                group.addTask {
+                    let _: ApiSetPatchResponse = try await request("/api/workouts/\(workoutId)/sets/\(job.setId)", method: "PATCH", token: token, body: job.body)
+                }
+            }
+            for try await _ in group {}
         }
         let order = pending.workoutExercises.compactMap { pending.workoutExerciseIdMap[$0.id] }
         if order.count == pending.workoutExercises.count {
