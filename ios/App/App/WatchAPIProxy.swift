@@ -409,7 +409,8 @@ enum WatchAPIProxy {
                 return (["started": true, "workoutJSON": json], .setActiveWorkout(json: json))
             }
         }
-        guard let session = WatchOfflineWorkoutStore.loadPlanCatalog()?.session(id: sessionId) else {
+        guard let catalog = WatchOfflineWorkoutStore.loadPlanCatalog(),
+              let session = catalog.session(id: sessionId) else {
             return (["error": "Plan ist offline nicht verfügbar – bitte einmal mit geöffneter Telefon-App synchronisieren"], nil)
         }
 
@@ -421,11 +422,18 @@ enum WatchAPIProxy {
             startedAt: iso.string(from: Date()),
             endedAt: nil,
             workoutExercises: session.exercises.map { template in
-                OfflineWorkoutExercise(
+                // Last-session sets for this exercise, positionally matched to
+                // the new working sets — same shape the online path attaches
+                // (buildWatchWorkoutPayload). All template sets are working
+                // sets, so set index == working index here.
+                let prevSets = catalog.previousLogs?[template.exercise.id]
+                return OfflineWorkoutExercise(
                     id: UUID().uuidString,
                     exercise: template.exercise,
                     sets: (1...max(0, template.targetSets)).map { number in
-                        OfflineWorkoutSet(id: UUID().uuidString, setNumber: number, weight: nil, reps: nil, isWarmup: false, isCompleted: false, completedAt: nil)
+                        let idx = number - 1
+                        let prev = (prevSets != nil && idx < prevSets!.count) ? prevSets![idx] : nil
+                        return OfflineWorkoutSet(id: UUID().uuidString, setNumber: number, weight: nil, reps: nil, isWarmup: false, isCompleted: false, completedAt: nil, previousWeight: prev?.weight, previousReps: prev?.reps)
                     }
                 )
             },
@@ -695,7 +703,7 @@ enum WatchAPIProxy {
                     "id": exercise.id,
                     "exercise": ["id": exercise.exercise.id, "name": exercise.exercise.name, "muscleGroup": exercise.exercise.muscleGroup],
                     "sets": exercise.sets.map { set in
-                        ["id": set.id, "setNumber": set.setNumber, "reps": nullable(set.reps), "weight": nullable(set.weight), "isCompleted": set.isCompleted, "isWarmup": set.isWarmup, "previousWeight": NSNull(), "previousReps": NSNull()]
+                        ["id": set.id, "setNumber": set.setNumber, "reps": nullable(set.reps), "weight": nullable(set.weight), "isCompleted": set.isCompleted, "isWarmup": set.isWarmup, "previousWeight": nullable(set.previousWeight), "previousReps": nullable(set.previousReps)]
                     },
                 ]
             },

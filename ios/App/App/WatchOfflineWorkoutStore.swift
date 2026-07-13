@@ -127,6 +127,13 @@ enum WatchOfflineWorkoutStore {
         pending.name = editor.name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? editor.name!.trimmingCharacters(in: .whitespacesAndNewlines)
             : pending.name
+        // The editor payload carries no previous-session hint fields, so
+        // preserve them from the current pending set (matched by id) rather
+        // than dropping them on every phone-side edit.
+        let existingSetsById = Dictionary(
+            pending.workoutExercises.flatMap(\.sets).map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         pending.workoutExercises = editor.workoutExercises.enumerated().map { index, exercise in
             OfflineWorkoutExercise(
                 id: exercise.id,
@@ -143,7 +150,9 @@ enum WatchOfflineWorkoutStore {
                         reps: set.reps,
                         isWarmup: set.isWarmup,
                         isCompleted: set.isCompleted,
-                        completedAt: set.completedAt
+                        completedAt: set.completedAt,
+                        previousWeight: existingSetsById[set.id]?.previousWeight,
+                        previousReps: existingSetsById[set.id]?.previousReps
                     )
                 }
             )
@@ -208,8 +217,12 @@ struct OfflineWorkoutSet: Codable {
     var isWarmup: Bool
     var isCompleted: Bool
     var completedAt: String?
+    // Last-session hint for this set, captured at offline-start from the
+    // cached catalog's previousLogs (nil when no prior session / online path).
+    var previousWeight: Double?
+    var previousReps: Int?
 
-    init(id: String, setNumber: Int, weight: Double?, reps: Int?, isWarmup: Bool = false, isCompleted: Bool, completedAt: String?) {
+    init(id: String, setNumber: Int, weight: Double?, reps: Int?, isWarmup: Bool = false, isCompleted: Bool, completedAt: String?, previousWeight: Double? = nil, previousReps: Int? = nil) {
         self.id = id
         self.setNumber = setNumber
         self.weight = weight
@@ -217,12 +230,14 @@ struct OfflineWorkoutSet: Codable {
         self.isWarmup = isWarmup
         self.isCompleted = isCompleted
         self.completedAt = completedAt
+        self.previousWeight = previousWeight
+        self.previousReps = previousReps
     }
 
     // Queues written before warm-up sets became editable have no `isWarmup`
     // key. Decode those durable records as ordinary working sets instead of
     // dropping an in-progress offline workout on app upgrade.
-    private enum CodingKeys: String, CodingKey { case id, setNumber, weight, reps, isWarmup, isCompleted, completedAt }
+    private enum CodingKeys: String, CodingKey { case id, setNumber, weight, reps, isWarmup, isCompleted, completedAt, previousWeight, previousReps }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         id = try values.decode(String.self, forKey: .id)
@@ -232,6 +247,8 @@ struct OfflineWorkoutSet: Codable {
         isWarmup = try values.decodeIfPresent(Bool.self, forKey: .isWarmup) ?? false
         isCompleted = try values.decode(Bool.self, forKey: .isCompleted)
         completedAt = try values.decodeIfPresent(String.self, forKey: .completedAt)
+        previousWeight = try values.decodeIfPresent(Double.self, forKey: .previousWeight)
+        previousReps = try values.decodeIfPresent(Int.self, forKey: .previousReps)
     }
 }
 
@@ -254,6 +271,11 @@ struct RekeyEntry: Codable {
 // Codable copy solely for constructing an offline workout skeleton.
 struct WatchCachedPlanCatalog: Codable {
     let plans: [WatchCachedPlan]
+    /// Last-session working sets per exerciseId (ordered by set), pushed
+    /// alongside the catalog while online so an offline-started Watch workout
+    /// can still show the "last time" hint (see startOfflineSession). Optional
+    /// so older cached catalogs without it still decode.
+    let previousLogs: [String: [CatalogPreviousSet]]?
     func session(id: String) -> WatchCachedPlanSession? {
         plans.lazy.flatMap(\.sessions).first { $0.id == id }
     }
@@ -261,3 +283,6 @@ struct WatchCachedPlanCatalog: Codable {
 struct WatchCachedPlan: Codable { let id: String; let name: String; let sessions: [WatchCachedPlanSession] }
 struct WatchCachedPlanSession: Codable { let id: String; let name: String; let order: Int; let exercises: [WatchCachedPlanExercise] }
 struct WatchCachedPlanExercise: Codable { let id: String; let targetSets: Int; let exercise: OfflineExerciseInfo }
+/// One prior working set — only the fields the offline set hint needs. Extra
+/// JSON keys (setNumber, rpe) are ignored by Codable.
+struct CatalogPreviousSet: Codable { let weight: Double?; let reps: Int? }

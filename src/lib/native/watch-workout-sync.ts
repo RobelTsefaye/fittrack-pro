@@ -20,7 +20,12 @@ import type { RecoveryBreakdown } from "@/features/health/recovery";
  * REST API — the Watch never talks to the network directly.
  */
 
-/** Fetches the plan catalog and pushes it to the Watch as one JSON blob. */
+/** Fetches the plan catalog and pushes it to the Watch as one JSON blob.
+ *  Also embeds each exercise's last-session working sets (keyed by
+ *  exerciseId) so a Watch workout STARTED OFFLINE can still show the
+ *  "last time X kg × Y" hint — the offline path has no network to fetch it
+ *  later, so it has to ride along with the catalog while online (mirrors the
+ *  online `previousLogs` the phone attaches in toWatchWorkoutPayload). */
 export async function syncPlanCatalogToWatch(): Promise<void> {
   try {
     const plansRes = await fetch("/api/plans");
@@ -36,7 +41,20 @@ export async function syncPlanCatalogToWatch(): Promise<void> {
       })
     );
 
-    await pushPlanCatalogToWatch({ plans: fullPlans.filter(Boolean) });
+    // Best-effort — if this fails the Watch simply falls back to no hint
+    // offline (same as before), so never let it block the catalog push.
+    let previousLogs: Record<string, PreviousLogEntry> | undefined;
+    try {
+      const prevRes = await fetch("/api/workouts/previous-logs-all");
+      if (prevRes.ok) {
+        const json = (await prevRes.json()) as { data: Record<string, PreviousLogEntry> };
+        previousLogs = json.data;
+      }
+    } catch {
+      // Non-fatal.
+    }
+
+    await pushPlanCatalogToWatch({ plans: fullPlans.filter(Boolean), previousLogs });
   } catch {
     // Non-fatal — the Watch just keeps whichever catalog it last received.
   }
