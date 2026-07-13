@@ -431,6 +431,7 @@ enum WatchAPIProxy {
     static func flushPendingOfflineWorkout() async -> Bool {
         guard let token = SyncTokenStore.loadForBackgroundUse() else { return false }
 
+        var allSucceeded = true
         for var terminal in WatchOfflineWorkoutStore.loadTerminalWorkouts() {
             let wasCompleted = terminal.queue.contains { $0.kind == .completeWorkout }
             do {
@@ -449,12 +450,20 @@ enum WatchAPIProxy {
                 WatchOfflineWorkoutStore.removeTerminalWorkout(id: terminal.id)
                 replayContextHandler?(.clear(workoutId: terminal.id))
             } catch {
+                // A single failing terminal job (network blip, or a genuinely
+                // unreplayable one) must NOT strand every OTHER queued workout
+                // behind it: this used to `return false` and abort the whole
+                // FIFO on the first error, so one poisoned job at the front
+                // blocked all completed workouts from ever uploading. Persist
+                // this job's progress, remember to report overall failure, and
+                // move on — it's retried on the next flush.
                 WatchOfflineWorkoutStore.updateTerminalWorkout(terminal)
-                return false
+                allSucceeded = false
+                continue
             }
         }
 
-        guard var pending = WatchOfflineWorkoutStore.load() else { return true }
+        guard var pending = WatchOfflineWorkoutStore.load() else { return allSucceeded }
         do {
             let endsWorkoutOnReplay = try await replayPendingWorkout(&pending, token: token) {
                 WatchOfflineWorkoutStore.save($0)
@@ -472,7 +481,7 @@ enum WatchAPIProxy {
                 }
             }
             WatchOfflineWorkoutStore.clear()
-            return true
+            return allSucceeded
         } catch {
             WatchOfflineWorkoutStore.save(pending)
             return false
@@ -515,7 +524,17 @@ enum WatchAPIProxy {
                 try await requestNoContent("/api/workouts/\(workoutId)/complete", method: "POST", token: token)
             case .deleteWorkout:
                 if let workoutId = pending.serverWorkoutId {
-                    try await requestNoContent("/api/workouts/\(workoutId)", method: "DELETE", token: token)
+                    do {
+                        try await requestNoContent("/api/workouts/\(workoutId)", method: "DELETE", token: token)
+                    } catch RequestError.http(404) {
+                        // The workout is already gone server-side, so this
+                        // delete has reached its desired end state. Throwing
+                        // here used to abort the entire terminal flush and,
+                        // because this job sits at the FRONT of the FIFO, left
+                        // every completed workout queued behind it stranded and
+                        // never uploaded. Swallow the 404 and let the queue
+                        // drain.
+                    }
                 }
             }
             pending.queue.removeFirst()
