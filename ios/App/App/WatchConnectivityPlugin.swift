@@ -199,8 +199,9 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         if !pending.queue.contains(where: { $0.kind == .completeWorkout }) {
             pending.queue.append(WatchQueuedOp(kind: .completeWorkout))
-            WatchOfflineWorkoutStore.save(pending)
         }
+        WatchOfflineWorkoutStore.deferTerminalWorkout(pending)
+        WatchOfflineWorkoutStore.clear()
         call.resolve()
     }
 
@@ -212,10 +213,13 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         if pending.serverWorkoutId == nil {
             WatchOfflineWorkoutStore.clear()
-        } else if !pending.queue.contains(where: { $0.kind == .deleteWorkout }) {
-            pending.queue.removeAll { $0.kind == .completeWorkout }
-            pending.queue.append(WatchQueuedOp(kind: .deleteWorkout))
-            WatchOfflineWorkoutStore.save(pending)
+        } else {
+            if !pending.queue.contains(where: { $0.kind == .deleteWorkout }) {
+                pending.queue.removeAll { $0.kind == .completeWorkout }
+                pending.queue.append(WatchQueuedOp(kind: .deleteWorkout))
+            }
+            WatchOfflineWorkoutStore.deferTerminalWorkout(pending)
+            WatchOfflineWorkoutStore.clear()
         }
         call.resolve()
     }

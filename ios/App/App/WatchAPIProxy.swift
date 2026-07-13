@@ -203,8 +203,9 @@ enum WatchAPIProxy {
         if var pending = WatchOfflineWorkoutStore.load(), pending.id == workoutId {
             if !pending.queue.contains(where: { $0.kind == .completeWorkout }) {
                 pending.queue.append(WatchQueuedOp(kind: .completeWorkout))
-                WatchOfflineWorkoutStore.save(pending)
             }
+            WatchOfflineWorkoutStore.deferTerminalWorkout(pending)
+            WatchOfflineWorkoutStore.clear()
             return (["done": true], .clear)
         }
         do {
@@ -225,10 +226,13 @@ enum WatchAPIProxy {
         if var pending = WatchOfflineWorkoutStore.load(), pending.id == workoutId {
             if pending.serverWorkoutId == nil {
                 WatchOfflineWorkoutStore.clear()
-            } else if !pending.queue.contains(where: { $0.kind == .deleteWorkout }) {
-                pending.queue.removeAll { $0.kind == .completeWorkout }
-                pending.queue.append(WatchQueuedOp(kind: .deleteWorkout))
-                WatchOfflineWorkoutStore.save(pending)
+            } else {
+                if !pending.queue.contains(where: { $0.kind == .deleteWorkout }) {
+                    pending.queue.removeAll { $0.kind == .completeWorkout }
+                    pending.queue.append(WatchQueuedOp(kind: .deleteWorkout))
+                }
+                WatchOfflineWorkoutStore.deferTerminalWorkout(pending)
+                WatchOfflineWorkoutStore.clear()
             }
             return (["done": true], .clear)
         }
@@ -377,10 +381,12 @@ enum WatchAPIProxy {
             // still offline, keep the terminal operation safe and explain
             // why a new standalone queue cannot be created yet.
             if existing.queue.contains(where: { $0.kind == .completeWorkout || $0.kind == .deleteWorkout }) {
-                return (["error": "Vorheriges Offline-Training wartet noch auf Synchronisierung. Bitte kurz online gehen und danach erneut starten."], nil)
+                WatchOfflineWorkoutStore.deferTerminalWorkout(existing)
+                WatchOfflineWorkoutStore.clear()
+            } else {
+                let json = jsonString(buildOfflineWatchWorkoutPayload(existing)) ?? "{}"
+                return (["started": true, "workoutJSON": json], .setActiveWorkout(json: json))
             }
-            let json = jsonString(buildOfflineWatchWorkoutPayload(existing)) ?? "{}"
-            return (["started": true, "workoutJSON": json], .setActiveWorkout(json: json))
         }
         guard let session = WatchOfflineWorkoutStore.loadPlanCatalog()?.session(id: sessionId) else {
             return (["error": "Plan ist offline nicht verfügbar – bitte einmal mit geöffneter Telefon-App synchronisieren"], nil)
@@ -412,61 +418,30 @@ enum WatchAPIProxy {
         return (["started": true, "workoutJSON": json], .setActiveWorkout(json: json))
     }
 
-    /// Replays exactly one persisted queue in order. Each successful mutation
-    /// is committed to the App Group before the next one starts, making a
-    /// connection loss mid-replay safe and idempotent on the next trigger.
+    /// Replays terminal jobs first, then the one active job. A finish/cancel
+    /// must not monopolize the active slot while it waits for connectivity.
     @discardableResult
     static func flushPendingOfflineWorkout() async -> Bool {
-        guard var pending = WatchOfflineWorkoutStore.load(), let token = SyncTokenStore.load() else { return false }
-        let endsWorkoutOnReplay = pending.queue.contains { $0.kind == .completeWorkout || $0.kind == .deleteWorkout }
-        do {
-            while let op = pending.queue.first {
-                switch op.kind {
-                case .postWorkout:
-                    if pending.serverWorkoutId == nil {
-                        let started: ApiIdResponse = try await request("/api/plan-sessions/\(pending.planSessionId)/start", method: "POST", token: token)
-                        pending.serverWorkoutId = started.data.id
-                        guard let fetched = try await fetchWorkoutPayload(workoutId: started.data.id, token: token) else { throw RequestError.decode }
-                        let serverExercises = fetched.workout.workoutExercises
-                        // The phone may have added/removed exercises or sets
-                        // before the connection returned. Map the common
-                        // prefix now; `reconcilePendingWorkout` below creates
-                        // and removes the rest once the server workout exists.
-                        var unmatchedServerExercises = serverExercises
-                        for localExercise in pending.workoutExercises {
-                            // Match by exercise identity instead of just
-                            // position: deleting exercise 1 on the phone
-                            // before first replay must not turn exercise 2
-                            // into exercise 1 on the server.
-                            guard let serverIndex = unmatchedServerExercises.firstIndex(where: {
-                                $0.exercise.id == localExercise.exercise.id
-                            }) else { continue }
-                            let serverExercise = unmatchedServerExercises.remove(at: serverIndex)
-                            pending.workoutExerciseIdMap[localExercise.id] = serverExercise.id
-                            for (setIndex, localSet) in localExercise.sets.enumerated() where setIndex < serverExercise.sets.count {
-                                pending.setIdMap[localSet.id] = serverExercise.sets[setIndex].id
-                            }
-                        }
-                    }
-                case .patchSet:
-                    // Desired state is persisted as a whole by the phone and
-                    // reconciled below. Keeping old per-set queue entries is
-                    // harmless and preserves compatibility with Watch-only
-                    // logging, but replaying them separately is redundant.
-                    break
-                case .completeWorkout:
-                    guard let workoutId = pending.serverWorkoutId else { throw RequestError.decode }
-                    try await reconcilePendingWorkout(&pending, token: token)
-                    try await requestNoContent("/api/workouts/\(workoutId)/complete", method: "POST", token: token)
-                case .deleteWorkout:
-                    if let workoutId = pending.serverWorkoutId {
-                        try await requestNoContent("/api/workouts/\(workoutId)", method: "DELETE", token: token)
-                    }
-                }
-                pending.queue.removeFirst()
-                WatchOfflineWorkoutStore.save(pending)
-            }
+        guard let token = SyncTokenStore.load() else { return false }
 
+        for var terminal in WatchOfflineWorkoutStore.loadTerminalWorkouts() {
+            do {
+                _ = try await replayPendingWorkout(&terminal, token: token) {
+                    WatchOfflineWorkoutStore.updateTerminalWorkout($0)
+                }
+                WatchOfflineWorkoutStore.removeTerminalWorkout(id: terminal.id)
+                replayContextHandler?(.clear)
+            } catch {
+                WatchOfflineWorkoutStore.updateTerminalWorkout(terminal)
+                return false
+            }
+        }
+
+        guard var pending = WatchOfflineWorkoutStore.load() else { return true }
+        do {
+            let endsWorkoutOnReplay = try await replayPendingWorkout(&pending, token: token) {
+                WatchOfflineWorkoutStore.save($0)
+            }
             if endsWorkoutOnReplay {
                 replayContextHandler?(.clear)
             } else if let workoutId = pending.serverWorkoutId {
@@ -481,6 +456,51 @@ enum WatchAPIProxy {
             WatchOfflineWorkoutStore.save(pending)
             return false
         }
+    }
+
+    /// Replays one durable desired-state record. The caller chooses whether
+    /// it belongs to the active slot or the terminal FIFO, while this method
+    /// commits after every operation so a network loss is safe to retry.
+    private static func replayPendingWorkout(
+        _ pending: inout PendingOfflineWorkout,
+        token: String,
+        persist: (PendingOfflineWorkout) -> Void
+    ) async throws -> Bool {
+        let endsWorkoutOnReplay = pending.queue.contains { $0.kind == .completeWorkout || $0.kind == .deleteWorkout }
+        while let op = pending.queue.first {
+            switch op.kind {
+            case .postWorkout:
+                if pending.serverWorkoutId == nil {
+                    let started: ApiIdResponse = try await request("/api/plan-sessions/\(pending.planSessionId)/start", method: "POST", token: token)
+                    pending.serverWorkoutId = started.data.id
+                    guard let fetched = try await fetchWorkoutPayload(workoutId: started.data.id, token: token) else { throw RequestError.decode }
+                    var unmatchedServerExercises = fetched.workout.workoutExercises
+                    for localExercise in pending.workoutExercises {
+                        guard let serverIndex = unmatchedServerExercises.firstIndex(where: {
+                            $0.exercise.id == localExercise.exercise.id
+                        }) else { continue }
+                        let serverExercise = unmatchedServerExercises.remove(at: serverIndex)
+                        pending.workoutExerciseIdMap[localExercise.id] = serverExercise.id
+                        for (setIndex, localSet) in localExercise.sets.enumerated() where setIndex < serverExercise.sets.count {
+                            pending.setIdMap[localSet.id] = serverExercise.sets[setIndex].id
+                        }
+                    }
+                }
+            case .patchSet:
+                break // desired state is reconciled as a whole below
+            case .completeWorkout:
+                guard let workoutId = pending.serverWorkoutId else { throw RequestError.decode }
+                try await reconcilePendingWorkout(&pending, token: token)
+                try await requestNoContent("/api/workouts/\(workoutId)/complete", method: "POST", token: token)
+            case .deleteWorkout:
+                if let workoutId = pending.serverWorkoutId {
+                    try await requestNoContent("/api/workouts/\(workoutId)", method: "DELETE", token: token)
+                }
+            }
+            pending.queue.removeFirst()
+            persist(pending)
+        }
+        return endsWorkoutOnReplay
     }
 
     /// Applies the native queue's current desired workout shape after its
@@ -562,7 +582,6 @@ enum WatchAPIProxy {
         if order.count == pending.workoutExercises.count {
             try await requestNoContent("/api/workouts/\(workoutId)/exercises/reorder", method: "POST", token: token, body: ["ids": order])
         }
-        WatchOfflineWorkoutStore.save(pending)
     }
 
     private static func buildOfflineWatchWorkoutPayload(_ pending: PendingOfflineWorkout) -> [String: Any] {

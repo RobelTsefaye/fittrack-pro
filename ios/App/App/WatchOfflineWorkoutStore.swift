@@ -6,6 +6,7 @@ import Foundation
 enum WatchOfflineWorkoutStore {
     private static let suite = "group.com.robeltsefaye.fittrackpro"
     private static let pendingKey = "watchPendingOfflineWorkout"
+    private static let terminalKey = "watchTerminalOfflineWorkouts"
     private static let catalogKey = "watchCachedPlanCatalog"
 
     static func load() -> PendingOfflineWorkout? {
@@ -19,6 +20,37 @@ enum WatchOfflineWorkoutStore {
     }
 
     static func clear() { UserDefaults(suiteName: suite)?.removeObject(forKey: pendingKey) }
+
+    /// Finished/cancelled workouts are no longer active, but must survive
+    /// until their final server mutation has been replayed. Keeping them in
+    /// a separate FIFO frees the single active slot for a new offline start.
+    static func loadTerminalWorkouts() -> [PendingOfflineWorkout] {
+        guard let data = UserDefaults(suiteName: suite)?.data(forKey: terminalKey) else { return [] }
+        return (try? JSONDecoder().decode([PendingOfflineWorkout].self, from: data)) ?? []
+    }
+
+    static func saveTerminalWorkouts(_ workouts: [PendingOfflineWorkout]) {
+        guard let data = try? JSONEncoder().encode(workouts) else { return }
+        UserDefaults(suiteName: suite)?.set(data, forKey: terminalKey)
+    }
+
+    static func deferTerminalWorkout(_ workout: PendingOfflineWorkout) {
+        var workouts = loadTerminalWorkouts()
+        guard !workouts.contains(where: { $0.id == workout.id }) else { return }
+        workouts.append(workout)
+        saveTerminalWorkouts(workouts)
+    }
+
+    static func updateTerminalWorkout(_ workout: PendingOfflineWorkout) {
+        var workouts = loadTerminalWorkouts()
+        guard let index = workouts.firstIndex(where: { $0.id == workout.id }) else { return }
+        workouts[index] = workout
+        saveTerminalWorkouts(workouts)
+    }
+
+    static func removeTerminalWorkout(id: String) {
+        saveTerminalWorkouts(loadTerminalWorkouts().filter { $0.id != id })
+    }
 
     static func loadPlanCatalog() -> WatchCachedPlanCatalog? {
         guard let data = UserDefaults(suiteName: suite)?.data(forKey: catalogKey) else { return nil }
