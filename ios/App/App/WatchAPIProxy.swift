@@ -35,6 +35,11 @@ enum WatchAPIProxy {
         case setActiveWorkout(json: String)
         case setRecovery(score: Int, level: String)
         case clear(workoutId: String?)
+        /// A Watch-started offline workout's local UUID has just been replaced
+        /// by its authoritative server id. The phone WebView may still be on
+        /// `/workouts/_?id=<localId>`, which now 404s — it needs to rehang the
+        /// route onto `serverWorkoutId` (see OfflineSyncProvider).
+        case rekeyWorkout(localId: String, serverWorkoutId: String)
     }
 
     static func handle(
@@ -433,6 +438,12 @@ enum WatchAPIProxy {
                     WatchOfflineWorkoutStore.updateTerminalWorkout($0)
                 }
                 if wasCompleted {
+                    // A completed workout keeps a server record — rehang any
+                    // phone view still on its local UUID onto the server id so
+                    // it opens the saved workout instead of 404-ing.
+                    if let serverWorkoutId = terminal.serverWorkoutId {
+                        replayContextHandler?(.rekeyWorkout(localId: terminal.id, serverWorkoutId: serverWorkoutId))
+                    }
                     WatchOfflineWorkoutStore.archiveCompletedWorkout(terminal)
                 }
                 WatchOfflineWorkoutStore.removeTerminalWorkout(id: terminal.id)
@@ -451,6 +462,10 @@ enum WatchAPIProxy {
             if endsWorkoutOnReplay {
                 replayContextHandler?(.clear(workoutId: pending.id))
             } else if let workoutId = pending.serverWorkoutId {
+                // The phone may still be viewing this workout under its local
+                // UUID, which now 404s — rehang the route onto the server id
+                // before it can poll and surface "Workout not found".
+                replayContextHandler?(.rekeyWorkout(localId: pending.id, serverWorkoutId: workoutId))
                 try await reconcilePendingWorkout(&pending, token: token)
                 if let fetched = try await fetchWorkoutPayload(workoutId: workoutId, token: token) {
                 replayContextHandler?(.setActiveWorkout(json: fetched.json))

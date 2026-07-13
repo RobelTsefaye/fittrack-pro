@@ -38,6 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ROUTES, exercisePath, DEFAULT_REST_TIMER } from "@/lib/constants";
+import { workoutHref } from "@/lib/workout-href";
 import type { PreviousLogEntry, PreviousSetEntry } from "@/features/workouts/previous-logs-types";
 import { loadPreviousLogsCache, savePreviousLogsCache } from "@/lib/offline/screen-caches";
 import { ExercisePickerDialog, type ExercisePickerExercise } from "./exercise-picker-dialog";
@@ -411,6 +412,13 @@ export function WorkoutDetail({
   // native App Group queue. Treat it as local for UI purposes, but never put
   // a second copy of its operations in IndexedDB.
   const [nativeWatchOffline, setNativeWatchOffline] = useState(false);
+  // Set once the native replay reports this workout's local UUID has been
+  // rekeyed to a server id and a route redirect is in flight. Suppresses the
+  // "Workout not found" 404 that the local id would otherwise produce in the
+  // gap before the new route mounts. A ref mirrors it so the async loadWorkout
+  // guard reads the current value without a stale closure.
+  const [rekeyRedirecting, setRekeyRedirecting] = useState(false);
+  const rekeyRedirectingRef = useRef(false);
   // In-app replacement for window.confirm(): native WKWebView JS-dialog
   // panels can silently fail to appear (observed on-device stuck behind an
   // await that never resolves — no dialog, no error, no way to proceed) when
@@ -686,6 +694,12 @@ export function WorkoutDetail({
         const res = await fetch(`/api/workouts/${workoutId}`, { credentials: "include" });
         if (isStale()) return;
         if (res.status === 404) {
+          // A Watch-offline workout whose local UUID just replayed to a new
+          // server id: the old id is legitimately gone server-side, but we're
+          // already redirecting to the server route (watchWorkoutSynced).
+          // Leave the loading skeleton up instead of flashing "Workout not
+          // found" for the split second before the new route mounts.
+          if (rekeyRedirectingRef.current) return;
           // A real 404 means we successfully reached the server and it
           // authoritatively says this workout is gone — e.g. cancelled from
           // the Watch while this page was open. That's different from "we
@@ -765,6 +779,27 @@ export function WorkoutDetail({
       window.removeEventListener("fittrack-offline-synced", sync);
     };
   }, [workoutId, loadWorkout]);
+
+  // A Watch-started offline workout is replayed natively; when it lands, its
+  // local UUID (this route's id) is replaced by a server id and the record
+  // under the old id 404s. The native bridge emits the mapping — redirect this
+  // view onto the server route ourselves (OfflineSyncProvider does the same,
+  // but owning it here guarantees the swap even if that provider's URL match
+  // misses) and, crucially, latch `rekeyRedirecting` so the in-flight poll
+  // can't paint "Workout not found" during the swap.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let remove: (() => void) | undefined;
+    void WatchConnectivity.addListener("watchWorkoutSynced", ({ localId, serverWorkoutId }) => {
+      if (localId !== workoutId) return;
+      rekeyRedirectingRef.current = true;
+      setRekeyRedirecting(true);
+      router.replace(workoutHref(serverWorkoutId));
+    }).then((handle) => {
+      remove = () => handle.remove();
+    });
+    return () => remove?.();
+  }, [workoutId, router]);
 
   // Cache-first: "last time you did this exercise" used to be skipped
   // entirely whenever writes were local-only (offline, or an unsynced
@@ -1366,7 +1401,7 @@ export function WorkoutDetail({
     }
   }
 
-  if (loading) {
+  if (loading || rekeyRedirecting) {
     return (
       <div className="space-y-4">
         <div className="h-8 w-48 animate-pulse rounded bg-muted" />

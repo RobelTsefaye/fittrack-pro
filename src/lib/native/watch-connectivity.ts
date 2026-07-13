@@ -38,6 +38,10 @@ export interface WatchConnectivityPlugin {
     listenerFunc: (data: { workoutId?: string }) => void
   ): Promise<{ remove: () => void }>;
   addListener(
+    eventName: "watchWorkoutSynced",
+    listenerFunc: (data: { localId: string; serverWorkoutId: string }) => void
+  ): Promise<{ remove: () => void }>;
+  addListener(
     eventName: "cardioLiveUpdate",
     listenerFunc: (data: {
       isRunning: boolean;

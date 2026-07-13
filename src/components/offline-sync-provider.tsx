@@ -6,12 +6,40 @@ import { App as CapacitorApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { flushAllQueues } from "@/lib/offline/flush-all-queues";
 import { WatchConnectivity } from "@/lib/native/watch-connectivity";
+import { workoutHref } from "@/lib/workout-href";
 import { toast } from "sonner";
 
 export function OfflineSyncProvider() {
   const pathname = usePathname();
   const router = useRouter();
   const busy = useRef(false);
+
+  // A Watch-started offline workout is replayed natively (WatchAPIProxy), so
+  // the phone never learns its new server id from flushAllQueues the way an
+  // IndexedDB-queued workout does. Without this, a phone view still on the
+  // local UUID route (`/workouts/_?id=<localId>`) keeps fetching that id after
+  // the native store is cleared and shows "Workout not found". The native
+  // bridge emits the local→server mapping the moment replay assigns it; rehang
+  // the route onto the server id and refresh any list left mounted.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let remove: (() => void) | undefined;
+    void WatchConnectivity.addListener("watchWorkoutSynced", ({ localId, serverWorkoutId }) => {
+      const currentId =
+        new URLSearchParams(window.location.search).get("id") ??
+        window.location.pathname.split("/workouts/")[1]?.split("/")[0];
+      if (currentId === localId) {
+        router.replace(workoutHref(serverWorkoutId));
+      }
+      // The native replay can be triggered by NWPathMonitor without going
+      // through run() below, so its fittrack-offline-synced never fired —
+      // announce it here so the history list picks up the saved workout.
+      window.dispatchEvent(new Event("fittrack-offline-synced"));
+    }).then((handle) => {
+      remove = () => handle.remove();
+    });
+    return () => remove?.();
+  }, [router]);
 
   useEffect(() => {
     async function run() {

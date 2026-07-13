@@ -74,6 +74,14 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
                 self.latestContext["active"] = false
                 self.latestContext.removeValue(forKey: "activeWorkout")
                 self.publishWorkoutEnded(workoutId: workoutId)
+            case .rekeyWorkout(let localId, let serverWorkoutId):
+                // Phone-only signal: the Watch has no concept of the local
+                // UUID route, so there is nothing to push to it here.
+                self.notifyListeners("watchWorkoutSynced", data: [
+                    "localId": localId,
+                    "serverWorkoutId": serverWorkoutId,
+                ])
+                return
             }
             self.pushContextToWatch()
         }
@@ -545,6 +553,10 @@ extension WatchConnectivityPlugin: WCSessionDelegate {
                         self.latestContext["active"] = false
                         self.latestContext.removeValue(forKey: "activeWorkout")
                         self.publishWorkoutEnded(workoutId: workoutId)
+                    case .rekeyWorkout:
+                        // Only produced by background replay, never by a live
+                        // Watch → phone request handled here.
+                        break
                     }
                     self.pushContextToWatch()
                 }
