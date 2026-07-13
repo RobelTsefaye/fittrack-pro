@@ -700,30 +700,52 @@ export function WorkoutDetail({
           // Leave the loading skeleton up instead of flashing "Workout not
           // found" for the split second before the new route mounts.
           if (rekeyRedirectingRef.current) return;
-          // Same rekey, but the live event never reached us: a cold app
-          // launch can flush/rekey this exact workout in native code (see
-          // OfflineWorkoutReachabilityMonitor, started from AppDelegate)
-          // before the WebView loaded far enough to register that listener,
-          // so the notification was silently dropped. The durable map is the
-          // backstop — look the old id up before believing a real 404.
+          // A Watch-started offline workout is synced entirely by native code
+          // (kicked by OfflineSyncProvider and the reachability monitor on
+          // launch). Its local id legitimately 404s until that replay finishes
+          // and records the local→server rekey — which, on a cold launch, can
+          // land after this page has already mounted and fetched. Rather than
+          // flash "Workout not found" for a workout that is merely mid-sync,
+          // wait out a short window: poll the durable rekey map (redirect the
+          // moment the server id appears) and re-try the id itself. Only after
+          // the window elapses do we treat the 404 as real. `isStale()` bails
+          // instantly if the user navigates away meanwhile.
           if (Capacitor.isNativePlatform()) {
-            try {
-              const { rekeyMapJSON } = await WatchConnectivity.getWorkoutRekeyMap();
-              const entries = rekeyMapJSON
-                ? (JSON.parse(rekeyMapJSON) as Array<{ localId: string; serverWorkoutId: string }>)
-                : [];
-              const match = entries.find((e) => e.localId === workoutId);
-              if (match) {
-                if (!isStale()) {
-                  rekeyRedirectingRef.current = true;
-                  setRekeyRedirecting(true);
-                  router.replace(workoutHref(match.serverWorkoutId));
-                }
+            const deadline = Date.now() + 6000;
+            while (Date.now() < deadline) {
+              let serverId: string | null = null;
+              try {
+                const { rekeyMapJSON } = await WatchConnectivity.getWorkoutRekeyMap();
+                const entries = rekeyMapJSON
+                  ? (JSON.parse(rekeyMapJSON) as Array<{ localId: string; serverWorkoutId: string }>)
+                  : [];
+                serverId = entries.find((e) => e.localId === workoutId)?.serverWorkoutId ?? null;
+              } catch {
+                // Bridge unavailable — keep polling; the retry fetch below may
+                // still resolve if the id became readable under its own name.
+              }
+              if (isStale()) return;
+              if (serverId) {
+                rekeyRedirectingRef.current = true;
+                setRekeyRedirecting(true);
+                router.replace(workoutHref(serverId));
                 return;
               }
-            } catch {
-              // Fall through to the normal 404 handling below.
+              await new Promise((resolve) => setTimeout(resolve, 600));
+              if (isStale()) return;
+              const retry = await fetch(`/api/workouts/${workoutId}`, { credentials: "include" });
+              if (isStale()) return;
+              if (retry.ok) {
+                const j = (await retry.json()) as { data: WorkoutData };
+                setWorkout(j.data);
+                await saveWorkoutSnapshot(workoutId, j.data, false);
+                if (isStale()) return;
+                setOfflineOriginSession(false);
+                setPendingQueue(false);
+                return;
+              }
             }
+            // Window elapsed with the workout still absent — fall through.
           }
           // A real 404 means we successfully reached the server and it
           // authoritatively says this workout is gone — e.g. cancelled from
