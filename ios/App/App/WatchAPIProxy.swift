@@ -20,6 +20,21 @@ import UserNotifications
  * user (swiped away in the app switcher) — that, and the phone being
  * completely powered off, are the only states no code can work around.
  */
+
+/// Mutual-exclusion gate for offline-workout replay. An actor gives us a
+/// data-race-free flag across the many concurrent contexts that trigger a
+/// flush; `begin()` returns false when a replay is already running so the
+/// caller backs off instead of starting a second, duplicate-creating pass.
+private actor FlushGate {
+    private var busy = false
+    func begin() -> Bool {
+        if busy { return false }
+        busy = true
+        return true
+    }
+    func end() { busy = false }
+}
+
 enum WatchAPIProxy {
     private static let baseURL = "https://fittrack-pro-ashen.vercel.app"
     /// Matches DEFAULT_REST_TIMER in src/lib/constants.ts — the native proxy
@@ -425,10 +440,28 @@ enum WatchAPIProxy {
         return (["started": true, "workoutJSON": json], .setActiveWorkout(json: json))
     }
 
-    /// Replays terminal jobs first, then the one active job. A finish/cancel
-    /// must not monopolize the active slot while it waits for connectivity.
+    /// Serializes replay so the many independent triggers — OfflineSyncProvider
+    /// (mount + `online` + `resume`), OfflineWorkoutReachabilityMonitor,
+    /// BackgroundSyncManager, the Capacitor bridge call, and the pre-request
+    /// flush in `handle` — can never run two replays at once. Without this,
+    /// concurrent flushes each saw a terminal job's `serverWorkoutId == nil`
+    /// and each POSTed `plan-sessions/start` before any could persist the
+    /// resolved id, creating one duplicate server workout per overlapping
+    /// trigger (observed: a single Watch workout replicated ~10×). A trigger
+    /// that arrives mid-flush is dropped here; the next trigger (they fire
+    /// often) drains whatever it added.
     @discardableResult
     static func flushPendingOfflineWorkout() async -> Bool {
+        guard await flushGate.begin() else { return true }
+        let result = await performFlush()
+        await flushGate.end()
+        return result
+    }
+
+    private static let flushGate = FlushGate()
+
+    @discardableResult
+    private static func performFlush() async -> Bool {
         guard let token = SyncTokenStore.loadForBackgroundUse() else { return false }
 
         var allSucceeded = true
