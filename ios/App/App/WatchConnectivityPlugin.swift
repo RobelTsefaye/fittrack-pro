@@ -141,15 +141,18 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
     /// application contexts must be property-list-safe values, and a single
     /// String is the simplest way to hand over an arbitrary nested shape).
     @objc func pushPlanCatalog(_ call: CAPPluginCall) {
-        guard WCSession.isSupported(), WCSession.default.activationState == .activated else {
-            call.resolve()
-            return
-        }
         guard let catalog = call.getString("catalog") else {
             call.reject("Missing catalog")
             return
         }
+        // Persist before checking WC activation: an app launch can reach this
+        // Capacitor call a moment before the Watch session finishes activating.
+        // The delegate below replays the durable catalog as soon as it can.
         WatchOfflineWorkoutStore.savePlanCatalog(catalog)
+        guard WCSession.isSupported(), WCSession.default.activationState == .activated else {
+            call.resolve()
+            return
+        }
         latestContext["planCatalog"] = catalog
         latestContext["planCatalogUpdatedAt"] = Date().timeIntervalSince1970
         pushContext(call)
@@ -400,7 +403,11 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
 
 extension WatchConnectivityPlugin: WCSessionDelegate {
     public func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        // No-op — activation state is checked lazily on each call above.
+        guard activationState == .activated,
+              let catalog = WatchOfflineWorkoutStore.planCatalogJSON() else { return }
+        latestContext["planCatalog"] = catalog
+        latestContext["planCatalogUpdatedAt"] = Date().timeIntervalSince1970
+        pushContextToWatch()
     }
 
     public func sessionDidBecomeInactive(_ session: WCSession) {}

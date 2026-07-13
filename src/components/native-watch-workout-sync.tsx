@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useSession } from "next-auth/react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { syncPlanCatalogToWatch, registerWatchWorkoutRequestHandler } from "@/lib/native/watch-workout-sync";
@@ -13,11 +12,10 @@ import { syncPlanCatalogToWatch, registerWatchWorkoutRequestHandler } from "@/li
  * No-op on web/PWA (Capacitor.isNativePlatform() guards inside the imports).
  */
 export function NativeWatchWorkoutSync() {
-  const { status } = useSession();
   const registeredRef = useRef(false);
 
   useEffect(() => {
-    if (status !== "authenticated" || !Capacitor.isNativePlatform()) return;
+    if (!Capacitor.isNativePlatform()) return;
 
     if (!registeredRef.current) {
       registerWatchWorkoutRequestHandler();
@@ -30,7 +28,7 @@ export function NativeWatchWorkoutSync() {
     return () => {
       void listenerPromise.then((handle) => handle.remove());
     };
-  }, [status]);
+  }, []);
 
   return null;
 }

@@ -31,6 +31,12 @@ enum WatchOfflineWorkoutStore {
               let encoded = try? JSONEncoder().encode(catalog) else { return }
         UserDefaults(suiteName: suite)?.set(encoded, forKey: catalogKey)
     }
+
+    static func planCatalogJSON() -> String? {
+        guard let catalog = loadPlanCatalog(),
+              let data = try? JSONEncoder().encode(catalog) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
 }
 
 struct PendingOfflineWorkout: Codable {
