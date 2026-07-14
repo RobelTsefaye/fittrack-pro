@@ -1524,9 +1524,9 @@ export function WorkoutDetail({
   function startRestTimerFromServerAnchor(w: WorkoutData) {
     const now = Date.now();
     if (now - lastRestTimerStartAtRef.current < 1500) return;
-    lastRestTimerStartAtRef.current = now;
     const endsAtSeconds = computeRestTimerEndsAt(w);
     if (endsAtSeconds == null) return;
+    lastRestTimerStartAtRef.current = now;
     const totalDuration = (w.restTimerDefaultSeconds ?? DEFAULT_REST_TIMER) + (w.restTimerAdjustSeconds ?? 0);
     const secondsUntilEnd = Math.max(1, Math.round(endsAtSeconds - now / 1000));
     restTimer.start(secondsUntilEnd, {

@@ -709,7 +709,7 @@ enum WatchAPIProxy {
             "id": pending.id,
             "name": pending.name,
             "startedAt": pending.startedAt,
-            "restTimerEndsAt": offlineRestTimerEndsAt(pending),
+            "restTimerEndsAt": nullable(offlineRestTimerEndsAt(pending)),
             "workoutExercises": pending.workoutExercises.map { exercise in
                 [
                     "id": exercise.id,
@@ -723,10 +723,20 @@ enum WatchAPIProxy {
         ]
     }
 
-    private static func offlineRestTimerEndsAt(_ pending: PendingOfflineWorkout) -> Double {
-        let latest = pending.workoutExercises.flatMap(\.sets).compactMap { $0.completedAt.flatMap(parseDate)?.timeIntervalSince1970 }.max()
+    private static func offlineRestTimerEndsAt(_ pending: PendingOfflineWorkout) -> Double? {
+        let completions = pending.workoutExercises.enumerated().flatMap { exerciseIndex, exercise in
+            exercise.sets.compactMap { set in
+                set.completedAt.flatMap(parseDate).map { (exerciseIndex, $0.timeIntervalSince1970) }
+            }
+        }
+        let latest = completions.max { $0.1 < $1.1 }
+        if let (exerciseIndex, _) = latest,
+           let group = pending.workoutExercises[exerciseIndex].supersetGroup,
+           pending.workoutExercises.lastIndex(where: { $0.supersetGroup == group }) != exerciseIndex {
+            return nil
+        }
         let started = parseDate(pending.startedAt)?.timeIntervalSince1970 ?? Date().timeIntervalSince1970
-        return (latest ?? started) + defaultRestSeconds + pending.restTimerAdjustSeconds
+        return (latest?.1 ?? started) + defaultRestSeconds + pending.restTimerAdjustSeconds
     }
 
     // MARK: - Networking
