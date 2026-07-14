@@ -140,6 +140,9 @@ model UserSettings {
   theme            Theme      @default(SYSTEM)
   restTimerDefault Int        @default(90)
   locale           AppLocale  @default(EN)
+  calendarSyncEnabled Boolean @default(false)
+  trainingWeekdays    Int[]   @default([]) // Montag-first: 0=Mo .. 6=So (Konvention wie workout-history-list.tsx)
+  trainingTimeMinutes Int     @default(1080) // Event-Start in Minuten seit lokaler Mitternacht (1080 = 18:00)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

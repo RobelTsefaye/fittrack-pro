@@ -35,6 +35,9 @@ export async function GET() {
       weightUnit: settings.weightUnit,
       theme: settings.theme,
       restTimerDefault: settings.restTimerDefault,
+      calendarSyncEnabled: settings.calendarSyncEnabled,
+      trainingWeekdays: settings.trainingWeekdays,
+      trainingTimeMinutes: settings.trainingTimeMinutes,
     },
   });
 }
@@ -85,6 +88,9 @@ export async function PATCH(req: NextRequest) {
       weightUnit: updated.weightUnit,
       theme: updated.theme,
       restTimerDefault: updated.restTimerDefault,
+      calendarSyncEnabled: updated.calendarSyncEnabled,
+      trainingWeekdays: updated.trainingWeekdays,
+      trainingTimeMinutes: updated.trainingTimeMinutes,
     },
   });
 

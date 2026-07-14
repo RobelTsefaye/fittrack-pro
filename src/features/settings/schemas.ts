@@ -5,6 +5,13 @@ export const updateSettingsSchema = z.object({
   weightUnit: z.enum(["KG", "LB"]).optional(),
   theme: z.enum(["LIGHT", "DARK", "SYSTEM"]).optional(),
   restTimerDefault: z.number().int().min(30).max(600).optional(),
+  calendarSyncEnabled: z.boolean().optional(),
+  trainingWeekdays: z
+    .array(z.number().int().min(0).max(6))
+    .max(7)
+    .transform((a) => [...new Set(a)].sort((x, y) => x - y))
+    .optional(),
+  trainingTimeMinutes: z.number().int().min(0).max(1439).optional(),
 });
 
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
