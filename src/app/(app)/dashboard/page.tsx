@@ -12,6 +12,7 @@ import { DashboardPageSkeleton } from "./dashboard-page-skeleton";
 import type { DashboardClientPayload } from "@/features/dashboard/queries";
 import { saveDashboardCache, loadDashboardCache } from "@/lib/offline/screen-caches";
 import { saveCachedUser } from "@/lib/cached-user";
+import { syncNextWorkoutWidgetSnapshot } from "@/lib/native/shared-data";
 
 type DashboardState = {
   weightUnit: "KG" | "LB";
@@ -62,6 +63,11 @@ export default function DashboardPage() {
         if (json?.data) {
           setState(json.data);
           void saveDashboardCache(json.data);
+          void syncNextWorkoutWidgetSnapshot(
+            json.data.payload.summary.workoutStreakDays,
+            json.data.payload.nextSession?.sessionName ?? null,
+            json.data.payload.nextSession?.planName ?? null
+          );
           // Keep the display identity fresh for screens that can't rely on
           // the cookie session (More-page profile) — see cached-user.ts.
           if (json.data.userName) saveCachedUser({ name: json.data.userName });
