@@ -37,6 +37,8 @@ interface SetRowProps {
   disabled?: boolean;
   /** Shown under inputs (last session reference). */
   previousHint?: string | null;
+  /** A conservative, user-applied next-set recommendation. */
+  progressionSuggestion?: { hint: string; weight: number; reps: number } | null;
   /** Online: merge server set into parent state without full reload */
   onMergeSet?: (set: WorkoutSetData) => void;
   /** Online: remove set from parent state after DELETE */
@@ -56,6 +58,7 @@ export const SetRow = memo(function SetRow({
   onComplete,
   disabled,
   previousHint,
+  progressionSuggestion,
   onMergeSet,
   onRemoveSet,
   offlineHandlers,
@@ -92,15 +95,20 @@ export const SetRow = memo(function SetRow({
     setWeight(set.weight?.toString() ?? "");
   }
 
-  async function saveSet(complete = false) {
+  async function saveSet(
+    complete = false,
+    values: { weight?: number; reps?: number } = {}
+  ) {
     // Safety net for the checkmark button's disabled state above — never
     // mark a set done with literally nothing entered, regardless of caller.
-    if (complete && reps.trim() === "" && weight.trim() === "") return;
+    const repsValue = values.reps?.toString() ?? reps;
+    const weightValue = values.weight?.toString() ?? weight;
+    if (complete && repsValue.trim() === "" && weightValue.trim() === "") return;
     setSaving(true);
     const data: Record<string, unknown> = {};
-    const rN = parseRepsInput(reps);
+    const rN = parseRepsInput(repsValue);
     if (rN != null) data.reps = rN;
-    const wN = parseLocaleDecimal(weight);
+    const wN = parseLocaleDecimal(weightValue);
     if (wN != null) data.weight = wN;
     if (complete) data.isCompleted = true;
 
@@ -169,6 +177,13 @@ export const SetRow = memo(function SetRow({
   // (still null if this set was never actually saved before), and a stray
   // tap on the checkmark used to silently mark it done with no data at all.
   const hasAnyValue = reps.trim() !== "" || weight.trim() !== "";
+
+  function applyProgressionSuggestion() {
+    if (!progressionSuggestion) return;
+    setWeight(progressionSuggestion.weight.toString());
+    setReps(progressionSuggestion.reps.toString());
+    void saveSet(false, progressionSuggestion);
+  }
 
   return (
     <div
@@ -250,6 +265,16 @@ export const SetRow = memo(function SetRow({
           {previousHint}
         </p>
       ) : null}
+      {progressionSuggestion && !set.isCompleted && !disabled ? (
+        <div className="mt-1.5 flex items-center justify-between gap-2 pl-8 sm:pl-6">
+          <p className="text-[11px] leading-tight text-muted-foreground/90">
+            {progressionSuggestion.hint}
+          </p>
+          <Button type="button" variant="ghost" size="xs" onClick={applyProgressionSuggestion}>
+            {t("workouts.applySuggestion")}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }, (prev, next) =>
@@ -261,6 +286,9 @@ export const SetRow = memo(function SetRow({
   prev.set.isWarmup === next.set.isWarmup &&
   prev.disabled === next.disabled &&
   prev.previousHint === next.previousHint &&
+  prev.progressionSuggestion?.hint === next.progressionSuggestion?.hint &&
+  prev.progressionSuggestion?.weight === next.progressionSuggestion?.weight &&
+  prev.progressionSuggestion?.reps === next.progressionSuggestion?.reps &&
   prev.unlockCompleted === next.unlockCompleted &&
   // Track online↔offline transition so offlineHandlers are picked up
   !!prev.offlineHandlers === !!next.offlineHandlers

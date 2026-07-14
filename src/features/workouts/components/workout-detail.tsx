@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import Link from "@/components/app-link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle2, Clock, GripVertical, Plus, Timer, Trash2, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, GripVertical, Plus, Timer, Trash2, WandSparkles, X } from "lucide-react";
 import { WorkoutShareButton } from "./workout-share-button";
 import {
   DndContext,
@@ -40,12 +40,19 @@ import {
 import { ROUTES, exercisePath, DEFAULT_REST_TIMER } from "@/lib/constants";
 import { workoutHref } from "@/lib/workout-href";
 import type { PreviousLogEntry, PreviousSetEntry } from "@/features/workouts/previous-logs-types";
-import { loadPreviousLogsCache, savePreviousLogsCache } from "@/lib/offline/screen-caches";
+import type { ProgressionSuggestion } from "@/features/workouts/progression";
+import {
+  loadPreviousLogsCache,
+  loadProgressionCache,
+  savePreviousLogsCache,
+  saveProgressionCache,
+} from "@/lib/offline/screen-caches";
 import { ExercisePickerDialog, type ExercisePickerExercise } from "./exercise-picker-dialog";
 import { SetRow } from "./set-row";
 import { useRestTimerActions } from "../rest-timer-context";
 import { useWorkoutTimer } from "../hooks/use-workout-timer";
 import { sortSetsForDisplay } from "../set-sort";
+import { buildWarmupRamp } from "../warmup";
 import { useI18n } from "@/lib/i18n-provider";
 import type { WorkoutData, WorkoutExerciseData, WorkoutSetData } from "@/features/workouts/workout-types";
 import {
@@ -164,6 +171,20 @@ function formatSetHint(
   return t("workouts.previousTrainingHint", { values });
 }
 
+function formatProgressionHint(
+  suggestion: ProgressionSuggestion,
+  weightUnit: string,
+  t: (key: string, params?: Record<string, string | number | undefined>) => string
+): string {
+  const values = `${formatWeightForHint(suggestion.weight)} ${weightUnit} × ${suggestion.reps}`;
+  return t(
+    suggestion.kind === "weight"
+      ? "workouts.progressionWeightHint"
+      : "workouts.progressionRepsHint",
+    { values }
+  );
+}
+
 /** Find the matching previous set for a given working-set index (0-based among non-warmups). */
 function getPreviousHintForSet(
   prevSets: PreviousLogEntry | undefined,
@@ -207,10 +228,13 @@ interface SortableExerciseCardProps {
   isActive: boolean;
   workoutId: string;
   weightLabel: string;
+  weightUnit: "KG" | "LB";
   useLocalWrites: boolean;
   previousSets?: PreviousLogEntry;
+  progressionSuggestions?: ProgressionSuggestion[];
   onRemove: (weId: string) => void;
   onAddSet: (weId: string, isWarmup?: boolean) => void;
+  onGenerateWarmups: (weId: string) => void;
   onMergeSet: (weId: string, data: WorkoutSetData) => void;
   onRemoveSet: (weId: string, setId: string) => void;
   onSetCompleted: () => void;
@@ -226,10 +250,13 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
   isActive,
   workoutId,
   weightLabel,
+  weightUnit,
   useLocalWrites,
   previousSets,
+  progressionSuggestions,
   onRemove,
   onAddSet,
+  onGenerateWarmups,
   onMergeSet,
   onRemoveSet,
   onSetCompleted,
@@ -316,6 +343,9 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
             const prevEntry = !set.isWarmup
               ? getPreviousHintForSet(previousSets, workingIdx)
               : undefined;
+            const progressionSuggestion = !set.isWarmup
+              ? progressionSuggestions?.find((suggestion) => suggestion.setIndex === workingIdx)
+              : undefined;
             return (
             <SetRow
               key={set.id}
@@ -326,6 +356,14 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
               previousHint={
                 prevEntry && set.weight == null && set.reps == null && !set.isCompleted
                   ? formatSetHint(prevEntry, weightLabel, t)
+                  : null
+              }
+              progressionSuggestion={
+                progressionSuggestion && set.weight == null && set.reps == null && !set.isCompleted
+                  ? {
+                      ...progressionSuggestion,
+                      hint: formatProgressionHint(progressionSuggestion, weightLabel, t),
+                    }
                   : null
               }
               onMergeSet={
@@ -353,6 +391,18 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
           })}
           {isActive && (
             <div className="flex flex-wrap gap-2 pt-1">
+              {!we.sets.some((set) => set.isWarmup) ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="xs"
+                  onClick={() => onGenerateWarmups(we.id)}
+                  aria-label={t("workouts.generateWarmupsAria")}
+                >
+                  <WandSparkles className="mr-1 h-3 w-3" />
+                  {t("workouts.generateWarmups")}
+                </Button>
+              ) : null}
               <Button type="button" variant="outline" size="xs" onClick={() => onAddSet(we.id)}>
                 <Plus className="mr-1 h-3 w-3" />
                 {t("workouts.set")}
@@ -371,8 +421,10 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
   prev.isActive === next.isActive &&
   prev.workoutId === next.workoutId &&
   prev.weightLabel === next.weightLabel &&
+  prev.weightUnit === next.weightUnit &&
   prev.useLocalWrites === next.useLocalWrites &&
   prev.previousSets === next.previousSets &&
+  prev.progressionSuggestions === next.progressionSuggestions &&
   prev.reviseCompletedSets === next.reviseCompletedSets
 );
 
@@ -435,6 +487,9 @@ export function WorkoutDetail({
     });
   }, []);
   const [previousLogs, setPreviousLogs] = useState<Record<string, PreviousLogEntry>>({});
+  const [progressionSuggestions, setProgressionSuggestions] = useState<
+    Record<string, ProgressionSuggestion[]>
+  >({});
   const [reviseCompletedSets, setReviseCompletedSets] = useState(false);
   const [completionSummary, setCompletionSummary] = useState<{
     hasPrevious: boolean;
@@ -885,6 +940,37 @@ export function WorkoutDetail({
   }, [workoutId, workout?.id, workout?.completedAt, workout?.workoutExercises?.length]);
 
   useEffect(() => {
+    if (!workout || workout.completedAt) return;
+    const exerciseIds = [...new Set(workout.workoutExercises.map((we) => we.exerciseId))];
+    if (exerciseIds.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const cached = await loadProgressionCache<ProgressionSuggestion[]>(exerciseIds);
+      if (!cancelled && Object.keys(cached).length > 0) {
+        setProgressionSuggestions((previous) => ({ ...cached, ...previous }));
+      }
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
+      try {
+        const response = await fetch(`/api/workouts/${workoutId}/progression`, {
+          credentials: "include",
+        });
+        const json = (await response.json()) as {
+          data?: Record<string, ProgressionSuggestion[]>;
+        };
+        if (!cancelled && response.ok && json.data) {
+          setProgressionSuggestions(json.data);
+          void saveProgressionCache(json.data);
+        }
+      } catch {
+        // Cached suggestions remain available offline.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workoutId, workout?.id, workout?.completedAt, workout?.workoutExercises?.length]);
+
+  useEffect(() => {
     if (workout?.name != null) setNameDraft(workout.name);
     else if (workout) setNameDraft("");
   }, [workout?.name, workout?.id]);
@@ -1117,6 +1203,85 @@ export function WorkoutDetail({
           ),
         };
       });
+    }
+  }
+
+  async function generateWarmups(weId: string) {
+    if (!workout || workout.completedAt) return;
+    const exercise = workout.workoutExercises.find((we) => we.id === weId);
+    const targetWeight = exercise?.sets.find(
+      (set) => !set.isWarmup && (set.weight ?? 0) > 0
+    )?.weight;
+    if (!exercise || targetWeight == null) {
+      toast.message(t("workouts.warmupTargetRequired"));
+      return;
+    }
+
+    const ramp = buildWarmupRamp(targetWeight, weightUnit);
+    if (ramp.length === 0) return;
+
+    if (useLocalWrites) {
+      const warmups: WorkoutSetData[] = ramp.map((draft, index) => ({
+        id: crypto.randomUUID(),
+        setNumber: index + 1,
+        reps: draft.reps,
+        weight: draft.weight,
+        rpe: null,
+        isWarmup: true,
+        isCompleted: false,
+        completedAt: null,
+      }));
+      const shiftedSets = exercise.sets.map((set) => ({
+        ...set,
+        setNumber: set.setNumber + warmups.length,
+      }));
+      const next: WorkoutData = {
+        ...workout,
+        workoutExercises: workout.workoutExercises.map((we) =>
+          we.id === weId ? { ...we, sets: [...warmups, ...shiftedSets] } : we
+        ),
+      };
+      setWorkout(next);
+      if (nativeWatchOffline) {
+        await WatchConnectivity.updatePendingOfflineWorkout({ workoutJSON: JSON.stringify(next) });
+        return;
+      }
+      await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
+      for (const warmup of warmups) {
+        await enqueueWorkoutOp(workoutId, {
+          t: "post_set",
+          clientWeId: weId,
+          clientSetId: warmup.id,
+          isWarmup: true,
+        });
+        await enqueueWorkoutOp(workoutId, {
+          t: "patch_set",
+          clientSetId: warmup.id,
+          body: { weight: warmup.weight, reps: warmup.reps },
+        });
+      }
+      setPendingQueue(true);
+      return;
+    }
+
+    let allSaved = true;
+    for (const warmup of ramp) {
+      const response = await fetch(`/api/workouts/${workoutId}/exercises/${weId}/sets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ ...warmup, isWarmup: true }),
+        });
+      if (!response.ok) {
+        allSaved = false;
+        break;
+      }
+    }
+    if (allSaved) {
+      await loadWorkout();
+    } else {
+      toast.error(t("workouts.generateWarmupsFailed"));
+      await loadWorkout();
     }
   }
 
@@ -1672,10 +1837,13 @@ export function WorkoutDetail({
                     isActive={!!isActive}
                     workoutId={workoutId}
                     weightLabel={weightLabel}
+                    weightUnit={weightUnit}
                     useLocalWrites={useLocalWrites}
                     previousSets={previousLogs[we.exercise.id]}
+                    progressionSuggestions={progressionSuggestions[we.exercise.id]}
                     onRemove={removeExercise}
                     onAddSet={addSet}
+                    onGenerateWarmups={generateWarmups}
                     onMergeSet={mergeSet}
                     onRemoveSet={removeSetFromWe}
                     onSetCompleted={onSetCompleted}

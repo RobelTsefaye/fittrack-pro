@@ -232,3 +232,38 @@ export async function loadPreviousLogsCache<T>(
   });
   return result;
 }
+
+/** Like previous logs, progression suggestions are reusable per exercise and
+ * can be shown from the last successful calculation while offline. */
+export async function saveProgressionCache<T>(byExerciseId: Record<string, T>): Promise<void> {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  const now = Date.now();
+  await db.progressionCache.bulkPut(
+    Object.entries(byExerciseId)
+      .filter(([, payload]) => payload != null)
+      .map(([exerciseId, payload]) => ({
+        id: exerciseId,
+        payload: JSON.stringify(payload),
+        updatedAt: now,
+      }))
+  );
+}
+
+export async function loadProgressionCache<T>(
+  exerciseIds: string[]
+): Promise<Record<string, T>> {
+  const db = tryGetOfflineDb();
+  if (!db || exerciseIds.length === 0) return {};
+  const rows = await db.progressionCache.bulkGet(exerciseIds);
+  const result: Record<string, T> = {};
+  rows.forEach((row, index) => {
+    if (!row) return;
+    try {
+      result[exerciseIds[index]] = JSON.parse(row.payload) as T;
+    } catch {
+      // Skip corrupt entries; a future online fetch replaces them.
+    }
+  });
+  return result;
+}
