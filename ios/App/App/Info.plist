@@ -30,6 +30,8 @@
 	<string>FitTrack Pro benötigt keinen Schreibzugriff auf Apple Health — dies wird nur zur Vollständigkeit der HealthKit-Autorisierung angezeigt.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>FitTrack Pro nutzt Face ID, um den App-Zugriff zu schützen.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>FitTrack Pro trägt deine geplanten Trainingstage mit der jeweils nächsten Einheit deines Plans in einen eigenen „FitTrack Pro“-Kalender ein und aktualisiert ausschließlich diesen.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>

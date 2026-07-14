@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0E4B2A91649804D2E740AFAB /* SyncTokenPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC11B8425F6F67ADE9DEBF5 /* SyncTokenPlugin.swift */; };
 		0EC6850581A02526C4154886 /* HealthKitPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41E81FC7A2B6F1AE1D7C41F3 /* HealthKitPlugin.swift */; };
+		CA1E4D110000000000000B01 /* EventKitPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1E4D110000000000000A01 /* EventKitPlugin.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
@@ -117,6 +118,7 @@
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		3BC11B8425F6F67ADE9DEBF5 /* SyncTokenPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncTokenPlugin.swift; sourceTree = "<group>"; };
 		41E81FC7A2B6F1AE1D7C41F3 /* HealthKitPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitPlugin.swift; sourceTree = "<group>"; };
+		CA1E4D110000000000000A01 /* EventKitPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitPlugin.swift; sourceTree = "<group>"; };
 		42D146C0D81D9C9989C9E01F /* SharedDataPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDataPlugin.swift; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -256,6 +258,7 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				CD01AA1100000000000000A6 /* SceneDelegate.swift */,
 				41E81FC7A2B6F1AE1D7C41F3 /* HealthKitPlugin.swift */,
+				CA1E4D110000000000000A01 /* EventKitPlugin.swift */,
 				0C48EF5489B726207CD3A6EB /* WatchConnectivityPlugin.swift */,
 				CD01AA1100000000000000A1 /* CardioLiveRelay.swift */,
 				CD01AA1100000000000000A2 /* CardioPipContentView.swift */,
@@ -497,6 +500,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				CD01AA1100000000000000B6 /* SceneDelegate.swift in Sources */,
 				0EC6850581A02526C4154886 /* HealthKitPlugin.swift in Sources */,
+				CA1E4D110000000000000B01 /* EventKitPlugin.swift in Sources */,
 				F43ED9D36FDFEF1893ED2917 /* WatchConnectivityPlugin.swift in Sources */,
 				CD01AA1100000000000000B1 /* CardioLiveRelay.swift in Sources */,
 				CD01AA1100000000000000B2 /* CardioPipContentView.swift in Sources */,

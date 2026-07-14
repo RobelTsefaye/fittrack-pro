@@ -7,6 +7,7 @@ import { PwaRegister } from "@/components/pwa-register";
 import { OfflineSyncProvider } from "@/components/offline-sync-provider";
 import { NativePushRegister } from "@/components/native-push-register";
 import { NativeHealthSync } from "@/components/native-health-sync";
+import { NativeCalendarSync } from "@/components/native-calendar-sync";
 import { NativeWatchWorkoutSync } from "@/components/native-watch-workout-sync";
 import { NativeAuthFetchPatch } from "@/components/native-auth-fetch-patch";
 import { NativeOnlineStatusPatch } from "@/components/native-online-status-patch";
@@ -21,6 +22,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <PwaRegister />
         <NativePushRegister />
         <NativeHealthSync />
+        <NativeCalendarSync />
         <NativeWatchWorkoutSync />
         <OfflineSyncProvider />
         <PreviousLogsCacheWarmer />

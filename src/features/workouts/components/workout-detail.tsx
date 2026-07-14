@@ -64,6 +64,7 @@ import {
 } from "@/lib/offline/workout-offline-store";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
 import { hapticWorkoutCompleted, hapticPersonalRecord } from "@/lib/native/haptics";
+import { syncTrainingCalendar } from "@/lib/native/calendar";
 import { Capacitor } from "@capacitor/core";
 import {
   syncActiveWorkoutToWatch,
@@ -1414,6 +1415,7 @@ export function WorkoutDetail({
       };
       if (json.comparison) setCompletionSummary(json.comparison);
       restTimer.stop();
+      void syncTrainingCalendar();
       await savePreviousLogsCache(workoutAsPreviousLogs(workout));
       if (json.data) {
         // Same reasoning as the offline branch above — patch the Workouts
