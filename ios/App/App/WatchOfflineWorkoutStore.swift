@@ -159,6 +159,7 @@ enum WatchOfflineWorkoutStore {
         pending.workoutExercises = editor.workoutExercises.enumerated().map { index, exercise in
             OfflineWorkoutExercise(
                 id: exercise.id,
+                supersetGroup: exercise.supersetGroup,
                 exercise: OfflineExerciseInfo(
                     id: exercise.exercise.id,
                     name: exercise.exercise.name,
@@ -191,6 +192,7 @@ private struct OfflineEditorWorkout: Decodable {
 }
 private struct OfflineEditorExercise: Decodable {
     let id: String
+    let supersetGroup: Int?
     let exercise: OfflineEditorExerciseInfo
     let sets: [OfflineEditorSet]
 }
@@ -225,6 +227,7 @@ struct PendingOfflineWorkout: Codable {
 
 struct OfflineWorkoutExercise: Codable {
     let id: String
+    var supersetGroup: Int?
     let exercise: OfflineExerciseInfo
     var sets: [OfflineWorkoutSet]
 }

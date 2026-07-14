@@ -429,6 +429,7 @@ enum WatchAPIProxy {
                 let prevSets = catalog.previousLogs?[template.exercise.id]
                 return OfflineWorkoutExercise(
                     id: UUID().uuidString,
+                    supersetGroup: nil,
                     exercise: template.exercise,
                     sets: (1...max(0, template.targetSets)).map { number in
                         let idx = number - 1
@@ -694,6 +695,13 @@ enum WatchAPIProxy {
         if order.count == pending.workoutExercises.count {
             try await requestNoContent("/api/workouts/\(workoutId)/exercises/reorder", method: "POST", token: token, body: ["ids": order])
         }
+        for localExercise in pending.workoutExercises where localExercise.supersetGroup != nil {
+            guard let serverExerciseId = pending.workoutExerciseIdMap[localExercise.id] else { continue }
+            try? await requestNoContent(
+                "/api/workouts/\(workoutId)/exercises/\(serverExerciseId)", method: "PATCH", token: token,
+                body: ["supersetGroup": localExercise.supersetGroup as Any]
+            )
+        }
     }
 
     private static func buildOfflineWatchWorkoutPayload(_ pending: PendingOfflineWorkout) -> [String: Any] {
@@ -705,6 +713,7 @@ enum WatchAPIProxy {
             "workoutExercises": pending.workoutExercises.map { exercise in
                 [
                     "id": exercise.id,
+                    "supersetGroup": nullable(exercise.supersetGroup),
                     "exercise": ["id": exercise.exercise.id, "name": exercise.exercise.name, "muscleGroup": exercise.exercise.muscleGroup],
                     "sets": exercise.sets.map { set in
                         ["id": set.id, "setNumber": set.setNumber, "reps": nullable(set.reps), "weight": nullable(set.weight), "isCompleted": set.isCompleted, "isWarmup": set.isWarmup, "previousWeight": nullable(set.previousWeight), "previousReps": nullable(set.previousReps)]
