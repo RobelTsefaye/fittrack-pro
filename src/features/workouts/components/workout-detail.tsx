@@ -82,6 +82,7 @@ type NativeWatchPending = {
   queue?: Array<{ kind?: string }>;
   workoutExercises: Array<{
     id: string;
+    supersetGroup?: number | null;
     exercise: { id: string; name: string; muscleGroup: string };
     sets: Array<{
       id: string; setNumber: number; reps: number | null; weight: number | null;
@@ -105,6 +106,7 @@ function nativeWatchPendingToWorkout(pending: NativeWatchPending): WorkoutData {
       id: we.id,
       exerciseId: we.exercise.id,
       order,
+      supersetGroup: we.supersetGroup ?? null,
       notes: null,
       isCompleted: false,
       exercise: { ...we.exercise, equipment: "OTHER" },
@@ -1055,6 +1057,7 @@ export function WorkoutDetail({
         id: weId,
         exerciseId: ex.id,
         order,
+        supersetGroup: null,
         notes: null,
         isCompleted: false,
         exercise: {

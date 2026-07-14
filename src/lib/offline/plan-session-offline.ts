@@ -59,6 +59,7 @@ export async function startPlanSessionOffline(session: OfflinePlanSession): Prom
       id: clientWeId,
       exerciseId: pse.exerciseId,
       order,
+      supersetGroup: null,
       notes: null,
       isCompleted: false,
       exercise: pse.exercise,

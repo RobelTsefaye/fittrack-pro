@@ -46,6 +46,7 @@ export async function getWorkoutDetailData(
       id: we.id,
       exerciseId: we.exerciseId,
       order: we.order,
+      supersetGroup: we.supersetGroup,
       notes: we.notes,
       isCompleted: we.isCompleted,
       exercise: we.exercise,

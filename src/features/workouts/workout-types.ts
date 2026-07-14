@@ -15,6 +15,7 @@ export type WorkoutExerciseData = {
   id: string;
   exerciseId: string;
   order: number;
+  supersetGroup: number | null;
   notes: string | null;
   isCompleted: boolean;
   exercise: {
