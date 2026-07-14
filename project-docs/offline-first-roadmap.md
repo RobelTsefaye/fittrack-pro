@@ -1,5 +1,7 @@
 # Offline-First Roadmap
 
+> Superset update: the workout write queue also replays `set_superset_group` operations, preserving ad-hoc exercise groups made while offline.
+
 **Status:** All 5 phases + the Phase 4 follow-up (offline plan-session start) are code-complete, on-device tested, and **merged to `main`** (`01a6132`). The roadmap is closed out.
 **Last updated:** 2026-07-12
 

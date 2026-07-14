@@ -28,7 +28,7 @@ All routes prefixed with `/api`. All routes except auth require authentication.
 | DELETE | `/api/workouts/:id` | Delete workout |
 | POST | `/api/workouts/:id/complete` | Mark workout complete (sets `completedAt`, `durationSeconds`) |
 | POST | `/api/workouts/:id/exercises` | Add exercise to workout |
-| PATCH | `/api/workouts/:id/exercises/:weId` | *(planned)* Update workout exercise (order, notes) |
+| PATCH | `/api/workouts/:id/exercises/:weId` | Set `supersetGroup` with `{ "supersetGroup": number \| null }` for an active workout |
 | DELETE | `/api/workouts/:id/exercises/:weId` | Remove exercise from workout |
 | POST | `/api/workouts/:id/exercises/:weId/sets` | Add set |
 | PATCH | `/api/workouts/:id/sets/:setId` | Update set (reps, weight, complete); verifies set belongs to workout; may create `PersonalRecord` when first completing a working set with weight + reps (beats prior best Epley 1RM) |

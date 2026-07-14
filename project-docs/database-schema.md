@@ -56,6 +56,7 @@ User 1──* Workout 1──* WorkoutExercise 1──* Set
 | workoutId | UUID | FK → Workout |
 | exerciseId | UUID | FK → Exercise |
 | order | Int | Display order in workout |
+| supersetGroup | Int? | Shared ad-hoc group id; null for standalone exercises |
 | notes | String? | Optional |
 | isCompleted | Boolean | Default false |
 
