@@ -176,12 +176,7 @@ function formatProgressionHint(
   t: (key: string, params?: Record<string, string | number | undefined>) => string
 ): string {
   const values = `${formatWeightForHint(suggestion.weight)} ${weightUnit} × ${suggestion.reps}`;
-  return t(
-    suggestion.kind === "increase"
-      ? "workouts.progressionIncreaseHint"
-      : "workouts.progressionHoldHint",
-    { values }
-  );
+  return t("workouts.progressionHint", { values });
 }
 
 function deriveProgressions(
@@ -1303,7 +1298,9 @@ export function WorkoutDetail({
         }
       }
 
-      for (const warmup of ramp) {
+      // The API inserts each warm-up at position 1. Send the ramp backwards
+      // so the resulting display order remains light → heavy (50/70/85%).
+      for (const warmup of [...ramp].reverse()) {
         const response = await fetch(`/api/workouts/${workoutId}/exercises/${weId}/sets`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
