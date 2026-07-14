@@ -132,8 +132,10 @@ export type PreviousLogCacheRow = {
   updatedAt: number;
 };
 
+/** Retained for IndexedDB schema compatibility with the first Nifty Reef
+ * build. Suggestions now derive directly from `previousLogsCache`, so this
+ * store is intentionally no longer read or written. */
 export type ProgressionCacheRow = {
-  /** Keyed by exerciseId; holds the conservative next-set suggestion. */
   id: string;
   payload: string;
   updatedAt: number;

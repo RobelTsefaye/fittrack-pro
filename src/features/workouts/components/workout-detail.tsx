@@ -40,12 +40,10 @@ import {
 import { ROUTES, exercisePath, DEFAULT_REST_TIMER } from "@/lib/constants";
 import { workoutHref } from "@/lib/workout-href";
 import type { PreviousLogEntry, PreviousSetEntry } from "@/features/workouts/previous-logs-types";
-import type { ProgressionSuggestion } from "@/features/workouts/progression";
+import { suggestProgression, type ProgressionSuggestion } from "@/features/workouts/progression";
 import {
   loadPreviousLogsCache,
-  loadProgressionCache,
   savePreviousLogsCache,
-  saveProgressionCache,
 } from "@/lib/offline/screen-caches";
 import { ExercisePickerDialog, type ExercisePickerExercise } from "./exercise-picker-dialog";
 import { SetRow } from "./set-row";
@@ -183,6 +181,35 @@ function formatProgressionHint(
       ? "workouts.progressionIncreaseHint"
       : "workouts.progressionHoldHint",
     { values }
+  );
+}
+
+function deriveProgressions(
+  logs: Record<string, PreviousLogEntry>,
+  weightUnit: "KG" | "LB"
+): Record<string, ProgressionSuggestion[]> {
+  return Object.fromEntries(
+    Object.entries(logs).map(([exerciseId, sets]) => [
+      exerciseId,
+      sets ? suggestProgression([sets], weightUnit) : [],
+    ])
+  );
+}
+
+function workoutAsPreviousLogs(workout: WorkoutData): Record<string, PreviousLogEntry> {
+  return Object.fromEntries(
+    workout.workoutExercises.map((exercise) => [
+      exercise.exerciseId,
+      exercise.sets
+        .filter((set) => !set.isWarmup && set.weight != null && (set.reps ?? 0) > 0)
+        .sort((a, b) => a.setNumber - b.setNumber)
+        .map((set) => ({
+          setNumber: set.setNumber,
+          weight: set.weight,
+          reps: set.reps,
+          rpe: set.rpe,
+        })),
+    ])
   );
 }
 
@@ -928,6 +955,10 @@ export function WorkoutDetail({
       const cached = await loadPreviousLogsCache<PreviousLogEntry>(exerciseIds);
       if (!cancelled && Object.keys(cached).length > 0) {
         setPreviousLogs((prev) => ({ ...cached, ...prev }));
+        setProgressionSuggestions((prev) => ({
+          ...deriveProgressions(cached, weightUnit),
+          ...prev,
+        }));
       }
       if (typeof navigator !== "undefined" && !navigator.onLine) return;
       try {
@@ -935,6 +966,7 @@ export function WorkoutDetail({
         const json = (await res.json()) as { data?: Record<string, PreviousLogEntry> };
         if (!cancelled && json.data) {
           setPreviousLogs(json.data);
+          setProgressionSuggestions(deriveProgressions(json.data, weightUnit));
           void savePreviousLogsCache(json.data);
         }
       } catch {
@@ -944,38 +976,7 @@ export function WorkoutDetail({
     return () => {
       cancelled = true;
     };
-  }, [workoutId, workout?.id, workout?.completedAt, workout?.workoutExercises?.length]);
-
-  useEffect(() => {
-    if (!workout || workout.completedAt) return;
-    const exerciseIds = [...new Set(workout.workoutExercises.map((we) => we.exerciseId))];
-    if (exerciseIds.length === 0) return;
-    let cancelled = false;
-    (async () => {
-      const cached = await loadProgressionCache<ProgressionSuggestion[]>(exerciseIds);
-      if (!cancelled && Object.keys(cached).length > 0) {
-        setProgressionSuggestions((previous) => ({ ...cached, ...previous }));
-      }
-      if (typeof navigator !== "undefined" && !navigator.onLine) return;
-      try {
-        const response = await fetch(`/api/workouts/${workoutId}/progression`, {
-          credentials: "include",
-        });
-        const json = (await response.json()) as {
-          data?: Record<string, ProgressionSuggestion[]>;
-        };
-        if (!cancelled && response.ok && json.data) {
-          setProgressionSuggestions(json.data);
-          void saveProgressionCache(json.data);
-        }
-      } catch {
-        // Cached suggestions remain available offline.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [workoutId, workout?.id, workout?.completedAt, workout?.workoutExercises?.length]);
+  }, [workoutId, workout?.id, workout?.completedAt, workout?.workoutExercises?.length, weightUnit]);
 
   useEffect(() => {
     if (workout?.name != null) setNameDraft(workout.name);
@@ -1357,6 +1358,7 @@ export function WorkoutDetail({
       }
       return;
     }
+    if (!workout) return;
     if (useLocalWrites && workout) {
       setCompleting(true);
       const completedAt = new Date().toISOString();
@@ -1381,6 +1383,7 @@ export function WorkoutDetail({
         await patchWorkoutListCacheEntry(workoutId, { completedAt, durationSeconds });
         await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
         await enqueueWorkoutOp(workoutId, { t: "complete_workout" });
+        await savePreviousLogsCache(workoutAsPreviousLogs(next));
         setPendingQueue(true);
       } catch (err) {
         console.error("Failed to queue offline workout completion", err);
@@ -1414,6 +1417,7 @@ export function WorkoutDetail({
       };
       if (json.comparison) setCompletionSummary(json.comparison);
       restTimer.stop();
+      await savePreviousLogsCache(workoutAsPreviousLogs(workout));
       if (json.data) {
         // Same reasoning as the offline branch above — patch the Workouts
         // list's cache, and only THEN notify, so a listener that reacts to
