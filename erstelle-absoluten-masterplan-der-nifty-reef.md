@@ -29,7 +29,7 @@ Ein Nutzer startet ein Training in unter 30 Sekunden, kann ohne Netz trainieren 
 
 - [x] **Aufwärm-Rampe:** Ein Tap erzeugt 50/70/85-%-Sätze mit 8/5/3 Wiederholungen auf Basis des ersten Arbeitssatzes. Gewichte werden auf 2,5 kg bzw. 5 lb gerundet; vorhandene Aufwärmsätze werden nicht dupliziert.
 - [x] **Online und offline:** Die Rampe nutzt online die bestehende Set-API und offline die lokale Workout-Queue bzw. die Watch-Pending-Session.
-- [x] **Progression v1:** Zwei vergleichbare, saubere Sessions (RPE ≤ 8) führen bei 8+ Wiederholungen zum kleinsten Gewichtsanstieg, darunter zu einer zusätzlichen Wiederholung.
+- [x] **Progression v1:** Der letzte Arbeitssatz ist die Regel: unter 5 Wiederholungen hält das Gewicht; ab 5 Wiederholungen erhöht die App um 2,5 kg (bzw. 5 lb). Die Aufwärm-Rampe übernimmt diesen Wert automatisch.
 - [x] **Vertrauensprinzip:** Empfehlungen sind sichtbar begründet, werden gecacht und ändern keine Werte ohne „Übernehmen“.
 - [ ] Verhalten anhand realer anonymisierter Trainingsverläufe kalibrieren; Annahme/Ablehnung messen.
 

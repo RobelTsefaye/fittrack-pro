@@ -50,7 +50,7 @@ export async function GET(
   for (const entry of history) {
     const sessions = sessionsByExercise.get(entry.exerciseId) ?? [];
     const seen = seenWorkoutByExercise.get(entry.exerciseId) ?? new Set<string>();
-    if (sessions.length < 2 && !seen.has(entry.workout.id)) {
+    if (sessions.length < 1 && !seen.has(entry.workout.id)) {
       sessions.push(entry.sets.map((set) => ({
         setNumber: set.setNumber,
         weight: set.weight,
