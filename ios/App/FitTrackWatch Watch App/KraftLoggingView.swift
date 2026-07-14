@@ -303,7 +303,7 @@ private struct RestTimerRow: View {
         name: "Push",
         workoutExercises: [
             WatchWorkoutExercise(
-                id: "we1",
+                id: "we1", supersetGroup: nil,
                 exercise: WatchExerciseInfo(id: "e1", name: "Bankdrücken", muscleGroup: "Brust"),
                 sets: [
                     WatchSet(id: "set1", setNumber: 1, reps: 10, weight: 60, isCompleted: true),
@@ -333,7 +333,7 @@ private struct RestTimerRow: View {
         name: "Push",
         workoutExercises: [
             WatchWorkoutExercise(
-                id: "we1",
+                id: "we1", supersetGroup: 1,
                 exercise: WatchExerciseInfo(id: "e1", name: "Bankdrücken", muscleGroup: "Brust"),
                 sets: [
                     WatchSet(id: "set1", setNumber: 1, reps: 10, weight: 60, isCompleted: true),
@@ -342,7 +342,7 @@ private struct RestTimerRow: View {
                 ]
             ),
             WatchWorkoutExercise(
-                id: "we2",
+                id: "we2", supersetGroup: 1,
                 exercise: WatchExerciseInfo(id: "e2", name: "Schulterdrücken", muscleGroup: "Schultern"),
                 sets: [
                     WatchSet(id: "set4", setNumber: 1, reps: nil, weight: nil, isCompleted: false),

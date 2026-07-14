@@ -149,7 +149,9 @@ enum WatchAPIProxy {
             }
             WatchOfflineWorkoutStore.save(pending)
             let json = jsonString(buildOfflineWatchWorkoutPayload(pending)) ?? "{}"
-            scheduleRestTimerNotification(endsAt: offlineRestTimerEndsAt(pending))
+            if let endsAt = offlineRestTimerEndsAt(pending) {
+                scheduleRestTimerNotification(endsAt: endsAt)
+            }
             return (["personalRecord": false], .setActiveWorkout(json: json))
         }
 

@@ -727,6 +727,7 @@ private struct MetricView: View {
             workoutExercises: [
                 WatchWorkoutExercise(
                     id: "we1",
+                    supersetGroup: nil,
                     exercise: WatchExerciseInfo(id: "e1", name: "Bankdrücken", muscleGroup: "Brust"),
                     sets: [
                         WatchSet(id: "set1", setNumber: 1, reps: 10, weight: 60, isCompleted: true),
@@ -745,7 +746,7 @@ private struct MetricView: View {
         m.elapsedSeconds = 412
         return m
     }()
-    return TabView {
+    TabView {
         NavigationStack { WorkoutControlsView(phoneObserver: observer, workoutManager: manager, workout: observer.activeWorkout!) }.tag(0)
         NavigationStack { KraftLoggingView(phoneObserver: observer, initialWorkout: observer.activeWorkout!) }.tag(1)
         NavigationStack { LiveWorkoutView(workoutManager: manager, phoneObserver: observer, routeTracker: RouteLocationTracker()) }.tag(2)
