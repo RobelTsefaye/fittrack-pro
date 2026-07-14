@@ -2,6 +2,7 @@
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import type { WorkoutData } from "@/features/workouts/workout-types";
+import { shouldRestAfterExercise } from "@/features/workouts/superset-utils";
 import type { PreviousLogEntry } from "@/features/workouts/previous-logs-types";
 import { DEFAULT_REST_TIMER } from "@/lib/constants";
 
@@ -73,14 +74,21 @@ export const WatchConnectivity = registerPlugin<WatchConnectivityPlugin>("WatchC
  * answer regardless of which device asks, and it's non-nil from the moment
  * the workout starts (a set doesn't have to be completed first).
  */
-export function computeRestTimerEndsAt(workout: WorkoutData): number {
+export function computeRestTimerEndsAt(workout: WorkoutData): number | null {
   let anchor = new Date(workout.startedAt).getTime();
+  let latestWorkoutExerciseId: string | null = null;
   for (const we of workout.workoutExercises) {
     for (const s of we.sets) {
       if (!s.completedAt) continue;
       const t = new Date(s.completedAt).getTime();
-      if (t > anchor) anchor = t;
+      if (t > anchor) {
+        anchor = t;
+        latestWorkoutExerciseId = we.id;
+      }
     }
+  }
+  if (latestWorkoutExerciseId && !shouldRestAfterExercise(workout, latestWorkoutExerciseId)) {
+    return null;
   }
   return (
     anchor / 1000 +

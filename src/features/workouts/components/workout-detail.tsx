@@ -54,6 +54,7 @@ import { buildWarmupRamp } from "../warmup";
 import { nextWorkingSet } from "../progression";
 import { useI18n } from "@/lib/i18n-provider";
 import type { WorkoutData, WorkoutExerciseData, WorkoutSetData } from "@/features/workouts/workout-types";
+import { shouldRestAfterExercise } from "@/features/workouts/superset-utils";
 import {
   enqueueWorkoutOp,
   listQueueForWorkout,
@@ -264,7 +265,7 @@ interface SortableExerciseCardProps {
   generatingWarmups: boolean;
   onMergeSet: (weId: string, data: WorkoutSetData) => void;
   onRemoveSet: (weId: string, setId: string) => void;
-  onSetCompleted: () => void;
+  onSetCompleted: (weId: string) => void;
   patchSetOffline: (setId: string, body: Record<string, unknown>, complete: boolean) => Promise<void>;
   deleteSetOffline: (setId: string) => Promise<void>;
   t: (key: string, params?: Record<string, string | number | undefined>) => string;
@@ -404,7 +405,7 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
                   ? undefined
                   : () => onRemoveSet(we.id, set.id)
               }
-              onComplete={onSetCompleted}
+              onComplete={() => onSetCompleted(we.id)}
               disabled={rowDisabled}
               offlineHandlers={
                 useLocalWrites && isActive
@@ -1481,6 +1482,7 @@ export function WorkoutDetail({
     if (now - lastRestTimerStartAtRef.current < 1500) return;
     lastRestTimerStartAtRef.current = now;
     const endsAtSeconds = computeRestTimerEndsAt(w);
+    if (endsAtSeconds == null) return;
     const totalDuration = (w.restTimerDefaultSeconds ?? DEFAULT_REST_TIMER) + (w.restTimerAdjustSeconds ?? 0);
     const secondsUntilEnd = Math.max(1, Math.round(endsAtSeconds - now / 1000));
     restTimer.start(secondsUntilEnd, {
@@ -1490,8 +1492,8 @@ export function WorkoutDetail({
     });
   }
 
-  function onSetCompleted() {
-    if (isActive) startRestTimer();
+  function onSetCompleted(weId: string) {
+    if (isActive && workout && shouldRestAfterExercise(workout, weId)) startRestTimer();
     void pushWatchWorkoutState();
   }
 
@@ -1889,7 +1891,7 @@ export function WorkoutDetail({
                     generatingWarmups={generatingWarmups}
                     onMergeSet={mergeSet}
                     onRemoveSet={removeSetFromWe}
-                    onSetCompleted={onSetCompleted}
+                    onSetCompleted={(id) => onSetCompleted(id)}
                     patchSetOffline={patchSetOffline}
                     deleteSetOffline={deleteSetOffline}
                     t={t}
