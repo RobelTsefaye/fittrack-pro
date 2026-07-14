@@ -133,6 +133,7 @@
     "crossDeviceUrlLabel": "Open this address on every device (bookmark or “Add to Home Screen”):",
     "crossDeviceHint": "Sign in with the same email and password on each device. Do not use a computer-only URL such as localhost on your phone — use your real app link (for example your Vercel domain or home server).",
     "crossDeviceSyncNote": "Workouts you log offline are stored on this device until you are online again; then they sync to your account and appear on your other devices. Install the app from the browser menu (“Add to Home Screen”) for a full-screen experience similar to an App Store app.",
+    "trainingDaysTitle": "Training days & calendar", "calendarSyncToggle": "Add to iPhone calendar", "trainingDaysLabel": "Training days", "trainingTime": "Training time", "calendarHint": "Upcoming training days are added to a \"FitTrack Pro\" calendar, labeled with the next session from your plan.", "calendarWebHint": "Days and time are saved to your account; calendar entries are created by the iOS app.", "weekdayMon": "Mo", "weekdayTue": "Tu", "weekdayWed": "We", "weekdayThu": "Th", "weekdayFri": "Fr", "weekdaySat": "Sa", "weekdaySun": "Su",
     "saved": "Preferences saved",
     "saveFailed": "Could not save preferences"
   },

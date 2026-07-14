@@ -9,6 +9,9 @@ type InitialSettings = {
   weightUnit: "KG" | "LB";
   theme: "LIGHT" | "DARK" | "SYSTEM";
   restTimerDefault: number;
+  calendarSyncEnabled: boolean;
+  trainingWeekdays: number[];
+  trainingTimeMinutes: number;
 };
 
 export function SettingsPageContent({

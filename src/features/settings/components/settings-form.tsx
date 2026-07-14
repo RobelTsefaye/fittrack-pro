@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Download } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { syncTrainingCalendar } from "@/lib/native/calendar";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n-provider";
 
@@ -12,6 +14,9 @@ type InitialSettings = {
   weightUnit: "KG" | "LB";
   theme: "LIGHT" | "DARK" | "SYSTEM";
   restTimerDefault: number;
+  calendarSyncEnabled: boolean;
+  trainingWeekdays: number[];
+  trainingTimeMinutes: number;
 };
 
 function themeToNext(theme: InitialSettings["theme"]): "light" | "dark" | "system" {
@@ -28,6 +33,10 @@ function nextToTheme(v: string): InitialSettings["theme"] {
 const selectClass =
   "appearance-none bg-transparent text-[0.9375rem] text-right text-[var(--sys-label2)] outline-none cursor-pointer pr-5";
 
+const WEEKDAY_KEYS = ["weekdayMon", "weekdayTue", "weekdayWed", "weekdayThu", "weekdayFri", "weekdaySat", "weekdaySun"] as const;
+function minutesToHHMM(min: number): string { return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`; }
+function hhmmToMinutes(v: string): number { const [h, m] = v.split(":").map(Number); return Number.isNaN(h) || Number.isNaN(m) ? 1080 : h * 60 + m; }
+
 export function SettingsForm({ initial }: { initial: InitialSettings }) {
   const { t } = useI18n();
   const { setTheme } = useTheme();
@@ -37,8 +46,12 @@ export function SettingsForm({ initial }: { initial: InitialSettings }) {
   const [weightUnit, setWeightUnit] = useState(initial.weightUnit);
   const [theme, setThemeState] = useState(initial.theme);
   const [restTimerDefault, setRestTimerDefault] = useState(String(initial.restTimerDefault));
+  const [calendarSyncEnabled, setCalendarSyncEnabled] = useState(initial.calendarSyncEnabled);
+  const [trainingWeekdays, setTrainingWeekdays] = useState<number[]>(initial.trainingWeekdays);
+  const [trainingTime, setTrainingTime] = useState(minutesToHHMM(initial.trainingTimeMinutes));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<"ok" | "err" | null>(null);
+  function toggleWeekday(i: number) { setTrainingWeekdays((prev) => prev.includes(i) ? prev.filter((d) => d !== i) : [...prev, i].sort((a, b) => a - b)); }
 
   useEffect(() => { setTheme(themeToNext(initial.theme)); }, [initial.theme, setTheme]);
 
@@ -50,12 +63,13 @@ export function SettingsForm({ initial }: { initial: InitialSettings }) {
     const res = await fetch("/api/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ locale, weightUnit, theme, restTimerDefault: rest }),
+      body: JSON.stringify({ locale, weightUnit, theme, restTimerDefault: rest, calendarSyncEnabled, trainingWeekdays, trainingTimeMinutes: hhmmToMinutes(trainingTime) }),
     });
     setSaving(false);
     if (!res.ok) { setMessage("err"); return; }
     setTheme(themeToNext(theme));
     setMessage("ok");
+    void syncTrainingCalendar();
     router.refresh();
   }
 
@@ -163,6 +177,16 @@ export function SettingsForm({ initial }: { initial: InitialSettings }) {
 
         {/* Hint */}
         <p className="px-4 text-xs text-[var(--sys-label2)]">{t("settings.restTimerHint")}</p>
+      </section>
+
+      <section className="space-y-2">
+        <p className="ios-section-label">{t("settings.trainingDaysTitle")}</p>
+        <div className="ios-group">
+          <label className="ios-row cursor-pointer"><span className="flex-1 text-[0.9375rem]">{t("settings.calendarSyncToggle")}</span><input type="checkbox" checked={calendarSyncEnabled} onChange={(e) => setCalendarSyncEnabled(e.target.checked)} className="h-5 w-5 accent-primary" /></label>
+          <div className="ios-row"><span className="flex-1 text-[0.9375rem]">{t("settings.trainingDaysLabel")}</span><div className="flex gap-1.5">{WEEKDAY_KEYS.map((key, i) => <button key={key} type="button" onClick={() => toggleWeekday(i)} className={`h-8 w-8 rounded-full text-xs font-medium transition-colors ${trainingWeekdays.includes(i) ? "bg-primary text-primary-foreground" : "bg-[var(--sys-fill)] text-[var(--sys-label2)]"}`}>{t(`settings.${key}`)}</button>)}</div></div>
+          <div className="ios-row"><span className="flex-1 text-[0.9375rem]">{t("settings.trainingTime")}</span><input type="time" value={trainingTime} onChange={(e) => setTrainingTime(e.target.value)} className="bg-transparent text-right text-[0.9375rem] text-[var(--sys-label2)] outline-none" /></div>
+        </div>
+        <p className="px-4 text-xs text-[var(--sys-label2)]">{Capacitor.isNativePlatform() ? t("settings.calendarHint") : t("settings.calendarWebHint")}</p>
       </section>
 
       {/* Save button + feedback */}
