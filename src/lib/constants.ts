@@ -9,7 +9,8 @@ export const APP_NAME = "FitTrack Pro";
  * no local server behind it, so relative `/api/...` fetches from within it
  * need to resolve here instead. See src/components/native-auth-fetch-patch.tsx.
  */
-export const PRODUCTION_API_ORIGIN = "https://fittrack-pro-ashen.vercel.app";
+export const PRODUCTION_API_ORIGIN =
+  process.env.NEXT_PUBLIC_API_ORIGIN ?? "https://fittrack-pro-ashen.vercel.app";
 
 export const MUSCLE_GROUPS = [
   "CHEST",
