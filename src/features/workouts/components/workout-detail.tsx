@@ -1075,12 +1075,11 @@ export function WorkoutDetail({
 
   async function groupWithNext(weId: string) {
     if (!workout) return;
-    const ordered = [...workout.workoutExercises].sort((a, b) => a.order - b.order);
-    const index = ordered.findIndex((we) => we.id === weId);
-    const current = ordered[index];
-    const next = ordered[index + 1];
+    const index = exerciseIds.indexOf(weId);
+    const current = workout.workoutExercises.find((we) => we.id === weId);
+    const next = workout.workoutExercises.find((we) => we.id === exerciseIds[index + 1]);
     if (!current || !next || (current.supersetGroup != null && current.supersetGroup === next.supersetGroup)) return;
-    const group = next.supersetGroup ?? Math.max(0, ...ordered.map((we) => we.supersetGroup ?? 0)) + 1;
+    const group = next.supersetGroup ?? Math.max(0, ...workout.workoutExercises.map((we) => we.supersetGroup ?? 0)) + 1;
     await setSupersetGroups([{ id: current.id, group }, { id: next.id, group }]);
   }
 
@@ -1933,9 +1932,8 @@ export function WorkoutDetail({
                     onGroupWithNext={groupWithNext}
                     onUngroup={ungroupExercise}
                     canGroupWithNext={(() => {
-                      const ordered = [...workout.workoutExercises].sort((a, b) => a.order - b.order);
-                      const index = ordered.findIndex((item) => item.id === we.id);
-                      const next = ordered[index + 1];
+                      const index = exerciseIds.indexOf(we.id);
+                      const next = workout.workoutExercises.find((item) => item.id === exerciseIds[index + 1]);
                       return index >= 0 && !!next && !(we.supersetGroup != null && next.supersetGroup === we.supersetGroup);
                     })()}
                     onAddSet={addSet}
