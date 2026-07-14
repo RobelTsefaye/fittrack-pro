@@ -132,6 +132,15 @@ export type PreviousLogCacheRow = {
   updatedAt: number;
 };
 
+/** Retained for IndexedDB schema compatibility with the first Nifty Reef
+ * build. Suggestions now derive directly from `previousLogsCache`, so this
+ * store is intentionally no longer read or written. */
+export type ProgressionCacheRow = {
+  id: string;
+  payload: string;
+  updatedAt: number;
+};
+
 class FitTrackOfflineDb extends Dexie {
   workouts!: Table<WorkoutSnapshotRow>;
   queue!: Table<QueueRow>;
@@ -152,6 +161,7 @@ class FitTrackOfflineDb extends Dexie {
   recordsCache!: Table<RecordsCacheRow>;
   queueIdMap!: Table<QueueIdMapRow>;
   previousLogsCache!: Table<PreviousLogCacheRow>;
+  progressionCache!: Table<ProgressionCacheRow>;
 
   constructor() {
     super("fittrack_offline_v1");
@@ -285,6 +295,28 @@ class FitTrackOfflineDb extends Dexie {
       recordsCache: "id",
       queueIdMap: "id",
       previousLogsCache: "id",
+    });
+    this.version(17).stores({
+      workouts: "id",
+      queue: "id, workoutRouteId, sort",
+      catalog: "id",
+      meta: "id",
+      bodyWeightCache: "id",
+      bodyWeightQueue: "id, sort",
+      workoutListCache: "id",
+      dashboardCache: "id",
+      achievementsCache: "id",
+      muscleHeatmapCache: "id",
+      plansCache: "id",
+      healthCache: "id",
+      planDetailCache: "id",
+      exerciseDetailCache: "id",
+      mostUsedExercisesCache: "id",
+      bodyMeasurementsCache: "id",
+      recordsCache: "id",
+      queueIdMap: "id",
+      previousLogsCache: "id",
+      progressionCache: "id",
     });
   }
 }
