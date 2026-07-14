@@ -1079,7 +1079,7 @@ export function WorkoutDetail({
     const index = ordered.findIndex((we) => we.id === weId);
     const current = ordered[index];
     const next = ordered[index + 1];
-    if (!current || !next || current.supersetGroup === next.supersetGroup) return;
+    if (!current || !next || (current.supersetGroup != null && current.supersetGroup === next.supersetGroup)) return;
     const group = next.supersetGroup ?? Math.max(0, ...ordered.map((we) => we.supersetGroup ?? 0)) + 1;
     await setSupersetGroups([{ id: current.id, group }, { id: next.id, group }]);
   }
@@ -1935,7 +1935,8 @@ export function WorkoutDetail({
                     canGroupWithNext={(() => {
                       const ordered = [...workout.workoutExercises].sort((a, b) => a.order - b.order);
                       const index = ordered.findIndex((item) => item.id === we.id);
-                      return index >= 0 && index < ordered.length - 1 && ordered[index + 1].supersetGroup !== we.supersetGroup;
+                      const next = ordered[index + 1];
+                      return index >= 0 && !!next && !(we.supersetGroup != null && next.supersetGroup === we.supersetGroup);
                     })()}
                     onAddSet={addSet}
                     onGenerateWarmups={generateWarmups}
