@@ -13,7 +13,7 @@ final class OfflineWorkoutReachabilityMonitor {
         guard !started else { return }
         started = true
         monitor.pathUpdateHandler = { path in
-            guard path.status == .satisfied, SyncTokenStore.load() != nil else { return }
+            guard path.status == .satisfied, SyncTokenStore.loadForBackgroundUse() != nil else { return }
             Task { _ = await WatchAPIProxy.flushPendingOfflineWorkout() }
         }
         monitor.start(queue: queue)

@@ -7,17 +7,33 @@ import { useSession } from "next-auth/react";
 import { ChevronRight, Dumbbell } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
 import { workoutHref } from "@/lib/workout-href";
+import { Capacitor } from "@capacitor/core";
+import { WatchConnectivity } from "@/lib/native/watch-connectivity";
+import { getCachedToken } from "@/lib/native/auth-token-cache";
 
 const CHANGED = "fittrack-active-workout-changed";
 
 type ActiveItem = { id: string; name: string | null; startedAt: string };
+type NativeWatchOfflineItem = { id: string; name: string; startedAt: string; queue?: Array<{ kind?: string }> };
 export type ActiveWorkoutItem = ActiveItem;
 
 export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: ActiveItem | null }) {
   const { t } = useI18n();
   const pathname = usePathname();
   const { status } = useSession();
+  // Native authentication is bearer-token based. The cookie session backing
+  // useSession() is only best-effort in WKWebView and can expire while that
+  // token remains valid, so it must not hide a real active workout.
+  const [nativeToken, setNativeToken] = useState<boolean | null>(
+    Capacitor.isNativePlatform() ? null : true
+  );
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    void getCachedToken().then((token) => setNativeToken(token != null));
+  }, []);
+  const isNative = Capacitor.isNativePlatform();
   const [active, setActive] = useState<ActiveItem | null>(initialActive);
+  const [nativeWatchOffline, setNativeWatchOffline] = useState<NativeWatchOfflineItem | null>(null);
   // Server already gave us an accurate snapshot for the very first paint —
   // skip the redundant client refetch on mount so the banner can't pop
   // in/out mid-tap right after navigation (that shift used to make taps on
@@ -35,7 +51,7 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
     // No synchronous setState here — this is invoked straight from effect
     // bodies, and a sync setActive would trip React 19's set-state-in-effect
     // rule. The signed-out case is handled by the render guard below instead.
-    if (status !== "authenticated") return;
+    if (isNative ? nativeToken !== true : status !== "authenticated") return;
     lastFetchedAt.current = Date.now();
     try {
       const res = await fetch("/api/workouts?status=active&limit=1", { credentials: "include" });
@@ -58,7 +74,7 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
     } catch {
       setActive(null);
     }
-  }, [status]);
+  }, [status, isNative, nativeToken]);
 
   // Route changes only refetch when the data is stale — without the guard
   // every tab switch fires an extra API call before the page can settle.
@@ -89,13 +105,54 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
     };
   }, [fetchActive]);
 
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let cancelled = false;
+    async function loadNativeWatchOffline() {
+      try {
+        const { pendingJSON } = await WatchConnectivity.getPendingOfflineWorkout();
+        const pending = pendingJSON ? JSON.parse(pendingJSON) as NativeWatchOfflineItem : null;
+        const ended = pending?.queue?.some(({ kind }) => kind === "completeWorkout" || kind === "deleteWorkout");
+        if (!cancelled) setNativeWatchOffline(ended ? null : pending);
+      } catch {
+        if (!cancelled) setNativeWatchOffline(null);
+      }
+    }
+    void loadNativeWatchOffline();
+    const interval = window.setInterval(() => void loadNativeWatchOffline(), 10_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
+
   // Signed out (or session expired): hide the banner outright rather than
   // clearing `active` state from within fetchActive. Deliberately checks for
   // "unauthenticated" (not !== "authenticated") so the server-provided banner
   // stays visible during the brief client-side "loading" phase — hiding it
   // there would reintroduce the pop-in/layout-shift this component guards
   // against (see lastFetchedAt comment above).
-  if (status === "unauthenticated" || !active) return null;
+  if (nativeWatchOffline) {
+    return (
+      <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/10 px-2 py-1.5">
+        <Link
+          href={workoutHref(nativeWatchOffline.id)}
+          className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-amber-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={`Watch-Training öffnen: ${nativeWatchOffline.name}`}
+        >
+          <Dumbbell className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />
+          <span className="min-w-0 truncate text-sm">
+            <span className="font-semibold text-foreground">Watch-Training offline aktiv</span>
+            <span className="mx-1.5 text-[var(--sys-label3)]">—</span>
+            <span className="text-[var(--sys-label2)]">{nativeWatchOffline.name}</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-[var(--sys-label3)]" aria-hidden />
+        </Link>
+      </div>
+    );
+  }
+  const signedOut = isNative ? nativeToken === false : status === "unauthenticated";
+  if (signedOut || !active) return null;
   // On native, the current workout's URL is /workouts/_?id=<id> (see
   // workout-href.ts); on web it's the plain /workouts/<id> path. Read the
   // query directly off window.location rather than useSearchParams() — that

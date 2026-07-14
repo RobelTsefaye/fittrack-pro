@@ -35,7 +35,7 @@ enum BackgroundSyncManager {
     /// Call after every successful token save and on app background — BGTask
     /// requests are one-shot, each run must re-schedule the next one.
     static func schedule() {
-        guard SyncTokenStore.load() != nil else { return }
+        guard SyncTokenStore.loadForBackgroundUse() != nil else { return }
         let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
         // iOS treats this as a best-effort earliest time, not a guaranteed
         // hourly schedule. Foreground/resume sync remains the reliable path.
@@ -54,7 +54,7 @@ enum BackgroundSyncManager {
     }
 
     private static func performSync() async -> Bool {
-        guard let token = SyncTokenStore.load() else { return false }
+        guard let token = SyncTokenStore.loadForBackgroundUse() else { return false }
         // The queue is independent of HealthKit and must get a chance to
         // replay even if HealthKit is temporarily unavailable.
         _ = await WatchAPIProxy.flushPendingOfflineWorkout()

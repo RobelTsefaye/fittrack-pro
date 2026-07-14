@@ -15,6 +15,14 @@ export interface WatchConnectivityPlugin {
   syncActiveWorkout(options: { workoutJSON: string }): Promise<void>;
   clearWorkoutState(options: { workoutId?: string }): Promise<void>;
   pushPlanCatalog(options: { catalog: string }): Promise<void>;
+  getPendingOfflineWorkout(): Promise<{ pendingJSON?: string }>;
+  getTerminalOfflineWorkouts(): Promise<{ terminalJSON?: string }>;
+  updatePendingOfflineWorkout(options: { workoutJSON: string }): Promise<{ pendingJSON: string }>;
+  completePendingOfflineWorkout(options: { workoutId: string }): Promise<void>;
+  cancelPendingOfflineWorkout(options: { workoutId: string }): Promise<void>;
+  forgetWatchOfflineWorkout(options: { workoutId: string }): Promise<void>;
+  flushPendingOfflineWorkout(): Promise<{ flushed: boolean; error?: string }>;
+  getWorkoutRekeyMap(): Promise<{ rekeyMapJSON?: string }>;
   syncRecoverySnapshot(options: { score: number; level: string }): Promise<void>;
   respondToRequest(options: { requestId: string; payload: Record<string, unknown> }): Promise<void>;
   startCardioSession(options: { activityType: "running" | "cycling" }): Promise<{ started: true }>;
@@ -26,6 +34,14 @@ export interface WatchConnectivityPlugin {
   addListener(
     eventName: "watchCardioSaved",
     listenerFunc: () => void
+  ): Promise<{ remove: () => void }>;
+  addListener(
+    eventName: "watchWorkoutEnded",
+    listenerFunc: (data: { workoutId?: string }) => void
+  ): Promise<{ remove: () => void }>;
+  addListener(
+    eventName: "watchWorkoutSynced",
+    listenerFunc: (data: { localId: string; serverWorkoutId: string }) => void
   ): Promise<{ remove: () => void }>;
   addListener(
     eventName: "cardioLiveUpdate",

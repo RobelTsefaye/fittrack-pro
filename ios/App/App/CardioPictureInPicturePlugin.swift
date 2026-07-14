@@ -368,7 +368,7 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
 
     private func startStreaming() {
         streamTask?.cancel()
-        guard let token = SyncTokenStore.load() else {
+        guard let token = SyncTokenStore.loadForBackgroundUse() else {
             // No token stored on this device (Settings → API Tokens →
             // "Für Hintergrund-Sync verwenden" was never tapped here) —
             // nothing to authenticate the stream with. The relay subscription

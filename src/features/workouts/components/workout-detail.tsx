@@ -38,6 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ROUTES, exercisePath, DEFAULT_REST_TIMER } from "@/lib/constants";
+import { workoutHref } from "@/lib/workout-href";
 import type { PreviousLogEntry, PreviousSetEntry } from "@/features/workouts/previous-logs-types";
 import { loadPreviousLogsCache, savePreviousLogsCache } from "@/lib/offline/screen-caches";
 import { ExercisePickerDialog, type ExercisePickerExercise } from "./exercise-picker-dialog";
@@ -57,11 +58,57 @@ import {
 } from "@/lib/offline/workout-offline-store";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
 import { hapticWorkoutCompleted, hapticPersonalRecord } from "@/lib/native/haptics";
+import { Capacitor } from "@capacitor/core";
 import {
   syncActiveWorkoutToWatch,
   clearWatchWorkoutState,
   computeRestTimerEndsAt,
+  WatchConnectivity,
 } from "@/lib/native/watch-connectivity";
+
+type NativeWatchPending = {
+  id: string;
+  planSessionId: string;
+  name: string;
+  startedAt: string;
+  restTimerAdjustSeconds?: number;
+  queue?: Array<{ kind?: string }>;
+  workoutExercises: Array<{
+    id: string;
+    exercise: { id: string; name: string; muscleGroup: string };
+    sets: Array<{
+      id: string; setNumber: number; reps: number | null; weight: number | null;
+      isWarmup?: boolean; isCompleted: boolean; completedAt: string | null;
+    }>;
+  }>;
+};
+
+function nativeWatchPendingToWorkout(pending: NativeWatchPending): WorkoutData {
+  return {
+    id: pending.id,
+    name: pending.name,
+    notes: null,
+    startedAt: pending.startedAt,
+    completedAt: null,
+    durationSeconds: null,
+    planSessionId: pending.planSessionId,
+    restTimerDefaultSeconds: DEFAULT_REST_TIMER,
+    restTimerAdjustSeconds: pending.restTimerAdjustSeconds ?? 0,
+    workoutExercises: pending.workoutExercises.map((we, order) => ({
+      id: we.id,
+      exerciseId: we.exercise.id,
+      order,
+      notes: null,
+      isCompleted: false,
+      exercise: { ...we.exercise, equipment: "OTHER" },
+      sets: we.sets.map((set) => ({
+        ...set,
+        rpe: null,
+        isWarmup: set.isWarmup ?? false,
+      })),
+    })),
+  };
+}
 
 function formatShortDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -361,6 +408,17 @@ export function WorkoutDetail({
   );
   const [offlineOriginSession, setOfflineOriginSession] = useState(false);
   const [pendingQueue, setPendingQueue] = useState(false);
+  // A Watch-started workout that has not reached the server yet lives in the
+  // native App Group queue. Treat it as local for UI purposes, but never put
+  // a second copy of its operations in IndexedDB.
+  const [nativeWatchOffline, setNativeWatchOffline] = useState(false);
+  // Set once the native replay reports this workout's local UUID has been
+  // rekeyed to a server id and a route redirect is in flight. Suppresses the
+  // "Workout not found" 404 that the local id would otherwise produce in the
+  // gap before the new route mounts. A ref mirrors it so the async loadWorkout
+  // guard reads the current value without a stale closure.
+  const [rekeyRedirecting, setRekeyRedirecting] = useState(false);
+  const rekeyRedirectingRef = useRef(false);
   // In-app replacement for window.confirm(): native WKWebView JS-dialog
   // panels can silently fail to appear (observed on-device stuck behind an
   // await that never resolves — no dialog, no error, no way to proceed) when
@@ -401,7 +459,7 @@ export function WorkoutDetail({
 
   const isActive = workout && !workout.completedAt;
   const weightLabel = weightUnit === "LB" ? "lb" : "kg";
-  const useLocalWrites = !netOnline || offlineOriginSession || pendingQueue;
+  const useLocalWrites = nativeWatchOffline || !netOnline || offlineOriginSession || pendingQueue;
 
   // Ordered exercise list — kept in sync with workout state
   const [exerciseIds, setExerciseIds] = useState<string[]>([]);
@@ -519,6 +577,17 @@ export function WorkoutDetail({
 
     setExerciseIds(newIds);
 
+    if (nativeWatchOffline) {
+      const byId = new Map(workout.workoutExercises.map((we) => [we.id, we]));
+      const next: WorkoutData = {
+        ...workout,
+        workoutExercises: newIds.map((id, i) => ({ ...byId.get(id)!, order: i + 1 })),
+      };
+      setWorkout(next);
+      await persistLocal(next, { t: "patch_workout", name: next.name });
+      return;
+    }
+
     // Reorder workout state locally
     setWorkout((prev) => {
       if (!prev) return prev;
@@ -587,6 +656,25 @@ export function WorkoutDetail({
     const isStale = () => requestId !== loadRequestIdRef.current;
 
     try {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { pendingJSON } = await WatchConnectivity.getPendingOfflineWorkout();
+          const pending = pendingJSON ? JSON.parse(pendingJSON) as NativeWatchPending : null;
+          const ended = pending?.queue?.some(({ kind }) => kind === "completeWorkout" || kind === "deleteWorkout");
+          if (pending?.id === workoutId && !ended) {
+            if (!isStale()) {
+              setWorkout(nativeWatchPendingToWorkout(pending));
+              setNativeWatchOffline(true);
+              setOfflineOriginSession(false);
+              setPendingQueue(false);
+            }
+            return;
+          }
+          if (!isStale()) setNativeWatchOffline(false);
+        } catch {
+          // The normal server/IndexedDB paths below remain available.
+        }
+      }
       const queued = await listQueueForWorkout(workoutId);
       if (queued.length > 0) {
         const snap = await loadWorkoutSnapshot(workoutId);
@@ -606,6 +694,59 @@ export function WorkoutDetail({
         const res = await fetch(`/api/workouts/${workoutId}`, { credentials: "include" });
         if (isStale()) return;
         if (res.status === 404) {
+          // A Watch-offline workout whose local UUID just replayed to a new
+          // server id: the old id is legitimately gone server-side, but we're
+          // already redirecting to the server route (watchWorkoutSynced).
+          // Leave the loading skeleton up instead of flashing "Workout not
+          // found" for the split second before the new route mounts.
+          if (rekeyRedirectingRef.current) return;
+          // A Watch-started offline workout is synced entirely by native code
+          // (kicked by OfflineSyncProvider and the reachability monitor on
+          // launch). Its local id legitimately 404s until that replay finishes
+          // and records the local→server rekey — which, on a cold launch, can
+          // land after this page has already mounted and fetched. Rather than
+          // flash "Workout not found" for a workout that is merely mid-sync,
+          // wait out a short window: poll the durable rekey map (redirect the
+          // moment the server id appears) and re-try the id itself. Only after
+          // the window elapses do we treat the 404 as real. `isStale()` bails
+          // instantly if the user navigates away meanwhile.
+          if (Capacitor.isNativePlatform()) {
+            const deadline = Date.now() + 6000;
+            while (Date.now() < deadline) {
+              let serverId: string | null = null;
+              try {
+                const { rekeyMapJSON } = await WatchConnectivity.getWorkoutRekeyMap();
+                const entries = rekeyMapJSON
+                  ? (JSON.parse(rekeyMapJSON) as Array<{ localId: string; serverWorkoutId: string }>)
+                  : [];
+                serverId = entries.find((e) => e.localId === workoutId)?.serverWorkoutId ?? null;
+              } catch {
+                // Bridge unavailable — keep polling; the retry fetch below may
+                // still resolve if the id became readable under its own name.
+              }
+              if (isStale()) return;
+              if (serverId) {
+                rekeyRedirectingRef.current = true;
+                setRekeyRedirecting(true);
+                router.replace(workoutHref(serverId));
+                return;
+              }
+              await new Promise((resolve) => setTimeout(resolve, 600));
+              if (isStale()) return;
+              const retry = await fetch(`/api/workouts/${workoutId}`, { credentials: "include" });
+              if (isStale()) return;
+              if (retry.ok) {
+                const j = (await retry.json()) as { data: WorkoutData };
+                setWorkout(j.data);
+                await saveWorkoutSnapshot(workoutId, j.data, false);
+                if (isStale()) return;
+                setOfflineOriginSession(false);
+                setPendingQueue(false);
+                return;
+              }
+            }
+            // Window elapsed with the workout still absent — fall through.
+          }
           // A real 404 means we successfully reached the server and it
           // authoritatively says this workout is gone — e.g. cancelled from
           // the Watch while this page was open. That's different from "we
@@ -662,7 +803,7 @@ export function WorkoutDetail({
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [workoutId, t]);
+  }, [workoutId, t, router]);
 
   const hasInitialData = useRef(initialWorkout != null);
   useEffect(() => {
@@ -685,6 +826,27 @@ export function WorkoutDetail({
       window.removeEventListener("fittrack-offline-synced", sync);
     };
   }, [workoutId, loadWorkout]);
+
+  // A Watch-started offline workout is replayed natively; when it lands, its
+  // local UUID (this route's id) is replaced by a server id and the record
+  // under the old id 404s. The native bridge emits the mapping — redirect this
+  // view onto the server route ourselves (OfflineSyncProvider does the same,
+  // but owning it here guarantees the swap even if that provider's URL match
+  // misses) and, crucially, latch `rekeyRedirecting` so the in-flight poll
+  // can't paint "Workout not found" during the swap.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let remove: (() => void) | undefined;
+    void WatchConnectivity.addListener("watchWorkoutSynced", ({ localId, serverWorkoutId }) => {
+      if (localId !== workoutId) return;
+      rekeyRedirectingRef.current = true;
+      setRekeyRedirecting(true);
+      router.replace(workoutHref(serverWorkoutId));
+    }).then((handle) => {
+      remove = () => handle.remove();
+    });
+    return () => remove?.();
+  }, [workoutId, router]);
 
   // Cache-first: "last time you did this exercise" used to be skipped
   // entirely whenever writes were local-only (offline, or an unsynced
@@ -732,6 +894,10 @@ export function WorkoutDetail({
   }, [workout?.id]);
 
   async function persistLocal(next: WorkoutData, op: Parameters<typeof enqueueWorkoutOp>[1]) {
+    if (nativeWatchOffline) {
+      await WatchConnectivity.updatePendingOfflineWorkout({ workoutJSON: JSON.stringify(next) });
+      return;
+    }
     await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
     await enqueueWorkoutOp(workoutId, op);
     setPendingQueue(true);
@@ -825,6 +991,12 @@ export function WorkoutDetail({
         workoutExercises: [...workout.workoutExercises, newWe],
       };
       setWorkout(next);
+      if (nativeWatchOffline) {
+        await persistLocal(next, { t: "post_exercise", exerciseId: ex.id, clientWeId: weId });
+        setAddingExercise(false);
+        setPickerOpen(false);
+        return;
+      }
       await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
       await enqueueWorkoutOp(workoutId, { t: "post_exercise", exerciseId: ex.id, clientWeId: weId });
       await enqueueWorkoutOp(workoutId, {
@@ -968,6 +1140,22 @@ export function WorkoutDetail({
 
   async function completeWorkout() {
     if (!(await askConfirm(t("workouts.finishConfirm")))) return;
+    if (nativeWatchOffline && workout) {
+      setCompleting(true);
+      restTimer.stop();
+      try {
+        await WatchConnectivity.completePendingOfflineWorkout({ workoutId });
+        notifyActiveWorkoutChanged();
+        void clearWatchWorkoutState(workoutId);
+        void hapticWorkoutCompleted();
+        router.push(ROUTES.workouts);
+      } catch {
+        window.alert(t("workouts.finishFailed"));
+      } finally {
+        setCompleting(false);
+      }
+      return;
+    }
     if (useLocalWrites && workout) {
       setCompleting(true);
       const completedAt = new Date().toISOString();
@@ -1195,6 +1383,18 @@ export function WorkoutDetail({
       } catch {
         /* ignore IDB */
       }
+      // A Watch workout also leaves a native App-Group receipt (terminal
+      // queue / recent-completed backstop). Without clearing it, the list's
+      // mergeOfflineWorkouts keeps rendering the just-deleted workout as a
+      // frozen "SYNC" row forever, since its server id can no longer be
+      // confirmed against the workouts list. Best-effort, native only.
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await WatchConnectivity.forgetWatchOfflineWorkout({ workoutId });
+        } catch {
+          /* ignore — no native receipt for this workout */
+        }
+      }
       router.push(ROUTES.workouts);
       router.refresh();
     } finally {
@@ -1212,6 +1412,18 @@ export function WorkoutDetail({
     // here strands the Watch in a KraftLoggingView for a workout that no
     // longer exists (the complete path already does this; cancel didn't).
     void clearWatchWorkoutState(workoutId);
+
+    if (nativeWatchOffline) {
+      try {
+        await WatchConnectivity.cancelPendingOfflineWorkout({ workoutId });
+        notifyActiveWorkoutChanged();
+        window.location.href = ROUTES.workouts;
+      } catch {
+        window.alert(t("workouts.cancelWorkoutFailed"));
+        setCancelling(false);
+      }
+      return;
+    }
 
     // Offline / local-writes path: just wipe IndexedDB and queue, then navigate
     if (useLocalWrites || offlineOriginSession) {
@@ -1248,7 +1460,7 @@ export function WorkoutDetail({
     }
   }
 
-  if (loading) {
+  if (loading || rekeyRedirecting) {
     return (
       <div className="space-y-4">
         <div className="h-8 w-48 animate-pulse rounded bg-muted" />

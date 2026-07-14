@@ -10,9 +10,23 @@ import { workoutHref } from "@/lib/workout-href";
 import { useI18n } from "@/lib/i18n-provider";
 import { tryGetOfflineDb } from "@/lib/offline/db";
 import { listOfflineOriginWorkouts } from "@/lib/offline/workout-offline-store";
+import { Capacitor } from "@capacitor/core";
+import { WatchConnectivity } from "@/lib/native/watch-connectivity";
 import type { WorkoutListItemDTO } from "@/features/workouts/workouts-list-data";
 
 type WorkoutListItem = WorkoutListItemDTO;
+type NativeTerminalWorkout = {
+  id: string;
+  serverWorkoutId?: string;
+  name: string;
+  startedAt: string;
+  endedAt?: string | null;
+  queue?: Array<{ kind?: string }>;
+  workoutExercises: Array<{
+    exercise: { id: string; name: string };
+    sets: Array<{ id: string }>;
+  }>;
+};
 
 function formatDay(iso: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(iso));
@@ -89,7 +103,6 @@ async function loadWorkoutListCache(): Promise<WorkoutListItem[] | null> {
  *  from the list in the meantime. */
 async function mergeOfflineWorkouts(list: WorkoutListItem[]): Promise<WorkoutListItem[]> {
   const local = await listOfflineOriginWorkouts();
-  if (local.length === 0) return list;
   const known = new Set(list.map((w) => w.id));
   const extra: WorkoutListItem[] = local
     .filter((w) => !known.has(w.id))
@@ -104,6 +117,59 @@ async function mergeOfflineWorkouts(list: WorkoutListItem[]): Promise<WorkoutLis
         sets: we.sets.map((s) => ({ id: s.id })),
       })),
     }));
+  // Native Watch queues live in the App Group rather than IndexedDB. A
+  // completed offline Watch workout should therefore stay visible in history
+  // while its terminal upload is waiting/retrying, instead of disappearing
+  // until the server happens to receive it.
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { terminalJSON } = await WatchConnectivity.getTerminalOfflineWorkouts();
+      const terminal = terminalJSON ? JSON.parse(terminalJSON) as NativeTerminalWorkout[] : [];
+      for (const workout of terminal) {
+        // Queued terminal jobs retain `completeWorkout`; jobs that already
+        // replayed have an empty queue but an `endedAt` receipt. Both must be
+        // rendered, otherwise a fast background replay races the history UI.
+        const waitingForCompletion = workout.queue?.some(({ kind }) => kind === "completeWorkout") ?? false;
+        if (!workout.endedAt && !waitingForCompletion) continue;
+        // A native queue receiving an id only means its POST reached the
+        // server; it does not mean the web API can read that workout yet.
+        // Keep the row non-navigable until this very list response confirms
+        // the server record, otherwise tapping it races straight into 404.
+        const serverIndex = workout.serverWorkoutId
+          ? list.findIndex((entry) => entry.id === workout.serverWorkoutId)
+          : -1;
+        const serverConfirmed = serverIndex >= 0;
+        const id = serverConfirmed
+          ? workout.serverWorkoutId!
+          : `watch-offline:${workout.id}`;
+        const endedAt = workout.endedAt ?? workout.startedAt;
+        const durationSeconds = Math.max(0, Math.round(
+          (new Date(endedAt).getTime() - new Date(workout.startedAt).getTime()) / 1000
+        ));
+        const item: WorkoutListItem = {
+          id,
+          name: workout.name,
+          startedAt: workout.startedAt,
+          completedAt: endedAt,
+          durationSeconds,
+          workoutExercises: workout.workoutExercises.map((we) => ({
+            exercise: { id: we.exercise.id, name: we.exercise.name },
+            sets: we.sets.map((set) => ({ id: set.id })),
+          })),
+        };
+        // Once the server has returned its completed record, it is the source
+        // of truth. Only a still-pending terminal job may replace an active
+        // server row; the short-lived native receipt merely fills a cache/API
+        // gap and must not permanently shadow later server edits.
+        if (serverConfirmed) {
+          if (waitingForCompletion) list[serverIndex] = item;
+        }
+        else if (!known.has(id)) extra.push(item);
+      }
+    } catch {
+      // The regular server/IndexedDB list remains usable if native state is unavailable.
+    }
+  }
   return [...list, ...extra];
 }
 
@@ -247,6 +313,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
           >
             {group.items.map((w, i) => {
               const isActive = !w.completedAt;
+              const isAwaitingSync = w.id.startsWith("watch-offline:");
               const exerciseCount = w.workoutExercises.length;
               const setCount = w.workoutExercises.reduce((n, we) => n + we.sets.length, 0);
               const dur = formatDuration(w.durationSeconds);
@@ -255,7 +322,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                 <button
                   key={w.id}
                   type="button"
-                  className="group w-full cursor-pointer text-left transition-colors"
+                  className="group w-full text-left transition-colors"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -263,7 +330,10 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                     padding: "14px",
                     borderTop: i > 0 ? "1px solid rgba(255,255,255,0.08)" : "none",
                   }}
-                  onClick={() => router.push(workoutHref(w.id))}
+                  aria-disabled={isAwaitingSync || undefined}
+                  onClick={() => {
+                    if (!isAwaitingSync) router.push(workoutHref(w.id));
+                  }}
                 >
                   {/* Icon */}
                   <div
@@ -303,6 +373,14 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                           }}
                         >
                           LIVE
+                        </span>
+                      )}
+                      {isAwaitingSync && (
+                        <span
+                          className="shrink-0 rounded-md px-1.5 py-[2px] text-[10px] font-bold uppercase tracking-[0.06em]"
+                          style={{ background: "rgba(255,184,77,0.14)", color: "#FFB84D" }}
+                        >
+                          SYNC
                         </span>
                       )}
                     </div>
@@ -349,7 +427,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
 
                   {/* Right */}
                   <div className="flex shrink-0 items-center gap-1">
-                    {!isActive && (
+                    {!isActive && !isAwaitingSync && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -366,10 +444,12 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    <ChevronRight
-                      className="h-4 w-4"
-                      style={{ color: "#5E5E66" }}
-                    />
+                    {!isAwaitingSync && (
+                      <ChevronRight
+                        className="h-4 w-4"
+                        style={{ color: "#5E5E66" }}
+                      />
+                    )}
                   </div>
                 </button>
               );

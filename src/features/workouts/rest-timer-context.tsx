@@ -23,6 +23,8 @@ import {
   cancelRestTimerNotification,
 } from "@/lib/native/local-notifications";
 import { hapticRestTimerExpired } from "@/lib/native/haptics";
+import { Capacitor } from "@capacitor/core";
+import { WatchConnectivity } from "@/lib/native/watch-connectivity";
 
 /**
  * Persists a +/-15s nudge server-side (see rest-timer-adjust route) so the
@@ -309,6 +311,21 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     void endRestTimerActivity();
     void cancelRestTimerNotification();
   }, [releaseWakeLock]);
+
+  // A Watch-initiated finish/cancel can occur while no WorkoutDetail view is
+  // mounted, so that view cannot call stop() for us. The native bridge sends
+  // the local workout id with its durable clear signal; only stop the timer
+  // that belongs to that workout, never an unrelated current session.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let remove: (() => void) | undefined;
+    void WatchConnectivity.addListener("watchWorkoutEnded", ({ workoutId }) => {
+      if (!workoutId || activeWorkoutIdRef.current === workoutId) stop();
+    }).then((handle) => {
+      remove = () => handle.remove();
+    });
+    return () => remove?.();
+  }, [stop]);
 
   const pause = useCallback(() => {
     if (endsAt == null || pausedRemaining != null) return;

@@ -3,7 +3,10 @@
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { App as CapacitorApp } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import { flushAllQueues } from "@/lib/offline/flush-all-queues";
+import { WatchConnectivity } from "@/lib/native/watch-connectivity";
+import { workoutHref } from "@/lib/workout-href";
 import { toast } from "sonner";
 
 export function OfflineSyncProvider() {
@@ -11,11 +14,55 @@ export function OfflineSyncProvider() {
   const router = useRouter();
   const busy = useRef(false);
 
+  // A Watch-started offline workout is replayed natively (WatchAPIProxy), so
+  // the phone never learns its new server id from flushAllQueues the way an
+  // IndexedDB-queued workout does. Without this, a phone view still on the
+  // local UUID route (`/workouts/_?id=<localId>`) keeps fetching that id after
+  // the native store is cleared and shows "Workout not found". The native
+  // bridge emits the local→server mapping the moment replay assigns it; rehang
+  // the route onto the server id and refresh any list left mounted.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let remove: (() => void) | undefined;
+    void WatchConnectivity.addListener("watchWorkoutSynced", ({ localId, serverWorkoutId }) => {
+      const currentId =
+        new URLSearchParams(window.location.search).get("id") ??
+        window.location.pathname.split("/workouts/")[1]?.split("/")[0];
+      if (currentId === localId) {
+        router.replace(workoutHref(serverWorkoutId));
+      }
+      // The native replay can be triggered by NWPathMonitor without going
+      // through run() below, so its fittrack-offline-synced never fired —
+      // announce it here so the history list picks up the saved workout.
+      window.dispatchEvent(new Event("fittrack-offline-synced"));
+    }).then((handle) => {
+      remove = () => handle.remove();
+    });
+    return () => remove?.();
+  }, [router]);
+
   useEffect(() => {
     async function run() {
       if (typeof navigator === "undefined" || !navigator.onLine || busy.current) return;
       busy.current = true;
       try {
+        // The Watch-started queue is native/App-Group state, not IndexedDB,
+        // so flush it explicitly alongside the web queues. This covers a
+        // Wi-Fi connection that regains internet without a new NWPath change.
+        if (Capacitor.isNativePlatform()) {
+          try {
+            const watchResult = await WatchConnectivity.flushPendingOfflineWorkout();
+            // Surface a persistently failing Watch sync (e.g. a stuck
+            // "SYNC" badge in the Workouts list) instead of silently
+            // retrying forever with no diagnostic trail — mirrors the
+            // toast the IndexedDB queue flush already shows below.
+            if (!watchResult.flushed && watchResult.error) {
+              toast.error(`Watch-Sync fehlgeschlagen: ${watchResult.error}`);
+            }
+          } catch {
+            // The regular queue flush below still runs; native retry is best-effort.
+          }
+        }
         const { workouts, bodyWeight } = await flushAllQueues();
 
         for (const { routeId, result } of workouts) {
@@ -29,14 +76,26 @@ export function OfflineSyncProvider() {
           // looking at a route that's about to stop resolving locally, but
           // only announce full success with the toast.
           if (result.newServerWorkoutId) {
+            // On native, a workout page is always `/workouts/_?id=<routeId>`
+            // (see workout-href.ts) — the real route only resolves as a
+            // query param, never as a `/workouts/<routeId>` path segment.
+            // Comparing against the web-style path here always missed on
+            // native, so the redirect below never fired: the page stayed on
+            // the now-stale local id, its own "fittrack-offline-synced"
+            // listener (workout-detail.tsx) re-fetched that id, and the
+            // server correctly said 404 — surfacing "Workout not found" for
+            // an offline workout that had in fact synced successfully.
             const prefix = `/workouts/${routeId}`;
+            const onThisWorkout = Capacitor.isNativePlatform()
+              ? pathname === "/workouts/_" &&
+                new URLSearchParams(window.location.search).get("id") === routeId
+              : pathname === prefix || pathname.startsWith(`${prefix}/`);
             if (
-              pathname === prefix ||
-              pathname.startsWith(`${prefix}/`) ||
+              onThisWorkout ||
               // Offline workouts render inline on /workouts/new
               pathname === "/workouts/new"
             ) {
-              router.replace(`/workouts/${result.newServerWorkoutId}`);
+              router.replace(workoutHref(result.newServerWorkoutId));
             }
             if (result.ok) toast.success("Offline workout saved to your account.");
           }

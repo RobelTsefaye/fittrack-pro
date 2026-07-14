@@ -18,7 +18,7 @@ import Security
  * "is logged in" — two different questions that happened to reuse the same
  * ApiToken/Bearer mechanism server-side.
  */
-private enum NativeAuthTokenStore {
+enum NativeAuthTokenStore {
     private static let service = "com.robeltsefaye.fittrackpro.native-auth-token"
     private static let account = "current"
 
