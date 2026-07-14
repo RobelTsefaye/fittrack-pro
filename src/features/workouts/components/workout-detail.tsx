@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import Link from "@/components/app-link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle2, Clock, GripVertical, Plus, Timer, Trash2, WandSparkles, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, GripVertical, MoreHorizontal, Plus, Timer, Trash2, WandSparkles, X } from "lucide-react";
 import { WorkoutShareButton } from "./workout-share-button";
 import {
   DndContext,
@@ -28,6 +28,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -260,6 +261,9 @@ interface SortableExerciseCardProps {
   previousSets?: PreviousLogEntry;
   progressionSuggestions?: ProgressionSuggestion[];
   onRemove: (weId: string) => void;
+  onGroupWithNext: (weId: string) => void;
+  onUngroup: (weId: string) => void;
+  canGroupWithNext: boolean;
   onAddSet: (weId: string, isWarmup?: boolean) => void;
   onGenerateWarmups: (weId: string, previousSets?: PreviousLogEntry) => void;
   generatingWarmups: boolean;
@@ -283,6 +287,9 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
   previousSets,
   progressionSuggestions,
   onRemove,
+  onGroupWithNext,
+  onUngroup,
+  canGroupWithNext,
   onAddSet,
   onGenerateWarmups,
   generatingWarmups,
@@ -313,7 +320,7 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
   };
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} className={we.supersetGroup != null ? "border-l-4 border-primary/70 pl-3" : undefined}>
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
           <div className="flex min-w-0 flex-1 items-start gap-1 pr-1">
@@ -340,20 +347,14 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
               <p className="text-xs text-muted-foreground mt-0.5">
                 {we.exercise.muscleGroup.replace(/_/g, " ")}
               </p>
+              {we.supersetGroup != null ? <Badge variant="secondary" className="mt-1 text-[10px]">{t("workouts.supersetLabel")}</Badge> : null}
             </div>
           </div>
-          {isActive && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground hover:text-destructive shrink-0"
-              onClick={() => onRemove(we.id)}
-              aria-label={t("workouts.removeExerciseAria")}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
+          {isActive && <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-xs" className="shrink-0" aria-label={t("workouts.removeExerciseAria")} />}><MoreHorizontal className="h-4 w-4" /></DropdownMenuTrigger><DropdownMenuContent align="end">
+            {canGroupWithNext && <DropdownMenuItem onClick={() => onGroupWithNext(we.id)}>{t("workouts.supersetGroupWithNext")}</DropdownMenuItem>}
+            {we.supersetGroup != null && <DropdownMenuItem onClick={() => onUngroup(we.id)}>{t("workouts.supersetDissolve")}</DropdownMenuItem>}
+            <DropdownMenuItem variant="destructive" onClick={() => onRemove(we.id)}><Trash2 className="mr-2 h-4 w-4" />{t("workouts.removeExerciseAria")}</DropdownMenuItem>
+          </DropdownMenuContent></DropdownMenu>}
         </CardHeader>
         <CardContent className="space-y-2">
           <div className="hidden items-center gap-2 sm:flex">
@@ -456,6 +457,7 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
   prev.previousSets === next.previousSets &&
   prev.progressionSuggestions === next.progressionSuggestions &&
   prev.generatingWarmups === next.generatingWarmups &&
+  prev.canGroupWithNext === next.canGroupWithNext &&
   prev.reviseCompletedSets === next.reviseCompletedSets
 );
 
@@ -1045,6 +1047,48 @@ export function WorkoutDetail({
     });
     setSavingName(false);
     await loadWorkout();
+  }
+
+  async function setSupersetGroups(changes: Array<{ id: string; group: number | null }>) {
+    if (!workout || workout.completedAt) return;
+    const changedIds = new Set(changes.map((change) => change.id));
+    const groups = new Map(changes.map((change) => [change.id, change.group]));
+    const next: WorkoutData = {
+      ...workout,
+      workoutExercises: workout.workoutExercises.map((we) =>
+        changedIds.has(we.id) ? { ...we, supersetGroup: groups.get(we.id) ?? null } : we
+      ),
+    };
+    setWorkout(next);
+    if (useLocalWrites) {
+      for (const change of changes) {
+        await persistLocal(next, { t: "set_superset_group", clientWeId: change.id, group: change.group });
+      }
+      return;
+    }
+    await Promise.all(changes.map((change) => fetch(`/api/workouts/${workoutId}/exercises/${change.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify({ supersetGroup: change.group }),
+    })));
+    await loadWorkout();
+  }
+
+  async function groupWithNext(weId: string) {
+    if (!workout) return;
+    const ordered = [...workout.workoutExercises].sort((a, b) => a.order - b.order);
+    const index = ordered.findIndex((we) => we.id === weId);
+    const current = ordered[index];
+    const next = ordered[index + 1];
+    if (!current || !next || current.supersetGroup === next.supersetGroup) return;
+    const group = next.supersetGroup ?? Math.max(0, ...ordered.map((we) => we.supersetGroup ?? 0)) + 1;
+    await setSupersetGroups([{ id: current.id, group }, { id: next.id, group }]);
+  }
+
+  async function ungroupExercise(weId: string) {
+    if (!workout) return;
+    const group = workout.workoutExercises.find((we) => we.id === weId)?.supersetGroup;
+    if (group == null) return;
+    await setSupersetGroups(workout.workoutExercises.filter((we) => we.supersetGroup === group).map((we) => ({ id: we.id, group: null })));
   }
 
   async function handleAddExercise(ex: ExercisePickerExercise) {
@@ -1886,6 +1930,13 @@ export function WorkoutDetail({
                     previousSets={previousLogs[we.exercise.id]}
                     progressionSuggestions={progressionSuggestions[we.exercise.id]}
                     onRemove={removeExercise}
+                    onGroupWithNext={groupWithNext}
+                    onUngroup={ungroupExercise}
+                    canGroupWithNext={(() => {
+                      const ordered = [...workout.workoutExercises].sort((a, b) => a.order - b.order);
+                      const index = ordered.findIndex((item) => item.id === we.id);
+                      return index >= 0 && index < ordered.length - 1 && ordered[index + 1].supersetGroup !== we.supersetGroup;
+                    })()}
                     onAddSet={addSet}
                     onGenerateWarmups={generateWarmups}
                     generatingWarmups={generatingWarmups}

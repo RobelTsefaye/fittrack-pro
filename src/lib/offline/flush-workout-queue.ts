@@ -152,6 +152,18 @@ export async function flushWorkoutQueue(
           await removeQueueEntries([row.id]);
           break;
         }
+        case "set_superset_group": {
+          if (!serverWorkoutId) throw new Error("no_server_workout");
+          const serverWe = weMap.get(op.clientWeId) ?? op.clientWeId;
+          const res = await api(`/api/workouts/${serverWorkoutId}/exercises/${serverWe}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ supersetGroup: op.group }),
+          });
+          if (!res.ok) throw new Error(`set_superset_group ${res.status}`);
+          await removeQueueEntries([row.id]);
+          break;
+        }
         case "complete_workout": {
           if (!serverWorkoutId) throw new Error("no_server_workout");
           const res = await api(`/api/workouts/${serverWorkoutId}/complete`, { method: "POST" });

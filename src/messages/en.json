@@ -289,6 +289,9 @@
     "cancellingWorkout": "Cancelling…",
     "cancelWorkoutConfirm": "Cancel and discard this workout? All logged sets will be lost.",
     "cancelWorkoutFailed": "Could not cancel workout."
+    ,"supersetLabel": "Superset"
+    ,"supersetGroupWithNext": "Superset with next"
+    ,"supersetDissolve": "Dissolve superset"
   },
   "cardio": {
     "pickTitle": "Start cardio",

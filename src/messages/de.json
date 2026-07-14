@@ -289,6 +289,9 @@
     "cancellingWorkout": "Wird abgebrochen…",
     "cancelWorkoutConfirm": "Workout abbrechen und verwerfen? Alle eingetragenen Sätze gehen verloren.",
     "cancelWorkoutFailed": "Workout konnte nicht abgebrochen werden."
+    ,"supersetLabel": "Superset"
+    ,"supersetGroupWithNext": "Mit nächster Übung zum Superset"
+    ,"supersetDissolve": "Superset auflösen"
   },
   "cardio": {
     "pickTitle": "Cardio starten",

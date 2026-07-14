@@ -6,4 +6,5 @@ export type QueuedWorkoutOp =
   | { t: "patch_set"; clientSetId: string; body: Record<string, unknown> }
   | { t: "delete_set"; clientSetId: string }
   | { t: "delete_we"; clientWeId: string }
+  | { t: "set_superset_group"; clientWeId: string; group: number | null }
   | { t: "complete_workout" };
