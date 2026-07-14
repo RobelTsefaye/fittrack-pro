@@ -102,6 +102,7 @@ struct WatchActiveWorkout: Codable, Identifiable, Hashable {
 
 struct WatchWorkoutExercise: Codable, Identifiable, Hashable {
     let id: String
+    let supersetGroup: Int?
     let exercise: WatchExerciseInfo
     var sets: [WatchSet]
 }

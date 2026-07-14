@@ -51,7 +51,7 @@ struct KraftLoggingView: View {
             }
 
             ForEach(workout.workoutExercises) { exercise in
-                Section(exercise.exercise.name) {
+                Section {
                     ForEach(exercise.sets) { set in
                         NavigationLink {
                             SetEntryView(
@@ -64,6 +64,14 @@ struct KraftLoggingView: View {
                             }
                         } label: {
                             setRow(set)
+                        }
+                    }
+                } header: {
+                    HStack {
+                        Text(exercise.exercise.name)
+                        if exercise.supersetGroup != nil {
+                            Text("Superset")
+                                .foregroundStyle(.orange)
                         }
                     }
                 }

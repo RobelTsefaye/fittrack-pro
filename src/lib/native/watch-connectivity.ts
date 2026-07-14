@@ -136,6 +136,7 @@ export function toWatchWorkoutPayload(
       let workingIndex = 0;
       return {
         id: we.id,
+        supersetGroup: we.supersetGroup ?? null,
         exercise: {
           id: we.exercise.id,
           name: we.exercise.name,
