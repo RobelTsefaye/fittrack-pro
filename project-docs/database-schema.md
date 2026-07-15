@@ -104,6 +104,20 @@ User 1──* Workout 1──* WorkoutExercise 1──* Set
 | weightUnit | Enum | KG or LB |
 | theme | Enum | LIGHT or DARK |
 | restTimerDefault | Int | Default rest seconds (90) |
+| trainingDurationMinutes | Int | Default gym calendar event duration |
+| cardioSyncEnabled | Boolean | Enables the separate Cardio calendar |
+| cardioWeekdays / cardioTimeMinutes | Int[] / Int | Cardio weekday and start time |
+| cardioDurationMinutes / cardioLabel | Int / String | Default duration and event label |
+
+### CalendarOverride
+| Column | Type | Notes |
+|---|---|---|
+| userId, kind, date | UUID, CalendarKind, Date | Unique original calendar slot key |
+| skip | Boolean | Removes the calculated event |
+| movedToDate | Date? | Replaces the rendered date |
+| timeMinutes / durationMinutes | Int? | Per-slot replacements; null uses defaults |
+
+`CalendarKind` is `TRAINING` or `CARDIO`.
 
 ## Indexes
 - `User.email` — unique index

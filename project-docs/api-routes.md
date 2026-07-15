@@ -61,6 +61,14 @@ All routes prefixed with `/api`. All routes except auth require authentication.
 | POST | `/api/tokens` | Create token; response includes full secret once. Body: `{ "name"?: string }`. |
 | DELETE | `/api/tokens/[id]` | Revoke a token. |
 
+## Calendar
+| Method | Route | Description |
+|---|---|---|
+| GET | `/api/calendar/schedule?today=YYYY-MM-DD&horizonDays=28` | Returns separately enabled `training` and `cardio` calendars with final per-event time and duration. |
+| GET | `/api/calendar/plan?kind=training|cardio&today=YYYY-MM-DD` | Returns base calendar slots and their stored override state for the editor. |
+| PUT | `/api/calendar/overrides` | Upserts a skip, move, time, or duration override for an original slot date. |
+| DELETE | `/api/calendar/overrides?kind=…&date=YYYY-MM-DD` | Resets one slot to its global defaults. |
+
 ## AI / structured context
 | Method | Route | Description |
 |--------|-------|-------------|
