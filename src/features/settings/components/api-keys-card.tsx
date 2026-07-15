@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/lib/i18n-provider";
@@ -120,12 +119,8 @@ export function ApiTokensCard() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("settings.apiTokensTitle")}</CardTitle>
-        <CardDescription>{t("settings.apiTokensDesc")}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="ios-group">
+      <div className="space-y-4 p-4">
         <p className="text-sm text-muted-foreground">{t("settings.apiTokensClaudeHint")}</p>
 
         {loadError ? (
@@ -224,7 +219,7 @@ export function ApiTokensCard() {
             </ul>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
