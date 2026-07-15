@@ -15,7 +15,7 @@ import { ROUTES } from "@/lib/constants";
  * since that's the only place these pages are linked from on mobile, and a
  * fixed destination is predictable regardless of how the page was reached.
  */
-export function BackButton() {
+export function BackButton({ href = ROUTES.more }: { href?: string }) {
   const router = useRouter();
   const { t } = useI18n();
 
@@ -24,7 +24,7 @@ export function BackButton() {
       variant="ghost"
       size="sm"
       className="-ml-2 mb-1 inline-flex gap-1 text-[var(--sys-label2)]"
-      onClick={() => router.push(ROUTES.more)}
+      onClick={() => router.push(href)}
     >
       <ArrowLeft className="h-4 w-4" />
       {t("common.back")}
