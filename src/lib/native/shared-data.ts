@@ -8,6 +8,7 @@ interface SharedDataPlugin {
     streak: number;
     sessionName?: string | null;
     planName?: string | null;
+    sessionId?: string | null;
   }): Promise<void>;
 }
 
@@ -36,11 +37,12 @@ export async function syncRecoveryWidgetSnapshot(score: number, level: string): 
 export async function syncNextWorkoutWidgetSnapshot(
   streak: number,
   sessionName: string | null,
-  planName: string | null
+  planName: string | null,
+  sessionId: string | null
 ): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
-    await SharedData.setNextWorkoutSnapshot({ streak, sessionName, planName });
+    await SharedData.setNextWorkoutSnapshot({ streak, sessionName, planName, sessionId });
   } catch {
     // Non-fatal — widget just keeps showing its last-known value.
   }

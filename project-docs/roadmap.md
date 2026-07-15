@@ -126,6 +126,9 @@
 ---
 
 ## Timeline Estimate
+
+- [x] Widget-Polish (Auto-Update, Play-Button) und Workout-UI-Cleanup (Hints, Warmup, Superset-Reload)
+
 | Phase | Scope |
 |-------|-------|
 | Phase 1 | Foundation |

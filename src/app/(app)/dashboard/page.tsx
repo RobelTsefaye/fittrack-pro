@@ -66,7 +66,8 @@ export default function DashboardPage() {
           void syncNextWorkoutWidgetSnapshot(
             json.data.payload.summary.workoutStreakDays,
             json.data.payload.nextSession?.sessionName ?? null,
-            json.data.payload.nextSession?.planName ?? null
+            json.data.payload.nextSession?.planName ?? null,
+            json.data.payload.nextSession?.sessionId ?? null
           );
           // Keep the display identity fresh for screens that can't rely on
           // the cookie session (More-page profile) — see cached-user.ts.

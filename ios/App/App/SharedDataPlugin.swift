@@ -56,6 +56,7 @@ public class SharedDataPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         let sessionName = call.getString("sessionName")
         let planName = call.getString("planName")
+        let sessionId = call.getString("sessionId")
 
         var payload: [String: Any] = [
             "streak": streak,
@@ -63,6 +64,7 @@ public class SharedDataPlugin: CAPPlugin, CAPBridgedPlugin {
         ]
         payload["sessionName"] = sessionName as Any? ?? NSNull()
         payload["planName"] = planName as Any? ?? NSNull()
+        payload["sessionId"] = sessionId as Any? ?? NSNull()
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let json = String(data: data, encoding: .utf8) else {
             call.reject("Failed to encode snapshot")

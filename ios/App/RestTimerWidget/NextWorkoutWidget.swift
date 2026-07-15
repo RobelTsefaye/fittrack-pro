@@ -9,6 +9,7 @@ struct NextWorkoutSnapshot: Decodable {
     let streak: Int
     let sessionName: String?
     let planName: String?
+    let sessionId: String?
     let updatedAt: Date
 }
 
@@ -35,7 +36,7 @@ struct NextWorkoutProvider: TimelineProvider {
     func placeholder(in context: Context) -> NextWorkoutEntry {
         NextWorkoutEntry(
             date: Date(),
-            snapshot: NextWorkoutSnapshot(streak: 5, sessionName: "Push Day", planName: "Upper/Lower Split", updatedAt: Date())
+            snapshot: NextWorkoutSnapshot(streak: 5, sessionName: "Push Day", planName: "Upper/Lower Split", sessionId: nil, updatedAt: Date())
         )
     }
     func getSnapshot(in context: Context, completion: @escaping (NextWorkoutEntry) -> Void) {
@@ -88,6 +89,14 @@ struct NextWorkoutWidgetEntryView: View {
                 Text("🔥")
                 Text("\(snapshot.streak)")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
+                if let sessionId = snapshot.sessionId,
+                   let url = URL(string: "fittrackpro://start-workout?sessionId=\(sessionId)") {
+                    Spacer()
+                    Link(destination: url) {
+                        Image(systemName: "play.circle.fill")
+                            .font(.system(size: 22))
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -137,7 +146,7 @@ struct NextWorkoutWidget: Widget {
 #Preview(as: .systemSmall) {
     NextWorkoutWidget()
 } timeline: {
-    NextWorkoutEntry(date: .now, snapshot: NextWorkoutSnapshot(streak: 5, sessionName: "Push Day", planName: "Upper/Lower Split", updatedAt: .now))
-    NextWorkoutEntry(date: .now, snapshot: NextWorkoutSnapshot(streak: 0, sessionName: nil, planName: nil, updatedAt: .now))
+    NextWorkoutEntry(date: .now, snapshot: NextWorkoutSnapshot(streak: 5, sessionName: "Push Day", planName: "Upper/Lower Split", sessionId: "preview-session", updatedAt: .now))
+    NextWorkoutEntry(date: .now, snapshot: NextWorkoutSnapshot(streak: 0, sessionName: nil, planName: nil, sessionId: nil, updatedAt: .now))
     NextWorkoutEntry(date: .now, snapshot: nil)
 }
