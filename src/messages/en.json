@@ -135,7 +135,19 @@
     "crossDeviceSyncNote": "Workouts you log offline are stored on this device until you are online again; then they sync to your account and appear on your other devices. Install the app from the browser menu (“Add to Home Screen”) for a full-screen experience similar to an App Store app.",
     "trainingDaysTitle": "Training days & calendar", "calendarSyncToggle": "Add to iPhone calendar", "trainingDaysLabel": "Training days", "trainingTime": "Training time", "calendarHint": "Upcoming training days are added to a \"FitTrack Pro\" calendar, labeled with the next session from your plan.", "calendarWebHint": "Days and time are saved to your account; calendar entries are created by the iOS app.", "weekdayMon": "Mo", "weekdayTue": "Tu", "weekdayWed": "We", "weekdayThu": "Th", "weekdayFri": "Fr", "weekdaySat": "Sa", "weekdaySun": "Su",
     "saved": "Preferences saved",
-    "saveFailed": "Could not save preferences"
+    "saveFailed": "Could not save preferences",
+    "cardioDaysTitle": "Cardio days & calendar",
+    "cardioSyncToggle": "Add to iPhone calendar",
+    "cardioLabelLabel": "Activity",
+    "cardioTime": "Cardio time",
+    "trainingDuration": "Training duration",
+    "cardioDuration": "Cardio duration",
+    "editDays": "Edit individual days",
+    "cardioHint": "Upcoming cardio days are added to a separate \"FitTrack Pro Cardio\" calendar.",
+    "cardioWebHint": "Cardio settings are saved to your account; calendar entries are created by the iOS app."
+  },
+  "calendarEditor": {
+    "titleTraining": "Edit training days", "titleCardio": "Edit cardio days", "skip": "Skip", "moveTo": "Move to", "time": "Time", "duration": "Duration", "reset": "Reset", "save": "Save", "badgeDefault": "Default", "badgeSkipped": "Skipped", "badgeMoved": "Moved", "badgeCustom": "Custom"
   },
   "dashboard": {
     "welcome": "Welcome back",

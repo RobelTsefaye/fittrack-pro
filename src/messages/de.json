@@ -135,7 +135,19 @@
     "crossDeviceSyncNote": "Offline geloggte Workouts liegen auf diesem Gerät, bis du wieder online bist; dann synchronisieren sie mit deinem Konto und erscheinen auf anderen Geräten. Installiere die App über das Browser-Menü („Zum Home-Bildschirm“) für Vollbild ähnlich einer App aus dem Store.",
     "trainingDaysTitle": "Trainingstage & Kalender", "calendarSyncToggle": "In iPhone-Kalender eintragen", "trainingDaysLabel": "Trainingstage", "trainingTime": "Trainingszeit", "calendarHint": "Kommende Trainingstage werden in einen „FitTrack Pro“-Kalender eingetragen – jeweils mit der nächsten Einheit deines Plans.", "calendarWebHint": "Tage und Uhrzeit werden in deinem Konto gespeichert; die Kalendereinträge erstellt die iOS-App.", "weekdayMon": "Mo", "weekdayTue": "Di", "weekdayWed": "Mi", "weekdayThu": "Do", "weekdayFri": "Fr", "weekdaySat": "Sa", "weekdaySun": "So",
     "saved": "Einstellungen gespeichert",
-    "saveFailed": "Speichern fehlgeschlagen"
+    "saveFailed": "Speichern fehlgeschlagen",
+    "cardioDaysTitle": "Cardio-Tage & Kalender",
+    "cardioSyncToggle": "In iPhone-Kalender eintragen",
+    "cardioLabelLabel": "Aktivität",
+    "cardioTime": "Cardio-Zeit",
+    "trainingDuration": "Trainingsdauer",
+    "cardioDuration": "Cardio-Dauer",
+    "editDays": "Einzelne Tage bearbeiten",
+    "cardioHint": "Kommende Cardio-Tage werden in einen separaten „FitTrack Pro Cardio“-Kalender eingetragen.",
+    "cardioWebHint": "Cardio-Einstellungen werden in deinem Konto gespeichert; die Kalendereinträge erstellt die iOS-App."
+  },
+  "calendarEditor": {
+    "titleTraining": "Trainingstage bearbeiten", "titleCardio": "Cardio-Tage bearbeiten", "skip": "Auslassen", "moveTo": "Verschieben auf", "time": "Uhrzeit", "duration": "Dauer", "reset": "Zurücksetzen", "save": "Speichern", "badgeDefault": "Standard", "badgeSkipped": "Übersprungen", "badgeMoved": "Verschoben", "badgeCustom": "Angepasst"
   },
   "dashboard": {
     "welcome": "Willkommen zurück",
