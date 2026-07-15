@@ -15,6 +15,12 @@ type InitialSettings = {
   calendarSyncEnabled: boolean;
   trainingWeekdays: number[];
   trainingTimeMinutes: number;
+  trainingDurationMinutes: number;
+  cardioSyncEnabled: boolean;
+  cardioWeekdays: number[];
+  cardioTimeMinutes: number;
+  cardioDurationMinutes: number;
+  cardioLabel: string;
 };
 
 const DEFAULT_SETTINGS: InitialSettings = {
@@ -25,6 +31,12 @@ const DEFAULT_SETTINGS: InitialSettings = {
   calendarSyncEnabled: false,
   trainingWeekdays: [],
   trainingTimeMinutes: 1080,
+  trainingDurationMinutes: 90,
+  cardioSyncEnabled: false,
+  cardioWeekdays: [],
+  cardioTimeMinutes: 1080,
+  cardioDurationMinutes: 45,
+  cardioLabel: "",
 };
 
 export default function SettingsPage() {
