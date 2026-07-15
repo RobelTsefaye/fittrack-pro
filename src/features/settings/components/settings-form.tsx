@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Download } from "lucide-react";
+import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { syncTrainingCalendar } from "@/lib/native/calendar";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n-provider";
+import { CARDIO_CALENDAR_LABELS } from "@/features/calendar/cardio-labels";
 
 type InitialSettings = {
   locale: "EN" | "DE";
@@ -17,6 +18,12 @@ type InitialSettings = {
   calendarSyncEnabled: boolean;
   trainingWeekdays: number[];
   trainingTimeMinutes: number;
+  trainingDurationMinutes: number;
+  cardioSyncEnabled: boolean;
+  cardioWeekdays: number[];
+  cardioTimeMinutes: number;
+  cardioDurationMinutes: number;
+  cardioLabel: string;
 };
 
 function themeToNext(theme: InitialSettings["theme"]): "light" | "dark" | "system" {
@@ -49,21 +56,30 @@ export function SettingsForm({ initial }: { initial: InitialSettings }) {
   const [calendarSyncEnabled, setCalendarSyncEnabled] = useState(initial.calendarSyncEnabled);
   const [trainingWeekdays, setTrainingWeekdays] = useState<number[]>(initial.trainingWeekdays);
   const [trainingTime, setTrainingTime] = useState(minutesToHHMM(initial.trainingTimeMinutes));
+  const [trainingDuration, setTrainingDuration] = useState(String(initial.trainingDurationMinutes));
+  const [cardioSyncEnabled, setCardioSyncEnabled] = useState(initial.cardioSyncEnabled);
+  const [cardioWeekdays, setCardioWeekdays] = useState<number[]>(initial.cardioWeekdays);
+  const [cardioTime, setCardioTime] = useState(minutesToHHMM(initial.cardioTimeMinutes));
+  const [cardioDuration, setCardioDuration] = useState(String(initial.cardioDurationMinutes));
+  const [cardioLabel, setCardioLabel] = useState(initial.cardioLabel);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<"ok" | "err" | null>(null);
   function toggleWeekday(i: number) { setTrainingWeekdays((prev) => prev.includes(i) ? prev.filter((d) => d !== i) : [...prev, i].sort((a, b) => a - b)); }
+  function toggleCardioWeekday(i: number) { setCardioWeekdays((prev) => prev.includes(i) ? prev.filter((d) => d !== i) : [...prev, i].sort((a, b) => a - b)); }
 
   useEffect(() => { setTheme(themeToNext(initial.theme)); }, [initial.theme, setTheme]);
 
   async function save() {
     setMessage(null);
     const rest = parseInt(restTimerDefault, 10);
-    if (Number.isNaN(rest) || rest < 30 || rest > 600) return;
+    const trainingDurationMinutes = parseInt(trainingDuration, 10);
+    const cardioDurationMinutes = parseInt(cardioDuration, 10);
+    if (Number.isNaN(rest) || rest < 30 || rest > 600 || Number.isNaN(trainingDurationMinutes) || trainingDurationMinutes < 1 || trainingDurationMinutes > 1439 || Number.isNaN(cardioDurationMinutes) || cardioDurationMinutes < 1 || cardioDurationMinutes > 1439) return;
     setSaving(true);
     const res = await fetch("/api/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ locale, weightUnit, theme, restTimerDefault: rest, calendarSyncEnabled, trainingWeekdays, trainingTimeMinutes: hhmmToMinutes(trainingTime) }),
+      body: JSON.stringify({ locale, weightUnit, theme, restTimerDefault: rest, calendarSyncEnabled, trainingWeekdays, trainingTimeMinutes: hhmmToMinutes(trainingTime), trainingDurationMinutes, cardioSyncEnabled, cardioWeekdays, cardioTimeMinutes: hhmmToMinutes(cardioTime), cardioDurationMinutes, cardioLabel }),
     });
     setSaving(false);
     if (!res.ok) { setMessage("err"); return; }
@@ -185,8 +201,23 @@ export function SettingsForm({ initial }: { initial: InitialSettings }) {
           <label className="ios-row cursor-pointer"><span className="flex-1 text-[0.9375rem]">{t("settings.calendarSyncToggle")}</span><input type="checkbox" checked={calendarSyncEnabled} onChange={(e) => setCalendarSyncEnabled(e.target.checked)} className="h-5 w-5 accent-primary" /></label>
           <div className="ios-row"><span className="flex-1 text-[0.9375rem]">{t("settings.trainingDaysLabel")}</span><div className="flex gap-1.5">{WEEKDAY_KEYS.map((key, i) => <button key={key} type="button" onClick={() => toggleWeekday(i)} className={`h-8 w-8 rounded-full text-xs font-medium transition-colors ${trainingWeekdays.includes(i) ? "bg-primary text-primary-foreground" : "bg-[var(--sys-fill)] text-[var(--sys-label2)]"}`}>{t(`settings.${key}`)}</button>)}</div></div>
           <div className="ios-row"><span className="flex-1 text-[0.9375rem]">{t("settings.trainingTime")}</span><input type="time" value={trainingTime} onChange={(e) => setTrainingTime(e.target.value)} className="bg-transparent text-right text-[0.9375rem] text-[var(--sys-label2)] outline-none" /></div>
+          <div className="ios-row"><span className="flex-1 text-[0.9375rem]">{t("settings.trainingDuration")}</span><input type="number" min={1} max={1439} value={trainingDuration} onChange={(e) => setTrainingDuration(e.target.value)} className="w-16 bg-transparent text-right text-[0.9375rem] text-[var(--sys-label2)] outline-none" /><span className="text-sm text-[var(--sys-label3)]">min</span></div>
+          <button type="button" onClick={() => router.push("/settings/calendar?kind=training")} className="ios-row w-full text-left"><span className="flex-1 text-[0.9375rem]">{t("settings.editDays")}</span><ChevronRight className="h-4 w-4 text-[var(--sys-label3)]" /></button>
         </div>
         <p className="px-4 text-xs text-[var(--sys-label2)]">{Capacitor.isNativePlatform() ? t("settings.calendarHint") : t("settings.calendarWebHint")}</p>
+      </section>
+
+      <section className="space-y-2">
+        <p className="ios-section-label">{t("settings.cardioDaysTitle")}</p>
+        <div className="ios-group">
+          <label className="ios-row cursor-pointer"><span className="flex-1 text-[0.9375rem]">{t("settings.cardioSyncToggle")}</span><input type="checkbox" checked={cardioSyncEnabled} onChange={(e) => setCardioSyncEnabled(e.target.checked)} className="h-5 w-5 accent-primary" /></label>
+          <div className="ios-row"><span className="flex-1 text-[0.9375rem]">{t("settings.trainingDaysLabel")}</span><div className="flex gap-1.5">{WEEKDAY_KEYS.map((key, i) => <button key={key} type="button" onClick={() => toggleCardioWeekday(i)} className={`h-8 w-8 rounded-full text-xs font-medium transition-colors ${cardioWeekdays.includes(i) ? "bg-primary text-primary-foreground" : "bg-[var(--sys-fill)] text-[var(--sys-label2)]"}`}>{t(`settings.${key}`)}</button>)}</div></div>
+          <div className="ios-row"><span className="flex-1 text-[0.9375rem]">{t("settings.cardioTime")}</span><input type="time" value={cardioTime} onChange={(e) => setCardioTime(e.target.value)} className="bg-transparent text-right text-[0.9375rem] text-[var(--sys-label2)] outline-none" /></div>
+          <div className="ios-row"><span className="flex-1 text-[0.9375rem]">{t("settings.cardioDuration")}</span><input type="number" min={1} max={1439} value={cardioDuration} onChange={(e) => setCardioDuration(e.target.value)} className="w-16 bg-transparent text-right text-[0.9375rem] text-[var(--sys-label2)] outline-none" /><span className="text-sm text-[var(--sys-label3)]">min</span></div>
+          <label className="ios-row cursor-pointer"><span className="flex-1 text-[0.9375rem]">{t("settings.cardioLabelLabel")}</span><div className="relative flex items-center"><select value={cardioLabel} onChange={(e) => setCardioLabel(e.target.value)} className={selectClass}>{CARDIO_CALENDAR_LABELS.map((label) => <option key={label || "cardio"} value={label}>{label || "Cardio"}</option>)}</select><ChevronDown className="pointer-events-none absolute right-0 h-3.5 w-3.5 text-[var(--sys-label3)]" /></div></label>
+          <button type="button" onClick={() => router.push("/settings/calendar?kind=cardio")} className="ios-row w-full text-left"><span className="flex-1 text-[0.9375rem]">{t("settings.editDays")}</span><ChevronRight className="h-4 w-4 text-[var(--sys-label3)]" /></button>
+        </div>
+        <p className="px-4 text-xs text-[var(--sys-label2)]">{Capacitor.isNativePlatform() ? t("settings.cardioHint") : t("settings.cardioWebHint")}</p>
       </section>
 
       {/* Save button + feedback */}

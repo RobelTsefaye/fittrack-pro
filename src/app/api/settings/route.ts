@@ -38,6 +38,12 @@ export async function GET() {
       calendarSyncEnabled: settings.calendarSyncEnabled,
       trainingWeekdays: settings.trainingWeekdays,
       trainingTimeMinutes: settings.trainingTimeMinutes,
+      trainingDurationMinutes: settings.trainingDurationMinutes,
+      cardioSyncEnabled: settings.cardioSyncEnabled,
+      cardioWeekdays: settings.cardioWeekdays,
+      cardioTimeMinutes: settings.cardioTimeMinutes,
+      cardioDurationMinutes: settings.cardioDurationMinutes,
+      cardioLabel: settings.cardioLabel,
     },
   });
 }
@@ -91,6 +97,12 @@ export async function PATCH(req: NextRequest) {
       calendarSyncEnabled: updated.calendarSyncEnabled,
       trainingWeekdays: updated.trainingWeekdays,
       trainingTimeMinutes: updated.trainingTimeMinutes,
+      trainingDurationMinutes: updated.trainingDurationMinutes,
+      cardioSyncEnabled: updated.cardioSyncEnabled,
+      cardioWeekdays: updated.cardioWeekdays,
+      cardioTimeMinutes: updated.cardioTimeMinutes,
+      cardioDurationMinutes: updated.cardioDurationMinutes,
+      cardioLabel: updated.cardioLabel,
     },
   });
 

@@ -52,6 +52,11 @@ enum AppLocale {
   DE
 }
 
+enum CalendarKind {
+  TRAINING
+  CARDIO
+}
+
 // ─── User ───────────────────────────────────────────────
 
 model User {
@@ -74,6 +79,7 @@ model User {
   apiTokens       ApiToken[]
   pushTokens      PushToken[]
   cardioLiveSnapshot CardioLiveSnapshot?
+  calendarOverrides CalendarOverride[]
 
   @@map("users")
 }
@@ -143,10 +149,35 @@ model UserSettings {
   calendarSyncEnabled Boolean @default(false)
   trainingWeekdays    Int[]   @default([]) // Montag-first: 0=Mo .. 6=So (Konvention wie workout-history-list.tsx)
   trainingTimeMinutes Int     @default(1080) // Event-Start in Minuten seit lokaler Mitternacht (1080 = 18:00)
+  trainingDurationMinutes Int @default(90)
+  cardioSyncEnabled       Boolean @default(false)
+  cardioWeekdays          Int[]   @default([])
+  cardioTimeMinutes       Int     @default(1080)
+  cardioDurationMinutes   Int     @default(45)
+  cardioLabel             String  @default("")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_settings")
+}
+
+model CalendarOverride {
+  id              String       @id @default(uuid())
+  userId          String
+  kind            CalendarKind
+  date            DateTime     @db.Date
+  skip            Boolean      @default(false)
+  movedToDate     DateTime?    @db.Date
+  timeMinutes     Int?
+  durationMinutes Int?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, date])
+  @@index([userId, kind])
+  @@map("calendar_overrides")
 }
 
 // ─── Exercise ───────────────────────────────────────────
