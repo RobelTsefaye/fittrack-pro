@@ -335,10 +335,6 @@ html, body {
   min-height: 2.75rem;
   transition: background-color 120ms var(--ease-out);
 }
-.ios-row:active,
-.ios-row-interactive:active {
-  background-color: var(--sys-fill);
-}
 .ios-section-label {
   padding: 0 1rem;
   margin-bottom: 0.375rem;
