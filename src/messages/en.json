@@ -144,7 +144,12 @@
     "cardioDuration": "Cardio duration",
     "editDays": "Edit individual days",
     "cardioHint": "Upcoming cardio days are added to a separate \"FitTrack Pro Cardio\" calendar.",
-    "cardioWebHint": "Cardio settings are saved to your account; calendar entries are created by the iOS app."
+    "cardioWebHint": "Cardio settings are saved to your account; calendar entries are created by the iOS app.",
+    "menuPreferences": "Preferences",
+    "menuTraining": "Training calendar",
+    "menuCardio": "Cardio calendar",
+    "menuTokens": "API tokens",
+    "menuExport": "Export data"
   },
   "calendarEditor": {
     "titleTraining": "Edit training days", "titleCardio": "Edit cardio days", "skip": "Skip", "moveTo": "Move to", "time": "Time", "duration": "Duration", "reset": "Reset", "save": "Save", "badgeDefault": "Default", "badgeSkipped": "Skipped", "badgeMoved": "Moved", "badgeCustom": "Custom"

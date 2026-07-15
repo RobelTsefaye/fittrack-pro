@@ -142,3 +142,8 @@
 - [x] Separate Cardio calendar with global activity label and duration
 - [x] Per-day skip, move, time, and duration overrides
 - [x] iOS calendar sync regenerates both app-owned calendars
+
+## Settings redesign ← COMPLETED
+
+- [x] Settings landing menu with focused subpages and theme-aware icon rows
+- [x] WKWebView-safe click-driven row press feedback

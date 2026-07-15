@@ -144,7 +144,12 @@
     "cardioDuration": "Cardio-Dauer",
     "editDays": "Einzelne Tage bearbeiten",
     "cardioHint": "Kommende Cardio-Tage werden in einen separaten „FitTrack Pro Cardio“-Kalender eingetragen.",
-    "cardioWebHint": "Cardio-Einstellungen werden in deinem Konto gespeichert; die Kalendereinträge erstellt die iOS-App."
+    "cardioWebHint": "Cardio-Einstellungen werden in deinem Konto gespeichert; die Kalendereinträge erstellt die iOS-App.",
+    "menuPreferences": "Präferenzen",
+    "menuTraining": "Trainingskalender",
+    "menuCardio": "Cardio-Kalender",
+    "menuTokens": "API-Tokens",
+    "menuExport": "Datenexport"
   },
   "calendarEditor": {
     "titleTraining": "Trainingstage bearbeiten", "titleCardio": "Cardio-Tage bearbeiten", "skip": "Auslassen", "moveTo": "Verschieben auf", "time": "Uhrzeit", "duration": "Dauer", "reset": "Zurücksetzen", "save": "Speichern", "badgeDefault": "Standard", "badgeSkipped": "Übersprungen", "badgeMoved": "Verschoben", "badgeCustom": "Angepasst"
