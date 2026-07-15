@@ -140,6 +140,7 @@ struct FitTrackComplication: Widget {
     }
 }
 
+@available(iOS 17.0, *)
 #Preview(as: .accessoryCircular) {
     FitTrackComplication()
 } timeline: {
