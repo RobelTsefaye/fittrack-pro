@@ -1,6 +1,7 @@
 import Foundation
 import BackgroundTasks
 import HealthKit
+import WidgetKit
 
 /**
  * Periodic background HealthKit sync so vitals stay reasonably fresh even
@@ -87,10 +88,87 @@ enum BackgroundSyncManager {
 
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
-            return (response as? HTTPURLResponse).map { $0.statusCode < 400 } ?? false
+            let success = (response as? HTTPURLResponse).map { $0.statusCode < 400 } ?? false
+            if success {
+                Task { await refreshWidgetSnapshots(token: token) }
+            }
+            return success
         } catch {
             return false
         }
+    }
+
+    private static func refreshWidgetSnapshots(token: String) async {
+        async let recovery = fetchRecoverySnapshot(token: token)
+        async let workout = fetchNextWorkoutSnapshot(token: token)
+
+        var updated = false
+        if let snapshot = await recovery {
+            updated = writeSnapshot(snapshot, forKey: "recoveryScoreSnapshot") || updated
+        }
+        if let snapshot = await workout {
+            updated = writeSnapshot(snapshot, forKey: "nextWorkoutSnapshot") || updated
+        }
+        if updated, #available(iOS 14.0, *) {
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+    }
+
+    private static func fetchRecoverySnapshot(token: String) async -> [String: Any]? {
+        struct Response: Decodable {
+            struct Data: Decodable { let score: Int; let level: String }
+            let data: Data
+        }
+        guard let response: Response = await get("/api/health/recovery", token: token) else { return nil }
+        return [
+            "score": response.data.score,
+            "level": response.data.level,
+            "updatedAt": ISO8601DateFormatter().string(from: Date()),
+        ]
+    }
+
+    private static func fetchNextWorkoutSnapshot(token: String) async -> [String: Any]? {
+        struct Response: Decodable {
+            struct Data: Decodable {
+                struct Payload: Decodable {
+                    struct Summary: Decodable { let workoutStreakDays: Int }
+                    struct NextSession: Decodable { let sessionId: String; let sessionName: String; let planName: String }
+                    let summary: Summary
+                    let nextSession: NextSession?
+                }
+                let payload: Payload
+            }
+            let data: Data
+        }
+        guard let response: Response = await get("/api/dashboard/client-payload", token: token) else { return nil }
+        let nextSession = response.data.payload.nextSession
+        return [
+            "streak": response.data.payload.summary.workoutStreakDays,
+            "sessionName": nextSession?.sessionName as Any? ?? NSNull(),
+            "planName": nextSession?.planName as Any? ?? NSNull(),
+            "sessionId": nextSession?.sessionId as Any? ?? NSNull(),
+            "updatedAt": ISO8601DateFormatter().string(from: Date()),
+        ]
+    }
+
+    private static func get<T: Decodable>(_ path: String, token: String) async -> T? {
+        guard let url = URL(string: "\(apiBaseURL)\(path)") else { return nil }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode < 400 else { return nil }
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+            return nil
+        }
+    }
+
+    private static func writeSnapshot(_ snapshot: [String: Any], forKey key: String) -> Bool {
+        guard let data = try? JSONSerialization.data(withJSONObject: snapshot),
+              let json = String(data: data, encoding: .utf8) else { return false }
+        UserDefaults(suiteName: "group.com.robeltsefaye.fittrackpro")?.set(json, forKey: key)
+        return true
     }
 
     private static func sum(_ id: HKQuantityTypeIdentifier, unit: HKUnit, since start: Date) async -> Double? {

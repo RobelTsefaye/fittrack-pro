@@ -438,9 +438,6 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
                 <Plus className="mr-1 h-3 w-3" />
                 {t("workouts.set")}
               </Button>
-              <Button type="button" variant="outline" size="xs" onClick={() => onAddSet(we.id, true)}>
-                {t("workouts.warmup")}
-              </Button>
             </div>
           )}
         </CardContent>
@@ -1070,7 +1067,7 @@ export function WorkoutDetail({
       method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
       body: JSON.stringify({ supersetGroup: change.group }),
     })));
-    await loadWorkout();
+    await loadWorkout({ silent: true });
   }
 
   async function groupWithNext(weId: string) {

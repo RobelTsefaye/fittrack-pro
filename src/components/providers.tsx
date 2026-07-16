@@ -8,6 +8,7 @@ import { OfflineSyncProvider } from "@/components/offline-sync-provider";
 import { NativePushRegister } from "@/components/native-push-register";
 import { NativeHealthSync } from "@/components/native-health-sync";
 import { NativeCalendarSync } from "@/components/native-calendar-sync";
+import { NativeWorkoutDeepLink } from "@/components/native-workout-deeplink";
 import { NativeWatchWorkoutSync } from "@/components/native-watch-workout-sync";
 import { NativeAuthFetchPatch } from "@/components/native-auth-fetch-patch";
 import { NativeOnlineStatusPatch } from "@/components/native-online-status-patch";
@@ -23,6 +24,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <NativePushRegister />
         <NativeHealthSync />
         <NativeCalendarSync />
+        <NativeWorkoutDeepLink />
         <NativeWatchWorkoutSync />
         <OfflineSyncProvider />
         <PreviousLogsCacheWarmer />

@@ -24,6 +24,15 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>fittrackpro</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSHealthShareUsageDescription</key>
 	<string>FitTrack Pro liest deine Gesundheitsdaten (Schlaf, Aktivität, Herzwerte, VO₂max, Handgelenk-Temperatur, Workouts sowie Ernährung und Flüssigkeit), um deine Trainings- und Gesundheitswerte darzustellen.</string>
 	<key>NSHealthUpdateUsageDescription</key>

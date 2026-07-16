@@ -260,19 +260,22 @@ export const SetRow = memo(function SetRow({
           <Check className="ml-auto h-5 w-5 shrink-0 text-primary sm:ml-0 sm:h-4 sm:w-4" />
         )}
       </div>
-      {previousHint ? (
-        <p className="mt-1.5 pl-8 text-[11px] leading-tight text-muted-foreground/90 sm:pl-6">
-          {previousHint}
-        </p>
-      ) : null}
-      {progressionSuggestion && !set.isCompleted && !disabled ? (
-        <div className="mt-1.5 flex items-center justify-between gap-2 pl-8 sm:pl-6">
-          <p className="text-[11px] leading-tight text-muted-foreground/90">
-            {progressionSuggestion.hint}
-          </p>
-          <Button type="button" variant="ghost" size="xs" onClick={applyProgressionSuggestion}>
-            {t("workouts.applySuggestion")}
-          </Button>
+      {previousHint || progressionSuggestion ? (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-8 sm:pl-6">
+          {previousHint ? (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-medium text-muted-foreground">
+              {previousHint}
+            </span>
+          ) : null}
+          {progressionSuggestion && !set.isCompleted && !disabled ? (
+            <button
+              type="button"
+              onClick={applyProgressionSuggestion}
+              className="rounded-full bg-primary/10 px-2 py-0.5 text-[10.5px] font-medium text-primary transition-colors hover:bg-primary/20"
+            >
+              {progressionSuggestion.hint}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>
