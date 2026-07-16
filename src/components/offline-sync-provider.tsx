@@ -8,6 +8,7 @@ import { flushAllQueues } from "@/lib/offline/flush-all-queues";
 import { WatchConnectivity } from "@/lib/native/watch-connectivity";
 import { workoutHref } from "@/lib/workout-href";
 import { toast } from "sonner";
+import { scheduleWorkoutFlush } from "@/lib/offline/flush-pump";
 
 export function OfflineSyncProvider() {
   const pathname = usePathname();
@@ -40,6 +41,40 @@ export function OfflineSyncProvider() {
     });
     return () => remove?.();
   }, [router]);
+
+  // Every IndexedDB workout write announces itself. The pump keeps the UI
+  // independent of network latency while replaying shortly afterwards.
+  useEffect(() => {
+    const queued = (event: Event) => {
+      const workoutId = (event as CustomEvent<{ workoutId?: string }>).detail?.workoutId;
+      if (workoutId) scheduleWorkoutFlush(workoutId);
+    };
+    const online = () => {
+      void flushAllQueues().then(({ workouts }) => {
+        workouts.forEach(({ routeId }) => scheduleWorkoutFlush(routeId, { immediate: true }));
+      });
+    };
+    window.addEventListener("fittrack-workout-op-queued", queued);
+    window.addEventListener("online", online);
+    return () => {
+      window.removeEventListener("fittrack-workout-op-queued", queued);
+      window.removeEventListener("online", online);
+    };
+  }, []);
+
+  useEffect(() => {
+    const rekey = (event: Event) => {
+      const { routeId, serverWorkoutId } =
+        (event as CustomEvent<{ routeId?: string; serverWorkoutId?: string }>).detail ?? {};
+      if (!routeId || !serverWorkoutId) return;
+      const onThisWorkout = Capacitor.isNativePlatform()
+        ? pathname === "/workouts/_" && new URLSearchParams(window.location.search).get("id") === routeId
+        : pathname === `/workouts/${routeId}` || pathname.startsWith(`/workouts/${routeId}/`);
+      if (onThisWorkout || pathname === "/workouts/new") router.replace(workoutHref(serverWorkoutId));
+    };
+    window.addEventListener("fittrack-workout-rekeyed", rekey);
+    return () => window.removeEventListener("fittrack-workout-rekeyed", rekey);
+  }, [pathname, router]);
 
   useEffect(() => {
     async function run() {
@@ -97,7 +132,8 @@ export function OfflineSyncProvider() {
             ) {
               router.replace(workoutHref(result.newServerWorkoutId));
             }
-            if (result.ok) toast.success("Offline workout saved to your account.");
+            // The local-first pump also rekeys brand-new online workouts;
+            // don't show an "offline saved" toast for each normal start.
           }
         }
 

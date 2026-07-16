@@ -144,7 +144,7 @@ model UserSettings {
   userId           String     @unique
   weightUnit       WeightUnit @default(KG)
   theme            Theme      @default(SYSTEM)
-  restTimerDefault Int        @default(90)
+  restTimerDefault Int        @default(180)
   locale           AppLocale  @default(EN)
   calendarSyncEnabled Boolean @default(false)
   trainingWeekdays    Int[]   @default([]) // Montag-first: 0=Mo .. 6=So (Konvention wie workout-history-list.tsx)

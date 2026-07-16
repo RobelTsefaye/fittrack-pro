@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_REST_TIMER } from "@/lib/constants";
 import type { WorkoutData } from "./workout-types";
 
 /**
@@ -30,7 +31,7 @@ export async function getWorkoutDetailData(
   ]);
 
   if (!workout) return null;
-  const restTimerDefaultSeconds = settings?.restTimerDefault ?? 90;
+  const restTimerDefaultSeconds = settings?.restTimerDefault ?? DEFAULT_REST_TIMER;
 
   return {
     id: workout.id,

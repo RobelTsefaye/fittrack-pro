@@ -61,7 +61,7 @@ export async function flushWorkoutQueue(
           const res = await api("/api/workouts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: op.name ?? undefined }),
+            body: JSON.stringify({ name: op.name ?? undefined, planSessionId: op.planSessionId ?? undefined }),
           });
           if (!res.ok) throw new Error(`post_workout ${res.status}`);
           const json = (await res.json()) as { data?: { id: string } };
@@ -73,6 +73,11 @@ export async function flushWorkoutQueue(
           // new snapshot is committed before the old one is removed, so a
           // termination cannot create an orphaned queue or lose the POST.
           await rekeyWorkoutLocalState(currentId, newId, snap.data, weMap, setMap, row.id);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("fittrack-workout-rekeyed", {
+              detail: { routeId: currentId, serverWorkoutId: newId },
+            }));
+          }
           currentId = newId;
           break;
         }
@@ -129,6 +134,10 @@ export async function flushWorkoutQueue(
             body: JSON.stringify(op.body),
           });
           if (!res.ok) throw new Error(`patch_set ${res.status}`);
+          const json = (await res.json()) as { personalRecord?: boolean };
+          if (json.personalRecord && typeof window !== "undefined") {
+            window.dispatchEvent(new Event("fittrack-set-pr-synced"));
+          }
           await removeQueueEntries([row.id]);
           break;
         }
@@ -168,6 +177,14 @@ export async function flushWorkoutQueue(
           if (!serverWorkoutId) throw new Error("no_server_workout");
           const res = await api(`/api/workouts/${serverWorkoutId}/complete`, { method: "POST" });
           if (!res.ok && res.status !== 404) throw new Error(`complete_workout ${res.status}`);
+          const json = res.ok ? (await res.json()) as {
+            comparison?: unknown; newPersonalRecords?: number;
+          } : undefined;
+          if (json && typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("fittrack-workout-complete-synced", {
+              detail: { comparison: json.comparison, newPersonalRecords: json.newPersonalRecords },
+            }));
+          }
           await removeQueueEntries([row.id]);
           break;
         }
@@ -183,7 +200,11 @@ export async function flushWorkoutQueue(
     const fres = await fetch(`/api/workouts/${serverWorkoutId}`, { credentials: "include" });
     if (fres.ok) {
       const j = (await fres.json()) as { data: WorkoutData };
-      await saveWorkoutSnapshot(serverWorkoutId, j.data, false);
+      // Never let a stale server read overwrite mutations enqueued while the
+      // queue was draining.
+      if ((await listQueueForWorkout(serverWorkoutId)).length === 0) {
+        await saveWorkoutSnapshot(serverWorkoutId, j.data, false);
+      }
     }
 
     const newServerWorkoutId =

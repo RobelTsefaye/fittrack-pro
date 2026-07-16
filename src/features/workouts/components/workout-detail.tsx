@@ -64,6 +64,7 @@ import {
   purgeWorkoutLocal,
   saveWorkoutSnapshot,
 } from "@/lib/offline/workout-offline-store";
+import { drainWorkoutFlush, LOCAL_FIRST_WRITES, scheduleWorkoutFlush } from "@/lib/offline/flush-pump";
 import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-banner";
 import { hapticWorkoutCompleted, hapticPersonalRecord } from "@/lib/native/haptics";
 import { syncTrainingCalendar } from "@/lib/native/calendar";
@@ -546,7 +547,8 @@ export function WorkoutDetail({
 
   const isActive = workout && !workout.completedAt;
   const weightLabel = weightUnit === "LB" ? "lb" : "kg";
-  const useLocalWrites = nativeWatchOffline || !netOnline || offlineOriginSession || pendingQueue;
+  const trulyOffline = nativeWatchOffline || !netOnline;
+  const useLocalWrites = LOCAL_FIRST_WRITES || trulyOffline || offlineOriginSession || pendingQueue;
 
   // Ordered exercise list — kept in sync with workout state
   const [exerciseIds, setExerciseIds] = useState<string[]>([]);
@@ -614,12 +616,12 @@ export function WorkoutDetail({
   const autoStartedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!isActive || !workout) return;
-    if (autoStartedRef.current === workout.id) return;
+    if (autoStartedRef.current === workout.startedAt) return;
     const hasCompletedSet = workout.workoutExercises.some((we) =>
       we.sets.some((s) => s.isCompleted)
     );
     if (hasCompletedSet) return;
-    autoStartedRef.current = workout.id;
+    autoStartedRef.current = workout.startedAt;
     // Anchor-derived, not startRestTimer()'s "fresh from now" — a workout
     // started on the Watch begins its rest countdown immediately from
     // workout.startedAt (see computeRestTimerEndsAt), so opening the phone
@@ -777,6 +779,16 @@ export function WorkoutDetail({
         return;
       }
 
+      // A server-backed workout without queued writes still has a durable
+      // snapshot. Paint it first, then let the request below reconcile in
+      // the background so a rekey/remount never flashes a skeleton.
+      const cached = await loadWorkoutSnapshot(workoutId);
+      if (cached && !isStale()) {
+        setWorkout(cached.data);
+        setOfflineOriginSession(cached.offlineOrigin);
+        setPendingQueue(false);
+      }
+
       try {
         const res = await fetch(`/api/workouts/${workoutId}`, { credentials: "include" });
         if (isStale()) return;
@@ -903,7 +915,7 @@ export function WorkoutDetail({
     const sync = () => {
       void listQueueForWorkout(workoutId).then((q) => {
         setPendingQueue(q.length > 0);
-        if (q.length === 0) void loadWorkout();
+        if (q.length === 0) void loadWorkout({ silent: true });
       });
     };
     window.addEventListener("online", sync);
@@ -913,6 +925,32 @@ export function WorkoutDetail({
       window.removeEventListener("fittrack-offline-synced", sync);
     };
   }, [workoutId, loadWorkout]);
+
+  useEffect(() => {
+    const rekey = (event: Event) => {
+      const { routeId, serverWorkoutId } = (event as CustomEvent<{ routeId?: string; serverWorkoutId?: string }>).detail ?? {};
+      if (routeId !== workoutId || !serverWorkoutId) return;
+      rekeyRedirectingRef.current = true;
+      setRekeyRedirecting(true);
+      router.replace(workoutHref(serverWorkoutId));
+    };
+    const personalRecord = () => void hapticPersonalRecord();
+    const completed = (event: Event) => {
+      const detail = (event as CustomEvent<{ comparison?: typeof completionSummary; newPersonalRecords?: number }>).detail;
+      if (detail?.comparison) setCompletionSummary(detail.comparison);
+      if (detail?.newPersonalRecords && detail.newPersonalRecords > 0) void hapticPersonalRecord();
+      void syncTrainingCalendar();
+      router.refresh();
+    };
+    window.addEventListener("fittrack-workout-rekeyed", rekey);
+    window.addEventListener("fittrack-set-pr-synced", personalRecord);
+    window.addEventListener("fittrack-workout-complete-synced", completed);
+    return () => {
+      window.removeEventListener("fittrack-workout-rekeyed", rekey);
+      window.removeEventListener("fittrack-set-pr-synced", personalRecord);
+      window.removeEventListener("fittrack-workout-complete-synced", completed);
+    };
+  }, [workoutId, router]);
 
   // A Watch-started offline workout is replayed natively; when it lands, its
   // local UUID (this route's id) is replaced by a server id and the record
@@ -1425,12 +1463,14 @@ export function WorkoutDetail({
         await patchWorkoutListCacheEntry(workoutId, { completedAt, durationSeconds });
         await saveWorkoutSnapshot(workoutId, next, offlineOriginSession);
         await enqueueWorkoutOp(workoutId, { t: "complete_workout" });
+        scheduleWorkoutFlush(workoutId, { immediate: true });
         await savePreviousLogsCache(workoutAsPreviousLogs(next));
         setPendingQueue(true);
       } catch (err) {
         console.error("Failed to queue offline workout completion", err);
       } finally {
         notifyActiveWorkoutChanged();
+        void clearWatchWorkoutState(workoutId);
         setCompleting(false);
       }
       router.refresh();
@@ -1612,12 +1652,13 @@ export function WorkoutDetail({
   async function deleteCompletedWorkout() {
     if (!workout?.completedAt) return;
     if (!(await askConfirm(t("workouts.deleteCompletedConfirm")))) return;
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
+    if (trulyOffline) {
       window.alert(t("workouts.deleteCompletedOffline"));
       return;
     }
     setDeletingWorkout(true);
     try {
+      await drainWorkoutFlush(workoutId);
       const res = await fetch(`/api/workouts/${workoutId}`, {
         method: "DELETE",
         credentials: "include",
@@ -1675,7 +1716,7 @@ export function WorkoutDetail({
     }
 
     // Offline / local-writes path: just wipe IndexedDB and queue, then navigate
-    if (useLocalWrites || offlineOriginSession) {
+    if (trulyOffline || offlineOriginSession) {
       try {
         await purgeWorkoutLocal(workoutId);
       } catch {
@@ -1689,6 +1730,7 @@ export function WorkoutDetail({
 
     // Online path: delete via API
     try {
+      await drainWorkoutFlush(workoutId);
       const res = await fetch(`/api/workouts/${workoutId}`, {
         method: "DELETE",
         credentials: "include",
@@ -1821,18 +1863,16 @@ export function WorkoutDetail({
             {/* Fixing a checkmarked set used to require finishing the whole
                 workout first (this toggle only appeared once workout.completedAt
                 was set) — mid-workout it's just as reachable now. */}
-            {!useLocalWrites ? (
-              <Button
-                variant="secondary"
-                className="w-full sm:w-auto"
-                type="button"
-                onClick={() => setReviseCompletedSets((v) => !v)}
-              >
-                {reviseCompletedSets
-                  ? t("workouts.doneEditingSets")
-                  : t("workouts.editCompletedSets")}
-              </Button>
-            ) : null}
+            <Button
+              variant="secondary"
+              className="w-full sm:w-auto"
+              type="button"
+              onClick={() => setReviseCompletedSets((v) => !v)}
+            >
+              {reviseCompletedSets
+                ? t("workouts.doneEditingSets")
+                : t("workouts.editCompletedSets")}
+            </Button>
             <Button
               className="w-full shrink-0 sm:w-auto font-semibold"
               size="lg"
@@ -1857,7 +1897,7 @@ export function WorkoutDetail({
             {/* Share button */}
             <WorkoutShareButton workout={workout} weightUnit={weightLabel} />
 
-            {!useLocalWrites ? (
+            {netOnline && !nativeWatchOffline ? (
               <Button
                 variant="secondary"
                 className="w-full sm:w-auto"
@@ -1882,7 +1922,7 @@ export function WorkoutDetail({
         ) : null}
       </div>
 
-      {useLocalWrites && isActive ? (
+      {trulyOffline && isActive ? (
         <p
           className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
           role="status"

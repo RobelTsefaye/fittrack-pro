@@ -151,7 +151,7 @@ extension RestTimerWidgetAttributes {
 
 extension RestTimerWidgetAttributes.ContentState {
     fileprivate static var running: RestTimerWidgetAttributes.ContentState {
-        RestTimerWidgetAttributes.ContentState(endDate: .now.addingTimeInterval(90), pausedRemainingSeconds: nil)
+        RestTimerWidgetAttributes.ContentState(endDate: .now.addingTimeInterval(180), pausedRemainingSeconds: nil)
     }
 
     fileprivate static var paused: RestTimerWidgetAttributes.ContentState {

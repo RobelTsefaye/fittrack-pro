@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "@/components/app-link";
 import { useRouter } from "next/navigation";
-import { workoutHref } from "@/lib/workout-href";
 import { ArrowLeft, GripVertical, Plus, Trash2, Play } from "lucide-react";
 import {
   DndContext,
@@ -525,25 +524,10 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
 
   async function startSession(sessionId: string) {
     setStartingId(sessionId);
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      await startSessionOffline(sessionId);
-      setStartingId(null);
-      return;
-    }
     try {
-      const res = await fetch(`/api/plan-sessions/${sessionId}/start`, { method: "POST" });
-      if (!res.ok) {
-        setStartingId(null);
-        return;
-      }
-      const json = await res.json();
-      const id = json.data?.id as string | undefined;
-      if (id) {
-        notifyActiveWorkoutChanged();
-        router.push(workoutHref(id));
-      }
-    } catch {
       await startSessionOffline(sessionId);
+    } catch {
+      // Keep the existing form mounted if IndexedDB is unavailable.
     }
     setStartingId(null);
   }

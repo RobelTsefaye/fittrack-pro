@@ -68,7 +68,11 @@ export async function startPlanSessionOffline(session: OfflinePlanSession): Prom
   };
 
   await saveWorkoutSnapshot(workoutId, data, true);
-  await enqueueWorkoutOp(workoutId, { t: "post_workout", name: session.name });
+  await enqueueWorkoutOp(workoutId, {
+    t: "post_workout",
+    name: session.name,
+    planSessionId: session.id,
+  });
   for (const { clientWeId, pse, sets } of workoutExercises) {
     await enqueueWorkoutOp(workoutId, { t: "post_exercise", exerciseId: pse.exerciseId, clientWeId });
     for (const set of sets) {

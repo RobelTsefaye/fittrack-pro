@@ -2,15 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "@/components/app-link";
-import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ROUTES } from "@/lib/constants";
-import { workoutHref } from "@/lib/workout-href";
+import { ROUTES, DEFAULT_REST_TIMER } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
 import type { WorkoutData } from "@/features/workouts/workout-types";
 import {
@@ -33,12 +31,11 @@ function readCachedSettings(): CachedSettings {
   } catch {
     /* ignore */
   }
-  return { weightUnit: "KG", restTimerDefault: 90 };
+  return { weightUnit: "KG", restTimerDefault: DEFAULT_REST_TIMER };
 }
 
 export default function NewWorkoutPage() {
   const { t } = useI18n();
-  const router = useRouter();
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +60,7 @@ export default function NewWorkoutPage() {
           if (json.data) {
             const s: CachedSettings = {
               weightUnit: (json.data.weightUnit as "KG" | "LB") ?? "KG",
-              restTimerDefault: json.data.restTimerDefault ?? 90,
+              restTimerDefault: json.data.restTimerDefault ?? DEFAULT_REST_TIMER,
             };
             setSettings(s);
             try {
@@ -119,52 +116,11 @@ export default function NewWorkoutPage() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
-    const body: { name?: string } = {};
-    const trimmed = name.trim();
-    if (trimmed) body.name = trimmed;
-
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      try {
-        await startOffline();
-      } catch {
-        setError(t("workouts.couldNotStart"));
-        setSubmitting(false);
-      }
-      return;
-    }
-
     try {
-      const res = await fetch("/api/workouts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(body),
-      });
-      const json = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        setError(
-          typeof json.error === "string" ? json.error : t("workouts.couldNotStart")
-        );
-        setSubmitting(false);
-        return;
-      }
-
-      const id = json.data?.id as string | undefined;
-      if (id) {
-        notifyActiveWorkoutChanged();
-        router.push(workoutHref(id));
-      } else {
-        setError(t("workouts.invalidResponse"));
-        setSubmitting(false);
-      }
+      await startOffline();
     } catch {
-      try {
-        await startOffline();
-      } catch {
-        setError(t("workouts.couldNotStart"));
-        setSubmitting(false);
-      }
+      setError(t("workouts.couldNotStart"));
+      setSubmitting(false);
     }
   }
 

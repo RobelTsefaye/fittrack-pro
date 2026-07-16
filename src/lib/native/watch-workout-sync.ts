@@ -109,11 +109,21 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
       const setId = message.setId as string;
       const weight = message.weight as number | undefined;
       const reps = message.reps as number | undefined;
-      const res = await fetch(`/api/workouts/${workoutId}/sets/${setId}`, {
+      let res = await fetch(`/api/workouts/${workoutId}/sets/${setId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weight, reps, isCompleted: true }),
       });
+      // A locally-created workout may still be rekeying when the Watch sends
+      // its first set. Retry the short UUID window once.
+      if (res.status === 404) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        res = await fetch(`/api/workouts/${workoutId}/sets/${setId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ weight, reps, isCompleted: true }),
+        });
+      }
       if (!res.ok) return { error: `Speichern fehlgeschlagen (${res.status})` };
       const json = (await res.json()) as { data: unknown; personalRecord: boolean };
       return { set: json.data, personalRecord: json.personalRecord };

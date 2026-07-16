@@ -1,5 +1,6 @@
 import { subDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_REST_TIMER } from "@/lib/constants";
 import {
   getBodyWeightTrend,
   getConsistencyWeekly,
@@ -57,7 +58,7 @@ export async function buildTrainingSummary(userId: string, weeks: number) {
       displayName: user?.name ?? "Athlete",
       weightUnit: user?.settings?.weightUnit ?? "KG",
       locale: user?.settings?.locale ?? "EN",
-      defaultRestSeconds: user?.settings?.restTimerDefault ?? 90,
+      defaultRestSeconds: user?.settings?.restTimerDefault ?? DEFAULT_REST_TIMER,
     },
     snapshot: summary,
     window: {

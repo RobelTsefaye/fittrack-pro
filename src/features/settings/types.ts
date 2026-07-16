@@ -1,3 +1,5 @@
+import { DEFAULT_REST_TIMER } from "@/lib/constants";
+
 export type InitialSettings = {
   locale: "EN" | "DE";
   weightUnit: "KG" | "LB";
@@ -15,7 +17,7 @@ export type InitialSettings = {
 };
 
 export const DEFAULT_SETTINGS: InitialSettings = {
-  locale: "EN", weightUnit: "KG", theme: "SYSTEM", restTimerDefault: 90,
+  locale: "EN", weightUnit: "KG", theme: "SYSTEM", restTimerDefault: DEFAULT_REST_TIMER,
   calendarSyncEnabled: false, trainingWeekdays: [], trainingTimeMinutes: 1080, trainingDurationMinutes: 90,
   cardioSyncEnabled: false, cardioWeekdays: [], cardioTimeMinutes: 1080, cardioDurationMinutes: 45, cardioLabel: "",
 };

@@ -1,5 +1,5 @@
 export type QueuedWorkoutOp =
-  | { t: "post_workout"; name?: string | null }
+  | { t: "post_workout"; name?: string | null; planSessionId?: string | null }
   | { t: "patch_workout"; name?: string | null }
   | { t: "post_exercise"; exerciseId: string; clientWeId: string }
   | { t: "post_set"; clientWeId: string; clientSetId: string; isWarmup?: boolean }

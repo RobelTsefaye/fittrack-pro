@@ -63,15 +63,8 @@ export function NextWorkoutCard({ nextSession }: NextWorkoutCardProps) {
 
   async function handleStart() {
     if (!nextSession) return;
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      if (await tryStartOffline()) return;
-      // No cached copy of this plan to build from — fall back to manual
-      // start instead of silently failing.
-      toast.info(t("dashboard.nextWorkoutOfflineFallback"));
-      router.push(ROUTES.newWorkout);
-      return;
-    }
     setLoading(true);
+    if (await tryStartOffline()) return;
     try {
       const res = await fetch(`/api/plan-sessions/${nextSession.sessionId}/start`, {
         method: "POST",

@@ -37,7 +37,7 @@ export async function GET(
     // open proxy, neither of which has its own access to user settings —
     // computes the rest timer from the user's actual configured duration
     // instead of a hardcoded default. Previously hardcoded to
-    // DEFAULT_REST_TIMER (90s) on both the JS and native side, silently
+    // DEFAULT_REST_TIMER (180s) on both the JS and native side, silently
     // diverging from whatever the user had set in Settings.
     prisma.userSettings.findUnique({ where: { userId }, select: { restTimerDefault: true } }),
   ]);

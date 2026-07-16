@@ -6,6 +6,21 @@ import type { QueuedWorkoutOp } from "./queue-types";
 import type { WorkoutListItemDTO } from "@/features/workouts/workouts-list-data";
 import { getOfflineDb, tryGetOfflineDb } from "./db";
 
+// A flush can rekey an offline UUID while a UI interaction is still awaiting
+// IndexedDB. Keep the redirect in memory so that late writes follow the live
+// server id instead of becoming queue rows under an orphaned UUID.
+const rekeyedRouteIds = new Map<string, string>();
+
+function currentRouteId(id: string): string {
+  let current = id;
+  const seen = new Set<string>();
+  while (rekeyedRouteIds.has(current) && !seen.has(current)) {
+    seen.add(current);
+    current = rekeyedRouteIds.get(current)!;
+  }
+  return current;
+}
+
 export function isBrowserOffline(): boolean {
   return typeof navigator !== "undefined" && !navigator.onLine;
 }
@@ -25,9 +40,10 @@ export async function saveWorkoutSnapshot(
 ): Promise<void> {
   const db = tryGetOfflineDb();
   if (!db) return;
+  const routeId = currentRouteId(workoutId);
   await db.workouts.put({
-    id: workoutId,
-    payload: JSON.stringify(data),
+    id: routeId,
+    payload: JSON.stringify({ ...data, id: routeId }),
     offlineOrigin: offlineOrigin ? 1 : 0,
     updatedAt: Date.now(),
   });
@@ -54,20 +70,24 @@ export async function enqueueWorkoutOp(
   op: QueuedWorkoutOp
 ): Promise<void> {
   const db = getOfflineDb();
+  const routeId = currentRouteId(workoutRouteId);
   const sort = await nextQueueSort();
   await db.queue.add({
     id: crypto.randomUUID(),
-    workoutRouteId,
+    workoutRouteId: routeId,
     sort,
     opJson: JSON.stringify(op),
   });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("fittrack-workout-op-queued", { detail: { workoutId: routeId } }));
+  }
 }
 
 export async function listQueueForWorkout(workoutRouteId: string): Promise<
   Array<{ id: string; sort: number; op: QueuedWorkoutOp }>
 > {
   const db = getOfflineDb();
-  const rows = await db.queue.where("workoutRouteId").equals(workoutRouteId).sortBy("sort");
+  const rows = await db.queue.where("workoutRouteId").equals(currentRouteId(workoutRouteId)).sortBy("sort");
   return rows.map((r) => ({
     id: r.id,
     sort: r.sort,
@@ -186,6 +206,7 @@ export async function rekeyWorkoutLocalState(
   setMap: Map<string, string>,
   completedQueueEntryId: string
 ): Promise<void> {
+  rekeyedRouteIds.set(oldId, newId);
   const db = getOfflineDb();
   await db.transaction("rw", db.queue, db.queueIdMap, db.workouts, async () => {
     await db.queue.delete(completedQueueEntryId);
