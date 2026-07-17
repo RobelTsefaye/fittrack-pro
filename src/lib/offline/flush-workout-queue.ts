@@ -128,7 +128,11 @@ export async function flushWorkoutQueue(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(op.body),
           });
-          if (!res.ok) throw new Error(`patch_set ${res.status}`);
+          // A 404 means the set no longer exists server-side (deleted, or a
+          // duplicate that was cleaned up) — nothing left to patch, so treat
+          // it the same as success rather than blocking every op queued
+          // behind it forever (see complete_workout below for the precedent).
+          if (!res.ok && res.status !== 404) throw new Error(`patch_set ${res.status}`);
           await removeQueueEntries([row.id]);
           break;
         }
@@ -138,7 +142,8 @@ export async function flushWorkoutQueue(
           const res = await api(`/api/workouts/${serverWorkoutId}/sets/${serverSetId}`, {
             method: "DELETE",
           });
-          if (!res.ok) throw new Error(`delete_set ${res.status}`);
+          // Already gone is the desired end state for a delete — tolerate it.
+          if (!res.ok && res.status !== 404) throw new Error(`delete_set ${res.status}`);
           await removeQueueEntries([row.id]);
           break;
         }
