@@ -16,7 +16,7 @@ import { getNutritionTrend } from "@/features/health/health-data";
 const SCHEMA_VERSION = "1.0";
 
 export async function buildTrainingSummary(userId: string, weeks: number) {
-  const dayWindow = Math.min(weeks * 7, 60);
+  const dayWindow = Math.min(weeks * 7, 180);
 
   const [
     user,
@@ -112,10 +112,10 @@ export async function buildProgressReport(userId: string, weeks: number) {
     await Promise.all([
       buildTrainingSummary(userId, summaryWeeks),
       getVolumeBucketsWeekly(userId, trendWeeks),
-      getBodyWeightTrend(userId, Math.min(weeks * 2, 60)),
+      getBodyWeightTrend(userId, Math.min(weeks * 7, 365)),
       getTopExercisesByVolume(userId, { days: 28, take: 12 }),
       getTopExercisesByVolume(userId, { days: 56, take: 12 }),
-      getNutritionTrend(userId, Math.min(weeks * 7, 90)),
+      getNutritionTrend(userId, Math.min(weeks * 7, 365)),
     ]);
 
   const mid = Math.floor(longVolumeWeekly.length / 2) || 1;
@@ -340,8 +340,8 @@ export async function buildCoachContext(userId: string) {
       orderBy: { date: "desc" },
       select: { weight: true, date: true, notes: true },
     }),
-    getBodyWeightTrend(userId, 30),
-    getNutritionTrend(userId, 7),
+    getBodyWeightTrend(userId, 90),
+    getNutritionTrend(userId, 90),
     prisma.workout.findMany({
       where: { userId, completedAt: null },
       orderBy: { startedAt: "desc" },
@@ -497,8 +497,8 @@ export async function buildCoachContext(userId: string) {
     })),
     llmHints: [
       "latestBodyWeight is the most recent logged entry (not necessarily today).",
-      "bodyWeightTrend is up to the last 30 logged entries (not necessarily daily — only days with a logged weigh-in appear).",
-      "nutrition covers the last 7 days from HealthSnapshot; days without a logged entry have null values and are excluded from averages/macroSplit.",
+      "bodyWeightTrend is up to the last 90 logged entries (not necessarily daily — only days with a logged weigh-in appear).",
+      "nutrition covers the last 90 days from HealthSnapshot; days without a logged entry have null values and are excluded from averages/macroSplit.",
       "If activeWorkouts is non-empty, mention finishing or discarding the in-progress session before starting something new.",
       "suggestedNext uses rotation within each plan: pick the plan session with the oldest last completion (or never) among workouts that set planSessionId when started from the plan.",
       "Without plans, infer 'next' from recentCompletedWorkouts and GET /api/ai/recommendations only.",

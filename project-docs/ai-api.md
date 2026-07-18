@@ -46,10 +46,10 @@ Compact snapshot for prompt injection or RAG context.
 - `athlete`: `displayName`, `weightUnit`, `locale`, `defaultRestSeconds`
 - `snapshot`: dashboard-style totals (all-time / current streak / PR count) from `getDashboardSummary`
 - `window.weekBuckets[]`: per week — `weekStart`, `completedWorkouts`, `volumeLoad` (Σ weight×reps working sets), `workingSets`
-- `window.dailyVolume[]`: per day (last `min(weeks*7, 60)` days) — `date`, `volume` (0 on rest days)
+- `window.dailyVolume[]`: per day (last `min(weeks*7, 180)` days) — `date`, `volume` (0 on rest days)
 - `window.totals`: sums over the window
 - `bodyWeightTrend[]`: logged body-weight entries (`date`, `weight`) in the same day window — only days with an actual log appear, not filled with nulls
-- `nutrition`: daily calorie/macro trend over the same day window, see `NutritionTrend` shape below
+- `nutrition`: daily calorie/macro trend over the same day window (`min(weeks*7, 180)` days), see `NutritionTrend` shape below
 - `topExercisesByVolume`: top 15 in the window by volume load
 - `recentPersonalRecords`: last 10 PR rows with `estimated1RM` (Epley)
 
@@ -64,7 +64,7 @@ Compact snapshot for prompt injection or RAG context.
 }
 ```
 
-- `days[]` includes one entry per calendar day in the window; unlogged days have `null` values (not omitted), so you can see logging gaps.
+- `days[]` holds the most recent N **logged** `HealthSnapshot` rows (same convention as `bodyWeightTrend`) — days with no snapshot at all are skipped, not filled with nulls. A given day's row can still have individual `null` fields (e.g. macros logged but no calorie total).
 - `averages` and `macroSplit` are computed only from days that actually have data — `macroSplit` is derived from macro grams (protein/carbs = 4 kcal/g, fat = 9 kcal/g), not from `dietaryCalories`, so it stays internally consistent even if a user logs macros but not a calorie total.
 - `macroSplit` is `null` if no macro data exists in the window.
 
@@ -81,8 +81,8 @@ Richer narrative + analysis block for trend questions.
 - `kind: "progress-report"`
 - `training`: full object from `buildTrainingSummary` (same shape as above, window capped)
 - `analysis.volumeTrend`: first-half vs second-half volume in the window, `percentChangeHalfToHalf`
-- `analysis.bodyWeight`: `entriesInSample`, `firstWeight`, `lastWeight`, `deltaInSample`, and `series[]` — the full `{date, weight}` list for the sample (up to `min(weeks*2, 60)` entries)
-- `analysis.nutrition`: `NutritionTrend` (see above) over `min(weeks*7, 90)` days — daily calories/macros, averages, macro split
+- `analysis.bodyWeight`: `entriesInSample`, `firstWeight`, `lastWeight`, `deltaInSample`, and `series[]` — the full `{date, weight}` list for the sample (up to `min(weeks*7, 365)` entries)
+- `analysis.nutrition`: `NutritionTrend` (see above) over `min(weeks*7, 365)` days — daily calories/macros, averages, macro split
 - `analysis.personalRecordsLast30Days`, `mostRecentPersonalRecordAt`
 - `analysis.uniqueExercisesTouchedLast28Days`
 - `topExercisesRolling28d` / `topExercisesRolling56d`
@@ -95,8 +95,8 @@ Single payload for **natural-language Q&A** (body weight, what’s next, in-prog
 
 - `kind: "coach_context"`, `schemaVersion`, `generatedAt`
 - `latestBodyWeight`: `{ weight, date, notes }` or `null` if none logged
-- `bodyWeightTrend[]`: up to the last 30 logged `{date, weight}` entries (chronological, only actual log days)
-- `nutrition`: `NutritionTrend` (see above) for the last 7 days — daily calories/macros, averages, macro split
+- `bodyWeightTrend[]`: up to the last 90 logged `{date, weight}` entries (chronological, only actual log days)
+- `nutrition`: `NutritionTrend` (see above) for the last 90 days — daily calories/macros, averages, macro split
 - `activeWorkouts[]`: in-progress sessions (`id`, `name`, `startedAt`, `exerciseNames[]`)
 - `planRotation[]`: per saved plan — `planId`, `planName`, `sessions[]` (each with `lastCompletedAt` when a **completed** workout had that `planSessionId`), `suggestedNext` (rotation heuristic: least-recent or never-done plan day, with `plannedExercises`)
 - `primaryPlanId`: most recently updated plan (same order as list) — use as default when the user says “my plan” without naming one

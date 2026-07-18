@@ -50,7 +50,7 @@ export type NutritionTrend = {
  * consistent even when the two disagree slightly.
  */
 export async function getNutritionTrend(userId: string, days = 30): Promise<NutritionTrend> {
-  const capped = Math.min(days, 180);
+  const capped = Math.min(days, 365);
   const rows = await prisma.healthSnapshot.findMany({
     where: { userId },
     orderBy: { date: "desc" },
