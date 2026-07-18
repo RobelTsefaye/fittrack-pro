@@ -1,10 +1,12 @@
 import { unstable_cache } from "next/cache";
 import {
   addDays,
+  eachDayOfInterval,
   eachMonthOfInterval,
   eachWeekOfInterval,
   endOfDay,
   endOfWeek,
+  startOfDay,
   startOfMonth,
   startOfWeek,
   subDays,
@@ -145,6 +147,32 @@ export async function getVolumeBucketsWeekly(userId: string, weekCount = 10) {
       key: k,
       label: k.slice(5),
       volume: volByWeekStart.get(k) ?? 0,
+    };
+  });
+}
+
+export async function getVolumeBucketsDaily(userId: string, dayCount = 30) {
+  const now = endOfDay(new Date());
+  const intervalStart = startOfDay(subDays(now, dayCount - 1));
+  const days = eachDayOfInterval({ start: intervalStart, end: now });
+
+  const workoutVolumes = await getWorkoutVolumesSince(userId, intervalStart);
+
+  const volByDay = new Map<string, number>();
+  for (const d of days) {
+    volByDay.set(utcDayKey(d), 0);
+  }
+
+  for (const w of workoutVolumes) {
+    const key = utcDayKey(w.completedAt);
+    volByDay.set(key, (volByDay.get(key) ?? 0) + w.volume);
+  }
+
+  return days.map((d) => {
+    const k = utcDayKey(d);
+    return {
+      date: k,
+      volume: Math.round((volByDay.get(k) ?? 0) * 10) / 10,
     };
   });
 }

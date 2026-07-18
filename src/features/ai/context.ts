@@ -6,36 +6,53 @@ import {
   getDashboardSummary,
   getRecentPersonalRecords,
   getTopExercisesByVolume,
+  getVolumeBucketsDaily,
   getVolumeBucketsWeekly,
 } from "@/features/dashboard/queries";
 import { getWorkingSetsCountWeekly } from "./week-stats";
 import { analyzeDeloadSignals, analyzePlateaus } from "@/features/dashboard/training-insights";
+import { getNutritionTrend } from "@/features/health/health-data";
 
 const SCHEMA_VERSION = "1.0";
 
 export async function buildTrainingSummary(userId: string, weeks: number) {
-  const [user, summary, volumeWeekly, consistency, setsWeekly, topExercises, recentPRs] =
-    await Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          name: true,
-          settings: {
-            select: {
-              weightUnit: true,
-              locale: true,
-              restTimerDefault: true,
-            },
+  const dayWindow = Math.min(weeks * 7, 60);
+
+  const [
+    user,
+    summary,
+    volumeWeekly,
+    consistency,
+    setsWeekly,
+    topExercises,
+    recentPRs,
+    dailyVolume,
+    bodyWeightTrend,
+    nutrition,
+  ] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        name: true,
+        settings: {
+          select: {
+            weightUnit: true,
+            locale: true,
+            restTimerDefault: true,
           },
         },
-      }),
-      getDashboardSummary(userId),
-      getVolumeBucketsWeekly(userId, weeks),
-      getConsistencyWeekly(userId, weeks),
-      getWorkingSetsCountWeekly(userId, weeks),
-      getTopExercisesByVolume(userId, { days: weeks * 7, take: 15 }),
-      getRecentPersonalRecords(userId, 10),
-    ]);
+      },
+    }),
+    getDashboardSummary(userId),
+    getVolumeBucketsWeekly(userId, weeks),
+    getConsistencyWeekly(userId, weeks),
+    getWorkingSetsCountWeekly(userId, weeks),
+    getTopExercisesByVolume(userId, { days: weeks * 7, take: 15 }),
+    getRecentPersonalRecords(userId, 10),
+    getVolumeBucketsDaily(userId, dayWindow),
+    getBodyWeightTrend(userId, dayWindow),
+    getNutritionTrend(userId, dayWindow),
+  ]);
 
   const weekBuckets = volumeWeekly.map((v, i) => ({
     weekStart: v.key,
@@ -62,12 +79,15 @@ export async function buildTrainingSummary(userId: string, weeks: number) {
     snapshot: summary,
     window: {
       weekBuckets,
+      dailyVolume,
       totals: {
         completedWorkouts: totalWorkouts,
         workingSets: totalWorkingSets,
         volumeLoad: Math.round(totalVolume * 10) / 10,
       },
     },
+    bodyWeightTrend,
+    nutrition,
     topExercisesByVolume: topExercises.map((e) => ({
       exerciseId: e.exerciseId,
       name: e.name,
@@ -88,13 +108,14 @@ export async function buildProgressReport(userId: string, weeks: number) {
   const summaryWeeks = Math.min(weeks, 24);
   const trendWeeks = Math.min(weeks, 52);
 
-  const [trainingBlock, longVolumeWeekly, bodyTrend, top28, topPrior] =
+  const [trainingBlock, longVolumeWeekly, bodyTrend, top28, topPrior, nutritionTrend] =
     await Promise.all([
       buildTrainingSummary(userId, summaryWeeks),
       getVolumeBucketsWeekly(userId, trendWeeks),
       getBodyWeightTrend(userId, Math.min(weeks * 2, 60)),
       getTopExercisesByVolume(userId, { days: 28, take: 12 }),
       getTopExercisesByVolume(userId, { days: 56, take: 12 }),
+      getNutritionTrend(userId, Math.min(weeks * 7, 90)),
     ]);
 
   const mid = Math.floor(longVolumeWeekly.length / 2) || 1;
@@ -149,7 +170,9 @@ export async function buildProgressReport(userId: string, weeks: number) {
         firstWeight: bw[0]?.weight ?? null,
         lastWeight: bw[bw.length - 1]?.weight ?? null,
         deltaInSample: bodyWeightDelta,
+        series: bw,
       },
+      nutrition: nutritionTrend,
       personalRecordsLast30Days: prsLast30d,
       mostRecentPersonalRecordAt: recentPrDate,
       uniqueExercisesTouchedLast28Days: uniqueExercises28d.length,
@@ -310,12 +333,15 @@ export async function buildHeuristicRecommendations(userId: string): Promise<AiR
 
 /** Snapshot for LLM Q&A: weight, in-progress sessions, plan rotation “next day”, recent history. */
 export async function buildCoachContext(userId: string) {
-  const [latestBw, activeWorkouts, plans, recentWorkouts] = await Promise.all([
+  const [latestBw, bodyWeightTrend, nutrition, activeWorkouts, plans, recentWorkouts] =
+    await Promise.all([
     prisma.bodyWeight.findFirst({
       where: { userId },
       orderBy: { date: "desc" },
       select: { weight: true, date: true, notes: true },
     }),
+    getBodyWeightTrend(userId, 30),
+    getNutritionTrend(userId, 7),
     prisma.workout.findMany({
       where: { userId, completedAt: null },
       orderBy: { startedAt: "desc" },
@@ -452,6 +478,8 @@ export async function buildCoachContext(userId: string) {
           notes: latestBw.notes,
         }
       : null,
+    bodyWeightTrend,
+    nutrition,
     activeWorkouts: activeWorkouts.map((w) => ({
       id: w.id,
       name: w.name,
@@ -469,6 +497,8 @@ export async function buildCoachContext(userId: string) {
     })),
     llmHints: [
       "latestBodyWeight is the most recent logged entry (not necessarily today).",
+      "bodyWeightTrend is up to the last 30 logged entries (not necessarily daily — only days with a logged weigh-in appear).",
+      "nutrition covers the last 7 days from HealthSnapshot; days without a logged entry have null values and are excluded from averages/macroSplit.",
       "If activeWorkouts is non-empty, mention finishing or discarding the in-progress session before starting something new.",
       "suggestedNext uses rotation within each plan: pick the plan session with the oldest last completion (or never) among workouts that set planSessionId when started from the plan.",
       "Without plans, infer 'next' from recentCompletedWorkouts and GET /api/ai/recommendations only.",
