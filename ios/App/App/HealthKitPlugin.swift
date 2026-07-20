@@ -430,7 +430,7 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                         stepsToSubtract[dateKey(workout.startDate), default: 0] += value
                     }
                 }
-                store.execute(stepsQuery)
+                self.store.execute(stepsQuery)
             }
         }
         store.execute(workoutQuery)
