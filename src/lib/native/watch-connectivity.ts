@@ -27,7 +27,12 @@ export interface WatchConnectivityPlugin {
   getWorkoutRekeyMap(): Promise<{ rekeyMapJSON?: string }>;
   syncRecoverySnapshot(options: { score: number; level: string }): Promise<void>;
   respondToRequest(options: { requestId: string; payload: Record<string, unknown> }): Promise<void>;
-  startCardioSession(options: { activityType: "running" | "cycling" }): Promise<{ started: true }>;
+  startCardioSession(options: {
+    activityType: "running" | "cycling" | "elliptical";
+    isIndoor: boolean;
+    durationMinutes?: number;
+    targetZone?: number;
+  }): Promise<{ started: true }>;
   stopCardioSession(options: { discard: boolean }): Promise<{ done: true }>;
   addListener(
     eventName: "watchRequest",
@@ -53,6 +58,8 @@ export interface WatchConnectivityPlugin {
       activeCalories: number;
       elapsedSeconds: number;
       zone?: number;
+      targetZone?: number;
+      durationSeconds?: number;
     }) => void
   ): Promise<{ remove: () => void }>;
 }

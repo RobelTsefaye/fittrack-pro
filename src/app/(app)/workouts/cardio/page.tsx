@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "@/components/app-link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Bike, CheckCircle2, Flame, Footprints, HeartPulse, PictureInPicture2, Timer as TimerIcon, X } from "lucide-react";
+import { Activity, ArrowLeft, Bike, CheckCircle2, Flame, Footprints, HeartPulse, PictureInPicture2, Timer as TimerIcon, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,6 +57,11 @@ export default function CardioWorkoutPage() {
    *  started directly on the Watch, which this page never called
    *  startCardioSessionOnWatch for. */
   const [activityType, setActivityType] = useState<CardioActivityType | null>(null);
+  const [step, setStep] = useState<"pick" | "config">("pick");
+  const [selectedType, setSelectedType] = useState<CardioActivityType | null>(null);
+  const [isIndoor, setIsIndoor] = useState(false);
+  const [durationMinutes, setDurationMinutes] = useState<number | null>(null);
+  const [targetZone, setTargetZone] = useState<HeartRateZone | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
@@ -120,12 +125,22 @@ export default function CardioWorkoutPage() {
     }
   }
 
-  async function handleStart(type: CardioActivityType) {
+  function handlePick(type: CardioActivityType) {
+    setSelectedType(type);
+    setIsIndoor(type === "elliptical");
+    setDurationMinutes(null);
+    setTargetZone(null);
+    setError(null);
+    setStep("config");
+  }
+
+  async function handleStart() {
+    if (!selectedType) return;
     setError(null);
     setStarting(true);
     try {
-      await startCardioSessionOnWatch(type);
-      setActivityType(type);
+      await startCardioSessionOnWatch({ activityType: selectedType, isIndoor, durationMinutes, targetZone });
+      setActivityType(selectedType);
     } catch (err) {
       if (err instanceof CardioNotNativeError) {
         setError(t("cardio.needsNativeApp"));
@@ -169,38 +184,59 @@ export default function CardioWorkoutPage() {
           {t("cardio.backToWorkouts")}
         </Link>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("cardio.pickTitle")}</CardTitle>
-            <CardDescription>{t("cardio.pickSubtitle")}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button
-              className="w-full justify-start gap-3"
-              size="lg"
-              variant="outline"
-              disabled={starting}
-              onClick={() => void handleStart("running")}
-            >
-              <Footprints className="h-5 w-5" />
-              {t("cardio.running")}
-            </Button>
-            <Button
-              className="w-full justify-start gap-3"
-              size="lg"
-              variant="outline"
-              disabled={starting}
-              onClick={() => void handleStart("cycling")}
-            >
-              <Bike className="h-5 w-5" />
-              {t("cardio.cycling")}
-            </Button>
-            {starting ? (
-              <p className="text-center text-sm text-muted-foreground">{t("cardio.starting")}</p>
-            ) : null}
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          </CardContent>
-        </Card>
+        {step === "pick" ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("cardio.pickTitle")}</CardTitle>
+              <CardDescription>{t("cardio.pickSubtitle")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button className="w-full justify-start gap-3" size="lg" variant="outline" onClick={() => handlePick("running")}>
+                <Footprints className="h-5 w-5" />{t("cardio.running")}
+              </Button>
+              <Button className="w-full justify-start gap-3" size="lg" variant="outline" onClick={() => handlePick("cycling")}>
+                <Bike className="h-5 w-5" />{t("cardio.cycling")}
+              </Button>
+              <Button className="w-full justify-start gap-3" size="lg" variant="outline" onClick={() => handlePick("elliptical")}>
+                <Activity className="h-5 w-5" />{t("cardio.crosstrainer")}
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("cardio.configTitle")}</CardTitle>
+              <CardDescription>{t("cardio.configSubtitle")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {selectedType !== "elliptical" ? <div className="space-y-2">
+                <p className="text-sm font-medium">{t("cardio.locationLabel")}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant={!isIndoor ? "default" : "outline"} onClick={() => setIsIndoor(false)}>{t("cardio.outdoor")}</Button>
+                  <Button variant={isIndoor ? "default" : "outline"} onClick={() => setIsIndoor(true)}>{t("cardio.indoor")}</Button>
+                </div>
+              </div> : null}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">{t("cardio.durationLabel")}</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button variant={durationMinutes === null ? "default" : "outline"} onClick={() => setDurationMinutes(null)}>{t("cardio.durationFree")}</Button>
+                  {[30, 45, 60, 75, 90].map((m) => <Button key={m} variant={durationMinutes === m ? "default" : "outline"} onClick={() => setDurationMinutes(m)}>{t("cardio.durationMinutes", { minutes: m })}</Button>)}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">{t("cardio.targetZoneLabel")}</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button variant={targetZone === null ? "default" : "outline"} onClick={() => setTargetZone(null)}>{t("cardio.targetZoneNone")}</Button>
+                  {([1, 2, 3, 4, 5] as HeartRateZone[]).map((z) => <Button key={z} variant={targetZone === z ? "default" : "outline"} onClick={() => setTargetZone(z)}>{t("cardio.zoneLabel", { zone: z })}</Button>)}
+                </div>
+              </div>
+              <Button className="w-full" size="lg" disabled={starting} onClick={() => void handleStart()}>{t("cardio.start")}</Button>
+              {starting ? <p className="text-center text-sm text-muted-foreground">{t("cardio.starting")}</p> : null}
+              {error ? <p className="text-sm text-destructive">{error}</p> : null}
+              <Button variant="ghost" className="w-full" onClick={() => setStep("pick")}>{t("cardio.back")}</Button>
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   }
@@ -284,6 +320,21 @@ export default function CardioWorkoutPage() {
                   })}
                 </div>
               </div>
+
+              {live && (live.targetZone || live.durationSeconds) ? (
+                <div className="flex justify-center gap-2">
+                  {live.targetZone ? (
+                    <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ background: `${ZONE_COLORS[live.targetZone as HeartRateZone]}20`, color: ZONE_COLORS[live.targetZone as HeartRateZone] }}>
+                      {t("cardio.targetZoneChip", { zone: live.targetZone })} · {heartRateZoneLabel(live.targetZone as HeartRateZone)}
+                    </span>
+                  ) : null}
+                  {live.durationSeconds ? (
+                    <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
+                      {t("cardio.remainingChip", { time: formatElapsed(Math.max(0, live.durationSeconds - live.elapsedSeconds)) })}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
 
               {/* Secondary stats */}
               <div className="grid grid-cols-3 gap-3 text-center">

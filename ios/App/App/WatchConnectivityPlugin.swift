@@ -371,9 +371,9 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         pushContext(call)
     }
 
-    /// Tells the Watch to start a cardio (Laufen/Radfahren) HKWorkoutSession
+    /// Tells the Watch to start a cardio HKWorkoutSession
     /// right now — the reverse of the usual Watch-asks-phone flow. Expects
-    /// `activityType` ("running" | "cycling"). Awaits the Watch's reply
+    /// `activityType` ("running" | "cycling" | "elliptical"). Awaits the Watch's reply
     /// rather than resolving immediately: the phone has no HR sensor of its
     /// own, so the live view this unlocks is only meaningful once the
     /// Watch's session has actually, confirmedly started.
@@ -386,8 +386,12 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("Watch nicht unterstützt")
             return
         }
+        let isIndoor = activityType == "elliptical" ? true : (call.getBool("isIndoor") ?? false)
+        var fields: [String: Any] = ["activityType": activityType, "isIndoor": isIndoor]
+        if let duration = call.getInt("durationMinutes"), duration > 0 { fields["durationMinutes"] = duration }
+        if let zone = call.getInt("targetZone"), (1...5).contains(zone) { fields["targetZone"] = zone }
         if WCSession.default.isReachable {
-            sendRequestToWatch(type: "startCardio", fields: ["activityType": activityType], call: call)
+            sendRequestToWatch(type: "startCardio", fields: fields, call: call)
             return
         }
         // Not reachable almost always just means the Watch app isn't open —
@@ -406,8 +410,8 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         healthStore.requestAuthorization(toShare: [HKObjectType.workoutType()], read: nil) { [weak self] _, _ in
             guard let self else { return }
             let config = HKWorkoutConfiguration()
-            config.activityType = activityType == "cycling" ? .cycling : .running
-            config.locationType = .outdoor
+            config.activityType = Self.cardioHKActivityType(fromRaw: activityType)
+            config.locationType = isIndoor ? .indoor : .outdoor
             self.healthStore.startWatchApp(with: config) { [weak self] success, error in
                 guard let self else { return }
                 guard success else {
@@ -417,9 +421,17 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
                     return
                 }
                 self.waitForReachableThenSend(
-                    type: "startCardio", fields: ["activityType": activityType], call: call
+                    type: "startCardio", fields: fields, call: call
                 )
             }
+        }
+    }
+
+    private static func cardioHKActivityType(fromRaw raw: String) -> HKWorkoutActivityType {
+        switch raw {
+        case "cycling": return .cycling
+        case "elliptical": return .elliptical
+        default: return .running
         }
     }
 

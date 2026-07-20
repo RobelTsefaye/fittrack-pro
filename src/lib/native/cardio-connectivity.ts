@@ -15,7 +15,17 @@ import { WatchConnectivity } from "./watch-connectivity";
  * on WatchConnectivityPlugin there for the merged method/listener surface.
  */
 
-export type CardioActivityType = "running" | "cycling";
+export type CardioActivityType = "running" | "cycling" | "elliptical";
+
+export type CardioSessionConfig = {
+  activityType: CardioActivityType;
+  /** Crosstrainer is always indoor; user-chosen for running/cycling. */
+  isIndoor: boolean;
+  /** null = free session (no fixed duration). */
+  durationMinutes: number | null;
+  /** null = no target zone. Else 1–5. */
+  targetZone: number | null;
+};
 
 export type CardioLiveUpdate = {
   isRunning: boolean;
@@ -24,6 +34,10 @@ export type CardioLiveUpdate = {
   elapsedSeconds: number;
   /** Absent when heartRate is below Zone 1's lower bound (resting/no reading yet). */
   zone?: number;
+  /** Absent unless the session was configured with one. */
+  targetZone?: number;
+  /** Absent unless the session was configured with one. */
+  durationSeconds?: number;
 };
 
 /** Thrown by startCardioSessionOnWatch when not running in the native app —
@@ -36,11 +50,16 @@ export class CardioNotNativeError extends Error {}
  * so the caller should surface the error rather than showing a live view
  * with no data.
  */
-export async function startCardioSessionOnWatch(activityType: CardioActivityType): Promise<void> {
+export async function startCardioSessionOnWatch(config: CardioSessionConfig): Promise<void> {
   if (!Capacitor.isNativePlatform()) {
     throw new CardioNotNativeError("Not running in the native app");
   }
-  await WatchConnectivity.startCardioSession({ activityType });
+  await WatchConnectivity.startCardioSession({
+    activityType: config.activityType,
+    isIndoor: config.activityType === "elliptical" ? true : config.isIndoor,
+    ...(config.durationMinutes != null ? { durationMinutes: config.durationMinutes } : {}),
+    ...(config.targetZone != null ? { targetZone: config.targetZone } : {}),
+  });
 }
 
 export async function stopCardioSessionOnWatch(discard: boolean): Promise<void> {

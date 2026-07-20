@@ -30,20 +30,8 @@ private struct WorkoutTypeOption: Identifiable {
         WorkoutTypeOption(id: .traditionalStrengthTraining, label: "Kraft", icon: "figure.strengthtraining.traditional"),
         WorkoutTypeOption(id: .running, label: "Laufen", icon: "figure.run"),
         WorkoutTypeOption(id: .cycling, label: "Radfahren", icon: "figure.outdoor.cycle"),
-        WorkoutTypeOption(id: .highIntensityIntervalTraining, label: "HIIT", icon: "figure.highintensity.intervaltraining"),
+        WorkoutTypeOption(id: .elliptical, label: "Crosstrainer", icon: "figure.elliptical"),
     ]
-}
-
-/// Maps the activityType string a phone-initiated "Cardio starten" request
-/// sends (see the CardioActivityType TS type on the phone side) to the
-/// matching HKWorkoutActivityType. Only Laufen/Radfahren — Kraft/HIIT go
-/// through the existing phone-mirrored activeWorkout flow instead.
-private func cardioActivityType(from raw: String) -> HKWorkoutActivityType? {
-    switch raw {
-    case "running": return .running
-    case "cycling": return .cycling
-    default: return nil
-    }
 }
 
 struct ContentView: View {
@@ -112,15 +100,12 @@ struct ContentView: View {
             // didReceiveMessage handling of "startCardio"/"stopCardio") —
             // the observer only has the WCSession plumbing, not a reference
             // to WorkoutManager, which ContentView owns.
-            phoneObserver.onCardioStartRequested = { activityTypeRaw in
-                guard let activityType = cardioActivityType(from: activityTypeRaw) else {
-                    return .failure("Unbekannter Aktivitätstyp")
-                }
+            phoneObserver.onCardioStartRequested = { plan in
                 guard workoutManager.authorizationGranted else {
                     return .failure("Keine HealthKit-Berechtigung auf der Uhr")
                 }
                 return await withCheckedContinuation { continuation in
-                    workoutManager.start(activityType: activityType) { result in
+                    workoutManager.start(plan: plan) { result in
                         switch result {
                         case .success:
                             continuation.resume(returning: .success(()))
@@ -139,7 +124,7 @@ struct ContentView: View {
             }
         }
         // Streams HR/calories/elapsed/zone back to the phone every single
-        // second while *any* Laufen/Radfahren session runs — Watch-started
+        // second while any cardio session runs — Watch-started
         // or phone-started, it makes no difference here, so starting a run
         // directly on the Watch also lights up an active-session banner on
         // the phone, not just the reverse. elapsedSeconds already ticks
@@ -148,18 +133,20 @@ struct ContentView: View {
         // reading and zone-position pointer as current as the Watch's own
         // display.
         .onChange(of: workoutManager.elapsedSeconds) { _, seconds in
-            guard workoutManager.isRunning, workoutManager.isOutdoorActivity else { return }
+            guard workoutManager.isRunning, workoutManager.isCardioActivity else { return }
             lastCardioPushWasActive = true
             phoneObserver.pushCardioLiveUpdate(
                 isRunning: true,
                 heartRate: workoutManager.heartRate,
                 activeCalories: workoutManager.activeCalories,
                 elapsedSeconds: seconds,
-                zone: workoutManager.currentHeartRateZone
+                zone: workoutManager.currentHeartRateZone,
+                targetZone: workoutManager.activePlan?.targetZone,
+                durationSeconds: workoutManager.activePlan?.durationMinutes.map { $0 * 60 }
             )
         }
         .onChange(of: workoutManager.isRunning) { wasRunning, isRunning in
-            if isRunning, workoutManager.isOutdoorActivity {
+            if isRunning, workoutManager.isCardioActivity {
                 // Fires once immediately on start (not just the periodic
                 // ticker above) so the phone's banner appears right away
                 // instead of waiting up to 1s for the first tick.
@@ -169,15 +156,18 @@ struct ContentView: View {
                     heartRate: workoutManager.heartRate,
                     activeCalories: workoutManager.activeCalories,
                     elapsedSeconds: workoutManager.elapsedSeconds,
-                    zone: workoutManager.currentHeartRateZone
+                    zone: workoutManager.currentHeartRateZone,
+                    targetZone: workoutManager.activePlan?.targetZone,
+                    durationSeconds: workoutManager.activePlan?.durationMinutes.map { $0 * 60 }
                 )
             } else if wasRunning, !isRunning, lastCardioPushWasActive {
                 // By this point resetState() already cleared
-                // currentActivityType, so isOutdoorActivity can't tell us
+                // currentActivityType, so isCardioActivity can't tell us
                 // "was the session that just ended a cardio one" anymore —
                 // this flag remembers it from while it was still running.
                 phoneObserver.pushCardioLiveUpdate(
-                    isRunning: false, heartRate: 0, activeCalories: 0, elapsedSeconds: 0, zone: nil
+                    isRunning: false, heartRate: 0, activeCalories: 0, elapsedSeconds: 0, zone: nil,
+                    targetZone: nil, durationSeconds: nil
                 )
                 lastCardioPushWasActive = false
             }
@@ -189,7 +179,7 @@ struct ContentView: View {
             // appear/disappear isn't reliable here, and this also covers
             // the phone-mirrored TabView path where the map is one swipe
             // away from the page actually shown at start.
-            if isRunning, workoutManager.isOutdoorActivity {
+            if isRunning, workoutManager.usesGPS {
                 routeTracker.start()
             } else if !isRunning {
                 routeTracker.stop()
@@ -198,7 +188,7 @@ struct ContentView: View {
         .onChange(of: workoutManager.isPaused) { _, paused in
             // GPS-Route pausiert im Gleichschritt mit der HR-Session —
             // sonst zählt die Distanz während einer Pause weiter.
-            guard workoutManager.isOutdoorActivity else { return }
+            guard workoutManager.usesGPS else { return }
             if paused {
                 routeTracker.pause()
             } else {
@@ -307,8 +297,8 @@ private struct StartView: View {
                             Label(option.label, systemImage: option.icon)
                         }
                     } else {
-                        Button {
-                            workoutManager.start(activityType: option.id)
+                        NavigationLink {
+                            CardioConfigView(workoutManager: workoutManager, activityType: option.id, title: option.label)
                         } label: {
                             Label(option.label, systemImage: option.icon)
                         }
@@ -463,9 +453,9 @@ private struct LiveWorkoutView: View {
     @State private var showCancelConfirm = false
 
     var body: some View {
-        if workoutManager.isOutdoorActivity {
-            // Laufen/Radfahren: an extra swipe page shows the route covered
-            // so far — Kraft/HIIT run indoors and have nothing to map, so
+        if workoutManager.usesGPS {
+            // Outdoor Laufen/Radfahren: an extra swipe page shows the route covered
+            // so far — indoor sessions and Kraft have nothing to map, so
             // they keep the plain metrics screen (the `else` branch below).
             TabView {
                 metricsPage.tag(0)
@@ -492,18 +482,37 @@ private struct LiveWorkoutView: View {
                     .padding(.bottom, 2)
             }
 
-            // Zones only make sense for cardio (Laufen/Radfahren) — Kraft
-            // and HIIT share this same live screen as an HR companion
+            // Zones only make sense for cardio — Kraft shares this same live screen as an HR companion
             // display but aren't paced by heart-rate zones the way a run or
             // ride is.
-            if workoutManager.isOutdoorActivity {
+            if workoutManager.isCardioActivity {
                 ZoneIndicatorView(zone: workoutManager.currentHeartRateZone, heartRate: workoutManager.heartRate)
+            }
+
+            if let alert = workoutManager.sessionAlert {
+                Text(alertText(alert))
+                    .font(.caption2.bold())
+                    .foregroundStyle(alertColor(alert))
             }
 
             Text(formattedTime)
                 .font(.system(size: 34, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(workoutManager.isPaused ? .orange : .primary)
+
+            if let plan = workoutManager.activePlan, plan.targetZone != nil || plan.durationMinutes != nil {
+                HStack(spacing: 6) {
+                    if let target = plan.targetZone {
+                        Text("Ziel: Z\(target)")
+                            .foregroundStyle(ZoneIndicatorView.color(for: target))
+                    }
+                    if let minutes = plan.durationMinutes {
+                        Text("Noch \(formattedRemaining(totalSeconds: minutes * 60))")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.caption2)
+            }
 
             if workoutManager.isPaused {
                 Text("Pausiert")
@@ -621,6 +630,27 @@ private struct LiveWorkoutView: View {
         let m = workoutManager.elapsedSeconds / 60
         let s = workoutManager.elapsedSeconds % 60
         return String(format: "%d:%02d", m, s)
+    }
+
+    private func formattedRemaining(totalSeconds: Int) -> String {
+        let r = max(0, totalSeconds - workoutManager.elapsedSeconds)
+        return String(format: "%d:%02d", r / 60, r % 60)
+    }
+
+    private func alertText(_ alert: WorkoutManager.CardioSessionAlert) -> String {
+        switch alert {
+        case .enteredTargetZone: return "Zielzone erreicht"
+        case .leftTargetZone: return "Zielzone verlassen"
+        case .halftime: return "Halbzeit"
+        }
+    }
+
+    private func alertColor(_ alert: WorkoutManager.CardioSessionAlert) -> Color {
+        switch alert {
+        case .enteredTargetZone: return .green
+        case .leftTargetZone: return .orange
+        case .halftime: return .blue
+        }
     }
 }
 
