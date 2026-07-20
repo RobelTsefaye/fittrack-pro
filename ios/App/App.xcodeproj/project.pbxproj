@@ -30,7 +30,7 @@
 		A19E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B29E2C4B3D5F6A7B8C9D0E1F /* WatchAPIProxy.swift */; };
 		A3AD012C32E9B00A71BE0247 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8316D18E2FFD11FC00B74FDF /* WidgetKit.framework */; };
 		AA11BB22CC33DD44EE55FF02 /* RestTimerActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF01 /* RestTimerActivityPlugin.swift */; };
-		AA11BB22CC33DD44EE55FF04 /* RestTimerActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF03 /* RestTimerActivityController.swift */; };
+		E0B6A6E51234567890ABCDEF /* RestTimerActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0B6A6E41234567890ABCDEF /* RestTimerActivityController.swift */; };
 		AA11BB22CC33DD44EE55FF04 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF03 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift */; };
 		AA11BB22CC33DD44EE55FF06 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF05 /* MainViewController.swift */; };
 		AA11BB22CC33DD44EE55FF0A /* ../RestTimerWidget/AdjustRestTimerIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF09 /* ../RestTimerWidget/AdjustRestTimerIntent.swift */; };
@@ -134,7 +134,7 @@
 		83B3EA3A2FFD3C0100CC951E /* FitTrackWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "FitTrackWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		AA11BB22CC33DD44EE55FF01 /* RestTimerActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestTimerActivityPlugin.swift; sourceTree = "<group>"; };
-		AA11BB22CC33DD44EE55FF03 /* RestTimerActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestTimerActivityController.swift; sourceTree = "<group>"; };
+		E0B6A6E41234567890ABCDEF /* RestTimerActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestTimerActivityController.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF03 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../RestTimerWidget/RestTimerWidgetAttributes.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF05 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF09 /* ../RestTimerWidget/AdjustRestTimerIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../RestTimerWidget/AdjustRestTimerIntent.swift; sourceTree = "<group>"; };
@@ -275,7 +275,7 @@
 				42D146C0D81D9C9989C9E01F /* SharedDataPlugin.swift */,
 				AA11BB22CC33DD44EE55FF05 /* MainViewController.swift */,
 				AA11BB22CC33DD44EE55FF01 /* RestTimerActivityPlugin.swift */,
-				AA11BB22CC33DD44EE55FF03 /* RestTimerActivityController.swift */,
+				E0B6A6E41234567890ABCDEF /* RestTimerActivityController.swift */,
 				AA11BB22CC33DD44EE55FF03 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift */,
 				AA11BB22CC33DD44EE55FF09 /* ../RestTimerWidget/AdjustRestTimerIntent.swift */,
 				AA11BB22CC33DD44EE55FF0B /* RestTimerAppShortcuts.swift */,
@@ -518,7 +518,7 @@
 				B37394D1BBAFEEE2853C4204 /* SharedDataPlugin.swift in Sources */,
 				AA11BB22CC33DD44EE55FF06 /* MainViewController.swift in Sources */,
 				AA11BB22CC33DD44EE55FF02 /* RestTimerActivityPlugin.swift in Sources */,
-				AA11BB22CC33DD44EE55FF04 /* RestTimerActivityController.swift in Sources */,
+				E0B6A6E51234567890ABCDEF /* RestTimerActivityController.swift in Sources */,
 				AA11BB22CC33DD44EE55FF04 /* ../RestTimerWidget/RestTimerWidgetAttributes.swift in Sources */,
 				AA11BB22CC33DD44EE55FF0A /* ../RestTimerWidget/AdjustRestTimerIntent.swift in Sources */,
 				AA11BB22CC33DD44EE55FF0C /* RestTimerAppShortcuts.swift in Sources */,
