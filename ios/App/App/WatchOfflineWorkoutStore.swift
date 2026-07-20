@@ -10,6 +10,7 @@ enum WatchOfflineWorkoutStore {
     private static let recentCompletedKey = "watchRecentCompletedOfflineWorkouts"
     private static let rekeyMapKey = "watchWorkoutRekeyMap"
     private static let catalogKey = "watchCachedPlanCatalog"
+    private static let pendingRestTimerLiveActivityKey = "pendingRestTimerLiveActivity"
 
     static func load() -> PendingOfflineWorkout? {
         guard let data = UserDefaults(suiteName: suite)?.data(forKey: pendingKey) else { return nil }
@@ -22,6 +23,24 @@ enum WatchOfflineWorkoutStore {
     }
 
     static func clear() { UserDefaults(suiteName: suite)?.removeObject(forKey: pendingKey) }
+
+    /// ActivityKit only permits requesting a new Live Activity while the
+    /// phone app is foregrounded. A Watch-originated timer stores its anchor
+    /// here until RestTimerActivityPlugin can request it on foreground.
+    static func savePendingRestTimerLiveActivity(endsAt: Double) {
+        UserDefaults(suiteName: suite)?.set(endsAt, forKey: pendingRestTimerLiveActivityKey)
+    }
+
+    static func takePendingRestTimerLiveActivity() -> Double? {
+        let defaults = UserDefaults(suiteName: suite)
+        guard let value = defaults?.object(forKey: pendingRestTimerLiveActivityKey) as? Double else { return nil }
+        defaults?.removeObject(forKey: pendingRestTimerLiveActivityKey)
+        return value
+    }
+
+    static func clearPendingRestTimerLiveActivity() {
+        UserDefaults(suiteName: suite)?.removeObject(forKey: pendingRestTimerLiveActivityKey)
+    }
 
     /// Finished/cancelled workouts are no longer active, but must survive
     /// until their final server mutation has been replayed. Keeping them in

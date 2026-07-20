@@ -21,6 +21,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "isSupported", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "syncActiveWorkout", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "wakeWatchApp", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clearWorkoutState", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "pushPlanCatalog", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getPendingOfflineWorkout", returnType: CAPPluginReturnPromise),
@@ -44,6 +45,8 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
     /// building their own from scratch, or they'd silently clobber each
     /// other's keys.
     private var latestContext: [String: Any] = [:]
+    private var lastActiveWorkoutJSON: String?
+    private var lastActiveWorkoutMessageAt: Date?
 
     /// Reply handlers for in-flight Watch → phone `sendMessage` requests,
     /// keyed by a requestId chosen by the Watch. JS resolves a request by
@@ -116,11 +119,56 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("Missing workoutJSON")
             return
         }
+        // The detail screen polls once per second. Avoid re-sending an
+        // unchanged object through either WC primitive; application-context
+        // updates are coalesced and sendMessage is intentionally only a
+        // low-latency delta path.
+        guard workoutJSON != lastActiveWorkoutJSON else {
+            call.resolve()
+            return
+        }
+        lastActiveWorkoutJSON = workoutJSON
         latestContext["active"] = true
         latestContext["activeWorkout"] = workoutJSON
         latestContext["updatedAt"] = Date().timeIntervalSince1970
 
-        pushContext(call)
+        let pushed = pushContextToWatch()
+        if WCSession.default.isReachable,
+           lastActiveWorkoutMessageAt.map({ Date().timeIntervalSince($0) >= 1 }) ?? true {
+            lastActiveWorkoutMessageAt = Date()
+            WCSession.default.sendMessage(
+                ["type": "activeWorkoutUpdate", "activeWorkout": workoutJSON],
+                replyHandler: nil,
+                errorHandler: nil
+            )
+        }
+        pushed ? call.resolve() : call.reject("Failed to update Watch context")
+    }
+
+    /// Starts the paired Watch app through HealthKit, then sends the most
+    /// recent workout over the immediate channel. Context remains the
+    /// reliable fallback if the watch cannot become reachable in time.
+    @objc func wakeWatchApp(_ call: CAPPluginCall) {
+        guard WCSession.isSupported() else {
+            call.reject("Watch nicht unterstützt")
+            return
+        }
+        healthStore.requestAuthorization(toShare: [HKObjectType.workoutType()], read: nil) { [weak self] _, error in
+            guard let self else { return }
+            let config = HKWorkoutConfiguration()
+            config.activityType = .traditionalStrengthTraining
+            config.locationType = .indoor
+            self.healthStore.startWatchApp(with: config) { [weak self] success, startError in
+                guard let self else { return }
+                guard success else {
+                    DispatchQueue.main.async {
+                        call.reject(startError?.localizedDescription ?? error?.localizedDescription ?? "Uhr konnte nicht gestartet werden")
+                    }
+                    return
+                }
+                self.waitForReachableThenSendActiveWorkout(call: call)
+            }
+        }
     }
 
     /// Called when the workout ends/is cancelled, so the Watch stops showing
@@ -387,6 +435,29 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             self?.waitForReachableThenSend(
                 type: type, fields: fields, call: call, attemptsLeft: attemptsLeft - 1
             )
+        }
+    }
+
+    private func waitForReachableThenSendActiveWorkout(_ call: CAPPluginCall, attemptsLeft: Int = 8) {
+        if WCSession.default.isReachable {
+            if let workoutJSON = latestContext["activeWorkout"] as? String {
+                WCSession.default.sendMessage(
+                    ["type": "activeWorkoutUpdate", "activeWorkout": workoutJSON],
+                    replyHandler: nil,
+                    errorHandler: nil
+                )
+            }
+            call.resolve()
+            return
+        }
+        guard attemptsLeft > 0 else {
+            // The app launch did succeed; the context update will arrive when
+            // WatchConnectivity next has a delivery opportunity.
+            call.resolve()
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.waitForReachableThenSendActiveWorkout(call, attemptsLeft: attemptsLeft - 1)
         }
     }
 

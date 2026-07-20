@@ -12,6 +12,7 @@ import {
 import { getWorkingSetsCountWeekly } from "./week-stats";
 import { analyzeDeloadSignals, analyzePlateaus } from "@/features/dashboard/training-insights";
 import { getNutritionTrend } from "@/features/health/health-data";
+import { DEFAULT_REST_TIMER } from "@/lib/constants";
 
 const SCHEMA_VERSION = "1.0";
 
@@ -74,7 +75,7 @@ export async function buildTrainingSummary(userId: string, weeks: number) {
       displayName: user?.name ?? "Athlete",
       weightUnit: user?.settings?.weightUnit ?? "KG",
       locale: user?.settings?.locale ?? "EN",
-      defaultRestSeconds: user?.settings?.restTimerDefault ?? 90,
+      defaultRestSeconds: user?.settings?.restTimerDefault ?? DEFAULT_REST_TIMER,
     },
     snapshot: summary,
     window: {

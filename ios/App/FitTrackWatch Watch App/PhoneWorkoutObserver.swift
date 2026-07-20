@@ -270,6 +270,11 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
         sendRequest(type: "logSet", fields: fields) { result in
             switch result {
             case .success(let reply):
+                if let workoutJSON = reply["workoutJSON"] as? String {
+                    DispatchQueue.main.async {
+                        self.applyActiveWorkout(fromJSON: workoutJSON)
+                    }
+                }
                 completion(.success(reply["personalRecord"] as? Bool ?? false))
             case .failure(let error):
                 completion(.failure(error))
@@ -468,6 +473,13 @@ extension PhoneWorkoutObserver: WCSessionDelegate {
     /// delivery fallback. This is the fast path that stops the HR session
     /// right away instead of whenever the queue happens to flush.
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        if message["type"] as? String == "activeWorkoutUpdate",
+           let workoutJSON = message["activeWorkout"] as? String {
+            DispatchQueue.main.async {
+                self.applyActiveWorkout(fromJSON: workoutJSON)
+            }
+            return
+        }
         handleWorkoutClearedIfNeeded(message)
     }
 

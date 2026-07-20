@@ -102,6 +102,10 @@ enum WatchAPIProxy {
             guard let fetched = try await fetchWorkoutPayload(workoutId: started.data.id, token: token) else {
                 return (["error": "Konnte Workout nicht kodieren"], nil)
             }
+            if let endsAt = computeRestTimerEndsAt(fetched.workout) {
+                scheduleRestTimerNotification(endsAt: endsAt)
+                RestTimerActivityController.sync(endsAt: endsAt)
+            }
             // `workoutJSON` rides the sendMessage REPLY directly — see
             // PhoneWorkoutObserver.startSession, which applies it to
             // `activeWorkout` immediately instead of only waiting on the
@@ -151,8 +155,11 @@ enum WatchAPIProxy {
             let json = jsonString(buildOfflineWatchWorkoutPayload(pending)) ?? "{}"
             if let endsAt = offlineRestTimerEndsAt(pending) {
                 scheduleRestTimerNotification(endsAt: endsAt)
+                RestTimerActivityController.sync(endsAt: endsAt)
+            } else {
+                clearRestTimerEffects()
             }
-            return (["personalRecord": false], .setActiveWorkout(json: json))
+            return (["personalRecord": false, "workoutJSON": json], .setActiveWorkout(json: json))
         }
 
         do {
@@ -175,9 +182,14 @@ enum WatchAPIProxy {
             // as the JS path so whichever one runs later cleanly supersedes
             // the other instead of double-firing.
             if let workout = fetched?.workout {
-                scheduleRestTimerNotification(endsAt: computeRestTimerEndsAt(workout))
+                if let endsAt = computeRestTimerEndsAt(workout) {
+                    scheduleRestTimerNotification(endsAt: endsAt)
+                    RestTimerActivityController.sync(endsAt: endsAt)
+                } else {
+                    clearRestTimerEffects()
+                }
             }
-            return (["personalRecord": result.personalRecord], contextUpdate)
+            return (["personalRecord": result.personalRecord, "workoutJSON": nullable(fetched?.json)], contextUpdate)
         } catch {
             return (["error": describeError(error)], nil)
         }
@@ -200,6 +212,10 @@ enum WatchAPIProxy {
             pending.restTimerAdjustSeconds += Double(deltaSeconds)
             WatchOfflineWorkoutStore.save(pending)
             let json = jsonString(buildOfflineWatchWorkoutPayload(pending)) ?? "{}"
+            if let endsAt = offlineRestTimerEndsAt(pending) {
+                scheduleRestTimerNotification(endsAt: endsAt)
+                RestTimerActivityController.sync(endsAt: endsAt)
+            }
             return (["done": true], .setActiveWorkout(json: json))
         }
         do {
@@ -209,6 +225,10 @@ enum WatchAPIProxy {
             )
             let fetched = try? await fetchWorkoutPayload(workoutId: workoutId, token: token)
             let contextUpdate: ContextUpdate? = fetched.map { .setActiveWorkout(json: $0.json) }
+            if let workout = fetched?.workout, let endsAt = computeRestTimerEndsAt(workout) {
+                scheduleRestTimerNotification(endsAt: endsAt)
+                RestTimerActivityController.sync(endsAt: endsAt)
+            }
             return (["done": true], contextUpdate)
         } catch {
             return (["error": describeError(error)], nil)
@@ -393,6 +413,14 @@ enum WatchAPIProxy {
         }
     }
 
+    private static func clearRestTimerEffects() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [restTimerNotificationId])
+        RestTimerActivityController.clearPendingStart()
+        if #available(iOS 16.1, *) {
+            RestTimerActivityController.endAll()
+        }
+    }
+
     // MARK: - Native Watch offline queue
 
     private static func startOfflineSession(sessionId: String) -> (reply: [String: Any], contextUpdate: ContextUpdate?) {
@@ -474,13 +502,18 @@ enum WatchAPIProxy {
     @discardableResult
     private static func performFlush() async -> (ok: Bool, error: String?) {
         guard let token = SyncTokenStore.loadForBackgroundUse() else {
+            NSLog("[WatchFlush] no token available, aborting")
             return (false, "Kein Login-Token verfügbar")
         }
 
         var allSucceeded = true
         var lastError: String?
-        for var terminal in WatchOfflineWorkoutStore.loadTerminalWorkouts() {
+        let terminalJobs = WatchOfflineWorkoutStore.loadTerminalWorkouts()
+        NSLog("[WatchFlush] starting: %d terminal job(s), pending=%@", terminalJobs.count, WatchOfflineWorkoutStore.load() != nil ? "yes" : "no")
+        for var terminal in terminalJobs {
             let wasCompleted = terminal.queue.contains { $0.kind == .completeWorkout }
+            NSLog("[WatchFlush] terminal job %@ (serverWorkoutId=%@, queue=%d op(s), wasCompleted=%@) — replaying",
+                  terminal.id, terminal.serverWorkoutId ?? "nil", terminal.queue.count, wasCompleted ? "yes" : "no")
             do {
                 _ = try await replayPendingWorkout(&terminal, token: token) {
                     WatchOfflineWorkoutStore.updateTerminalWorkout($0)
@@ -496,6 +529,7 @@ enum WatchAPIProxy {
                 }
                 WatchOfflineWorkoutStore.removeTerminalWorkout(id: terminal.id)
                 replayContextHandler?(.clear(workoutId: terminal.id))
+                NSLog("[WatchFlush] terminal job %@ SUCCEEDED (serverWorkoutId=%@)", terminal.id, terminal.serverWorkoutId ?? "nil")
             } catch {
                 // A single failing terminal job (network blip, or a genuinely
                 // unreplayable one) must NOT strand every OTHER queued workout
@@ -507,11 +541,14 @@ enum WatchAPIProxy {
                 WatchOfflineWorkoutStore.updateTerminalWorkout(terminal)
                 allSucceeded = false
                 lastError = describeError(error)
+                NSLog("[WatchFlush] terminal job %@ FAILED: %@", terminal.id, lastError ?? "unknown")
                 continue
             }
         }
 
         guard var pending = WatchOfflineWorkoutStore.load() else { return (allSucceeded, lastError) }
+        NSLog("[WatchFlush] pending job %@ (serverWorkoutId=%@, queue=%d op(s)) — replaying",
+              pending.id, pending.serverWorkoutId ?? "nil", pending.queue.count)
         do {
             let endsWorkoutOnReplay = try await replayPendingWorkout(&pending, token: token) {
                 WatchOfflineWorkoutStore.save($0)
@@ -529,9 +566,11 @@ enum WatchAPIProxy {
                 }
             }
             WatchOfflineWorkoutStore.clear()
+            NSLog("[WatchFlush] pending job %@ SUCCEEDED", pending.id)
             return (allSucceeded, lastError)
         } catch {
             WatchOfflineWorkoutStore.save(pending)
+            NSLog("[WatchFlush] pending job %@ FAILED: %@", pending.id, describeError(error))
             return (false, describeError(error))
         }
     }
@@ -688,7 +727,19 @@ enum WatchAPIProxy {
         try await withThrowingTaskGroup(of: Void.self) { group in
             for job in patchJobs {
                 group.addTask {
-                    let _: ApiSetPatchResponse = try await request("/api/workouts/\(workoutId)/sets/\(job.setId)", method: "PATCH", token: token, body: job.body)
+                    do {
+                        let _: ApiSetPatchResponse = try await request("/api/workouts/\(workoutId)/sets/\(job.setId)", method: "PATCH", token: token, body: job.body)
+                    } catch RequestError.http(404) {
+                        // The set no longer exists server-side (deleted, or a
+                        // duplicate cleaned up manually) — nothing left to
+                        // patch. Letting this throw used to abort the whole
+                        // concurrent batch, which aborts reconcilePendingWorkout,
+                        // which aborts replayPendingWorkout — stranding this
+                        // workout (and, if it's a terminal job, every workout
+                        // queued behind it) in an infinite retry loop. Mirrors
+                        // the completeWorkout/deleteWorkout 404 tolerance above
+                        // and the JS flush's patch_set/delete_set tolerance.
+                    }
                 }
             }
             for try await _ in group {}
@@ -814,13 +865,23 @@ enum WatchAPIProxy {
     /// tracked as separate client-side state: that would let this proxy and
     /// the phone's own JS-driven push independently cache stale values and
     /// stomp on whichever one was actually more recent.
-    private static func computeRestTimerEndsAt(_ workout: ApiWorkout) -> Double {
+    private static func computeRestTimerEndsAt(_ workout: ApiWorkout) -> Double? {
         var anchor = parseDate(workout.startedAt)?.timeIntervalSince1970 ?? Date().timeIntervalSince1970
+        var latestWorkoutExerciseId: String?
         for we in workout.workoutExercises {
             for s in we.sets {
                 guard let completedAt = s.completedAt, let t = parseDate(completedAt)?.timeIntervalSince1970 else { continue }
-                if t > anchor { anchor = t }
+                if t > anchor {
+                    anchor = t
+                    latestWorkoutExerciseId = we.id
+                }
             }
+        }
+        if let latestWorkoutExerciseId,
+           let latest = workout.workoutExercises.first(where: { $0.id == latestWorkoutExerciseId }),
+           let group = latest.supersetGroup,
+           workout.workoutExercises.lastIndex(where: { $0.supersetGroup == group }) != workout.workoutExercises.firstIndex(where: { $0.id == latestWorkoutExerciseId }) {
+            return nil
         }
         return anchor + (workout.restTimerDefaultSeconds ?? defaultRestSeconds) + (workout.restTimerAdjustSeconds ?? 0)
     }
@@ -868,6 +929,7 @@ enum WatchAPIProxy {
             }
             return [
                 "id": we.id,
+                "supersetGroup": nullable(we.supersetGroup),
                 "exercise": [
                     "id": we.exercise.id,
                     "name": we.exercise.name,
@@ -880,7 +942,7 @@ enum WatchAPIProxy {
             "id": workout.id,
             "name": nullable(workout.name),
             "startedAt": workout.startedAt,
-            "restTimerEndsAt": computeRestTimerEndsAt(workout),
+            "restTimerEndsAt": nullable(computeRestTimerEndsAt(workout)),
             "workoutExercises": workoutExercises,
         ]
     }
@@ -920,6 +982,7 @@ private struct ApiWorkout: Decodable {
 }
 private struct ApiWorkoutExercise: Decodable {
     let id: String
+    let supersetGroup: Int?
     let exercise: ApiExerciseInfo
     let sets: [ApiSetEntry]
 }

@@ -27,11 +27,6 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "removeAllListeners", returnType: CAPPluginReturnPromise),
     ]
 
-    // Type-erased storage so this property can exist on iOS versions below
-    // 16.1 too (the typed `Activity<RestTimerWidgetAttributes>` computed
-    // accessor below is what's actually gated by @available).
-    private var _activity: Any?
-
     /// A start requested while the app wasn't foreground-active. ActivityKit
     /// only allows `Activity.request` from the foreground, so we stash the
     /// params here and retry on the next `didBecomeActive`.
@@ -66,6 +61,8 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
         if let pending = pendingStart {
             pendingStart = nil
             requestActivity(endsAtMs: pending.endsAtMs, title: pending.title, call: nil)
+        } else if let endsAt = RestTimerActivityController.takePendingStart() {
+            requestActivity(endsAtMs: endsAt * 1000, title: "Pause", call: nil)
         }
 
         // 2) Resync JS from the running Activity's current state (reflects any
@@ -79,12 +76,6 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
             data["endsAt"] = state.endDate.timeIntervalSince1970 * 1000
         }
         notifyListeners("adjustment", data: data)
-    }
-
-    @available(iOS 16.1, *)
-    private var activity: Activity<RestTimerWidgetAttributes>? {
-        get { _activity as? Activity<RestTimerWidgetAttributes> }
-        set { _activity = newValue }
     }
 
     /// Starts a new Live Activity. Expects `endsAt` (ms epoch) and optional
@@ -114,6 +105,7 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
                 self.requestActivity(endsAtMs: endsAtMs, title: title, call: call)
             } else {
                 self.pendingStart = (endsAtMs, title)
+                WatchOfflineWorkoutStore.savePendingRestTimerLiveActivity(endsAt: endsAtMs / 1000)
                 call.resolve()
             }
         }
@@ -126,10 +118,8 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
     private func requestActivity(endsAtMs: Double, title: String, call: CAPPluginCall?) {
         let endDate = Date(timeIntervalSince1970: endsAtMs / 1000)
 
-        if let existing = activity {
-            Task { await existing.end(nil, dismissalPolicy: .immediate) }
-            activity = nil
-        }
+        RestTimerActivityController.endAll()
+        RestTimerActivityController.clearPendingStart()
 
         let attributes = RestTimerWidgetAttributes(title: title)
         let state = RestTimerWidgetAttributes.ContentState(endDate: endDate, pausedRemainingSeconds: nil)
@@ -138,7 +128,6 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
                 attributes: attributes,
                 content: .init(state: state, staleDate: nil)
             )
-            activity = newActivity
             call?.resolve(["id": newActivity.id])
         } catch {
             call?.reject("Failed to start Live Activity: \(error.localizedDescription)")
@@ -149,7 +138,7 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
     /// `pausedRemainingSeconds`) or resume/adjust (pass a new `endsAt`).
     /// No-ops silently if no Activity is running (e.g. web/PWA or pre-16.1).
     @objc func update(_ call: CAPPluginCall) {
-        guard #available(iOS 16.1, *), let activity = activity else {
+        guard #available(iOS 16.1, *), let activity = RestTimerActivityController.activity else {
             call.resolve()
             return
         }
@@ -168,13 +157,13 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
     /// on next foreground.
     @objc func end(_ call: CAPPluginCall) {
         pendingStart = nil
-        guard #available(iOS 16.1, *), let activity = activity else {
+        RestTimerActivityController.clearPendingStart()
+        guard #available(iOS 16.1, *), RestTimerActivityController.activity != nil else {
             call.resolve()
             return
         }
         Task {
-            await activity.end(nil, dismissalPolicy: .immediate)
-            self.activity = nil
+            RestTimerActivityController.endAll()
             call.resolve()
         }
     }

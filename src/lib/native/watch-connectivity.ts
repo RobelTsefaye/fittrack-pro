@@ -14,6 +14,7 @@ import { DEFAULT_REST_TIMER } from "@/lib/constants";
 export interface WatchConnectivityPlugin {
   isSupported(): Promise<{ supported: boolean }>;
   syncActiveWorkout(options: { workoutJSON: string }): Promise<void>;
+  wakeWatchApp(): Promise<void>;
   clearWorkoutState(options: { workoutId?: string }): Promise<void>;
   pushPlanCatalog(options: { catalog: string }): Promise<void>;
   getPendingOfflineWorkout(): Promise<{ pendingJSON?: string }>;
@@ -183,6 +184,17 @@ export async function syncActiveWorkoutToWatch(
     });
   } catch {
     // Non-fatal — Watch mirroring is a nice-to-have, never block the workout UI on it.
+  }
+}
+
+/** Best-effort wake-up for a phone-initiated strength workout. */
+export async function wakeWatchAppForWorkout(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    await WatchConnectivity.wakeWatchApp();
+  } catch {
+    // A Watch may be unpaired or HealthKit permission denied; phone logging
+    // must remain fully usable in either case.
   }
 }
 

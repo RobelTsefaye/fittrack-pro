@@ -6,6 +6,7 @@ import {
   syncActiveWorkoutToWatch,
   clearWatchWorkoutState,
   syncRecoveryToWatch,
+  toWatchWorkoutPayload,
 } from "@/lib/native/watch-connectivity";
 import type { WorkoutData } from "@/features/workouts/workout-types";
 import type { PreviousLogEntry } from "@/features/workouts/previous-logs-types";
@@ -116,7 +117,12 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
       });
       if (!res.ok) return { error: `Speichern fehlgeschlagen (${res.status})` };
       const json = (await res.json()) as { data: unknown; personalRecord: boolean };
-      return { set: json.data, personalRecord: json.personalRecord };
+      const detailRes = await fetch(`/api/workouts/${workoutId}`);
+      if (!detailRes.ok) return { set: json.data, personalRecord: json.personalRecord };
+      const { data: workout } = (await detailRes.json()) as { data: WorkoutData };
+      const workoutJSON = JSON.stringify(toWatchWorkoutPayload(workout));
+      await syncActiveWorkoutToWatch(workout);
+      return { set: json.data, personalRecord: json.personalRecord, workoutJSON };
     }
 
     case "adjustRestTimer": {

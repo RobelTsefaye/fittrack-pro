@@ -70,6 +70,7 @@ import { syncTrainingCalendar } from "@/lib/native/calendar";
 import { Capacitor } from "@capacitor/core";
 import {
   syncActiveWorkoutToWatch,
+  wakeWatchAppForWorkout,
   clearWatchWorkoutState,
   computeRestTimerEndsAt,
   WatchConnectivity,
@@ -607,18 +608,14 @@ export function WorkoutDetail({
     }
   }, [workout]);
 
-  /** Auto-start the rest timer (and its Live Activity / Dynamic Island
-   *  mirror) right when a workout begins, not just after the first set —
-   *  fires once per fresh workout (no sets completed yet). Guarded so
-   *  re-opening a workout that's already in progress doesn't restart it. */
+  /** Starts timer surfaces once per workout, including a workout that began
+   *  on the Watch and is opened on the phone mid-rest. */
   const autoStartedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!isActive || !workout) return;
     if (autoStartedRef.current === workout.id) return;
-    const hasCompletedSet = workout.workoutExercises.some((we) =>
-      we.sets.some((s) => s.isCompleted)
-    );
-    if (hasCompletedSet) return;
+    const restEndsAt = computeRestTimerEndsAt(workout);
+    if (!restEndsAt || restEndsAt * 1000 <= Date.now()) return;
     autoStartedRef.current = workout.id;
     // Anchor-derived, not startRestTimer()'s "fresh from now" — a workout
     // started on the Watch begins its rest countdown immediately from
@@ -627,6 +624,7 @@ export function WorkoutDetail({
     // moment the phone happened to open instead of continuing the one
     // already running.
     startRestTimerFromServerAnchor(workout);
+    void wakeWatchAppForWorkout();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, workout, defaultRestSeconds]);
 
