@@ -90,6 +90,17 @@ Restart Claude Desktop after saving.
 | `fittrack_training_summary` | Weekly volume, sets, top exercises, recent PRs (1–24 weeks) |
 | `fittrack_progress_report` | Volume trends, body-weight stats, PR counts, plateau signals (1–52 weeks) |
 | `fittrack_recommendations` | Heuristic suggestions from your logs |
+| `fittrack_workouts` | Raw workout list, paginated (id, name, dates, duration, exercise names) |
+| `fittrack_workout_detail` | One workout in full: every exercise/set with weight, reps, warmup, completion |
+| `fittrack_exercises` | The exercise catalog (built-in + your custom exercises), filterable |
+| `fittrack_exercise_history` | Full logged history for one exercise: progress/volume per session, every set |
+| `fittrack_personal_records` | Every PR ever logged, plus unlocked achievements |
+| `fittrack_cardio_history` | Every HealthKit-imported cardio session, weekly points, type breakdown |
+| `fittrack_body_measurements` | Logged body-circumference measurements over time |
+| `fittrack_health` | Sleep, HR/HRV, respiratory rate, wrist temp, VO2max, activity, micronutrients, Recovery Score |
+| `fittrack_calendar` | Upcoming training/cardio sessions from the computed schedule |
+| `fittrack_plans` | Every saved training plan with its full session/exercise structure |
+| `fittrack_settings` | Non-sensitive preferences: units, theme, rest timer, calendar-sync config |
 
 ---
 

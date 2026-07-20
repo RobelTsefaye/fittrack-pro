@@ -117,6 +117,85 @@ Deterministic, **heuristic** suggestions (no external model).
 
 Rules include: days since last workout, volume drop across 8 weeks, recent PR, volume concentration on one lift, active streak.
 
+### `GET /api/ai/workouts`
+
+Full workout list (raw rows, not aggregated) — the counterpart to `training-summary`'s volume buckets.
+
+| Query | Default | Max | Description |
+|-------|---------|-----|-------------|
+| `page` | 1 | — | 1-indexed |
+| `limit` | 20 | 100 | Rows per page |
+| `status` | (all) | — | `active` or `completed` |
+
+**Response:** `data.workouts[]` — each with `id`, `name`, `startedAt`, `completedAt`, `durationSeconds`, `workoutExercises[]` (exercise name + set ids, no weight/reps — use `workouts/:id` for full detail). `meta`: `page`, `limit`, `total`, `status`.
+
+### `GET /api/ai/workouts/:id`
+
+One workout with every exercise and set (weight, reps, warmup flag, completion, rest-timer state) — the same shape the workout detail page renders from. 404 if not owned by the caller.
+
+### `GET /api/ai/exercises`
+
+The exercise catalog (built-in + this user's custom exercises).
+
+| Query | Description |
+|-------|-------------|
+| `muscleGroup` | Exact match |
+| `equipment` | Exact match |
+| `search` | Case-insensitive name substring |
+
+**Response:** `data.exercises[]` — `id`, `name`, `muscleGroup`, `equipment`, `notes`, `isCustom`.
+
+### `GET /api/ai/exercise-history`
+
+Full logged history for one exercise — progress and volume per session, plus every individual completed set.
+
+| Query | Required | Description |
+|-------|----------|-------------|
+| `exerciseId` | yes | From `/api/ai/exercises` |
+
+**Response `data`:** `exercise`, `progressBySession[]`, `volumeBySession[]`, `sets[]`. 404 if the exercise doesn't exist or isn't visible to the caller (not built-in and not their own).
+
+### `GET /api/ai/personal-records`
+
+**Response `data`:** `records[]` (every PR row, not just the last-10 rollup in `training-summary`) and `achievements[]` (unlock booleans — first/10th/50th/100th workout, first/10th PR, streaks, early-bird, etc.).
+
+### `GET /api/ai/cardio-history`
+
+Full `CardioSummary` — every HealthKit-imported cardio session (running/cycling/elliptical/…), weekly points, per-type breakdown, outdoor-vs-indoor grouping. Same data `getCardioSummary` builds for the Health → Cardio page.
+
+### `GET /api/ai/body-measurements`
+
+**Response `data.entries[]`:** one row per logged date — `neck`, `chest`, `leftArm`, `rightArm`, `waist`, `hips`, `leftThigh`, `rightThigh`, `notes`. All measurement fields are nullable (only what the user actually logged that day).
+
+### `GET /api/ai/health`
+
+Everything `HealthSnapshot` holds that the nutrition-only `NutritionTrend` (used by the other AI routes) doesn't: sleep, resting/average heart rate, HRV, respiratory rate, wrist temperature, VO2max, steps/exercise minutes/stand hours, micronutrients. Also includes the Recovery Score.
+
+| Query | Default | Max | Description |
+|-------|---------|-----|-------------|
+| `days` | 30 | 180 | Snapshot + recovery-history window |
+
+**Response `data`:** `snapshots[]` (raw `HealthSnapshot` rows, oldest→newest, days with no data skipped), `recovery` (current `RecoveryBreakdown`: score, level, contributing factors), `recoveryHistory[]` (`{date, score, level}` per day that has one).
+
+### `GET /api/ai/calendar`
+
+The computed training/cardio schedule (same source as the iOS EventKit sync) — upcoming sessions with any manual overrides already applied.
+
+| Query | Default | Max | Description |
+|-------|---------|-----|-------------|
+| `today` | server UTC date | — | `YYYY-MM-DD`, caller's local date. Pass this explicitly — the server has no timezone context. |
+| `horizonDays` | 28 | 56 | Days ahead to compute |
+
+**Response `data`:** `training: { enabled, events[] }`, `cardio: { enabled, events[] }`. `enabled: false` (and an empty `events[]`) when the user hasn't turned on that sync in Settings.
+
+### `GET /api/ai/plans`
+
+Every saved plan with its full session/exercise structure (same nested include as `GET /api/plans/:id`, for all plans at once) — the plan catalog an LLM would need to answer "what's session B of my push/pull/legs plan."
+
+### `GET /api/ai/settings`
+
+Non-sensitive preferences only: `locale`, `weightUnit`, `theme`, `restTimerDefault`, and the training/cardio calendar-sync configuration (enabled flag, weekdays, time, duration, label). Never tokens, password hash, or push-notification device tokens — those never leave `ApiToken`/`PushToken`/`User` and have no AI route. Read-only: unlike the authenticated `GET /api/settings`, this never creates a `UserSettings` row on first call — fields fall back to `null`/`false`/`[]` instead.
+
 ### Full data export (existing)
 
 | Route | Description |

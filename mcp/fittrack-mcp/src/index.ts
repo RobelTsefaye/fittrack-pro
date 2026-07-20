@@ -131,5 +131,137 @@ server.tool(
   })
 );
 
+server.tool(
+  "fittrack_workouts",
+  "Raw workout list (not aggregated) — id, name, dates, duration, exercise names. Paginated.",
+  {
+    page: z.number().int().min(1).optional().describe("1-indexed, default 1"),
+    limit: z.number().int().min(1).max(100).optional().describe("Rows per page, default 20"),
+    status: z.enum(["active", "completed"]).optional().describe("Filter by completion state, default all"),
+  },
+  async ({ page, limit, status }) => {
+    const params = new URLSearchParams();
+    if (page) params.set("page", String(page));
+    if (limit) params.set("limit", String(limit));
+    if (status) params.set("status", status);
+    const qs = params.toString();
+    return {
+      content: [{ type: "text", text: await fittrackGet(`/api/ai/workouts${qs ? `?${qs}` : ""}`) }],
+    };
+  }
+);
+
+server.tool(
+  "fittrack_workout_detail",
+  "One workout in full: every exercise and set, with weight/reps/warmup/completion.",
+  { workoutId: z.string().describe("Workout id, from fittrack_workouts or fittrack_coach_context") },
+  async ({ workoutId }) => ({
+    content: [{ type: "text", text: await fittrackGet(`/api/ai/workouts/${encodeURIComponent(workoutId)}`) }],
+  })
+);
+
+server.tool(
+  "fittrack_exercises",
+  "The exercise catalog (built-in + this user's custom exercises), optionally filtered.",
+  {
+    muscleGroup: z.string().optional(),
+    equipment: z.string().optional(),
+    search: z.string().optional().describe("Case-insensitive name substring"),
+  },
+  async ({ muscleGroup, equipment, search }) => {
+    const params = new URLSearchParams();
+    if (muscleGroup) params.set("muscleGroup", muscleGroup);
+    if (equipment) params.set("equipment", equipment);
+    if (search) params.set("search", search);
+    const qs = params.toString();
+    return {
+      content: [{ type: "text", text: await fittrackGet(`/api/ai/exercises${qs ? `?${qs}` : ""}`) }],
+    };
+  }
+);
+
+server.tool(
+  "fittrack_exercise_history",
+  "Full logged history for one exercise: progress and volume per session, every completed set.",
+  { exerciseId: z.string().describe("Exercise id, from fittrack_exercises") },
+  async ({ exerciseId }) => ({
+    content: [
+      { type: "text", text: await fittrackGet(`/api/ai/exercise-history?exerciseId=${encodeURIComponent(exerciseId)}`) },
+    ],
+  })
+);
+
+server.tool(
+  "fittrack_personal_records",
+  "Every personal record ever logged, plus unlocked achievements (workout/PR milestones, streaks, early-bird).",
+  async () => ({
+    content: [{ type: "text", text: await fittrackGet("/api/ai/personal-records") }],
+  })
+);
+
+server.tool(
+  "fittrack_cardio_history",
+  "Every HealthKit-imported cardio session (running/cycling/elliptical/…): weekly points, per-type breakdown, outdoor-vs-indoor.",
+  async () => ({
+    content: [{ type: "text", text: await fittrackGet("/api/ai/cardio-history") }],
+  })
+);
+
+server.tool(
+  "fittrack_body_measurements",
+  "Logged body-circumference measurements (neck, chest, arms, waist, hips, thighs) over time.",
+  async () => ({
+    content: [{ type: "text", text: await fittrackGet("/api/ai/body-measurements") }],
+  })
+);
+
+server.tool(
+  "fittrack_health",
+  "Sleep, resting/average heart rate, HRV, respiratory rate, wrist temp, VO2max, activity, micronutrients, plus the current Recovery Score and its history.",
+  {
+    days: z.number().int().min(1).max(180).optional().describe("Window size, default 30"),
+  },
+  async ({ days }) => {
+    const qs = days ? `?days=${days}` : "";
+    return {
+      content: [{ type: "text", text: await fittrackGet(`/api/ai/health${qs}`) }],
+    };
+  }
+);
+
+server.tool(
+  "fittrack_calendar",
+  "Upcoming training/cardio sessions from the computed schedule, with manual overrides applied.",
+  {
+    today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Caller's local date, YYYY-MM-DD — pass explicitly, the server has no timezone context"),
+    horizonDays: z.number().int().min(1).max(56).optional().describe("Days ahead to compute, default 28"),
+  },
+  async ({ today, horizonDays }) => {
+    const params = new URLSearchParams();
+    if (today) params.set("today", today);
+    if (horizonDays) params.set("horizonDays", String(horizonDays));
+    const qs = params.toString();
+    return {
+      content: [{ type: "text", text: await fittrackGet(`/api/ai/calendar${qs ? `?${qs}` : ""}`) }],
+    };
+  }
+);
+
+server.tool(
+  "fittrack_plans",
+  "Every saved training plan with its full session/exercise structure.",
+  async () => ({
+    content: [{ type: "text", text: await fittrackGet("/api/ai/plans") }],
+  })
+);
+
+server.tool(
+  "fittrack_settings",
+  "Non-sensitive user preferences: units, theme, rest timer default, calendar-sync configuration. Never tokens or passwords.",
+  async () => ({
+    content: [{ type: "text", text: await fittrackGet("/api/ai/settings") }],
+  })
+);
+
 const transport = new StdioServerTransport();
 await server.connect(transport);
