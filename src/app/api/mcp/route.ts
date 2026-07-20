@@ -15,6 +15,30 @@ import {
   buildHeuristicRecommendations,
 } from "@/features/ai/context";
 import { clampWeeks } from "@/features/ai/schemas";
+import { prisma } from "@/lib/prisma";
+import { getWorkoutsListUncached } from "@/features/workouts/workouts-list-data";
+import { getWorkoutDetailData } from "@/features/workouts/workout-detail-data";
+import { getExercises } from "@/features/exercises/exercise-data";
+import {
+  findExerciseVisibleToUser,
+  fetchCompletedSetsForExercise,
+  computeProgressBySession,
+  computeVolumeBySession,
+  mapSetsToHistoryRows,
+} from "@/features/exercises/history-core";
+import { getAllPersonalRecords, getAchievements } from "@/services/personal-records";
+import { getDashboardSummary } from "@/features/dashboard/queries";
+import { getCardioSummary } from "@/features/health/cardio";
+import { getHealthSnapshots } from "@/features/health/health-data";
+import { computeRecovery, computeRecoveryHistory } from "@/features/health/recovery";
+import {
+  applyOverrides,
+  computeCardioSchedule,
+  computeTrainingSchedule,
+  DEFAULT_HORIZON_DAYS,
+  getCalendarOverrides,
+} from "@/features/calendar/schedule";
+import type { CalendarKind } from "@/generated/prisma/client";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -73,6 +97,122 @@ const TOOLS = [
       "Heuristic suggestions derived from your training logs: overreaching signals, volume drops, plateau indicators, recovery hints. Not medical advice.",
     inputSchema: { type: "object", properties: {} },
   },
+  {
+    name: "fittrack_workouts",
+    description:
+      "Raw list of logged workouts (not aggregated): id, name, start/end, duration, exercise names. Paginated. Use to find a specific session, then fittrack_workout_detail for its sets.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        page: { type: "number", description: "1-indexed page. Defaults to 1.", minimum: 1 },
+        limit: { type: "number", description: "Rows per page (1–100). Defaults to 20.", minimum: 1, maximum: 100 },
+        status: {
+          type: "string",
+          enum: ["active", "completed"],
+          description: "Filter by completion state. Omit for all.",
+        },
+      },
+    },
+  },
+  {
+    name: "fittrack_workout_detail",
+    description:
+      "One workout in full: every exercise and every set with weight, reps, warmup flag and completion state. Use for 'what exactly did I lift on <date>?'",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workoutId: { type: "string", description: "Workout id from fittrack_workouts or fittrack_coach_context." },
+      },
+      required: ["workoutId"],
+    },
+  },
+  {
+    name: "fittrack_exercises",
+    description:
+      "The exercise catalog: built-in exercises plus this user's custom ones. Use to resolve an exercise name to an id before calling fittrack_exercise_history.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        muscleGroup: { type: "string", description: "Exact muscle-group filter." },
+        equipment: { type: "string", description: "Exact equipment filter." },
+        search: { type: "string", description: "Case-insensitive name substring." },
+      },
+    },
+  },
+  {
+    name: "fittrack_exercise_history",
+    description:
+      "Full logged history for one exercise: best set and volume per session over time, plus every individual completed set. Use for 'how has my bench press progressed?'",
+    inputSchema: {
+      type: "object",
+      properties: {
+        exerciseId: { type: "string", description: "Exercise id from fittrack_exercises." },
+      },
+      required: ["exerciseId"],
+    },
+  },
+  {
+    name: "fittrack_personal_records",
+    description:
+      "Every personal record ever logged (not just the recent rollup), with estimated 1RM, plus unlocked achievements (workout/PR milestones, streaks).",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "fittrack_cardio_history",
+    description:
+      "Every cardio session imported from Apple Health (running, cycling, elliptical, walking, …): per-week points, per-type breakdown, outdoor vs indoor totals.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "fittrack_body_measurements",
+    description:
+      "Logged body-circumference measurements over time: neck, chest, arms, waist, hips, thighs. All fields nullable — only what was actually logged that day.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "fittrack_health",
+    description:
+      "Daily health metrics from Apple Health: STEPS, sleep, resting and average heart rate, HRV, respiratory rate, wrist temperature, VO2max, exercise minutes, stand hours, and micronutrients — plus the current Recovery Score and its history. Use this for step counts and any sleep/heart/recovery question.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        days: { type: "number", description: "Window size in days (1–180). Defaults to 30.", minimum: 1, maximum: 180 },
+      },
+    },
+  },
+  {
+    name: "fittrack_calendar",
+    description:
+      "Upcoming scheduled training and cardio sessions from the computed calendar, with manual reschedules/skips already applied.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        today: {
+          type: "string",
+          description:
+            "The user's local date as YYYY-MM-DD. Pass this explicitly — the server has no timezone context and falls back to UTC.",
+        },
+        horizonDays: {
+          type: "number",
+          description: "Days ahead to compute (1–56). Defaults to 28.",
+          minimum: 1,
+          maximum: 56,
+        },
+      },
+    },
+  },
+  {
+    name: "fittrack_plans",
+    description:
+      "Every saved training plan with its full structure: sessions in order, and the planned exercises (with target sets) per session.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "fittrack_settings",
+    description:
+      "Non-sensitive user preferences: weight unit, locale, theme, default rest timer, and the training/cardio calendar-sync configuration. Never returns tokens or passwords.",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
 
 // ── Response helpers ──────────────────────────────────────────────────────────
@@ -128,6 +268,19 @@ function rpcErr(id: JsonRpcId, code: number, message: string) {
 
 // ── Tool execution ────────────────────────────────────────────────────────────
 
+/** Same `{ schemaVersion, kind, generatedAt }` preamble the /api/ai/* routes
+ *  put on every payload, so a tool result and its HTTP equivalent are
+ *  byte-identical in shape. */
+function envelope(kind: string) {
+  return { schemaVersion: "1.0", kind, generatedAt: new Date().toISOString() };
+}
+
+/** MCP tool results are plain text — pretty-printed so the model reads
+ *  structure rather than one long line. */
+function json(payload: unknown): string {
+  return JSON.stringify(payload, null, 2);
+}
+
 async function callTool(
   name: string,
   args: Record<string, unknown>,
@@ -165,6 +318,191 @@ async function callTool(
         null,
         2
       );
+    }
+    case "fittrack_workouts": {
+      const page = Math.max(1, Number(args.page ?? 1) || 1);
+      const limit = Math.min(100, Math.max(1, Number(args.limit ?? 20) || 20));
+      const rawStatus = args.status;
+      const status = rawStatus === "active" || rawStatus === "completed" ? rawStatus : null;
+      const { items, total } = await getWorkoutsListUncached(userId, page, limit, status);
+      return json({
+        data: { ...envelope("workouts"), workouts: items },
+        meta: { endpoint: "workouts", page, limit, total, status },
+      });
+    }
+    case "fittrack_workout_detail": {
+      const workoutId = String(args.workoutId ?? "");
+      if (!workoutId) throw new Error("Missing workoutId");
+      const workout = await getWorkoutDetailData(userId, workoutId);
+      if (!workout) throw new Error(`Workout not found: ${workoutId}`);
+      return json({
+        data: { ...envelope("workout-detail"), workout },
+        meta: { endpoint: "workouts/:id" },
+      });
+    }
+    case "fittrack_exercises": {
+      const exercises = await getExercises(userId, {
+        muscleGroup: args.muscleGroup != null ? String(args.muscleGroup) : null,
+        equipment: args.equipment != null ? String(args.equipment) : null,
+        search: args.search != null ? String(args.search) : null,
+      });
+      return json({
+        data: { ...envelope("exercises"), exercises },
+        meta: { endpoint: "exercises", count: exercises.length },
+      });
+    }
+    case "fittrack_exercise_history": {
+      const exerciseId = String(args.exerciseId ?? "");
+      if (!exerciseId) throw new Error("Missing exerciseId");
+      const exercise = await findExerciseVisibleToUser(exerciseId, userId);
+      if (!exercise) throw new Error(`Exercise not found: ${exerciseId}`);
+      const sets = await fetchCompletedSetsForExercise(exerciseId, userId);
+      return json({
+        data: {
+          ...envelope("exercise-history"),
+          exercise,
+          progressBySession: computeProgressBySession(sets),
+          volumeBySession: computeVolumeBySession(sets),
+          sets: mapSetsToHistoryRows(sets),
+        },
+        meta: { endpoint: "exercise-history", exerciseId, setCount: sets.length },
+      });
+    }
+    case "fittrack_personal_records": {
+      const [records, summary] = await Promise.all([
+        getAllPersonalRecords(userId),
+        getDashboardSummary(userId),
+      ]);
+      const achievements = await getAchievements(userId, summary.workoutStreakDays);
+      return json({
+        data: { ...envelope("personal-records"), records, achievements },
+        meta: { endpoint: "personal-records", count: records.length },
+      });
+    }
+    case "fittrack_cardio_history": {
+      const summary = await getCardioSummary(userId);
+      return json({
+        data: { ...envelope("cardio-history"), ...summary },
+        meta: { endpoint: "cardio-history" },
+      });
+    }
+    case "fittrack_body_measurements": {
+      const entries = await prisma.bodyMeasurement.findMany({
+        where: { userId },
+        orderBy: { date: "asc" },
+      });
+      return json({
+        data: {
+          ...envelope("body-measurements"),
+          entries: entries.map((e) => ({
+            date: e.date.toISOString().slice(0, 10),
+            neck: e.neck,
+            chest: e.chest,
+            leftArm: e.leftArm,
+            rightArm: e.rightArm,
+            waist: e.waist,
+            hips: e.hips,
+            leftThigh: e.leftThigh,
+            rightThigh: e.rightThigh,
+            notes: e.notes,
+          })),
+        },
+        meta: { endpoint: "body-measurements", count: entries.length },
+      });
+    }
+    case "fittrack_health": {
+      const days = clampWeeks(args.days != null ? String(args.days) : null, 30, 180);
+      const [snapshots, recovery, recoveryHistory] = await Promise.all([
+        getHealthSnapshots(userId, days),
+        computeRecovery(userId),
+        computeRecoveryHistory(userId, days),
+      ]);
+      return json({
+        data: { ...envelope("health"), snapshots, recovery, recoveryHistory },
+        meta: { endpoint: "health", days, snapshotCount: snapshots.length },
+      });
+    }
+    case "fittrack_calendar": {
+      const today =
+        args.today != null && /^\d{4}-\d{2}-\d{2}$/.test(String(args.today))
+          ? String(args.today)
+          : new Date().toISOString().slice(0, 10);
+      const rawHorizon = Number(args.horizonDays ?? DEFAULT_HORIZON_DAYS);
+      const horizonDays = Number.isFinite(rawHorizon)
+        ? Math.min(56, Math.max(1, Math.trunc(rawHorizon)))
+        : DEFAULT_HORIZON_DAYS;
+
+      const scheduled = async (kind: CalendarKind) => {
+        const entries =
+          kind === "TRAINING"
+            ? await computeTrainingSchedule(userId, today, horizonDays)
+            : await computeCardioSchedule(userId, today, horizonDays);
+        return applyOverrides(entries, await getCalendarOverrides(userId, kind, entries));
+      };
+
+      const settings = await prisma.userSettings.findUnique({
+        where: { userId },
+        select: { calendarSyncEnabled: true, cardioSyncEnabled: true },
+      });
+      const trainingEnabled = settings?.calendarSyncEnabled ?? false;
+      const cardioEnabled = settings?.cardioSyncEnabled ?? false;
+
+      return json({
+        data: {
+          ...envelope("calendar"),
+          horizonDays,
+          training: { enabled: trainingEnabled, events: trainingEnabled ? await scheduled("TRAINING") : [] },
+          cardio: { enabled: cardioEnabled, events: cardioEnabled ? await scheduled("CARDIO") : [] },
+        },
+        meta: { endpoint: "calendar", today, horizonDays },
+      });
+    }
+    case "fittrack_plans": {
+      const plans = await prisma.workoutPlan.findMany({
+        where: { userId },
+        orderBy: { updatedAt: "desc" },
+        include: {
+          sessions: {
+            orderBy: { order: "asc" },
+            include: {
+              exercises: {
+                orderBy: { order: "asc" },
+                include: {
+                  exercise: { select: { id: true, name: true, muscleGroup: true, equipment: true } },
+                },
+              },
+            },
+          },
+        },
+      });
+      return json({
+        data: { ...envelope("plans"), plans },
+        meta: { endpoint: "plans", count: plans.length },
+      });
+    }
+    case "fittrack_settings": {
+      // Read-only: never creates a UserSettings row (unlike GET /api/settings),
+      // and never exposes tokens or password material.
+      const settings = await prisma.userSettings.findUnique({ where: { userId } });
+      return json({
+        data: {
+          ...envelope("settings"),
+          locale: settings?.locale ?? null,
+          weightUnit: settings?.weightUnit ?? null,
+          theme: settings?.theme ?? null,
+          restTimerDefault: settings?.restTimerDefault ?? null,
+          calendarSyncEnabled: settings?.calendarSyncEnabled ?? false,
+          trainingWeekdays: settings?.trainingWeekdays ?? [],
+          trainingTimeMinutes: settings?.trainingTimeMinutes ?? null,
+          trainingDurationMinutes: settings?.trainingDurationMinutes ?? null,
+          cardioSyncEnabled: settings?.cardioSyncEnabled ?? false,
+          cardioWeekdays: settings?.cardioWeekdays ?? [],
+          cardioTimeMinutes: settings?.cardioTimeMinutes ?? null,
+          cardioDurationMinutes: settings?.cardioDurationMinutes ?? null,
+          cardioLabel: settings?.cardioLabel ?? null,
+        },
+        meta: { endpoint: "settings" },
+      });
     }
     default:
       throw new Error(`Unknown tool: ${name}`);
