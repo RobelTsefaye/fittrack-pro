@@ -406,12 +406,13 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             defer { group.leave() }
             guard let stepType = HKObjectType.quantityType(forIdentifier: .stepCount),
                   let workouts = samples as? [HKWorkout] else { return }
-            let indoorCardio = workouts.filter { w in
-                w.workoutActivityType == .elliptical
-                    || (w.workoutActivityType == .cycling
-                        && (w.metadata?[HKMetadataKeyIndoorWorkout] as? Bool ?? false))
+            // Cycling never produces real steps — pedaling motion, indoor or
+            // outdoor, still trips the Watch's motion coprocessor the same
+            // way an elliptical does. No indoor/outdoor distinction here.
+            let strideFreeCardio = workouts.filter { w in
+                w.workoutActivityType == .elliptical || w.workoutActivityType == .cycling
             }
-            for workout in indoorCardio {
+            for workout in strideFreeCardio {
                 group.enter()
                 let windowPredicate = HKQuery.predicateForSamples(
                     withStart: workout.startDate, end: workout.endDate, options: .strictStartDate
