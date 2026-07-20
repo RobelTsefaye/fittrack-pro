@@ -131,8 +131,12 @@ struct FitTrackComplication: Widget {
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: RecoveryComplicationProvider()) { entry in
-            FitTrackComplicationEntryView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+            if #available(iOS 17.0, watchOS 10.0, *) {
+                FitTrackComplicationEntryView(entry: entry)
+                    .containerBackground(.fill.tertiary, for: .widget)
+            } else {
+                FitTrackComplicationEntryView(entry: entry)
+            }
         }
         .configurationDisplayName("Recovery Score")
         .description("Zeigt deinen aktuellen Recovery-Score auf dem Zifferblatt.")

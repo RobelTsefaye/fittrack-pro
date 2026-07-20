@@ -166,7 +166,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
                     }
                     return
                 }
-                self.waitForReachableThenSendActiveWorkout(call: call)
+                self.waitForReachableThenSendActiveWorkout(call)
             }
         }
     }
