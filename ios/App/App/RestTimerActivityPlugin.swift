@@ -83,10 +83,16 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
     /// only one is ever shown.
     @objc func start(_ call: CAPPluginCall) {
         guard #available(iOS 16.1, *) else {
+            NSLog("[RestTimerActivity] start refused: iOS < 16.1")
             call.reject("Live Activities require iOS 16.1+")
             return
         }
+        // Off by default for some users, and toggled per-app under
+        // Settings > FitTrack > Live Activities. Every caller swallows the
+        // rejection (see rest-timer-activity.ts), so without this log a
+        // disabled switch is indistinguishable from a code bug.
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            NSLog("[RestTimerActivity] start refused: Live Activities disabled in iOS Settings")
             call.reject("Live Activities are disabled in system settings")
             return
         }
@@ -104,6 +110,7 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
             if UIApplication.shared.applicationState == .active {
                 self.requestActivity(endsAtMs: endsAtMs, title: title, call: call)
             } else {
+                NSLog("[RestTimerActivity] app not foreground-active — deferring start to didBecomeActive")
                 self.pendingStart = (endsAtMs, title)
                 WatchOfflineWorkoutStore.savePendingRestTimerLiveActivity(endsAt: endsAtMs / 1000)
                 call.resolve()
@@ -128,8 +135,13 @@ public class RestTimerActivityPlugin: CAPPlugin, CAPBridgedPlugin {
                 attributes: attributes,
                 content: .init(state: state, staleDate: nil)
             )
+            NSLog("[RestTimerActivity] started %@ (ends in %.0fs)", newActivity.id, endDate.timeIntervalSinceNow)
             call?.resolve(["id": newActivity.id])
         } catch {
+            // Most often "Target is not foreground" (a scene transition raced
+            // us) or ActivityKit's per-app simultaneous-Activity limit, which
+            // is reachable when stale Activities were never really ended.
+            NSLog("[RestTimerActivity] request FAILED: %@", String(describing: error))
             call?.reject("Failed to start Live Activity: \(error.localizedDescription)")
         }
     }
