@@ -2,6 +2,7 @@ import Foundation
 import HealthKit
 import Combine
 import WatchConnectivity
+import WatchKit
 
 /// Lightweight `Error` wrapper for a plain human-readable message —
 /// `Result`'s `Failure` type must conform to `Error`, which a bare `String`
@@ -43,12 +44,19 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// decide whether to show RouteMapView without needing their own copy of
     /// the indoor/outdoor mapping.
     @Published private(set) var currentActivityType: HKWorkoutActivityType?
+    @Published private(set) var activePlan: CardioSessionPlan?
+    @Published var sessionAlert: CardioSessionAlert?
 
-    /// True for activity types with a meaningful outdoor route to draw
-    /// (Laufen/Radfahren) — Kraft/HIIT run `.indoor` and have nothing to map.
-    var isOutdoorActivity: Bool {
+    enum CardioSessionAlert: Equatable { case enteredTargetZone, leftTargetZone, halftime }
+
+    var isCardioActivity: Bool {
         guard let type = currentActivityType else { return false }
-        return type != .traditionalStrengthTraining && type != .highIntensityIntervalTraining
+        return type == .running || type == .cycling || type == .elliptical
+    }
+
+    var usesGPS: Bool {
+        guard let plan = activePlan else { return false }
+        return !plan.isIndoor && (plan.activityType == .running || plan.activityType == .cycling)
     }
 
     /// Current HR zone (1-5), nil below Zone 1 or with no reading yet. A
@@ -85,7 +93,11 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// live — see the guard at the top of `start()`. Replayed from
     /// `resetState()` once that previous session has actually finished
     /// tearing down.
-    private var pendingStart: (activityType: HKWorkoutActivityType, startedAt: Date?)?
+    private var pendingStart: (plan: CardioSessionPlan, startedAt: Date?)?
+    private var sessionAlertShownAt: Date?
+    private var zoneMonitor: CardioZoneMonitor?
+    private var halftimeFired = false
+    private var autoStopFired = false
 
     /// Fired once `beginCollection` actually confirms the session started
     /// (or failed to). The Watch's own UI-driven start() calls omit this
@@ -199,7 +211,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// Manual Watch-only starts (Laufen/Radfahren tapped directly here) pass
     /// nil and just use "now", same as before.
     func start(
-        activityType: HKWorkoutActivityType,
+        plan: CardioSessionPlan,
         startedAt: Date? = nil,
         completion: ((Result<Void, SimpleError>) -> Void)? = nil
     ) {
@@ -219,23 +231,36 @@ final class WorkoutManager: NSObject, ObservableObject {
         // already moved on) and deferring the actual start until that
         // finishes tearing down avoids both problems.
         guard session == nil else {
-            pendingStart = (activityType, startedAt)
+            pendingStart = (plan, startedAt)
             isCancelling = true
             stopTimer()
             endSessionOrForceReset()
             return
         }
-        beginSession(activityType: activityType, startedAt: startedAt)
+        beginSession(plan: plan, startedAt: startedAt)
     }
 
-    private func beginSession(activityType: HKWorkoutActivityType, startedAt: Date?) {
-        currentActivityType = activityType
+    func start(
+        activityType: HKWorkoutActivityType,
+        startedAt: Date? = nil,
+        completion: ((Result<Void, SimpleError>) -> Void)? = nil
+    ) {
+        let plan = CardioSessionPlan(
+            activityType: activityType,
+            isIndoor: activityType == .traditionalStrengthTraining || activityType == .elliptical,
+            durationMinutes: nil,
+            targetZone: nil
+        )
+        start(plan: plan, startedAt: startedAt, completion: completion)
+    }
+
+    private func beginSession(plan: CardioSessionPlan, startedAt: Date?) {
+        currentActivityType = plan.activityType
+        activePlan = plan
+        zoneMonitor = plan.targetZone.map { CardioZoneMonitor(targetZone: $0) }
         let config = HKWorkoutConfiguration()
-        config.activityType = activityType
-        config.locationType = activityType == .traditionalStrengthTraining
-            || activityType == .highIntensityIntervalTraining
-            ? .indoor
-            : .outdoor
+        config.activityType = plan.activityType
+        config.locationType = plan.isIndoor ? .indoor : .outdoor
 
         do {
             session = try HKWorkoutSession(healthStore: store, configuration: config)
@@ -326,6 +351,7 @@ final class WorkoutManager: NSObject, ObservableObject {
             Task { @MainActor in
                 guard let self, let start = self.startDate else { return }
                 self.elapsedSeconds = Int(Date().timeIntervalSince(start) - self.totalPausedDuration)
+                self.handleTick()
             }
         }
     }
@@ -348,13 +374,56 @@ final class WorkoutManager: NSObject, ObservableObject {
         session = nil
         builder = nil
         currentActivityType = nil
+        activePlan = nil
+        zoneMonitor = nil
+        halftimeFired = false
+        autoStopFired = false
+        sessionAlert = nil
+        sessionAlertShownAt = nil
 
         // See the `session == nil` guard in start() — replays a start that
         // arrived while the previous session was still tearing down, now
         // that it actually has.
         if let pending = pendingStart {
             pendingStart = nil
-            beginSession(activityType: pending.activityType, startedAt: pending.startedAt)
+            beginSession(plan: pending.plan, startedAt: pending.startedAt)
+        }
+    }
+
+    private func showAlert(_ alert: CardioSessionAlert) {
+        sessionAlert = alert
+        sessionAlertShownAt = Date()
+    }
+
+    private func handleTick() {
+        if let shownAt = sessionAlertShownAt, Date().timeIntervalSince(shownAt) > 4 {
+            sessionAlert = nil
+            sessionAlertShownAt = nil
+        }
+        if let event = zoneMonitor?.evaluate(currentZone: currentHeartRateZone) {
+            switch event {
+            case .enteredZone:
+                WKInterfaceDevice.current().play(.success)
+                showAlert(.enteredTargetZone)
+            case .leftZone:
+                WKInterfaceDevice.current().play(.directionDown)
+                showAlert(.leftTargetZone)
+            }
+        }
+        guard let minutes = activePlan?.durationMinutes else { return }
+        let total = minutes * 60
+        if !autoStopFired, elapsedSeconds >= total {
+            autoStopFired = true
+            halftimeFired = true
+            WKInterfaceDevice.current().play(.stop)
+            WatchCardioNotifications.notifyCardioComplete()
+            stop()
+            return
+        }
+        if !halftimeFired, elapsedSeconds >= total / 2 {
+            halftimeFired = true
+            WKInterfaceDevice.current().play(.notification)
+            showAlert(.halftime)
         }
     }
 }

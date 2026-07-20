@@ -50,7 +50,7 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     /// received." `@MainActor`-typed since the implementation calls into
     /// WorkoutManager (itself @MainActor) — the `Task { @MainActor in ... }`
     /// call site below hops there before invoking it.
-    var onCardioStartRequested: (@MainActor (_ activityType: String) async -> Result<Void, SimpleError>)?
+    var onCardioStartRequested: (@MainActor (_ plan: CardioSessionPlan) async -> Result<Void, SimpleError>)?
 
     /// Set once in ContentView.onAppear — ends/discards the shared
     /// WorkoutManager session in response to a phone-initiated stop request.
@@ -361,8 +361,7 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     }
 
     /// Pushes live HR/calories/elapsed/zone to the phone while *any*
-    /// Laufen/Radfahren session is running — Watch-started or
-    /// phone-started, see ContentView's isOutdoorActivity-gated call sites.
+    /// cardio session is running — Watch-started or phone-started.
     /// `sendMessage`, not transferUserInfo or application context: this
     /// needs low latency and we only ever care about the *latest* reading,
     /// never a backlog. A dropped update because the Watch was momentarily
@@ -372,7 +371,9 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
         heartRate: Double,
         activeCalories: Double,
         elapsedSeconds: Int,
-        zone: Int?
+        zone: Int?,
+        targetZone: Int?,
+        durationSeconds: Int?
     ) {
         guard WCSession.default.isReachable else { return }
         var payload: [String: Any] = [
@@ -383,6 +384,8 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
             "elapsedSeconds": elapsedSeconds,
         ]
         if let zone { payload["zone"] = zone }
+        if let targetZone { payload["targetZone"] = targetZone }
+        if let durationSeconds { payload["durationSeconds"] = durationSeconds }
         WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: nil)
     }
 
@@ -437,8 +440,8 @@ extension PhoneWorkoutObserver: WCSessionDelegate {
         }
         switch type {
         case "startCardio":
-            guard let activityType = message["activityType"] as? String else {
-                replyHandler(["error": "Missing activityType"])
+            guard let plan = CardioSessionPlan(message: message) else {
+                replyHandler(["error": "Unbekannter Aktivitätstyp"])
                 return
             }
             guard let handler = onCardioStartRequested else {
@@ -450,7 +453,7 @@ extension PhoneWorkoutObserver: WCSessionDelegate {
             // which is @MainActor — hop explicitly rather than relying on
             // await-a-closure to do it implicitly.
             Task { @MainActor in
-                let result = await handler(activityType)
+                let result = await handler(plan)
                 switch result {
                 case .success:
                     replyHandler(["started": true])

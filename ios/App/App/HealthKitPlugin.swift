@@ -96,6 +96,7 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         // can never race each other.
         let resultsQueue = DispatchQueue(label: "com.robeltsefaye.fittrackpro.healthkit.results")
         var results: [String: [String: Any]] = [:] // dateKey -> record
+        var stepsToSubtract: [String: Double] = [:]
 
         func dateKey(_ d: Date) -> String {
             let f = DateFormatter()
@@ -394,7 +395,51 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             runOvernightVitalQuery(id: .appleSleepingWristTemperature, field: "wristTemperature") { $0.averageQuantity()?.doubleValue(for: celsius) }
         }
 
+        group.enter()
+        let workoutPredicate = HKQuery.predicateForSamples(withStart: startDate, end: now, options: .strictStartDate)
+        let workoutQuery = HKSampleQuery(
+            sampleType: .workoutType(),
+            predicate: workoutPredicate,
+            limit: HKObjectQueryNoLimit,
+            sortDescriptors: nil
+        ) { _, samples, _ in
+            defer { group.leave() }
+            guard let stepType = HKObjectType.quantityType(forIdentifier: .stepCount),
+                  let workouts = samples as? [HKWorkout] else { return }
+            let indoorCardio = workouts.filter { w in
+                w.workoutActivityType == .elliptical
+                    || (w.workoutActivityType == .cycling
+                        && (w.metadata?[HKMetadataKeyIndoorWorkout] as? Bool ?? false))
+            }
+            for workout in indoorCardio {
+                group.enter()
+                let windowPredicate = HKQuery.predicateForSamples(
+                    withStart: workout.startDate, end: workout.endDate, options: .strictStartDate
+                )
+                let stepsQuery = HKStatisticsQuery(
+                    quantityType: stepType,
+                    quantitySamplePredicate: windowPredicate,
+                    options: [.cumulativeSum, .separateBySource]
+                ) { _, stats, _ in
+                    defer { group.leave() }
+                    guard let stats else { return }
+                    let watchSource = stats.sources?.first(where: { $0.name.localizedCaseInsensitiveContains("watch") })
+                    let quantity = watchSource.flatMap { stats.sumQuantity(for: $0) } ?? stats.sumQuantity()
+                    guard let value = quantity?.doubleValue(for: .count()), value > 0 else { return }
+                    resultsQueue.sync {
+                        stepsToSubtract[dateKey(workout.startDate), default: 0] += value
+                    }
+                }
+                self.store.execute(stepsQuery)
+            }
+        }
+        store.execute(workoutQuery)
+
         group.notify(queue: .main) {
+            for (key, subtract) in stepsToSubtract {
+                guard subtract > 0, let steps = results[key]?["steps"] as? Double else { continue }
+                results[key]?["steps"] = max(0, steps - subtract)
+            }
             call.resolve(["data": Array(results.values)])
         }
     }
