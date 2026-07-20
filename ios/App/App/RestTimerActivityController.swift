@@ -25,8 +25,15 @@ enum RestTimerActivityController {
         }
     }
 
+    /// Drops a stashed start whose rest period already elapsed while the app
+    /// was backgrounded — the common case, since the phone may not come back
+    /// to the foreground for hours. Replaying it verbatim would pin an
+    /// already-expired countdown into the Dynamic Island with nothing left to
+    /// end it.
     static func takePendingStart() -> Double? {
-        WatchOfflineWorkoutStore.takePendingRestTimerLiveActivity()
+        guard let endsAt = WatchOfflineWorkoutStore.takePendingRestTimerLiveActivity() else { return nil }
+        guard endsAt > Date().timeIntervalSince1970 else { return nil }
+        return endsAt
     }
 
     static func clearPendingStart() {

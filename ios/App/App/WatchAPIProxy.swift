@@ -189,7 +189,14 @@ enum WatchAPIProxy {
                     clearRestTimerEffects()
                 }
             }
-            return (["personalRecord": result.personalRecord, "workoutJSON": nullable(fetched?.json)], contextUpdate)
+            // Omit the key entirely when the re-fetch failed rather than
+            // sending a null: WCSession replies must be property-list-safe,
+            // and PhoneWorkoutObserver.logSet already treats an absent
+            // `workoutJSON` as "nothing authoritative to apply, keep the
+            // optimistic local update."
+            var reply: [String: Any] = ["personalRecord": result.personalRecord]
+            if let json = fetched?.json { reply["workoutJSON"] = json }
+            return (reply, contextUpdate)
         } catch {
             return (["error": describeError(error)], nil)
         }
@@ -877,10 +884,15 @@ enum WatchAPIProxy {
                 }
             }
         }
+        // Mirrors shouldRestAfterExercise in superset-utils.ts: only the LAST
+        // member of a superset group starts a full rest period; finishing an
+        // earlier member means going straight into the next exercise. Relies
+        // on workoutExercises arriving in `order` (GET /api/workouts/[id]
+        // sorts by it), same assumption the JS helper makes.
         if let latestWorkoutExerciseId,
            let latest = workout.workoutExercises.first(where: { $0.id == latestWorkoutExerciseId }),
            let group = latest.supersetGroup,
-           workout.workoutExercises.lastIndex(where: { $0.supersetGroup == group }) != workout.workoutExercises.firstIndex(where: { $0.id == latestWorkoutExerciseId }) {
+           workout.workoutExercises.last(where: { $0.supersetGroup == group })?.id != latestWorkoutExerciseId {
             return nil
         }
         return anchor + (workout.restTimerDefaultSeconds ?? defaultRestSeconds) + (workout.restTimerAdjustSeconds ?? 0)

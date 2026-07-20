@@ -127,12 +127,20 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve()
             return
         }
-        lastActiveWorkoutJSON = workoutJSON
         latestContext["active"] = true
         latestContext["activeWorkout"] = workoutJSON
         latestContext["updatedAt"] = Date().timeIntervalSince1970
 
+        // Only remember this payload as "delivered" once the context push
+        // actually succeeded. Caching it up front meant a single failed push
+        // (Watch app not installed yet, session momentarily unusable) marked
+        // the workout as sent forever: the detail screen re-pushes the very
+        // same JSON every poll tick, so the dedupe guard above swallowed
+        // every retry and the workout never reached the Watch again for the
+        // rest of the session.
         let pushed = pushContextToWatch()
+        if pushed { lastActiveWorkoutJSON = workoutJSON }
+
         if WCSession.default.isReachable,
            lastActiveWorkoutMessageAt.map({ Date().timeIntervalSince($0) >= 1 }) ?? true {
             lastActiveWorkoutMessageAt = Date()
@@ -142,7 +150,11 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
                 errorHandler: nil
             )
         }
-        pushed ? call.resolve() : call.reject("Failed to update Watch context")
+        // Deliberately never rejects: Watch mirroring is best-effort by
+        // design (syncActiveWorkoutToWatch swallows errors anyway), and
+        // updateApplicationContext throws routinely on a phone whose Watch
+        // app simply isn't installed — that is not a workout-logging error.
+        call.resolve()
     }
 
     /// Starts the paired Watch app through HealthKit, then sends the most
@@ -673,7 +685,16 @@ extension WatchConnectivityPlugin: WCSessionDelegate {
                     }
                     self.pushContextToWatch()
                 }
-                replyHandler(reply)
+                // WCSession reply dictionaries must contain only property-list
+                // types — an NSNull (which the payload builders emit for any
+                // absent optional, e.g. logSet's workoutJSON when the re-fetch
+                // failed) raises NSInvalidArgumentException here and takes the
+                // whole app down, or at best strands the Watch on a 10s
+                // timeout with no reply. The JS bridge path below already
+                // routes through `sanitized` via respondToRequest; this native
+                // path did not, so it only stayed safe as long as no handler
+                // ever returned an optional.
+                replyHandler(self.sanitized(reply))
             }
             return
         }

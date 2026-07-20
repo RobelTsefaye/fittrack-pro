@@ -94,6 +94,13 @@ type NativeWatchPending = {
   }>;
 };
 
+/** Workouts this app session has already force-launched the Watch app for.
+ *  Module scope, not a ref: `startWatchApp` yanks the Watch to the
+ *  foreground, so navigating away from a workout and back — which remounts
+ *  this component and would reset a ref — must not interrupt whatever the
+ *  user is doing on their wrist a second time. */
+const wokenWatchWorkoutIds = new Set<string>();
+
 function nativeWatchPendingToWorkout(pending: NativeWatchPending): WorkoutData {
   return {
     id: pending.id,
@@ -608,6 +615,24 @@ export function WorkoutDetail({
     }
   }, [workout]);
 
+  /** Wakes the paired Watch app once per active workout, so a workout
+   *  started on the phone shows up on the wrist without the user having to
+   *  open the Watch app by hand.
+   *
+   *  Deliberately its OWN effect, not folded into the rest-timer autostart
+   *  below: that one bails out whenever there is no rest period currently
+   *  running (mid-superset, or a rest that already elapsed), which has
+   *  nothing to do with whether the Watch should be woken. Sharing a guard
+   *  meant the common "start a workout, open the Watch" case silently never
+   *  woke the Watch at all. */
+  useEffect(() => {
+    if (!isActive || !workout) return;
+    if (wokenWatchWorkoutIds.has(workout.id)) return;
+    wokenWatchWorkoutIds.add(workout.id);
+    void wakeWatchAppForWorkout();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, workout?.id]);
+
   /** Starts timer surfaces once per workout, including a workout that began
    *  on the Watch and is opened on the phone mid-rest. */
   const autoStartedRef = useRef<string | null>(null);
@@ -624,7 +649,6 @@ export function WorkoutDetail({
     // moment the phone happened to open instead of continuing the one
     // already running.
     startRestTimerFromServerAnchor(workout);
-    void wakeWatchAppForWorkout();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, workout, defaultRestSeconds]);
 
