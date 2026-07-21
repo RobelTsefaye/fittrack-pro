@@ -30,6 +30,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     @Published var elapsedSeconds: Int = 0
     @Published var heartRate: Double = 0
     @Published var activeCalories: Double = 0
+    @Published var stepCount: Int = 0
     @Published var authorizationGranted = false
     @Published var errorMessage: String?
     /// Human-readable dump of authorizationStatus(for:) per share type —
@@ -47,16 +48,23 @@ final class WorkoutManager: NSObject, ObservableObject {
     @Published private(set) var activePlan: CardioSessionPlan?
     @Published var sessionAlert: CardioSessionAlert?
 
-    enum CardioSessionAlert: Equatable { case enteredTargetZone, leftTargetZone, halftime }
+    enum CardioSessionAlert: Equatable { case enteredTargetZone, leftTargetZone, halftime, stepGoalReached }
 
     var isCardioActivity: Bool {
+        guard let type = currentActivityType else { return false }
+        return type == .running || type == .cycling || type == .elliptical || type == .walking
+    }
+
+    /// Running/cycling/elliptical are paced by HR zones; walking is
+    /// step-driven and shows no zone indicator or zone coaching.
+    var usesHeartRateZones: Bool {
         guard let type = currentActivityType else { return false }
         return type == .running || type == .cycling || type == .elliptical
     }
 
     var usesGPS: Bool {
         guard let plan = activePlan else { return false }
-        return !plan.isIndoor && (plan.activityType == .running || plan.activityType == .cycling)
+        return !plan.isIndoor && (plan.activityType == .running || plan.activityType == .cycling || plan.activityType == .walking)
     }
 
     /// Current HR zone (1-5), nil below Zone 1 or with no reading yet. A
@@ -98,6 +106,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     private var zoneMonitor: CardioZoneMonitor?
     private var halftimeFired = false
     private var autoStopFired = false
+    private var stepGoalFired = false
 
     /// Fired once `beginCollection` actually confirms the session started
     /// (or failed to). The Watch's own UI-driven start() calls omit this
@@ -112,6 +121,7 @@ final class WorkoutManager: NSObject, ObservableObject {
         [
             HKObjectType.quantityType(forIdentifier: .heartRate)!,
             HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
+            HKObjectType.quantityType(forIdentifier: .stepCount)!,
             HKObjectType.quantityType(forIdentifier: .restingHeartRate)!,
             HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!,
             HKObjectType.activitySummaryType(),
@@ -249,7 +259,8 @@ final class WorkoutManager: NSObject, ObservableObject {
             activityType: activityType,
             isIndoor: activityType == .traditionalStrengthTraining || activityType == .elliptical,
             durationMinutes: nil,
-            targetZone: nil
+            targetZone: nil,
+            stepGoal: nil
         )
         start(plan: plan, startedAt: startedAt, completion: completion)
     }
@@ -265,7 +276,11 @@ final class WorkoutManager: NSObject, ObservableObject {
         do {
             session = try HKWorkoutSession(healthStore: store, configuration: config)
             builder = session?.associatedWorkoutBuilder()
-            builder?.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: config)
+            let dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: config)
+            if let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) {
+                dataSource.enableCollection(for: stepType, predicate: nil)
+            }
+            builder?.dataSource = dataSource
             session?.delegate = self
             builder?.delegate = self
 
@@ -367,6 +382,7 @@ final class WorkoutManager: NSObject, ObservableObject {
         elapsedSeconds = 0
         heartRate = 0
         activeCalories = 0
+        stepCount = 0
         startDate = nil
         pauseStartDate = nil
         totalPausedDuration = 0
@@ -378,6 +394,7 @@ final class WorkoutManager: NSObject, ObservableObject {
         zoneMonitor = nil
         halftimeFired = false
         autoStopFired = false
+        stepGoalFired = false
         sessionAlert = nil
         sessionAlertShownAt = nil
 
@@ -409,6 +426,14 @@ final class WorkoutManager: NSObject, ObservableObject {
                 WKInterfaceDevice.current().play(.directionDown)
                 showAlert(.leftTargetZone)
             }
+        }
+        if let goal = activePlan?.stepGoal, !stepGoalFired, stepCount >= goal {
+            stepGoalFired = true
+            WKInterfaceDevice.current().play(.success)
+            WatchCardioNotifications.notifyStepGoalReached(goal: goal)
+            showAlert(.stepGoalReached)
+            // Bewusst KEIN stop() — Ziel erreicht heißt nur benachrichtigen,
+            // der Spaziergang läuft weiter bis zum manuellen Beenden.
         }
         guard let minutes = activePlan?.durationMinutes else { return }
         let total = minutes * 60
@@ -508,6 +533,8 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
                     self.heartRate = statistics.mostRecentQuantity()?.doubleValue(for: unit) ?? self.heartRate
                 } else if quantityType == HKObjectType.quantityType(forIdentifier: .activeEnergyBurned) {
                     self.activeCalories = statistics.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? self.activeCalories
+                } else if quantityType == HKObjectType.quantityType(forIdentifier: .stepCount) {
+                    self.stepCount = Int(statistics.sumQuantity()?.doubleValue(for: .count()) ?? Double(self.stepCount))
                 }
             }
         }
