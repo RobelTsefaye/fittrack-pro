@@ -390,6 +390,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         var fields: [String: Any] = ["activityType": activityType, "isIndoor": isIndoor]
         if let duration = call.getInt("durationMinutes"), duration > 0 { fields["durationMinutes"] = duration }
         if let zone = call.getInt("targetZone"), (1...5).contains(zone) { fields["targetZone"] = zone }
+        if let goal = call.getInt("stepGoal"), goal > 0 { fields["stepGoal"] = goal }
         if WCSession.default.isReachable {
             sendRequestToWatch(type: "startCardio", fields: fields, call: call)
             return
@@ -431,6 +432,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         switch raw {
         case "cycling": return .cycling
         case "elliptical": return .elliptical
+        case "walking": return .walking
         default: return .running
         }
     }
