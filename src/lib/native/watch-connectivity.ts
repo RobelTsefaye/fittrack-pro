@@ -28,10 +28,11 @@ export interface WatchConnectivityPlugin {
   syncRecoverySnapshot(options: { score: number; level: string }): Promise<void>;
   respondToRequest(options: { requestId: string; payload: Record<string, unknown> }): Promise<void>;
   startCardioSession(options: {
-    activityType: "running" | "cycling" | "elliptical";
+    activityType: "running" | "cycling" | "elliptical" | "walking";
     isIndoor: boolean;
     durationMinutes?: number;
     targetZone?: number;
+    stepGoal?: number;
   }): Promise<{ started: true }>;
   stopCardioSession(options: { discard: boolean }): Promise<{ done: true }>;
   addListener(
@@ -60,6 +61,8 @@ export interface WatchConnectivityPlugin {
       zone?: number;
       targetZone?: number;
       durationSeconds?: number;
+      stepCount?: number;
+      stepGoal?: number;
     }) => void
   ): Promise<{ remove: () => void }>;
 }

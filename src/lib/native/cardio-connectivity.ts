@@ -15,7 +15,7 @@ import { WatchConnectivity } from "./watch-connectivity";
  * on WatchConnectivityPlugin there for the merged method/listener surface.
  */
 
-export type CardioActivityType = "running" | "cycling" | "elliptical";
+export type CardioActivityType = "running" | "cycling" | "elliptical" | "walking";
 
 export type CardioSessionConfig = {
   activityType: CardioActivityType;
@@ -25,6 +25,8 @@ export type CardioSessionConfig = {
   durationMinutes: number | null;
   /** null = no target zone. Else 1–5. */
   targetZone: number | null;
+  /** null = no step goal; walking only. */
+  stepGoal: number | null;
 };
 
 export type CardioLiveUpdate = {
@@ -38,6 +40,10 @@ export type CardioLiveUpdate = {
   targetZone?: number;
   /** Absent unless the session was configured with one. */
   durationSeconds?: number;
+  /** Absent unless the session is walking. */
+  stepCount?: number;
+  /** Absent unless the session was configured with one. */
+  stepGoal?: number;
 };
 
 /** Thrown by startCardioSessionOnWatch when not running in the native app —
@@ -59,6 +65,7 @@ export async function startCardioSessionOnWatch(config: CardioSessionConfig): Pr
     isIndoor: config.activityType === "elliptical" ? true : config.isIndoor,
     ...(config.durationMinutes != null ? { durationMinutes: config.durationMinutes } : {}),
     ...(config.targetZone != null ? { targetZone: config.targetZone } : {}),
+    ...(config.stepGoal != null ? { stepGoal: config.stepGoal } : {}),
   });
 }
 

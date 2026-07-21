@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "@/components/app-link";
 import { useRouter } from "next/navigation";
-import { Activity, ArrowLeft, Bike, CheckCircle2, Flame, Footprints, HeartPulse, PictureInPicture2, Timer as TimerIcon, X } from "lucide-react";
+import { Activity, ArrowLeft, Bike, CheckCircle2, Flame, Footprints, HeartPulse, PersonStanding, PictureInPicture2, Timer as TimerIcon, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,6 +62,7 @@ export default function CardioWorkoutPage() {
   const [isIndoor, setIsIndoor] = useState(false);
   const [durationMinutes, setDurationMinutes] = useState<number | null>(null);
   const [targetZone, setTargetZone] = useState<HeartRateZone | null>(null);
+  const [stepGoal, setStepGoal] = useState<number | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
@@ -130,6 +131,7 @@ export default function CardioWorkoutPage() {
     setIsIndoor(type === "elliptical");
     setDurationMinutes(null);
     setTargetZone(null);
+    setStepGoal(null);
     setError(null);
     setStep("config");
   }
@@ -139,7 +141,7 @@ export default function CardioWorkoutPage() {
     setError(null);
     setStarting(true);
     try {
-      await startCardioSessionOnWatch({ activityType: selectedType, isIndoor, durationMinutes, targetZone });
+      await startCardioSessionOnWatch({ activityType: selectedType, isIndoor, durationMinutes, targetZone, stepGoal });
       setActivityType(selectedType);
     } catch (err) {
       if (err instanceof CardioNotNativeError) {
@@ -200,13 +202,16 @@ export default function CardioWorkoutPage() {
               <Button className="w-full justify-start gap-3" size="lg" variant="outline" onClick={() => handlePick("elliptical")}>
                 <Activity className="h-5 w-5" />{t("cardio.crosstrainer")}
               </Button>
+              <Button className="w-full justify-start gap-3" size="lg" variant="outline" onClick={() => handlePick("walking")}>
+                <PersonStanding className="h-5 w-5" />{t("cardio.walking")}
+              </Button>
             </CardContent>
           </Card>
         ) : (
           <Card>
             <CardHeader>
               <CardTitle>{t("cardio.configTitle")}</CardTitle>
-              <CardDescription>{t("cardio.configSubtitle")}</CardDescription>
+              <CardDescription>{selectedType === "walking" ? t("cardio.configSubtitleWalking") : t("cardio.configSubtitle")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               {selectedType !== "elliptical" ? <div className="space-y-2">
@@ -216,20 +221,34 @@ export default function CardioWorkoutPage() {
                   <Button variant={isIndoor ? "default" : "outline"} onClick={() => setIsIndoor(true)}>{t("cardio.indoor")}</Button>
                 </div>
               </div> : null}
-              <div className="space-y-2">
-                <p className="text-sm font-medium">{t("cardio.durationLabel")}</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button variant={durationMinutes === null ? "default" : "outline"} onClick={() => setDurationMinutes(null)}>{t("cardio.durationFree")}</Button>
-                  {[30, 45, 60, 75, 90].map((m) => <Button key={m} variant={durationMinutes === m ? "default" : "outline"} onClick={() => setDurationMinutes(m)}>{t("cardio.durationMinutes", { minutes: m })}</Button>)}
+              {selectedType === "walking" ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">{t("cardio.stepGoalLabel")}</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button variant={stepGoal === null ? "default" : "outline"} onClick={() => setStepGoal(null)}>{t("cardio.stepGoalNone")}</Button>
+                    {[5000, 8000, 10000, 12000, 15000].map((g) => (
+                      <Button key={g} variant={stepGoal === g ? "default" : "outline"} onClick={() => setStepGoal(g)}>{g}</Button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium">{t("cardio.targetZoneLabel")}</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button variant={targetZone === null ? "default" : "outline"} onClick={() => setTargetZone(null)}>{t("cardio.targetZoneNone")}</Button>
-                  {([1, 2, 3, 4, 5] as HeartRateZone[]).map((z) => <Button key={z} variant={targetZone === z ? "default" : "outline"} onClick={() => setTargetZone(z)}>{t("cardio.zoneLabel", { zone: z })}</Button>)}
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">{t("cardio.durationLabel")}</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button variant={durationMinutes === null ? "default" : "outline"} onClick={() => setDurationMinutes(null)}>{t("cardio.durationFree")}</Button>
+                      {[30, 45, 60, 75, 90].map((m) => <Button key={m} variant={durationMinutes === m ? "default" : "outline"} onClick={() => setDurationMinutes(m)}>{t("cardio.durationMinutes", { minutes: m })}</Button>)}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">{t("cardio.targetZoneLabel")}</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button variant={targetZone === null ? "default" : "outline"} onClick={() => setTargetZone(null)}>{t("cardio.targetZoneNone")}</Button>
+                      {([1, 2, 3, 4, 5] as HeartRateZone[]).map((z) => <Button key={z} variant={targetZone === z ? "default" : "outline"} onClick={() => setTargetZone(z)}>{t("cardio.zoneLabel", { zone: z })}</Button>)}
+                    </div>
+                  </div>
+                </>
+              )}
               <Button className="w-full" size="lg" disabled={starting} onClick={() => void handleStart()}>{t("cardio.start")}</Button>
               {starting ? <p className="text-center text-sm text-muted-foreground">{t("cardio.starting")}</p> : null}
               {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -279,8 +298,21 @@ export default function CardioWorkoutPage() {
             <p className="text-center text-sm text-muted-foreground">{t("cardio.waitingForData")}</p>
           ) : (
             <>
-              {/* Zone — dominant, matches the Watch's own ZoneIndicatorView */}
-              <div className="flex flex-col items-center gap-1.5">
+              {live.stepCount != null ? (
+                <div className="flex flex-col items-center gap-1.5">
+                  <span className="font-display text-6xl font-bold leading-none tabular-nums text-green-500">{live.stepCount}</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {live.stepGoal ? t("cardio.stepGoalChip", { goal: live.stepGoal }) : t("cardio.stepsLabel")}
+                  </span>
+                  {live.stepGoal ? (
+                    <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-green-500 transition-[width] duration-700 ease-out" style={{ width: `${Math.min(100, (live.stepCount / live.stepGoal) * 100)}%` }} />
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                /* Zone — dominant, matches the Watch's own ZoneIndicatorView */
+                <div className="flex flex-col items-center gap-1.5">
                 <span
                   className="font-display text-6xl font-bold leading-none tabular-nums"
                   style={{ color: zoneColor }}
@@ -319,7 +351,8 @@ export default function CardioWorkoutPage() {
                     );
                   })}
                 </div>
-              </div>
+                </div>
+              )}
 
               {live && (live.targetZone || live.durationSeconds) ? (
                 <div className="flex justify-center gap-2">
