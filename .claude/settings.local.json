@@ -128,7 +128,24 @@
       "Bash(npm run *)",
       "Bash(echo \"PID: $!\")",
       "Bash(curl *)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(npx cap *)",
+      "Bash(xcodebuild -scheme App -destination 'generic/platform=iOS Simulator' -configuration Debug build CODE_SIGNING_ALLOWED=NO)",
+      "Bash(xcodebuild -list)",
+      "Bash(xcodebuild -target \"FitTrackWatch Watch App\" -destination 'generic/platform=watchOS Simulator' -configuration Debug build CODE_SIGNING_ALLOWED=NO)",
+      "Bash(node /private/tmp/claude-501/-Users-robeltsefaye-FitnessApp/325fc3f9-fd7a-4069-b6c6-d84d80ac9975/scratchpad/check.mjs)",
+      "Bash(node ._check_rest.mjs)",
+      "Bash(node ._check_rest.cjs)",
+      "Bash(npx eslint *)",
+      "Bash(echo \"=== eslint done \\(exit $?\\) ===\")",
+      "Bash(git check-ignore *)",
+      "Bash(git fetch *)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git log *)",
+      "Bash(set -e)",
+      "Bash(mkdir -p /Users/robeltsefaye/FitnessApp/src/app/api/ai/body-measurements \\\\ *)",
+      "Bash(nohup npm run dev > /tmp/nextdev.log 2>&1 & *)"
     ]
   }
 }
