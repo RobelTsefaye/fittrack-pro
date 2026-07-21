@@ -14,8 +14,10 @@ struct CardioConfigView: View {
     @State private var isIndoor: Bool
     @State private var durationMinutes: Int = 0
     @State private var targetZone: Int = 0
+    @State private var stepGoal: Int = 0
 
     private static let durationChoices = [0, 30, 45, 60, 75, 90]
+    private static let stepGoalChoices = [0, 5000, 8000, 10000, 12000, 15000]
 
     init(workoutManager: WorkoutManager, activityType: HKWorkoutActivityType, title: String) {
         self.workoutManager = workoutManager
@@ -32,23 +34,32 @@ struct CardioConfigView: View {
                     Text("Indoor").tag(true)
                 }
             }
-            Picker("Dauer", selection: $durationMinutes) {
-                ForEach(Self.durationChoices, id: \.self) { m in
-                    Text(m == 0 ? "Frei" : "\(m) min").tag(m)
+            if activityType == .walking {
+                Picker("Schrittziel", selection: $stepGoal) {
+                    ForEach(Self.stepGoalChoices, id: \.self) { g in
+                        Text(g == 0 ? "Kein Ziel" : "\(g)").tag(g)
+                    }
                 }
-            }
-            Picker("Zielzone", selection: $targetZone) {
-                Text("Keine").tag(0)
-                ForEach(1...5, id: \.self) { z in
-                    Text("Zone \(z)").tag(z)
+            } else {
+                Picker("Dauer", selection: $durationMinutes) {
+                    ForEach(Self.durationChoices, id: \.self) { m in
+                        Text(m == 0 ? "Frei" : "\(m) min").tag(m)
+                    }
+                }
+                Picker("Zielzone", selection: $targetZone) {
+                    Text("Keine").tag(0)
+                    ForEach(1...5, id: \.self) { z in
+                        Text("Zone \(z)").tag(z)
+                    }
                 }
             }
             Button {
                 workoutManager.start(plan: CardioSessionPlan(
                     activityType: activityType,
                     isIndoor: isIndoor,
-                    durationMinutes: durationMinutes == 0 ? nil : durationMinutes,
-                    targetZone: targetZone == 0 ? nil : targetZone
+                    durationMinutes: activityType == .walking ? nil : (durationMinutes == 0 ? nil : durationMinutes),
+                    targetZone: activityType == .walking ? nil : (targetZone == 0 ? nil : targetZone),
+                    stepGoal: activityType == .walking ? (stepGoal == 0 ? nil : stepGoal) : nil
                 ))
             } label: {
                 Label("Starten", systemImage: "play.fill")

@@ -31,6 +31,7 @@ private struct WorkoutTypeOption: Identifiable {
         WorkoutTypeOption(id: .running, label: "Laufen", icon: "figure.run"),
         WorkoutTypeOption(id: .cycling, label: "Radfahren", icon: "figure.outdoor.cycle"),
         WorkoutTypeOption(id: .elliptical, label: "Crosstrainer", icon: "figure.elliptical"),
+        WorkoutTypeOption(id: .walking, label: "Spazieren", icon: "figure.walk"),
     ]
 }
 
@@ -142,7 +143,9 @@ struct ContentView: View {
                 elapsedSeconds: seconds,
                 zone: workoutManager.currentHeartRateZone,
                 targetZone: workoutManager.activePlan?.targetZone,
-                durationSeconds: workoutManager.activePlan?.durationMinutes.map { $0 * 60 }
+                durationSeconds: workoutManager.activePlan?.durationMinutes.map { $0 * 60 },
+                stepCount: workoutManager.currentActivityType == .walking ? workoutManager.stepCount : nil,
+                stepGoal: workoutManager.activePlan?.stepGoal
             )
         }
         .onChange(of: workoutManager.isRunning) { wasRunning, isRunning in
@@ -158,7 +161,9 @@ struct ContentView: View {
                     elapsedSeconds: workoutManager.elapsedSeconds,
                     zone: workoutManager.currentHeartRateZone,
                     targetZone: workoutManager.activePlan?.targetZone,
-                    durationSeconds: workoutManager.activePlan?.durationMinutes.map { $0 * 60 }
+                    durationSeconds: workoutManager.activePlan?.durationMinutes.map { $0 * 60 },
+                    stepCount: workoutManager.currentActivityType == .walking ? workoutManager.stepCount : nil,
+                    stepGoal: workoutManager.activePlan?.stepGoal
                 )
             } else if wasRunning, !isRunning, lastCardioPushWasActive {
                 // By this point resetState() already cleared
@@ -167,7 +172,7 @@ struct ContentView: View {
                 // this flag remembers it from while it was still running.
                 phoneObserver.pushCardioLiveUpdate(
                     isRunning: false, heartRate: 0, activeCalories: 0, elapsedSeconds: 0, zone: nil,
-                    targetZone: nil, durationSeconds: nil
+                    targetZone: nil, durationSeconds: nil, stepCount: nil, stepGoal: nil
                 )
                 lastCardioPushWasActive = false
             }
@@ -485,8 +490,26 @@ private struct LiveWorkoutView: View {
             // Zones only make sense for cardio — Kraft shares this same live screen as an HR companion
             // display but aren't paced by heart-rate zones the way a run or
             // ride is.
-            if workoutManager.isCardioActivity {
+            if workoutManager.usesHeartRateZones {
                 ZoneIndicatorView(zone: workoutManager.currentHeartRateZone, heartRate: workoutManager.heartRate)
+            }
+
+            if workoutManager.currentActivityType == .walking {
+                VStack(spacing: 2) {
+                    Text("\(workoutManager.stepCount)")
+                        .font(.system(size: 40, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.green)
+                    if let goal = workoutManager.activePlan?.stepGoal {
+                        Text("Ziel: \(goal)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Schritte")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             if let alert = workoutManager.sessionAlert {
@@ -642,6 +665,7 @@ private struct LiveWorkoutView: View {
         case .enteredTargetZone: return "Zielzone erreicht"
         case .leftTargetZone: return "Zielzone verlassen"
         case .halftime: return "Halbzeit"
+        case .stepGoalReached: return "Ziel erreicht"
         }
     }
 
@@ -650,6 +674,7 @@ private struct LiveWorkoutView: View {
         case .enteredTargetZone: return .green
         case .leftTargetZone: return .orange
         case .halftime: return .blue
+        case .stepGoalReached: return .green
         }
     }
 }

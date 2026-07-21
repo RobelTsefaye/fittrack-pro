@@ -373,7 +373,9 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
         elapsedSeconds: Int,
         zone: Int?,
         targetZone: Int?,
-        durationSeconds: Int?
+        durationSeconds: Int?,
+        stepCount: Int?,
+        stepGoal: Int?
     ) {
         guard WCSession.default.isReachable else { return }
         var payload: [String: Any] = [
@@ -386,6 +388,8 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
         if let zone { payload["zone"] = zone }
         if let targetZone { payload["targetZone"] = targetZone }
         if let durationSeconds { payload["durationSeconds"] = durationSeconds }
+        if let stepCount { payload["stepCount"] = stepCount }
+        if let stepGoal { payload["stepGoal"] = stepGoal }
         WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: nil)
     }
 
