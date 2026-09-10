@@ -4,7 +4,8 @@ import Link from "@/components/app-link";
 import { Flame, ChevronRight, TrendingDown, TrendingUp } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import type { HealthSnapshot } from "../types";
-import { CALORIE_TARGET_DEFAULT, MACRO_TARGETS } from "../nutrition-config";
+import { MACRO_TARGETS } from "../nutrition-config";
+import { useWeeklyNutritionTarget } from "../hooks/use-weekly-nutrition-target";
 
 interface NutritionCardProps {
   snapshot: HealthSnapshot;
@@ -16,6 +17,7 @@ interface NutritionCardProps {
  * empty progress bars to users who don't track food.
  */
 export function NutritionCard({ snapshot }: NutritionCardProps) {
+  const { target: weeklyTarget } = useWeeklyNutritionTarget();
   const eaten = snapshot.dietaryCalories;
   const hasAnyMacro =
     snapshot.protein != null || snapshot.carbs != null || snapshot.fat != null;
@@ -31,7 +33,7 @@ export function NutritionCard({ snapshot }: NutritionCardProps) {
   const inSurplus = net != null && net > 0;
 
   const caloriePct = eaten != null
-    ? Math.min(100, Math.round((eaten / CALORIE_TARGET_DEFAULT) * 100))
+    ? Math.min(100, Math.round((eaten / weeklyTarget.calories) * 100))
     : 0;
 
   return (
@@ -58,7 +60,7 @@ export function NutritionCard({ snapshot }: NutritionCardProps) {
                 {Math.round(eaten).toLocaleString("de-DE")}
               </span>
               <span className="text-[13px]" style={{ color: "#9A9AA2" }}>
-                / {CALORIE_TARGET_DEFAULT.toLocaleString("de-DE")} kcal
+                / {weeklyTarget.calories.toLocaleString("de-DE")} kcal
               </span>
             </div>
             {net != null && (
@@ -94,7 +96,10 @@ export function NutritionCard({ snapshot }: NutritionCardProps) {
           {MACRO_TARGETS.map((t) => {
             const v = snapshot[t.key as keyof HealthSnapshot];
             const value = typeof v === "number" ? v : null;
-            const pct = value != null ? Math.min(100, (value / t.target) * 100) : 0;
+            const target = weeklyTarget.isPersonalized
+              ? weeklyTarget[t.key as "protein" | "carbs" | "fat"]
+              : t.target;
+            const pct = value != null ? Math.min(100, (value / target) * 100) : 0;
             return (
               <div key={t.key} className="space-y-1">
                 <div className="flex items-baseline justify-between">
