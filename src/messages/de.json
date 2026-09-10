@@ -148,6 +148,7 @@
     "menuPreferences": "Präferenzen",
     "menuTraining": "Trainingskalender",
     "menuCardio": "Cardio-Kalender",
+    "menuNutritionPlan": "Ernährungsplan",
     "menuTokens": "API-Tokens",
     "menuExport": "Datenexport"
   },
@@ -649,6 +650,50 @@
       "apiUrl": "Deine API-URL",
       "copyUrl": "URL kopieren",
       "copied": "Kopiert!"
+    },
+    "nutritionPlan": {
+      "title": "Ernährungsplan",
+      "activePlan": "Aktiver Plan",
+      "since": "seit",
+      "phaseLabel": "Phase",
+      "phase": {
+        "cut": "Cut",
+        "reverseDiet": "Reverse Diet",
+        "maintenance": "Erhaltung",
+        "bulk": "Bulk"
+      },
+      "startDateLabel": "Startdatum",
+      "startCalories": "Startkalorien",
+      "weeklyStep": "Wöchentlicher Schritt",
+      "proteinPerKg": "Protein pro kg",
+      "fatPerKg": "Fett pro kg",
+      "advanced": "Erweitert",
+      "minCalories": "Minimum",
+      "maxCalories": "Maximum",
+      "startPlan": "Plan starten",
+      "history": "Verlauf",
+      "personalized": "Personalisiert nach deinem Plan",
+      "defaultTarget": "Standardwert",
+      "suggestion": {
+        "bulkFlat": "Dein Gewicht ist die letzte Woche kaum gestiegen — für den Bulk-Fortschritt lohnt sich ein kleiner Kalorien-Schritt mehr.",
+        "bulkTooFast": "Du nimmst schneller zu als für einen sauberen Bulk sinnvoll — etwas weniger Kalorien pro Woche halten den Fortschritt mager.",
+        "reverseGainingTooFast": "Dein Gewicht steigt schneller als bei der Reverse Diet vorgesehen — ein kleiner Rückschritt hält den Anstieg kontrolliert.",
+        "cutTooSlow": "Der Gewichtsverlust stagniert — ein kleiner Kalorien-Rückschritt bringt den Cut wieder in Fahrt.",
+        "cutTooFast": "Du verlierst schneller als geplant — etwas mehr Kalorien schützen Muskelmasse und Energie.",
+        "accept": "Übernehmen",
+        "dismiss": "Nicht jetzt",
+        "accepted": "Übernommen"
+      }
+    },
+    "weightTrend": {
+      "title": "Gewichtstrend",
+      "thisWeek": "Diese Woche",
+      "lastWeek": "Letzte Woche",
+      "week": "Woche",
+      "rising": "Steigend",
+      "stable": "Stabil",
+      "falling": "Fallend",
+      "insufficientData": "Noch zu wenige Gewichtsdaten für einen Trend."
     }
   }
 }

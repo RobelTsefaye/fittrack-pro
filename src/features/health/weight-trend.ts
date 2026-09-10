@@ -100,7 +100,7 @@ export function buildSuggestion(
     if (weeklyRatePctBodyweight < min) {
       return {
         kind: "bump_calories",
-        reasonKey: "health.nutrition.suggestion.bulkFlat",
+        reasonKey: "health.nutritionPlan.suggestion.bulkFlat",
         proposedWeeklyCalorieStep: CALORIE_STEP_ADJUSTMENT,
         proposedStartCalories: currentTarget.calories,
       };
@@ -108,7 +108,7 @@ export function buildSuggestion(
     if (weeklyRatePctBodyweight > max) {
       return {
         kind: "reduce_calories",
-        reasonKey: "health.nutrition.suggestion.bulkTooFast",
+        reasonKey: "health.nutritionPlan.suggestion.bulkTooFast",
         proposedWeeklyCalorieStep: -CALORIE_STEP_ADJUSTMENT,
         proposedStartCalories: currentTarget.calories,
       };
@@ -120,7 +120,7 @@ export function buildSuggestion(
     if (weeklyRatePctBodyweight > max) {
       return {
         kind: "reduce_calories",
-        reasonKey: "health.nutrition.suggestion.reverseGainingTooFast",
+        reasonKey: "health.nutritionPlan.suggestion.reverseGainingTooFast",
         proposedWeeklyCalorieStep: -CALORIE_STEP_ADJUSTMENT,
         proposedStartCalories: currentTarget.calories,
       };
@@ -132,7 +132,7 @@ export function buildSuggestion(
   if (weeklyRatePctBodyweight > max) {
     return {
       kind: "reduce_calories",
-      reasonKey: "health.nutrition.suggestion.cutTooSlow",
+      reasonKey: "health.nutritionPlan.suggestion.cutTooSlow",
       proposedWeeklyCalorieStep: -CALORIE_STEP_ADJUSTMENT,
       proposedStartCalories: currentTarget.calories,
     };
@@ -140,7 +140,7 @@ export function buildSuggestion(
   if (weeklyRatePctBodyweight < min) {
     return {
       kind: "bump_calories",
-      reasonKey: "health.nutrition.suggestion.cutTooFast",
+      reasonKey: "health.nutritionPlan.suggestion.cutTooFast",
       proposedWeeklyCalorieStep: CALORIE_STEP_ADJUSTMENT,
       proposedStartCalories: currentTarget.calories,
     };
