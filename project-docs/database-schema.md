@@ -10,6 +10,7 @@ User 1──* Workout 1──* WorkoutExercise 1──* Set
  │
  ├──* BodyWeight
  ├──* PersonalRecord
+ ├──* NutritionPlan
  └──* UserSettings
 ```
 
@@ -83,6 +84,25 @@ User 1──* Workout 1──* WorkoutExercise 1──* Set
 | date | Date | Unique per user per day |
 | notes | String? | Optional |
 | createdAt | DateTime | Auto |
+
+### NutritionPlan
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | Primary key |
+| userId | UUID | FK → User |
+| phase | Enum | `CUT` \| `REVERSE_DIET` \| `MAINTENANCE` \| `BULK` |
+| startDate | Date | When this phase's calorie ramp starts |
+| endDate | Date? | Null = this is the active plan; set when a new plan starts |
+| startCalories | Int | Calorie target at `startDate` |
+| weeklyCalorieStep | Int | kcal/week added (or subtracted) each week since `startDate` |
+| minCalories | Int? | Optional guardrail |
+| maxCalories | Int? | Optional guardrail |
+| proteinPerKg | Float | g protein per kg bodyweight |
+| fatPerKg | Float | g fat per kg bodyweight |
+| notes | String? | Optional |
+| createdAt | DateTime | Auto |
+
+**Design notes:** rows form a history, not a single mutable record — `endDate` is exclusive ("no longer active from this date on"). Creating a new plan (`POST /api/nutrition-plan`) closes the currently open row (`endDate: null`) by setting its `endDate` to the new plan's `startDate`, inside one transaction. Accepting a weight-trend calorie suggestion works the same way: it always creates a new row rather than patching the active one in place, so every calorie adjustment stays in the audit trail. This week's calorie/macro target is computed on read (`computeWeeklyTarget()` in `src/features/health/nutrition-plan.ts`), not stored.
 
 ### PersonalRecord
 | Column | Type | Notes |

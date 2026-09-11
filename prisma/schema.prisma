@@ -72,6 +72,7 @@ model User {
   workoutPlans    WorkoutPlan[]
   bodyWeights      BodyWeight[]
   bodyMeasurements BodyMeasurement[]
+  nutritionPlans   NutritionPlan[]
   healthSnapshots  HealthSnapshot[]
   appleWorkouts    AppleWorkout[]
   personalRecords  PersonalRecord[]
@@ -351,6 +352,38 @@ model BodyMeasurement {
 
   @@unique([userId, date])
   @@map("body_measurements")
+}
+
+enum NutritionPhase {
+  CUT
+  REVERSE_DIET
+  MAINTENANCE
+  BULK
+}
+
+// endDate is exclusive: "no longer active from this date on". Creating a new
+// plan closes the previous open row (endDate: null) by setting its endDate
+// to the new plan's startDate — enforced in application code (POST /api/nutrition-plan),
+// not a DB constraint, since Postgres has no clean partial-unique-on-null via Prisma.
+model NutritionPlan {
+  id                String         @id @default(uuid())
+  userId            String
+  phase             NutritionPhase
+  startDate         DateTime       @db.Date
+  endDate           DateTime?      @db.Date // null = active/current plan
+  startCalories     Int
+  weeklyCalorieStep Int            @default(0) // kcal/week, negative allowed (CUT)
+  minCalories       Int?
+  maxCalories       Int?
+  proteinPerKg      Float
+  fatPerKg          Float
+  notes             String?
+  createdAt         DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startDate])
+  @@map("nutrition_plans")
 }
 
 model HealthSnapshot {

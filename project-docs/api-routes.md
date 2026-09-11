@@ -42,6 +42,15 @@ All routes prefixed with `/api`. All routes except auth require authentication.
 | PATCH | `/api/body-weight/:id` | Update entry |
 | DELETE | `/api/body-weight/:id` | Delete entry |
 
+## Nutrition Plan
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/api/nutrition-plan` | Returns `{ active, history }` — the open plan row (`endDate: null`, or null) and all past rows |
+| POST | `/api/nutrition-plan` | Start a new phase; closes the currently open row (`endDate = new startDate`) in a transaction, then creates the new row |
+| PATCH | `/api/nutrition-plan/:id` | In-place correction of the current row's numeric fields only — rejects `phase`/`startDate` (start a new plan instead of rewriting history) |
+| GET | `/api/nutrition-plan/current-target` | This week's computed calorie/macro target from the active plan + latest body weight, or the static `nutrition-config.ts` defaults when no plan exists |
+| GET | `/api/nutrition-plan/weight-trend` | 7-day rolling weight average, this-week-vs-last-week rate, and a calorie-adjustment `suggestion` (or null). **Never mutates** — accepting a suggestion always goes through `POST /api/nutrition-plan` |
+
 ## Dashboard / Analytics
 | Method | Route | Description |
 |--------|-------|-------------|

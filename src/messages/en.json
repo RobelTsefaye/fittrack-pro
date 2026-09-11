@@ -148,6 +148,7 @@
     "menuPreferences": "Preferences",
     "menuTraining": "Training calendar",
     "menuCardio": "Cardio calendar",
+    "menuNutritionPlan": "Nutrition plan",
     "menuTokens": "API tokens",
     "menuExport": "Export data"
   },
@@ -649,6 +650,50 @@
       "apiUrl": "Your API URL",
       "copyUrl": "Copy URL",
       "copied": "Copied!"
+    },
+    "nutritionPlan": {
+      "title": "Nutrition Plan",
+      "activePlan": "Active Plan",
+      "since": "since",
+      "phaseLabel": "Phase",
+      "phase": {
+        "cut": "Cut",
+        "reverseDiet": "Reverse Diet",
+        "maintenance": "Maintenance",
+        "bulk": "Bulk"
+      },
+      "startDateLabel": "Start Date",
+      "startCalories": "Starting Calories",
+      "weeklyStep": "Weekly Step",
+      "proteinPerKg": "Protein per kg",
+      "fatPerKg": "Fat per kg",
+      "advanced": "Advanced",
+      "minCalories": "Minimum",
+      "maxCalories": "Maximum",
+      "startPlan": "Start Plan",
+      "history": "History",
+      "personalized": "Personalized to your plan",
+      "defaultTarget": "Default target",
+      "suggestion": {
+        "bulkFlat": "Your weight barely moved this week — a slightly bigger calorie step would keep the bulk progressing.",
+        "bulkTooFast": "You're gaining faster than a clean bulk needs — a smaller weekly step keeps the gain lean.",
+        "reverseGainingTooFast": "Your weight is rising faster than planned for the reverse diet — a smaller step keeps the increase controlled.",
+        "cutTooSlow": "Weight loss has stalled — a small calorie reduction would get the cut moving again.",
+        "cutTooFast": "You're losing faster than planned — a few more calories protect muscle and energy.",
+        "accept": "Accept",
+        "dismiss": "Not now",
+        "accepted": "Accepted"
+      }
+    },
+    "weightTrend": {
+      "title": "Weight Trend",
+      "thisWeek": "This week",
+      "lastWeek": "Last week",
+      "week": "week",
+      "rising": "Rising",
+      "stable": "Stable",
+      "falling": "Falling",
+      "insufficientData": "Not enough weight data for a trend yet."
     }
   }
 }

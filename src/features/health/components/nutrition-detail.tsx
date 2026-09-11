@@ -6,13 +6,14 @@ import { ArrowLeft, Flame, TrendingDown, TrendingUp } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import type { HealthSnapshot } from "../types";
 import {
-  CALORIE_TARGET_DEFAULT,
   MACRO_TARGETS,
   SECONDARY_TARGETS,
   MICRO_TARGETS,
   type NutrientTarget,
 } from "../nutrition-config";
 import { saveHealthCache, loadHealthCache } from "@/lib/offline/screen-caches";
+import { useWeeklyNutritionTarget } from "../hooks/use-weekly-nutrition-target";
+import { WeightTrendCard } from "./weight-trend-card";
 
 export function NutritionDetail({
   initialSnapshot,
@@ -78,6 +79,7 @@ export function NutritionDetail({
       </div>
 
       <CalorieBalance snapshot={snapshot} />
+      <WeightTrendCard />
       <MacroSection snapshot={snapshot} />
       <SecondarySection snapshot={snapshot} />
       <MicroSection snapshot={snapshot} />
@@ -97,6 +99,7 @@ function Back() {
 // ── Calorie balance hero ─────────────────────────────────────────────────────
 
 function CalorieBalance({ snapshot }: { snapshot: HealthSnapshot | null }) {
+  const { target: weeklyTarget } = useWeeklyNutritionTarget();
   const eaten = snapshot?.dietaryCalories ?? null;
   const active = snapshot?.activeCalories ?? null;
   const basal = snapshot?.calories ?? null;
@@ -104,7 +107,7 @@ function CalorieBalance({ snapshot }: { snapshot: HealthSnapshot | null }) {
   const burnedKnown = active != null || basal != null;
   const net = eaten != null && burnedKnown ? Math.round(eaten - burned) : null;
 
-  const target = CALORIE_TARGET_DEFAULT;
+  const target = weeklyTarget.calories;
   const pct = eaten != null ? Math.min(100, Math.round((eaten / target) * 100)) : 0;
 
   const inDeficit = net != null && net < 0;
@@ -112,11 +115,16 @@ function CalorieBalance({ snapshot }: { snapshot: HealthSnapshot | null }) {
 
   return (
     <div className="rounded-[22px] p-5" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
-      <div className="flex items-center gap-2 mb-1">
-        <Flame className="h-4 w-4" style={{ color: "#FF9F0A" }} />
-        <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9A9AA2" }}>
-          Kalorien
-        </p>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <div className="flex items-center gap-2">
+          <Flame className="h-4 w-4" style={{ color: "#FF9F0A" }} />
+          <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9A9AA2" }}>
+            Kalorien
+          </p>
+        </div>
+        <span className="text-[10px] font-medium" style={{ color: weeklyTarget.isPersonalized ? "#30D158" : "#5E5E66" }}>
+          {weeklyTarget.isPersonalized ? "Personalisiert" : "Standardwert"}
+        </span>
       </div>
 
       {eaten == null ? (
@@ -179,15 +187,21 @@ function BalanceCell({
 // ── Macro section ────────────────────────────────────────────────────────────
 
 function MacroSection({ snapshot }: { snapshot: HealthSnapshot | null }) {
+  const { target: weeklyTarget } = useWeeklyNutritionTarget();
   return (
     <Section title="Makronährstoffe" subtitle="Tagesziele für Sportler">
-      {MACRO_TARGETS.map((t) => (
-        <NutrientRow
-          key={t.key}
-          target={t.key === "carbs" ? { ...t, target: dynamicCarbTarget(snapshot) } : t}
-          value={snapshot ? toNumberOrNull(snapshot[t.key as keyof HealthSnapshot]) : null}
-        />
-      ))}
+      {MACRO_TARGETS.map((t) => {
+        const dynamicValue = weeklyTarget.isPersonalized
+          ? weeklyTarget[t.key as "protein" | "carbs" | "fat"]
+          : undefined;
+        return (
+          <NutrientRow
+            key={t.key}
+            target={dynamicValue != null ? { ...t, target: dynamicValue } : t}
+            value={snapshot ? toNumberOrNull(snapshot[t.key as keyof HealthSnapshot]) : null}
+          />
+        );
+      })}
     </Section>
   );
 }
@@ -310,11 +324,4 @@ function NutrientRow({ target, value }: { target: NutrientTarget; value: number 
 
 function toNumberOrNull(v: unknown): number | null {
   return typeof v === "number" ? v : null;
-}
-
-// Carb target = (remaining calories after protein + fat) / 4 kcal/g
-function dynamicCarbTarget(snapshot: HealthSnapshot | null): number {
-  // Default fallback — keep it simple so user always sees a target
-  void snapshot;
-  return 275;
 }
