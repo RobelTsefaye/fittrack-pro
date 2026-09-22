@@ -693,7 +693,12 @@
       "rising": "Steigend",
       "stable": "Stabil",
       "falling": "Fallend",
-      "insufficientData": "Noch zu wenige Gewichtsdaten für einen Trend."
+      "insufficientData": "Noch zu wenige Gewichtsdaten für diesen Zeitraum.",
+      "periodDays": "{count}T",
+      "periodAvg": "Ø Gewicht",
+      "periodChange": "Veränderung",
+      "perWeek": "pro Woche",
+      "entryCount": "{count} Messungen in diesem Zeitraum"
     }
   }
 }

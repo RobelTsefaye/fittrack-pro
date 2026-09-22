@@ -693,7 +693,12 @@
       "rising": "Rising",
       "stable": "Stable",
       "falling": "Falling",
-      "insufficientData": "Not enough weight data for a trend yet."
+      "insufficientData": "Not enough weight data for this period yet.",
+      "periodDays": "{count}D",
+      "periodAvg": "Avg weight",
+      "periodChange": "Change",
+      "perWeek": "per week",
+      "entryCount": "{count} entries in this period"
     }
   }
 }

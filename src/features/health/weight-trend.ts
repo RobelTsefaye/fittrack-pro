@@ -9,6 +9,7 @@ const MIN_DAYS_IN_WINDOW = 4; // of 7 — density gate, no interpolated guessing
 const LOOKBACK_DAYS = 21; // enough for two rolling-avg windows plus warmup
 
 export type WeightTrendPoint = { date: string; rolling7d: number | null };
+export type RawWeightPoint = { date: string; weightKg: number };
 
 export type TrendSuggestion = {
   kind: "bump_calories" | "reduce_calories";
@@ -17,8 +18,19 @@ export type TrendSuggestion = {
   proposedStartCalories: number;
 };
 
+export type PeriodSummary = {
+  days: number;
+  avgWeightKg: number | null; // mean of raw entries within the requested display window
+  deltaKg: number | null; // last entry − first entry within the window
+  deltaPerWeekKg: number | null; // deltaKg normalized to a 7-day rate (comparable across window sizes)
+  count: number; // number of weigh-ins within the window
+};
+
 export type WeightTrendResult = {
   points: WeightTrendPoint[];
+  rawPoints: RawWeightPoint[]; // individual weigh-ins within the requested display window (not smoothed)
+  period: PeriodSummary;
+  phase: NutritionPhase | null; // active plan's phase, so the UI can frame loss/gain against the actual goal
   thisWeekAvg: number | null;
   lastWeekAvg: number | null;
   weeklyRateKg: number | null;
@@ -26,6 +38,9 @@ export type WeightTrendResult = {
   trend: "rising" | "stable" | "falling" | null;
   suggestion: TrendSuggestion | null;
 };
+
+export const DISPLAY_WINDOW_OPTIONS = [7, 14, 30] as const;
+export type DisplayWindowDays = (typeof DISPLAY_WINDOW_OPTIONS)[number];
 
 // Target weekly rate as %bodyweight/week per phase. A single tunable
 // constant table — adjust here, no schema change needed.
@@ -76,6 +91,38 @@ export function computeRollingAverage(
     points.push({ date: dateKey(day), rolling7d });
   }
   return points;
+}
+
+/**
+ * Pure. Summarizes raw (non-smoothed) weigh-ins within a display window:
+ * average, and total change normalized to a per-week rate so periods of
+ * different length stay comparable.
+ */
+export function computePeriodSummary(
+  rawPoints: RawWeightPoint[],
+  days: number
+): PeriodSummary {
+  if (rawPoints.length === 0) {
+    return { days, avgWeightKg: null, deltaKg: null, deltaPerWeekKg: null, count: 0 };
+  }
+
+  const avgWeightKg =
+    rawPoints.reduce((sum, p) => sum + p.weightKg, 0) / rawPoints.length;
+
+  if (rawPoints.length < 2) {
+    return { days, avgWeightKg, deltaKg: null, deltaPerWeekKg: null, count: rawPoints.length };
+  }
+
+  const first = rawPoints[0]!;
+  const last = rawPoints[rawPoints.length - 1]!;
+  const deltaKg = last.weightKg - first.weightKg;
+  const spanDays = Math.max(
+    1,
+    (new Date(last.date).getTime() - new Date(first.date).getTime()) / DAY_MS
+  );
+  const deltaPerWeekKg = deltaKg / (spanDays / 7);
+
+  return { days, avgWeightKg, deltaKg, deltaPerWeekKg, count: rawPoints.length };
 }
 
 export function classifyTrend(
@@ -148,8 +195,15 @@ export function buildSuggestion(
   return null;
 }
 
-export async function getWeightTrend(userId: string): Promise<WeightTrendResult> {
-  const since = new Date(Date.now() - LOOKBACK_DAYS * DAY_MS);
+export async function getWeightTrend(
+  userId: string,
+  displayDays: number = 14
+): Promise<WeightTrendResult> {
+  // The 7d-rolling/suggestion machinery needs at least LOOKBACK_DAYS of
+  // history regardless of what the user wants to *see* — fetch the wider of
+  // the two so a 7-day display window doesn't starve the underlying trend calc.
+  const fetchDays = Math.max(displayDays, LOOKBACK_DAYS);
+  const since = new Date(Date.now() - fetchDays * DAY_MS);
 
   const [rows, settings, plan] = await Promise.all([
     prisma.bodyWeight.findMany({
@@ -167,6 +221,12 @@ export async function getWeightTrend(userId: string): Promise<WeightTrendResult>
   }));
 
   const points = computeRollingAverage(entries, ROLLING_WINDOW_DAYS);
+
+  const displaySince = new Date(Date.now() - displayDays * DAY_MS);
+  const rawPoints: RawWeightPoint[] = entries
+    .filter((e) => e.date.getTime() >= displaySince.getTime())
+    .map((e) => ({ date: dateKey(e.date), weightKg: e.weightKg }));
+  const period = computePeriodSummary(rawPoints, displayDays);
 
   const today = new Date();
   const thisWeekAvg = points.length > 0 ? points[points.length - 1]!.rolling7d : null;
@@ -193,6 +253,9 @@ export async function getWeightTrend(userId: string): Promise<WeightTrendResult>
 
   return {
     points,
+    rawPoints,
+    period,
+    phase: plan?.phase ?? null,
     thisWeekAvg,
     lastWeekAvg,
     weeklyRateKg,
