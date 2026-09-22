@@ -20,6 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { WeightTrendCard } from "@/features/health/components/weight-trend-card";
 import { todayLocalISO } from "@/lib/date-only";
 import { useI18n } from "@/lib/i18n-provider";
 import {
@@ -288,6 +289,8 @@ export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
           </CardContent>
         </Card>
       </div>
+
+      <WeightTrendCard />
 
       <Card>
         <CardHeader>
