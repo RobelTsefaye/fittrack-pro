@@ -698,7 +698,11 @@
       "periodAvg": "Ø Gewicht",
       "periodChange": "Veränderung",
       "perWeek": "pro Woche",
-      "entryCount": "{count} Messungen in diesem Zeitraum"
+      "entryCount": "{count} Messungen in diesem Zeitraum",
+      "modeWeeks": "Wochen (Mo–So)",
+      "modePeriod": "Zeitraum",
+      "currentWeek": "aktuell",
+      "noCalorieData": "Keine Kalorien geloggt"
     }
   }
 }

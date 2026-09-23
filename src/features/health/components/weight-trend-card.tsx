@@ -47,8 +47,19 @@ type WeightTrendResult = {
   suggestion: TrendSuggestion | null;
 };
 
+type CalendarWeekSummary = {
+  weekStart: string;
+  weekEnd: string;
+  avgWeightKg: number | null;
+  weightEntryCount: number;
+  avgCalories: number | null;
+  calorieEntryCount: number;
+  deltaVsPrevWeekKg: number | null;
+};
+
 const PERIOD_OPTIONS = [7, 14, 30] as const;
 const DEFAULT_PERIOD = 14;
+const CALENDAR_WEEKS = 6;
 
 function cacheKeyFor(days: number) {
   return `weight-trend-${days}`;
@@ -69,14 +80,25 @@ function judgeDelta(
   return "neutral";
 }
 
+function formatWeekLabel(weekStart: string, weekEnd: string): string {
+  const s = new Date(weekStart + "T00:00:00Z");
+  const e = new Date(weekEnd + "T00:00:00Z");
+  const fmt = (d: Date) => `${d.getUTCDate()}.${d.getUTCMonth() + 1}.`;
+  return `${fmt(s)}–${fmt(e)}`;
+}
+
 export function WeightTrendCard() {
   const { t } = useI18n();
+  const [mode, setMode] = useState<"weeks" | "period">("weeks");
   const [period, setPeriod] = useState<number>(DEFAULT_PERIOD);
   const [data, setData] = useState<WeightTrendResult | null>(null);
+  const [weekData, setWeekData] = useState<CalendarWeekSummary[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [dismissed, setDismissed] = useState(false);
   const [accepting, setAccepting] = useState(false);
 
+  // Header trend badge + calorie-adjustment suggestion always use the
+  // rolling 7d comparison — independent of which display mode is shown below.
   async function load(days: number) {
     setLoading(true);
     const cached = await loadHealthCache<WeightTrendResult>(cacheKeyFor(days));
@@ -101,10 +123,35 @@ export function WeightTrendCard() {
     }
   }
 
+  async function loadWeeks() {
+    const cached = await loadHealthCache<CalendarWeekSummary[]>("weight-trend-calendar-weeks");
+    if (cached) setWeekData(cached);
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    try {
+      const res = await authenticatedFetch(
+        `/api/nutrition-plan/weight-trend/calendar-weeks?weeks=${CALENDAR_WEEKS}`,
+        { credentials: "include" }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as { data: CalendarWeekSummary[] };
+      setWeekData(json.data);
+      void saveHealthCache("weight-trend-calendar-weeks", json.data);
+    } catch {
+      // keep showing cache
+    }
+  }
+
   useEffect(() => {
     void load(period);
+    void loadWeeks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period]);
+  }, []);
+
+  useEffect(() => {
+    if (mode === "period") void load(period);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, mode]);
 
   async function acceptSuggestion() {
     if (!data?.suggestion) return;
@@ -139,10 +186,10 @@ export function WeightTrendCard() {
     }
   }
 
-  if (loading && !data) return null;
+  if (loading && !data && !weekData) return null;
   if (!data) return null;
 
-  const hasAnyHistory = data.points.length > 0 || data.rawPoints.length > 0;
+  const hasAnyHistory = data.points.length > 0 || data.rawPoints.length > 0 || (weekData?.length ?? 0) > 0;
   if (!hasAnyHistory) return null;
 
   const chartData = data.rawPoints.map((p) => ({
@@ -176,23 +223,95 @@ export function WeightTrendCard() {
       </div>
 
       <div className="flex gap-1.5">
-        {PERIOD_OPTIONS.map((days) => (
-          <button
-            key={days}
-            type="button"
-            onClick={() => setPeriod(days)}
-            className="rounded-full px-3 py-1 text-[12px] font-semibold transition-colors"
-            style={{
-              background: period === days ? "#FF9F0A" : "rgba(255,255,255,0.06)",
-              color: period === days ? "#000" : "#9A9AA2",
-            }}
-          >
-            {t("health.weightTrend.periodDays", { count: days })}
-          </button>
-        ))}
+        <button
+          type="button"
+          onClick={() => setMode("weeks")}
+          className="rounded-full px-3 py-1 text-[12px] font-semibold transition-colors"
+          style={{
+            background: mode === "weeks" ? "#FF9F0A" : "rgba(255,255,255,0.06)",
+            color: mode === "weeks" ? "#000" : "#9A9AA2",
+          }}
+        >
+          {t("health.weightTrend.modeWeeks")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("period")}
+          className="rounded-full px-3 py-1 text-[12px] font-semibold transition-colors"
+          style={{
+            background: mode === "period" ? "#FF9F0A" : "rgba(255,255,255,0.06)",
+            color: mode === "period" ? "#000" : "#9A9AA2",
+          }}
+        >
+          {t("health.weightTrend.modePeriod")}
+        </button>
       </div>
 
-      {chartData.length === 0 ? (
+      {mode === "period" && (
+        <div className="flex gap-1.5">
+          {PERIOD_OPTIONS.map((days) => (
+            <button
+              key={days}
+              type="button"
+              onClick={() => setPeriod(days)}
+              className="rounded-full px-3 py-1 text-[12px] font-semibold transition-colors"
+              style={{
+                background: period === days ? "#FF9F0A" : "rgba(255,255,255,0.06)",
+                color: period === days ? "#000" : "#9A9AA2",
+              }}
+            >
+              {t("health.weightTrend.periodDays", { count: days })}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {mode === "weeks" ? (
+        !weekData || weekData.every((w) => w.avgWeightKg == null) ? (
+          <p className="text-[13px]" style={{ color: "#5E5E66" }}>{t("health.weightTrend.insufficientData")}</p>
+        ) : (
+          <div className="space-y-1.5">
+            {weekData.map((w) => {
+              const wJudgment = judgeDelta(data.phase, w.deltaVsPrevWeekKg);
+              const wDeltaColor = wJudgment === "good" ? "#30D158" : wJudgment === "bad" ? "#FF453A" : "#9A9AA2";
+              const isCurrentWeek = w.weekStart === weekData[weekData.length - 1]!.weekStart;
+              return (
+                <div
+                  key={w.weekStart}
+                  className="flex items-center justify-between rounded-xl px-3 py-2"
+                  style={{ background: isCurrentWeek ? "rgba(255,159,10,0.08)" : "rgba(255,255,255,0.03)" }}
+                >
+                  <div>
+                    <p className="text-[12px] font-semibold text-white">
+                      {formatWeekLabel(w.weekStart, w.weekEnd)}
+                      {isCurrentWeek && (
+                        <span className="ml-1.5 text-[10px] font-normal" style={{ color: "#5E5E66" }}>
+                          {t("health.weightTrend.currentWeek")}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-[11px]" style={{ color: "#5E5E66" }}>
+                      {w.avgCalories != null
+                        ? `Ø ${Math.round(w.avgCalories).toLocaleString("de-DE")} kcal`
+                        : t("health.weightTrend.noCalorieData")}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[14px] font-bold tabular-nums text-white">
+                      {w.avgWeightKg != null ? `${w.avgWeightKg.toFixed(1)} kg` : "—"}
+                    </p>
+                    <p className="text-[11px] font-semibold tabular-nums" style={{ color: wDeltaColor }}>
+                      {w.deltaVsPrevWeekKg != null
+                        ? `${w.deltaVsPrevWeekKg > 0 ? "+" : ""}${w.deltaVsPrevWeekKg.toFixed(1)} kg`
+                        : "—"}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      ) : chartData.length === 0 ? (
         <p className="text-[13px]" style={{ color: "#5E5E66" }}>{t("health.weightTrend.insufficientData")}</p>
       ) : (
         <>

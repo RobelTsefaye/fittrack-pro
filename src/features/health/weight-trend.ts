@@ -42,6 +42,16 @@ export type WeightTrendResult = {
 export const DISPLAY_WINDOW_OPTIONS = [7, 14, 30] as const;
 export type DisplayWindowDays = (typeof DISPLAY_WINDOW_OPTIONS)[number];
 
+export type CalendarWeekSummary = {
+  weekStart: string; // YYYY-MM-DD, Monday
+  weekEnd: string; // YYYY-MM-DD, Sunday
+  avgWeightKg: number | null;
+  weightEntryCount: number;
+  avgCalories: number | null; // mean of logged dietaryCalories that week
+  calorieEntryCount: number;
+  deltaVsPrevWeekKg: number | null; // avgWeightKg − previous calendar week's avgWeightKg
+};
+
 // Target weekly rate as %bodyweight/week per phase. A single tunable
 // constant table — adjust here, no schema change needed.
 const TARGET_RATE_PCT_PER_WEEK: Record<NutritionPhase, { min: number; max: number }> = {
@@ -55,6 +65,15 @@ const CALORIE_STEP_ADJUSTMENT = 50;
 
 function dateKey(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+/** Monday 00:00 UTC of the week containing `d` — matches cardio.ts's startOfIsoWeek. */
+function startOfIsoWeek(d: Date): Date {
+  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = date.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setUTCDate(date.getUTCDate() + diff);
+  return date;
 }
 
 /**
@@ -193,6 +212,94 @@ export function buildSuggestion(
     };
   }
   return null;
+}
+
+/**
+ * Buckets weight + dietary-calorie history into Monday–Sunday calendar
+ * weeks (not rolling windows) — for the "I adjust calories every Monday"
+ * review flow. Returns the last `weeks` weeks, oldest first, including the
+ * current (possibly incomplete) week.
+ */
+export async function getCalendarWeekHistory(
+  userId: string,
+  weeks: number = 6
+): Promise<CalendarWeekSummary[]> {
+  const thisWeekStart = startOfIsoWeek(new Date());
+  // Fetch one extra week back so the oldest returned week still gets a
+  // deltaVsPrevWeekKg baseline instead of null.
+  const since = new Date(thisWeekStart.getTime() - weeks * 7 * DAY_MS);
+
+  const [weightRows, snapshotRows, settings] = await Promise.all([
+    prisma.bodyWeight.findMany({
+      where: { userId, date: { gte: since } },
+      orderBy: { date: "asc" },
+    }),
+    prisma.healthSnapshot.findMany({
+      where: { userId, date: { gte: since }, dietaryCalories: { not: null } },
+      orderBy: { date: "asc" },
+      select: { date: true, dietaryCalories: true },
+    }),
+    prisma.userSettings.findUnique({ where: { userId }, select: { weightUnit: true } }),
+  ]);
+
+  const isLb = settings?.weightUnit === "LB";
+
+  const weightByWeek = new Map<string, number[]>();
+  for (const row of weightRows) {
+    const wk = dateKey(startOfIsoWeek(row.date));
+    const kg = isLb ? lbToKg(row.weight) : row.weight;
+    const bucket = weightByWeek.get(wk) ?? [];
+    bucket.push(kg);
+    weightByWeek.set(wk, bucket);
+  }
+
+  const caloriesByWeek = new Map<string, number[]>();
+  for (const row of snapshotRows) {
+    if (row.dietaryCalories == null) continue;
+    const wk = dateKey(startOfIsoWeek(row.date));
+    const bucket = caloriesByWeek.get(wk) ?? [];
+    bucket.push(row.dietaryCalories);
+    caloriesByWeek.set(wk, bucket);
+  }
+
+  const avg = (values: number[]): number | null =>
+    values.length === 0 ? null : values.reduce((s, v) => s + v, 0) / values.length;
+
+  // weeks + 1 so the earliest displayed week has a prior-week baseline for its delta.
+  const allWeekStarts: Date[] = [];
+  for (let i = weeks; i >= 0; i--) {
+    allWeekStarts.push(new Date(thisWeekStart.getTime() - i * 7 * DAY_MS));
+  }
+
+  const withAvgWeight = allWeekStarts.map((ws) => {
+    const key = dateKey(ws);
+    return { weekStart: ws, avgWeightKg: avg(weightByWeek.get(key) ?? []) };
+  });
+
+  const result: CalendarWeekSummary[] = [];
+  for (let i = 1; i < withAvgWeight.length; i++) {
+    const cur = withAvgWeight[i]!;
+    const prev = withAvgWeight[i - 1]!;
+    const weekEnd = new Date(cur.weekStart.getTime() + 6 * DAY_MS);
+    const key = dateKey(cur.weekStart);
+    const weightBucket = weightByWeek.get(key) ?? [];
+    const calorieBucket = caloriesByWeek.get(key) ?? [];
+
+    result.push({
+      weekStart: key,
+      weekEnd: dateKey(weekEnd),
+      avgWeightKg: cur.avgWeightKg,
+      weightEntryCount: weightBucket.length,
+      avgCalories: avg(calorieBucket),
+      calorieEntryCount: calorieBucket.length,
+      deltaVsPrevWeekKg:
+        cur.avgWeightKg != null && prev.avgWeightKg != null
+          ? cur.avgWeightKg - prev.avgWeightKg
+          : null,
+    });
+  }
+
+  return result;
 }
 
 export async function getWeightTrend(

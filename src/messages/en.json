@@ -698,7 +698,11 @@
       "periodAvg": "Avg weight",
       "periodChange": "Change",
       "perWeek": "per week",
-      "entryCount": "{count} entries in this period"
+      "entryCount": "{count} entries in this period",
+      "modeWeeks": "Weeks (Mon–Sun)",
+      "modePeriod": "Period",
+      "currentWeek": "current",
+      "noCalorieData": "No calories logged"
     }
   }
 }
