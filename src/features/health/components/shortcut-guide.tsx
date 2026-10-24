@@ -160,7 +160,7 @@ export function ShortcutGuide() {
         >
           {SHORTCUT_PAYLOAD}
         </pre>
-        <p className="mt-2 text-[11px]" style={{ color: "#5E5E66" }}>
+        <p className="mt-2 text-[11px]" style={{ color: "#83838C" }}>
           All fields are optional — send only what Apple Health provides.
           Use <code style={{ color: "#D4FF3A" }}>Authorization: Bearer ftp_yourtoken</code> header.
         </p>
@@ -205,7 +205,7 @@ export function ShortcutGuide() {
       </div>
 
       {/* HAE fallback note */}
-      <p className="px-2 text-center text-[11px]" style={{ color: "#5E5E66" }}>
+      <p className="px-2 text-center text-[11px]" style={{ color: "#83838C" }}>
         Alternativ funktioniert weiterhin die App „Health Auto Export&ldquo; (REST-API-Export an dieselbe URL) —
         der native Kurzbefehl oben kommt aber ohne Zusatz-App und ohne Kosten aus.
       </p>

@@ -49,7 +49,7 @@ export function NutritionCard({ snapshot }: NutritionCardProps) {
             Ernährung
           </p>
         </div>
-        <ChevronRight className="h-4 w-4" style={{ color: "#5E5E66" }} />
+        <ChevronRight className="h-4 w-4" style={{ color: "#83838C" }} />
       </div>
 
       {eaten != null ? (
@@ -85,7 +85,7 @@ export function NutritionCard({ snapshot }: NutritionCardProps) {
           </div>
         </>
       ) : (
-        <p className="text-[13px]" style={{ color: "#5E5E66" }}>
+        <p className="text-[13px]" style={{ color: "#83838C" }}>
           Makros verfügbar — keine Kalorien getrackt
         </p>
       )}
@@ -103,12 +103,12 @@ export function NutritionCard({ snapshot }: NutritionCardProps) {
             return (
               <div key={t.key} className="space-y-1">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-[10px] uppercase tracking-wide" style={{ color: "#5E5E66" }}>
+                  <span className="text-[10px] uppercase tracking-wide" style={{ color: "#83838C" }}>
                     {t.label}
                   </span>
                   <span className="text-[11px] font-semibold tabular-nums text-white">
                     {value != null ? Math.round(value) : "—"}
-                    <span className="ml-0.5 text-[9px] font-normal" style={{ color: "#5E5E66" }}>
+                    <span className="ml-0.5 text-[9px] font-normal" style={{ color: "#83838C" }}>
                       {t.unit}
                     </span>
                   </span>

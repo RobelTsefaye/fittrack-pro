@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
+import Link from "@/components/app-link";
 import { useSession } from "next-auth/react";
 import { WifiOff } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
@@ -120,14 +121,20 @@ export function MobileTopBar() {
           </span>
         )}
 
-        <Avatar className="h-8 w-8 shrink-0">
-          <AvatarFallback
-            className="text-[0.65rem] font-semibold"
-            style={{ background: "#26262B", color: "#D4FF3A" }}
-          >
-            {initials}
-          </AvatarFallback>
-        </Avatar>
+        <Link
+          href={ROUTES.settings}
+          aria-label={t("nav.settings")}
+          className="shrink-0 rounded-full transition-transform active:scale-95"
+        >
+          <Avatar className="h-8 w-8 shrink-0">
+            <AvatarFallback
+              className="text-[0.65rem] font-semibold"
+              style={{ background: "#26262B", color: "#D4FF3A" }}
+            >
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+        </Link>
       </div>
     </header>
   );

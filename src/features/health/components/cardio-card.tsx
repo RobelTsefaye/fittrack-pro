@@ -34,11 +34,11 @@ export function CardioCard({ summary }: { summary: CardioSummary }) {
             Cardio · Diese Woche
           </p>
         </div>
-        <ChevronRight className="h-4 w-4" style={{ color: "#5E5E66" }} />
+        <ChevronRight className="h-4 w-4" style={{ color: "#83838C" }} />
       </div>
 
       {thisWeek.sessions === 0 ? (
-        <p className="text-[13px]" style={{ color: "#5E5E66" }}>
+        <p className="text-[13px]" style={{ color: "#83838C" }}>
           Diese Woche noch kein Cardio. Letzte Woche: {lastWeek.sessions} Session
           {lastWeek.sessions === 1 ? "" : "s"}, {lastWeek.distanceKm.toFixed(1)} km
         </p>
@@ -108,7 +108,7 @@ export function CardioCard({ summary }: { summary: CardioSummary }) {
 function Stat({ label, value, unit, accent }: { label: string; value: string; unit?: string; accent: string }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wide" style={{ color: "#5E5E66" }}>
+      <p className="text-[10px] uppercase tracking-wide" style={{ color: "#83838C" }}>
         {label}
       </p>
       <p className="mt-0.5 flex items-baseline gap-1">

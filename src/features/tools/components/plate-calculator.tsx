@@ -238,7 +238,7 @@ export function PlateCalculator({ defaultUnit = "KG" }: { defaultUnit?: "KG" | "
                 inputMode="decimal"
                 value={targetStr}
                 onChange={(e) => setTargetStr(e.target.value)}
-                placeholder="100"
+                placeholder="–"
                 className="w-24 rounded-xl border border-[var(--sys-separator)] bg-transparent py-2 pr-9 pl-3 text-right text-[1.125rem] font-semibold tabular-nums outline-none focus:border-primary"
                 style={{ fontSize: 16 }}
               />

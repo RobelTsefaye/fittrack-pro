@@ -36,7 +36,7 @@ function VolumeSparkline({ data }: { data: { volume: number; label: string }[] }
       <div className="mb-2 flex items-baseline justify-between px-0.5">
         <span
           className="text-[11px] font-semibold uppercase tracking-[0.06em]"
-          style={{ color: "#5E5E66" }}
+          style={{ color: "#83838C" }}
         >
           {t("dashboard.volumeChartTitle")}
         </span>
@@ -71,7 +71,7 @@ function VolumeSparkline({ data }: { data: { volume: number; label: string }[] }
       </svg>
       <div
         className="mt-2 flex justify-between px-0.5 text-[10px]"
-        style={{ color: "#5E5E66", fontVariantNumeric: "tabular-nums" }}
+        style={{ color: "#83838C", fontVariantNumeric: "tabular-nums" }}
       >
         {filtered.map((d, i) =>
           labelIndices.includes(i) ? (
@@ -159,7 +159,7 @@ export function DashboardAnalytics({
         <div>
           <p
             className="text-[11px] font-semibold uppercase tracking-[0.08em]"
-            style={{ color: "#5E5E66" }}
+            style={{ color: "#83838C" }}
           >
             {dayName} · {dateStr}
           </p>
@@ -176,7 +176,7 @@ export function DashboardAnalytics({
       <div>
         <p
           className="mb-2 px-0.5 text-[11px] font-semibold uppercase tracking-[0.06em]"
-          style={{ color: "#5E5E66" }}
+          style={{ color: "#83838C" }}
         >
           {t("dashboard.thisWeek")}
         </p>
@@ -190,13 +190,13 @@ export function DashboardAnalytics({
               <div className="mb-1.5 flex items-center justify-between">
                 <span
                   className="text-[11px] font-semibold uppercase tracking-[0.04em]"
-                  style={{ color: "#5E5E66" }}
+                  style={{ color: "#83838C" }}
                 >
                   {s.label}
                 </span>
                 <s.icon
                   className="h-4 w-4"
-                  style={{ color: s.accent ? "#D4FF3A" : "#5E5E66" }}
+                  style={{ color: s.accent ? "#D4FF3A" : "#83838C" }}
                   strokeWidth={1.7}
                 />
               </div>
@@ -206,7 +206,7 @@ export function DashboardAnalytics({
               >
                 {s.value}
               </div>
-              <p className="mt-1 text-[11px] leading-tight" style={{ color: "#5E5E66" }}>
+              <p className="mt-1 text-[11px] leading-tight" style={{ color: "#83838C" }}>
                 {s.sub}
               </p>
             </div>
@@ -222,7 +222,7 @@ export function DashboardAnalytics({
         <div>
           <p
             className="mb-2 px-0.5 text-[11px] font-semibold uppercase tracking-[0.06em]"
-            style={{ color: "#5E5E66" }}
+            style={{ color: "#83838C" }}
           >
             {t("dashboard.recentPrs")}
           </p>
@@ -253,7 +253,7 @@ export function DashboardAnalytics({
                   <p className="truncate text-[14px] font-semibold text-white">
                     {pr.exercise.name}
                   </p>
-                  <p className="text-[12px]" style={{ color: "#5E5E66" }}>
+                  <p className="text-[12px]" style={{ color: "#83838C" }}>
                     {new Intl.DateTimeFormat(undefined, {
                       dateStyle: "medium",
                     }).format(new Date(pr.achievedAt))}
@@ -266,7 +266,7 @@ export function DashboardAnalytics({
                   {pr.weight}
                   <span
                     className="text-[12px] font-normal"
-                    style={{ color: "#5E5E66" }}
+                    style={{ color: "#83838C" }}
                   >
                     {" "}
                     {weightUnit.toLowerCase()} × {pr.reps}
@@ -287,7 +287,7 @@ export function DashboardAnalytics({
           <p className="text-[15px] font-semibold text-white">
             {t("dashboard.gettingStarted")}
           </p>
-          <p className="mt-1 text-[13px]" style={{ color: "#5E5E66" }}>
+          <p className="mt-1 text-[13px]" style={{ color: "#83838C" }}>
             {t("dashboard.gettingStartedIntro")}
           </p>
         </div>

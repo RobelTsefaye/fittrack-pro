@@ -43,7 +43,7 @@ export function HealthStatPill({
           )}
         </p>
       ) : (
-        <p className="text-[15px] font-medium" style={{ color: "#5E5E66" }}>—</p>
+        <p className="text-[15px] font-medium" style={{ color: "#83838C" }}>—</p>
       )}
     </>
   );

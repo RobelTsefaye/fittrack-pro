@@ -79,7 +79,7 @@ export function RecoveryRing({ recovery }: RecoveryRingProps) {
             {label}
           </p>
         </div>
-        <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#5E5E66" }} />
+        <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#83838C" }} />
       </div>
 
       {/* Illness early warning */}
@@ -126,7 +126,11 @@ export function RecoveryRing({ recovery }: RecoveryRingProps) {
           {consecutiveLabel && (
             <div
               className="flex items-center gap-1 rounded-full px-3 py-1 w-fit text-[11px] font-medium"
-              style={{ background: "rgba(255,69,58,0.12)", color: "#FF453A" }}
+              style={
+                trainingLoad.consecutiveDays >= 4
+                  ? { background: "rgba(255,179,64,0.14)", color: "#FFB340" }
+                  : { background: "rgba(255,255,255,0.06)", color: "#9A9AA2" }
+              }
             >
               {consecutiveLabel}
             </div>
@@ -173,7 +177,7 @@ function SubScore({
   return (
     <div className="flex flex-col items-center gap-0.5">
       <span style={{ color: accent }}>{icon}</span>
-      <span className="text-[9px] uppercase tracking-wide" style={{ color: "#5E5E66" }}>{label}</span>
+      <span className="text-[9px] uppercase tracking-wide" style={{ color: "#83838C" }}>{label}</span>
       <div className="flex items-center gap-0.5">
         <span className="text-[12px] font-semibold text-white">
           {value != null ? Math.round(value) : "—"}

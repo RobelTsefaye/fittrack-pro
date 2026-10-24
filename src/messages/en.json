@@ -609,7 +609,9 @@
     "statWorkouts": "Workouts",
     "statRecords": "Records",
     "statStreak": "Streak",
-    "statBadges": "Badges"
+    "statBadges": "Badges",
+    "oneRmTitle": "1RM calculator",
+    "estimated1RMShort": "Estimated 1RM"
   },
   "achievements": {
     "title": "Achievements",

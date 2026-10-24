@@ -122,13 +122,13 @@ function CalorieBalance({ snapshot }: { snapshot: HealthSnapshot | null }) {
             Kalorien
           </p>
         </div>
-        <span className="text-[10px] font-medium" style={{ color: weeklyTarget.isPersonalized ? "#30D158" : "#5E5E66" }}>
+        <span className="text-[10px] font-medium" style={{ color: weeklyTarget.isPersonalized ? "#30D158" : "#83838C" }}>
           {weeklyTarget.isPersonalized ? "Personalisiert" : "Standardwert"}
         </span>
       </div>
 
       {eaten == null ? (
-        <p className="mt-3 text-[13px]" style={{ color: "#5E5E66" }}>
+        <p className="mt-3 text-[13px]" style={{ color: "#83838C" }}>
           Noch keine Kalorien-Einträge in Apple Health.
         </p>
       ) : (
@@ -174,11 +174,11 @@ function BalanceCell({
 }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wide" style={{ color: "#5E5E66" }}>{label}</p>
+      <p className="text-[10px] uppercase tracking-wide" style={{ color: "#83838C" }}>{label}</p>
       <p className="mt-0.5 flex items-center gap-1 text-[16px] font-bold tabular-nums" style={{ color }}>
         {icon}
         {value.toLocaleString("de-DE")}
-        <span className="text-[10px] font-normal" style={{ color: "#5E5E66" }}>kcal</span>
+        <span className="text-[10px] font-normal" style={{ color: "#83838C" }}>kcal</span>
       </p>
     </div>
   );
@@ -242,7 +242,7 @@ function MicroSection({ snapshot }: { snapshot: HealthSnapshot | null }) {
   if (visible.length === 0) {
     return (
       <Section title="Mikronährstoffe">
-        <p className="text-[12px]" style={{ color: "#5E5E66" }}>
+        <p className="text-[12px]" style={{ color: "#83838C" }}>
           Keine Mikronährstoff-Daten in Apple Health.
           Diese Daten werden meist erst eingetragen wenn du eine Tracking-App wie MyFitnessPal oder Cronometer nutzt.
         </p>
@@ -270,7 +270,7 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
     <div className="rounded-[22px] p-4" data-glass>
       <div className="mb-3">
         <p className="text-[15px] font-semibold text-white">{title}</p>
-        {subtitle && <p className="text-[11px]" style={{ color: "#5E5E66" }}>{subtitle}</p>}
+        {subtitle && <p className="text-[11px]" style={{ color: "#83838C" }}>{subtitle}</p>}
       </div>
       <div className="space-y-3">{children}</div>
     </div>
@@ -299,7 +299,7 @@ function NutrientRow({ target, value }: { target: NutrientTarget; value: number 
           {" / "}
           {target.target.toLocaleString("de-DE")} {target.unit}
           {value != null && (
-            <span className="ml-1" style={{ color: overLimit ? "#FF453A" : reached ? "#30D158" : "#5E5E66" }}>
+            <span className="ml-1" style={{ color: overLimit ? "#FF453A" : reached ? "#30D158" : "#83838C" }}>
               · {Math.round(pct)}%
             </span>
           )}
@@ -312,7 +312,7 @@ function NutrientRow({ target, value }: { target: NutrientTarget; value: number 
         />
       </div>
       {target.description && (
-        <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
+        <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: "#83838C" }}>
           {target.description}
         </p>
       )}

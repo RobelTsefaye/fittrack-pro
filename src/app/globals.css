@@ -124,7 +124,7 @@
   --sys-separator:   oklch(1 0 0 / 8%);          /* hairline */
   --sys-label:       oklch(0.963 0.005 270);     /* #F4F4F6 */
   --sys-label2:      oklch(0.648 0.009 270);     /* #9A9AA2 */
-  --sys-label3:      oklch(0.440 0.009 270);     /* #5E5E66 */
+  --sys-label3:      oklch(0.600 0.009 270);     /* #83838C — readable in gym light */
 
   --background:           var(--sys-grouped-bg);
   --foreground:           var(--sys-label);

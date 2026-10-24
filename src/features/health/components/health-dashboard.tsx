@@ -502,7 +502,7 @@ export function HealthDashboard({
           <p className="text-[15px] font-semibold text-white">{t("health.shortcutGuide.title")}</p>
           <p className="text-[12px]" style={{ color: "#9A9AA2" }}>{t("health.shortcutGuide.subtitle")}</p>
         </div>
-        <span style={{ color: "#5E5E66" }}>›</span>
+        <span style={{ color: "#83838C" }}>›</span>
       </Link>
     </div>
   );

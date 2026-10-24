@@ -18,7 +18,7 @@ export function RecoveryHistoryChart({ history }: { history: RecoveryHistoryPoin
         <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
         <XAxis
           dataKey="date"
-          stroke="#5E5E66"
+          stroke="#83838C"
           fontSize={10}
           tickFormatter={(d) => {
             const dt = new Date(d as string);
@@ -26,7 +26,7 @@ export function RecoveryHistoryChart({ history }: { history: RecoveryHistoryPoin
           }}
         />
         <YAxis
-          stroke="#5E5E66"
+          stroke="#83838C"
           fontSize={10}
           width={28}
           domain={[0, 100]}

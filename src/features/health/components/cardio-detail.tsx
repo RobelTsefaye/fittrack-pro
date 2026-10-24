@@ -216,7 +216,7 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
     <div className="rounded-[22px] p-4" data-glass>
       <div className="mb-3">
         <p className="text-[15px] font-semibold text-white">{title}</p>
-        {subtitle && <p className="text-[11px]" style={{ color: "#5E5E66" }}>{subtitle}</p>}
+        {subtitle && <p className="text-[11px]" style={{ color: "#83838C" }}>{subtitle}</p>}
       </div>
       {children}
     </div>
@@ -242,7 +242,7 @@ function CollapsibleSection({
       >
         <div>
           <p className="text-[15px] font-semibold text-white">{title}</p>
-          {subtitle && <p className="text-[11px]" style={{ color: "#5E5E66" }}>{subtitle}</p>}
+          {subtitle && <p className="text-[11px]" style={{ color: "#83838C" }}>{subtitle}</p>}
         </div>
         <ChevronDown
           className="h-4 w-4 shrink-0 transition-transform"
@@ -370,7 +370,7 @@ function HeroStat({
   const showDelta = delta != null && Math.abs(delta) >= 1;
   return (
     <div>
-      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide" style={{ color: "#5E5E66" }}>
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide" style={{ color: "#83838C" }}>
         <span style={{ color: accentColor }}>{icon}</span>
         {label}
       </div>

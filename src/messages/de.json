@@ -609,7 +609,9 @@
     "statWorkouts": "Workouts",
     "statRecords": "Rekorde",
     "statStreak": "Serie",
-    "statBadges": "Abzeichen"
+    "statBadges": "Abzeichen",
+    "oneRmTitle": "1RM-Rechner",
+    "estimated1RMShort": "Geschätztes 1RM"
   },
   "achievements": {
     "title": "Erfolge",

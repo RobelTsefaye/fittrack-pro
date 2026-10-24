@@ -109,7 +109,7 @@ export default function MorePage() {
             <span className="flex-1 text-[0.9375rem] font-medium text-white">
               {t(labelKey)}
             </span>
-            <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#5E5E66" }} />
+            <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#83838C" }} />
           </Link>
         ))}
       </div>

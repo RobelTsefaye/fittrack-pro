@@ -40,7 +40,7 @@ export function ExerciseVolumeChart({ data }: ExerciseVolumeChartProps) {
         <YAxis
           width={44}
           tick={{ fontSize: 10 }}
-          domain={["auto", "auto"]}
+          domain={[0, "auto"]}
           className="text-muted-foreground"
         />
         <Tooltip

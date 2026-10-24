@@ -278,7 +278,7 @@ function ChartCard({
         )}
       </div>
       {series.length === 0 ? (
-        <p className="py-10 text-center text-[13px]" style={{ color: "#5E5E66" }}>
+        <p className="py-10 text-center text-[13px]" style={{ color: "#83838C" }}>
           Keine Daten im gewählten Zeitraum
         </p>
       ) : (
@@ -326,7 +326,7 @@ function StageSection({
       )}
 
       {series.length === 0 ? (
-        <p className="py-10 text-center text-[13px]" style={{ color: "#5E5E66" }}>
+        <p className="py-10 text-center text-[13px]" style={{ color: "#83838C" }}>
           Keine Phasendaten im gewählten Zeitraum
         </p>
       ) : (

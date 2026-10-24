@@ -267,7 +267,7 @@ export function WeightTrendCard() {
 
       {mode === "weeks" ? (
         !weekData || weekData.every((w) => w.avgWeightKg == null) ? (
-          <p className="text-[13px]" style={{ color: "#5E5E66" }}>{t("health.weightTrend.insufficientData")}</p>
+          <p className="text-[13px]" style={{ color: "#83838C" }}>{t("health.weightTrend.insufficientData")}</p>
         ) : (
           <div className="space-y-1.5">
             {weekData.map((w) => {
@@ -284,12 +284,12 @@ export function WeightTrendCard() {
                     <p className="text-[12px] font-semibold text-white">
                       {formatWeekLabel(w.weekStart, w.weekEnd)}
                       {isCurrentWeek && (
-                        <span className="ml-1.5 text-[10px] font-normal" style={{ color: "#5E5E66" }}>
+                        <span className="ml-1.5 text-[10px] font-normal" style={{ color: "#83838C" }}>
                           {t("health.weightTrend.currentWeek")}
                         </span>
                       )}
                     </p>
-                    <p className="text-[11px]" style={{ color: "#5E5E66" }}>
+                    <p className="text-[11px]" style={{ color: "#83838C" }}>
                       {w.avgCalories != null
                         ? `Ø ${Math.round(w.avgCalories).toLocaleString("de-DE")} kcal`
                         : t("health.weightTrend.noCalorieData")}
@@ -311,15 +311,15 @@ export function WeightTrendCard() {
           </div>
         )
       ) : chartData.length === 0 ? (
-        <p className="text-[13px]" style={{ color: "#5E5E66" }}>{t("health.weightTrend.insufficientData")}</p>
+        <p className="text-[13px]" style={{ color: "#83838C" }}>{t("health.weightTrend.insufficientData")}</p>
       ) : (
         <>
           <div className="h-32">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#5E5E66" }} axisLine={false} tickLine={false} />
-                <YAxis width={36} tick={{ fontSize: 10, fill: "#5E5E66" }} domain={["auto", "auto"]} axisLine={false} tickLine={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#83838C" }} axisLine={false} tickLine={false} />
+                <YAxis width={36} tick={{ fontSize: 10, fill: "#83838C" }} domain={["auto", "auto"]} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "#1C1C1E" }} />
                 <Line type="monotone" dataKey="value" stroke="#FF9F0A" strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
@@ -328,16 +328,16 @@ export function WeightTrendCard() {
 
           <div className="grid grid-cols-3 gap-2 pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
             <div>
-              <p className="text-[10px] uppercase tracking-wide" style={{ color: "#5E5E66" }}>
+              <p className="text-[10px] uppercase tracking-wide" style={{ color: "#83838C" }}>
                 {t("health.weightTrend.periodAvg")}
               </p>
               <p className="mt-0.5 text-[15px] font-bold tabular-nums text-white">
                 {avgWeightKg != null ? avgWeightKg.toFixed(1) : "—"}
-                <span className="ml-1 text-[10px] font-normal" style={{ color: "#5E5E66" }}>kg</span>
+                <span className="ml-1 text-[10px] font-normal" style={{ color: "#83838C" }}>kg</span>
               </p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wide" style={{ color: "#5E5E66" }}>
+              <p className="text-[10px] uppercase tracking-wide" style={{ color: "#83838C" }}>
                 {t("health.weightTrend.periodChange")}
               </p>
               <p className="mt-0.5 text-[15px] font-bold tabular-nums" style={{ color: deltaColor }}>
@@ -345,16 +345,16 @@ export function WeightTrendCard() {
               </p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wide" style={{ color: "#5E5E66" }}>
+              <p className="text-[10px] uppercase tracking-wide" style={{ color: "#83838C" }}>
                 {t("health.weightTrend.perWeek")}
               </p>
               <p className="mt-0.5 text-[15px] font-bold tabular-nums text-white">
                 {deltaPerWeekKg != null ? `${deltaPerWeekKg > 0 ? "+" : ""}${deltaPerWeekKg.toFixed(2)}` : "—"}
-                <span className="ml-1 text-[10px] font-normal" style={{ color: "#5E5E66" }}>kg</span>
+                <span className="ml-1 text-[10px] font-normal" style={{ color: "#83838C" }}>kg</span>
               </p>
             </div>
           </div>
-          <p className="text-[11px]" style={{ color: "#5E5E66" }}>
+          <p className="text-[11px]" style={{ color: "#83838C" }}>
             {t("health.weightTrend.entryCount", { count })}
           </p>
         </>

@@ -30,7 +30,7 @@ const MORE_ROUTES = [
 ];
 
 const VOLT = "#D4FF3A";
-const DIM  = "#5E5E66";
+const DIM  = "#83838C";
 
 export function BottomTabBar() {
   const pathname = usePathname();

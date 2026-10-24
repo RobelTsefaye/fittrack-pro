@@ -186,7 +186,7 @@ function HistoryChart({ history }: { history: RecoveryHistoryPoint[] }) {
         className="rounded-[22px] p-5 text-center"
         data-glass
       >
-        <p className="text-[13px]" style={{ color: "#5E5E66" }}>
+        <p className="text-[13px]" style={{ color: "#83838C" }}>
           Verlauf erscheint nach einigen Tagen.
         </p>
       </div>
@@ -243,26 +243,26 @@ function Card({ icon, title, accent, children, score, weight, hint, href }: {
           <span style={{ color: accent }}>{icon}</span>
           <div>
             <p className="text-[15px] font-semibold text-white">{title}</p>
-            <p className="text-[11px]" style={{ color: "#5E5E66" }}>
+            <p className="text-[11px]" style={{ color: "#83838C" }}>
               {weight > 0 ? `${Math.round(weight * 100)}% Gewicht` : "Modifikator"}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="text-right">
-            <p className="text-[20px] font-bold leading-none" style={{ color: score != null ? accent : "#5E5E66" }}>
+            <p className="text-[20px] font-bold leading-none" style={{ color: score != null ? accent : "#83838C" }}>
               {score != null ? Math.round(score) : "—"}
             </p>
-            <p className="text-[10px]" style={{ color: "#5E5E66" }}>/100</p>
+            <p className="text-[10px]" style={{ color: "#83838C" }}>/100</p>
           </div>
-          {href && <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#5E5E66" }} />}
+          {href && <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#83838C" }} />}
         </div>
       </div>
       <div className="space-y-1.5 text-[13px]" style={{ color: "#9A9AA2" }}>
         {children}
       </div>
       {hint && (
-        <p className="mt-3 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
+        <p className="mt-3 text-[11px] leading-relaxed" style={{ color: "#83838C" }}>
           {hint}
         </p>
       )}

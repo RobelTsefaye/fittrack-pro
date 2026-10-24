@@ -213,7 +213,7 @@ export function MetricDetail({
         data-glass
       >
         {ranged.length === 0 ? (
-          <p className="py-12 text-center text-[14px]" style={{ color: "#5E5E66" }}>
+          <p className="py-12 text-center text-[14px]" style={{ color: "#83838C" }}>
             Keine Daten im gewählten Zeitraum
           </p>
         ) : (
@@ -308,7 +308,7 @@ export function AthleteScale({
       <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: accent }}>
         Sportler-Referenz
       </p>
-      <p className="mt-0.5 text-[11px]" style={{ color: "#5E5E66" }}>
+      <p className="mt-0.5 text-[11px]" style={{ color: "#83838C" }}>
         Skala für trainierte Erwachsene — nicht für die Allgemeinbevölkerung.
       </p>
 
