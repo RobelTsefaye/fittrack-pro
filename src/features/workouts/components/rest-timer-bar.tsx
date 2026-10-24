@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronUp, Minus, Pause, Play, Plus, SkipForward } from "lucide-react";
 import type { RestTimerApi } from "../rest-timer-context";
@@ -12,6 +12,8 @@ interface RestTimerBarProps {
 }
 
 const STEP = 10;
+/** Expanded controls collapse on their own so they don't sit over the header. */
+const AUTO_COLLAPSE_MS = 5000;
 const RING_RADIUS = 13;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
@@ -44,9 +46,21 @@ function ProgressRing({ progress, done }: { progress: number; done: boolean }) {
  * controls.
  */
 export function RestTimerBar({ timer }: RestTimerBarProps) {
+  // Mount the pill only while a rest is active so its expanded state resets
+  // for every new rest.
+  if (!timer.isRestActive) return null;
+  return <RestTimerPill timer={timer} />;
+}
+
+function RestTimerPill({ timer }: RestTimerBarProps) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
-  if (!timer.isRestActive) return null;
+
+  useEffect(() => {
+    if (!expanded) return;
+    const id = window.setTimeout(() => setExpanded(false), AUTO_COLLAPSE_MS);
+    return () => window.clearTimeout(id);
+  }, [expanded]);
 
   const minutes = Math.floor(timer.remaining / 60);
   const seconds = timer.remaining % 60;
@@ -76,9 +90,13 @@ export function RestTimerBar({ timer }: RestTimerBarProps) {
       >
         <button
           type="button"
-          onClick={() => setExpanded((v) => !v)}
+          onClick={() => {
+            // Rest is over: one tap clears the pill.
+            if (done) timer.stop();
+            else setExpanded((v) => !v);
+          }}
           aria-expanded={expanded}
-          aria-label={t("workouts.restTimerTitle")}
+          aria-label={done ? t("workouts.restTimerDismiss") : t("workouts.restTimerTitle")}
           className="flex w-full items-center gap-2.5 py-1.5 pl-1.5 pr-4 text-left"
         >
           <ProgressRing progress={done ? 100 : timer.progress} done={done} />

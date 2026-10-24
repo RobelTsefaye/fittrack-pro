@@ -12,16 +12,22 @@ export function useScreenWakeLock(enabled: boolean) {
   useEffect(() => {
     if (!enabled || typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
     let sentinel: WakeLockSentinel | null = null;
+    let pending = false;
     let disposed = false;
 
     const acquire = async () => {
-      if (document.visibilityState !== "visible" || (sentinel && !sentinel.released)) return;
+      if (pending || document.visibilityState !== "visible" || (sentinel && !sentinel.released)) {
+        return;
+      }
+      pending = true;
       try {
         const next = await navigator.wakeLock.request("screen");
         if (disposed) void next.release();
         else sentinel = next;
       } catch {
         /* denied (e.g. low battery mode) or unsupported — ignore */
+      } finally {
+        pending = false;
       }
     };
 

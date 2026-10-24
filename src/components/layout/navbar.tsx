@@ -50,10 +50,16 @@ function useScrolledPastTitle(threshold = 56) {
   useEffect(() => {
     const main = document.getElementById("main-content");
     if (!main) return;
-    const update = () => setScrolled(main.scrollTop > threshold);
+    // Pages without their own large <h1> always show the bar title.
+    const update = () => setScrolled(!main.querySelector("h1") || main.scrollTop > threshold);
     update();
+    // Client pages render their heading after data loads — re-check then.
+    const timers = [300, 1500].map((ms) => window.setTimeout(update, ms));
     main.addEventListener("scroll", update, { passive: true });
-    return () => main.removeEventListener("scroll", update);
+    return () => {
+      timers.forEach((id) => window.clearTimeout(id));
+      main.removeEventListener("scroll", update);
+    };
   }, [pathname, threshold]);
   return scrolled;
 }

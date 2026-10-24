@@ -72,6 +72,10 @@ export const SetRow = memo(function SetRow({
   // save, which would disable the button before its click lands — the tap
   // was silently lost and users had to tap twice.
   const completingRef = useRef(false);
+  // Saves can now overlap (blur save + completion). Only the newest
+  // request's response may be merged, so a slower plain save can't revert
+  // a just-completed set to "not done".
+  const saveSeqRef = useRef(0);
 
   // Re-seed the inputs from props only when this row starts representing a
   // *different* set (id change) — not on every prop update. The active-workout
@@ -137,19 +141,28 @@ export const SetRow = memo(function SetRow({
       return;
     }
 
-    const res = await fetch(`/api/workouts/${workoutId}/sets/${set.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(data),
-    });
+    const seq = ++saveSeqRef.current;
+    let res: Response;
+    try {
+      res = await fetch(`/api/workouts/${workoutId}/sets/${set.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+    } catch {
+      // Network dropped while navigator.onLine still claims online.
+      if (complete) toast.error(t("common.saveFailed"));
+      onRefresh?.();
+      return;
+    }
 
     if (res.ok) {
       const json = (await res.json()) as {
         data?: WorkoutSetData;
         personalRecord?: boolean;
       };
-      if (json.data) onMergeSet?.(json.data);
+      if (json.data && seq === saveSeqRef.current) onMergeSet?.(json.data);
       if (complete) {
         if (json.personalRecord) {
           void hapticPersonalRecord();

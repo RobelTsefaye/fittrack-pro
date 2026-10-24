@@ -58,6 +58,7 @@ import type { WorkoutData, WorkoutExerciseData, WorkoutSetData } from "@/feature
 import { shouldRestAfterExercise } from "@/features/workouts/superset-utils";
 import { summarizeWorkout } from "@/features/workouts/workout-progress";
 import { useScreenWakeLock } from "@/lib/use-screen-wake-lock";
+import { muscleGroupLabel } from "@/lib/muscle-group-label";
 import { WorkoutProgressCard } from "./workout-progress-card";
 import {
   enqueueWorkoutOp,
@@ -355,11 +356,7 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
                 </Link>
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {(() => {
-                  const key = `muscleMap.${we.exercise.muscleGroup}`;
-                  const label = t(key);
-                  return label === key ? we.exercise.muscleGroup.replace(/_/g, " ") : label;
-                })()}
+                {muscleGroupLabel(t, we.exercise.muscleGroup)}
               </p>
               {we.supersetGroup != null ? <Badge variant="secondary" className="mt-1 text-[10px]">{t("workouts.supersetLabel")}</Badge> : null}
             </div>
@@ -538,6 +535,8 @@ export function WorkoutDetail({
   const generatingWarmupsRef = useRef(false);
   const [reviseCompletedSets, setReviseCompletedSets] = useState(false);
   const [completionSummary, setCompletionSummary] = useState<{
+    /** From the /complete response — `workout` only catches up after a reload. */
+    durationSeconds?: number | null;
     hasPrevious: boolean;
     previousVolume: number;
     currentVolume: number;
@@ -1492,7 +1491,12 @@ export function WorkoutDetail({
         };
         newPersonalRecords?: number;
       };
-      if (json.comparison) setCompletionSummary(json.comparison);
+      if (json.comparison) {
+        setCompletionSummary({
+          ...json.comparison,
+          durationSeconds: json.data?.durationSeconds ?? null,
+        });
+      }
       restTimer.stop();
       void syncTrainingCalendar();
       await savePreviousLogsCache(workoutAsPreviousLogs(workout));
@@ -2027,7 +2031,10 @@ export function WorkoutDetail({
             <div className="relative space-y-4">
               <dl className="grid grid-cols-3 gap-2">
                 {[
-                  { label: t("workouts.summaryDuration"), value: formatDuration(workout.durationSeconds) },
+                  {
+                    label: t("workouts.summaryDuration"),
+                    value: formatDuration(completionSummary.durationSeconds ?? workout.durationSeconds),
+                  },
                   { label: t("workouts.summarySets"), value: String(progress.completedSets) },
                   {
                     label: t("workouts.summaryVolume"),
