@@ -364,7 +364,12 @@
     "weightUp": "Gewicht erhöhen",
     "repsDown": "Eine Wiederholung weniger",
     "repsUp": "Eine Wiederholung mehr",
-    "rpeHint": "Gefühlte Anstrengung (10 = Maximum)"
+    "rpeHint": "Gefühlte Anstrengung (10 = Maximum)",
+    "moreActions": "Weitere Aktionen",
+    "summaryRecords": "Neue Rekorde",
+    "summaryNotePlaceholder": "Wie lief's? (optional)",
+    "summaryNoteSave": "Speichern & schließen",
+    "summaryNoteSaved": "Notiz gespeichert"
   },
   "cardio": {
     "pickTitle": "Cardio starten",
@@ -448,7 +453,9 @@
     "removeDay": "Tag entfernen",
     "removeDayConfirm": "Diesen Trainingstag aus dem Plan entfernen?",
     "removeExercise": "Entfernen",
-    "fromPlanLink": "Pläne"
+    "fromPlanLink": "Pläne",
+    "moreActions": "Plan-Aktionen",
+    "nameSaved": "Name gespeichert"
   },
   "exercises": {
     "title": "Übungen",

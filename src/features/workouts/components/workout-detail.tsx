@@ -28,6 +28,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
@@ -543,9 +544,13 @@ export function WorkoutDetail({
   const [generatingWarmups, setGeneratingWarmups] = useState(false);
   const generatingWarmupsRef = useRef(false);
   const [reviseCompletedSets, setReviseCompletedSets] = useState(false);
+  const [summaryNote, setSummaryNote] = useState("");
+  const [savingSummaryNote, setSavingSummaryNote] = useState(false);
+  const summaryDoneRef = useRef<HTMLButtonElement>(null);
   const [completionSummary, setCompletionSummary] = useState<{
     /** From the /complete response — `workout` only catches up after a reload. */
     durationSeconds?: number | null;
+    records?: { exerciseName: string; weight: number; reps: number }[];
     hasPrevious: boolean;
     previousVolume: number;
     currentVolume: number;
@@ -1499,10 +1504,13 @@ export function WorkoutDetail({
           volumeDeltaPct: number | null;
         };
         newPersonalRecords?: number;
+        records?: { exerciseName: string; weight: number; reps: number }[];
       };
       if (json.comparison) {
+        setSummaryNote(workout?.notes ?? "");
         setCompletionSummary({
           ...json.comparison,
+          records: json.records ?? [],
           durationSeconds: json.data?.durationSeconds ?? null,
         });
       }
@@ -1699,6 +1707,35 @@ export function WorkoutDetail({
     }
   }
 
+  /** Closes the finish dialog, saving the note first when one was written. */
+  async function closeSummary() {
+    const note = summaryNote.trim();
+    if (note && note !== (workout?.notes ?? "").trim()) {
+      setSavingSummaryNote(true);
+      try {
+        const res = await fetch(`/api/workouts/${workoutId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ notes: note }),
+        });
+        if (res.ok) {
+          setWorkout((w) => (w ? { ...w, notes: note } : w));
+          toast.success(t("workouts.summaryNoteSaved"));
+        } else {
+          toast.error(t("common.saveFailed"));
+          return;
+        }
+      } catch {
+        toast.error(t("common.saveFailed"));
+        return;
+      } finally {
+        setSavingSummaryNote(false);
+      }
+    }
+    setCompletionSummary(null);
+  }
+
   async function cancelWorkout() {
     if (!workout || workout.completedAt) return;
     if (!(await askConfirm(t("workouts.cancelWorkoutConfirm")))) return;
@@ -1839,6 +1876,32 @@ export function WorkoutDetail({
               <CheckCircle2 className="mr-1.5 h-4 w-4" />
               {completing ? t("workouts.finishing") : t("workouts.finishWorkout")}
             </Button>
+          ) : workout.completedAt ? (
+            <div className="flex items-center gap-1">
+              <WorkoutShareButton workout={workout} weightUnit={weightLabel} className="px-3 py-1.5" />
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<Button type="button" variant="ghost" size="icon" aria-label={t("workouts.moreActions")} />}
+                >
+                  <MoreHorizontal className="h-5 w-5" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {!useLocalWrites ? (
+                    <DropdownMenuItem onClick={() => setReviseCompletedSets((v) => !v)}>
+                      {reviseCompletedSets ? t("workouts.doneEditingSets") : t("workouts.editCompletedSets")}
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={deletingWorkout}
+                    onClick={() => void deleteCompletedWorkout()}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {deletingWorkout ? t("workouts.deletingWorkout") : t("workouts.deleteCompleted")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           ) : null}
         </div>
         {workout.completedAt ? (
@@ -1886,20 +1949,15 @@ export function WorkoutDetail({
         <WorkoutProgressCard progress={progress} weightLabel={weightLabel} />
       ) : null}
 
-      {workout.completedAt ? (
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-          <WorkoutShareButton workout={workout} weightUnit={weightLabel} />
-          {reviseToggle}
-          <Button
-            variant="outline"
-            className="w-full shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
-            onClick={() => void deleteCompletedWorkout()}
-            disabled={deletingWorkout}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            {deletingWorkout ? t("workouts.deletingWorkout") : t("workouts.deleteCompleted")}
-          </Button>
-        </div>
+      {workout.completedAt && workout.notes?.trim() ? (
+        <p data-glass className="whitespace-pre-line rounded-2xl px-4 py-3 text-sm text-[var(--sys-label2)]">
+          {workout.notes}
+        </p>
+      ) : null}
+
+      {workout.completedAt && reviseCompletedSets ? (
+        // While correcting, the way out stays visible (not hidden in the menu).
+        <div className="sticky top-2 z-10">{reviseToggle}</div>
       ) : null}
 
       {useLocalWrites && isActive ? (
@@ -2024,7 +2082,9 @@ export function WorkoutDetail({
           if (!open) setCompletionSummary(null);
         }}
       >
-        <DialogContent className="overflow-hidden sm:max-w-md">
+        {/* Focus the done button, not the note field: on a phone a focused
+            textarea would pop the keyboard over the summary. */}
+        <DialogContent className="overflow-hidden sm:max-w-md" initialFocus={summaryDoneRef}>
           <div
             aria-hidden
             className="pointer-events-none absolute inset-x-0 -top-24 h-48 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--primary)_35%,transparent),transparent)]"
@@ -2083,8 +2143,43 @@ export function WorkoutDetail({
                   {t("workouts.sessionSummaryNoPrevious")}
                 </p>
               )}
-              <Button className="w-full" size="lg" onClick={() => setCompletionSummary(null)}>
-                {t("workouts.summaryDone")}
+              {completionSummary.records && completionSummary.records.length > 0 ? (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    🏆 {t("workouts.summaryRecords")}
+                  </p>
+                  <ul className="space-y-1">
+                    {completionSummary.records.map((r, i) => (
+                      <li
+                        key={`${r.exerciseName}-${i}`}
+                        className="flex items-center justify-between gap-3 rounded-lg bg-primary/10 px-3 py-2 text-sm"
+                      >
+                        <span className="min-w-0 truncate font-medium">{r.exerciseName}</span>
+                        <span className="shrink-0 font-display font-bold tabular-nums text-primary">
+                          {r.weight.toLocaleString()} {weightLabel} × {r.reps}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <Textarea
+                value={summaryNote}
+                onChange={(e) => setSummaryNote(e.target.value)}
+                placeholder={t("workouts.summaryNotePlaceholder")}
+                maxLength={1000}
+                rows={2}
+              />
+              <Button
+                ref={summaryDoneRef}
+                className="w-full"
+                size="lg"
+                disabled={savingSummaryNote}
+                onClick={() => void closeSummary()}
+              >
+                {summaryNote.trim() && summaryNote.trim() !== (workout.notes ?? "").trim()
+                  ? t("workouts.summaryNoteSave")
+                  : t("workouts.summaryDone")}
               </Button>
             </div>
           ) : null}

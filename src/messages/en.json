@@ -364,7 +364,12 @@
     "weightUp": "Increase weight",
     "repsDown": "One rep less",
     "repsUp": "One rep more",
-    "rpeHint": "Rate of perceived exertion (10 = max)"
+    "rpeHint": "Rate of perceived exertion (10 = max)",
+    "moreActions": "More actions",
+    "summaryRecords": "New records",
+    "summaryNotePlaceholder": "How did it go? (optional)",
+    "summaryNoteSave": "Save & close",
+    "summaryNoteSaved": "Note saved"
   },
   "cardio": {
     "pickTitle": "Start cardio",
@@ -448,7 +453,9 @@
     "removeDay": "Remove day",
     "removeDayConfirm": "Remove this workout day from the plan?",
     "removeExercise": "Remove",
-    "fromPlanLink": "Plans"
+    "fromPlanLink": "Plans",
+    "moreActions": "Plan actions",
+    "nameSaved": "Name saved"
   },
   "exercises": {
     "title": "Exercises",

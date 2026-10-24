@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "@/components/app-link";
 import { useRouter } from "next/navigation";
 import { Activity, ArrowLeft, Bike, CheckCircle2, Flame, Footprints, HeartPulse, PersonStanding, PictureInPicture2, Timer as TimerIcon, X } from "lucide-react";
@@ -47,7 +48,15 @@ function formatElapsed(seconds: number) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+const noopSubscribe = () => () => {};
+
 export default function CardioWorkoutPage() {
+  // Read after hydration: the static native build is prerendered as "web".
+  const isNative = useSyncExternalStore(
+    noopSubscribe,
+    () => Capacitor.isNativePlatform(),
+    () => true
+  );
   const { t } = useI18n();
   const router = useRouter();
   const live = useCardioLive();
@@ -191,6 +200,11 @@ export default function CardioWorkoutPage() {
             <CardHeader>
               <CardTitle>{t("cardio.pickTitle")}</CardTitle>
               <CardDescription>{t("cardio.pickSubtitle")}</CardDescription>
+              {!isNative ? (
+                <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  {t("cardio.needsNativeApp")}
+                </p>
+              ) : null}
             </CardHeader>
             <CardContent className="space-y-3">
               <Button className="w-full justify-start gap-3" size="lg" variant="outline" onClick={() => handlePick("running")}>

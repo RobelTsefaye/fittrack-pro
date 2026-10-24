@@ -109,6 +109,13 @@ export const POST = withApi(async function POST(
 
   const currentVolume = await sumWorkoutVolume(id);
 
+  // Every PR set in this workout (recorded live or just now), best first.
+  const workoutRecords = await prisma.personalRecord.findMany({
+    where: { userId, set: { workoutExercise: { workoutId: id } } },
+    select: { weight: true, reps: true, estimated1RM: true, exercise: { select: { name: true } } },
+    orderBy: { estimated1RM: "desc" },
+  });
+
   const volumeDelta = currentVolume - previousVolume;
   const volumeDeltaPct =
     previousVolume > 0 ? (volumeDelta / previousVolume) * 100 : null;
@@ -126,5 +133,10 @@ export const POST = withApi(async function POST(
       volumeDeltaPct,
     },
     newPersonalRecords,
+    records: workoutRecords.map((r) => ({
+      exerciseName: r.exercise.name,
+      weight: r.weight,
+      reps: r.reps,
+    })),
   });
 });
