@@ -17,6 +17,10 @@ import { syncTrainingCalendar } from "@/lib/native/calendar";
 import { todayLocalISO } from "@/lib/date-only";
 import { useI18n } from "@/lib/i18n-provider";
 import { toast } from "sonner";
+import {
+  hhmmToMinutes as minutes,
+  minutesToHhmm as hhmm,
+} from "@/features/calendar/time-format";
 
 type Override = {
   skip: boolean;
@@ -30,12 +34,6 @@ type Entry = {
   defaultStartMinutes: number;
   defaultDurationMinutes: number;
   override: Override | null;
-};
-const hhmm = (minutes: number) =>
-  `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-const minutes = (value: string) => {
-  const [hours, mins] = value.split(":").map(Number);
-  return Number.isFinite(hours) && Number.isFinite(mins) ? hours * 60 + mins : null;
 };
 const weekday = (date: string, locale: string) =>
   new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "short" }).format(
@@ -80,67 +78,53 @@ export default function CalendarEditorPage() {
     setSelected(entry);
     setSkip(entry.override?.skip ?? false);
     setMovedToDate(entry.override?.movedToDate ?? "");
-    setTime(
-      entry.override?.timeMinutes === null || entry.override?.timeMinutes === undefined
-        ? ""
-        : hhmm(entry.override.timeMinutes)
-    );
+    setTime(entry.override?.timeMinutes != null ? hhmm(entry.override.timeMinutes) : "");
     setDuration(entry.override?.durationMinutes?.toString() ?? "");
   }
   function badge(entry: Entry) {
     if (entry.override?.skip) return t("calendarEditor.badgeSkipped");
     if (entry.override?.movedToDate) return t("calendarEditor.badgeMoved");
-    if (
-      (entry.override?.timeMinutes !== null && entry.override?.timeMinutes !== undefined) ||
-      (entry.override?.durationMinutes !== null && entry.override?.durationMinutes !== undefined)
-    )
+    if (entry.override?.timeMinutes != null || entry.override?.durationMinutes != null)
       return t("calendarEditor.badgeCustom");
     return t("calendarEditor.badgeDefault");
   }
-  function afterChange() {
-    setSelected(null);
-    setReloadKey((k) => k + 1);
-    void syncTrainingCalendar();
-  }
-  async function save() {
-    if (!selected) return;
-    const durationMinutes = duration === "" ? null : Number(duration);
-    if (!Number.isInteger(durationMinutes) && durationMinutes !== null) return;
+  /** Sends an override change; on success closes the dialog and refreshes. */
+  async function mutate(url: string, init: RequestInit) {
     setSaving(true);
     try {
-      const res = await authenticatedFetch("/api/calendar/overrides", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          kind,
-          date: selected.sourceDate,
-          skip,
-          movedToDate: movedToDate || null,
-          timeMinutes: time ? minutes(time) : null,
-          durationMinutes,
-        }),
-      });
+      const res = await authenticatedFetch(url, { credentials: "include", ...init });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      afterChange();
+      setSelected(null);
+      setReloadKey((k) => k + 1);
+      void syncTrainingCalendar();
     } catch {
       toast.error(t("common.saveFailed"));
     } finally {
       setSaving(false);
     }
   }
-  async function reset() {
+  function save() {
     if (!selected) return;
-    try {
-      const res = await authenticatedFetch(
-        `/api/calendar/overrides?kind=${kind}&date=${selected.sourceDate}`,
-        { method: "DELETE", credentials: "include" }
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      afterChange();
-    } catch {
-      toast.error(t("common.saveFailed"));
-    }
+    const durationMinutes = duration === "" ? null : Number(duration);
+    if (!Number.isInteger(durationMinutes) && durationMinutes !== null) return;
+    void mutate("/api/calendar/overrides", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind,
+        date: selected.sourceDate,
+        skip,
+        movedToDate: movedToDate || null,
+        timeMinutes: time ? minutes(time) : null,
+        durationMinutes,
+      }),
+    });
+  }
+  function reset() {
+    if (!selected) return;
+    void mutate(`/api/calendar/overrides?kind=${kind}&date=${selected.sourceDate}`, {
+      method: "DELETE",
+    });
   }
   return (
     <RequireAuth>
@@ -222,7 +206,7 @@ export default function CalendarEditorPage() {
             </label>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={reset}>
+            <Button variant="outline" onClick={reset} disabled={saving}>
               {t("calendarEditor.reset")}
             </Button>
             <Button onClick={save} disabled={saving}>

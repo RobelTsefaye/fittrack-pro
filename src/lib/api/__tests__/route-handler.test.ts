@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const resolveUserId = vi.fn<() => Promise<string | null>>();
 vi.mock("@/lib/api-auth", () => ({ resolveUserIdForDataApi: () => resolveUserId() }));
 
-const { ApiError, requireUserId, withApi } = await import("@/lib/api/route-handler");
+const { ApiError, readJsonBody, requireUserId, withApi } = await import("@/lib/api/route-handler");
 const { parseDateOnlyUtc } = await import("@/lib/date-only");
 
 describe("withApi", () => {
@@ -54,7 +54,6 @@ describe("withApi", () => {
 
 describe("readJsonBody", () => {
   it("parses valid JSON and rejects malformed bodies with 400", async () => {
-    const { readJsonBody } = await import("@/lib/api/route-handler");
     await expect(
       readJsonBody(new Request("http://x", { method: "POST", body: '{"a":1}' }))
     ).resolves.toEqual({ a: 1 });

@@ -44,7 +44,7 @@ export const GET = withApi(async function GET() {
 export const POST = withApi(async function POST(req: NextRequest) {
   const userId = await requireUserId();
 
-  const body = await readJsonBody(req).catch(() => null);
+  const body = await readJsonBody(req);
   const parsed = createNutritionPlanSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(

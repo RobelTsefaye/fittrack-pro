@@ -15,3 +15,13 @@ describe("parseDateOnlyUtc", () => {
     }
   );
 });
+
+describe("isValidDateOnly / dateOnlySchema", () => {
+  it("accepts real calendar dates only", async () => {
+    const { isValidDateOnly, dateOnlySchema } = await import("@/lib/date-only");
+    expect(isValidDateOnly("2024-02-29")).toBe(true);
+    expect(isValidDateOnly("2024-02-30")).toBe(false);
+    expect(isValidDateOnly("2024-2-3")).toBe(false);
+    expect(dateOnlySchema.safeParse("2023-02-29").success).toBe(false);
+  });
+});

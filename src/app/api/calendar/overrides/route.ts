@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { parseDateOnlyUtc } from "@/lib/date-only";
+import { dateOnlySchema, parseDateOnlyUtc } from "@/lib/date-only";
 import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
-const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const date = dateOnlySchema;
 const kind = z.enum(["training", "cardio"]);
 const schema = z.object({
   kind,

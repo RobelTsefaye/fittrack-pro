@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
-import { parseDateOnlyUtc } from "@/lib/date-only";
+import { dateOnlySchema, parseDateOnlyUtc } from "@/lib/date-only";
 
 const schema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: dateOnlySchema,
   neck:       z.number().positive().optional().nullable(),
   chest:      z.number().positive().optional().nullable(),
   leftArm:    z.number().positive().optional().nullable(),

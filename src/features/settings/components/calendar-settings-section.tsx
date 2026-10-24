@@ -10,6 +10,7 @@ import { syncTrainingCalendar } from "@/lib/native/calendar";
 import { useI18n } from "@/lib/i18n-provider";
 import { CARDIO_CALENDAR_LABELS } from "@/features/calendar/cardio-labels";
 import { DEFAULT_SETTINGS, type InitialSettings } from "@/features/settings/types";
+import { hhmmToMinutes, minutesToHhmm } from "@/features/calendar/time-format";
 
 const weekdays = [
   "weekdayMon",
@@ -20,12 +21,8 @@ const weekdays = [
   "weekdaySat",
   "weekdaySun",
 ] as const;
-const hhmm = (minutes: number) =>
-  `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-const toMinutes = (value: string) => {
-  const [hours, minutes] = value.split(":").map(Number);
-  return Number.isFinite(hours) && Number.isFinite(minutes) ? hours * 60 + minutes : 1080;
-};
+const hhmm = minutesToHhmm;
+const toMinutes = (value: string) => hhmmToMinutes(value) ?? 1080;
 
 export function CalendarSettingsSection({ kind }: { kind: "training" | "cardio" }) {
   const { t } = useI18n();

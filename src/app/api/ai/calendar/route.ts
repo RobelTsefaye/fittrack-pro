@@ -9,8 +9,7 @@ import {
 } from "@/features/calendar/schedule";
 import type { CalendarKind } from "@/generated/prisma/client";
 import { requireUserId, withApi } from "@/lib/api/route-handler";
-
-const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+import { isValidDateOnly } from "@/lib/date-only";
 
 async function scheduled(userId: string, kind: CalendarKind, today: string, horizonDays: number) {
   const entries =
@@ -28,7 +27,7 @@ export const GET = withApi(async function GET(req: NextRequest) {
   // /api/calendar/schedule). Same requirement here; default to the
   // server's UTC date only as a best-effort fallback for callers that omit it.
   const today = req.nextUrl.searchParams.get("today") ?? new Date().toISOString().slice(0, 10);
-  if (!DATE_ONLY_RE.test(today)) {
+  if (!isValidDateOnly(today)) {
     return NextResponse.json({ error: "Invalid today parameter (expected YYYY-MM-DD)" }, { status: 400 });
   }
   const raw = Number(req.nextUrl.searchParams.get("horizonDays") ?? DEFAULT_HORIZON_DAYS);

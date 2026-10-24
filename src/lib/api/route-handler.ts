@@ -13,7 +13,7 @@ export class ApiError extends Error {
   }
 }
 
-export function jsonError(status: number, message: string) {
+function jsonError(status: number, message: string) {
   return NextResponse.json({ error: message }, { status });
 }
 

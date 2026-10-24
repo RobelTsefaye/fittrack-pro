@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUserId, withApi } from "@/lib/api/route-handler";
-import { parseDateOnlyUtc } from "@/lib/date-only";
+import { dateOnlySchema, parseDateOnlyUtc } from "@/lib/date-only";
 
 // All fields optional — Shortcut sends only what Apple Health has available
 const snapshotSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: dateOnlySchema.optional(),
 
   sleepDuration: z.number().min(0).max(24).optional().nullable(),
   sleepBedtime: z.string().max(10).optional().nullable(),

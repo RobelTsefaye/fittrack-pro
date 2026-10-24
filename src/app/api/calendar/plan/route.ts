@@ -7,14 +7,14 @@ import {
 } from "@/features/calendar/schedule";
 import type { CalendarKind } from "@/generated/prisma/client";
 import { requireUserId, withApi } from "@/lib/api/route-handler";
-const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+import { isValidDateOnly } from "@/lib/date-only";
 export const GET = withApi(async function GET(req: NextRequest) {
   const userId = await requireUserId();
   const kindParam = req.nextUrl.searchParams.get("kind");
   const kind: CalendarKind | null =
     kindParam === "training" ? "TRAINING" : kindParam === "cardio" ? "CARDIO" : null;
   const today = req.nextUrl.searchParams.get("today") ?? "";
-  if (!kind || !DATE_ONLY_RE.test(today))
+  if (!kind || !isValidDateOnly(today))
     return NextResponse.json({ error: "Invalid parameters" }, { status: 400 });
   const raw = Number(req.nextUrl.searchParams.get("horizonDays") ?? DEFAULT_HORIZON_DAYS);
   const horizonDays = Number.isFinite(raw)
