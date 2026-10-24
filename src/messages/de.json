@@ -310,6 +310,8 @@
     "cancelWorkout": "Workout abbrechen",
     "completeSetAria": "Satz {n} abhaken",
     "deleteSetAria": "Satz {n} löschen",
+    "newPrToast": "Neuer persönlicher Rekord! 🏆",
+    "newPrToastDesc": "{weight} {unit} × {reps}",
     "progressSets": "Sätze",
     "progressVolume": "Volumen",
     "progressExercises": "Übungen",

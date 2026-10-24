@@ -57,6 +57,7 @@ import { useI18n } from "@/lib/i18n-provider";
 import type { WorkoutData, WorkoutExerciseData, WorkoutSetData } from "@/features/workouts/workout-types";
 import { shouldRestAfterExercise } from "@/features/workouts/superset-utils";
 import { summarizeWorkout } from "@/features/workouts/workout-progress";
+import { useScreenWakeLock } from "@/lib/use-screen-wake-lock";
 import { WorkoutProgressCard } from "./workout-progress-card";
 import {
   enqueueWorkoutOp,
@@ -354,7 +355,11 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
                 </Link>
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {we.exercise.muscleGroup.replace(/_/g, " ")}
+                {(() => {
+                  const key = `muscleMap.${we.exercise.muscleGroup}`;
+                  const label = t(key);
+                  return label === key ? we.exercise.muscleGroup.replace(/_/g, " ") : label;
+                })()}
               </p>
               {we.supersetGroup != null ? <Badge variant="secondary" className="mt-1 text-[10px]">{t("workouts.supersetLabel")}</Badge> : null}
             </div>
@@ -554,6 +559,8 @@ export function WorkoutDetail({
   const { formatted: elapsedLabel } = useWorkoutTimer(startedAt);
 
   const isActive = workout && !workout.completedAt;
+  // Keep the phone awake for the whole session, not only during rest.
+  useScreenWakeLock(!!isActive);
   const weightLabel = weightUnit === "LB" ? "lb" : "kg";
   const useLocalWrites = nativeWatchOffline || !netOnline || offlineOriginSession || pendingQueue;
 

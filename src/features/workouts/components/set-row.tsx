@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Trash2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { WorkoutSetData } from "@/features/workouts/workout-types";
 import { hapticSetCompleted, hapticPersonalRecord } from "@/lib/native/haptics";
@@ -152,6 +153,13 @@ export const SetRow = memo(function SetRow({
       if (complete) {
         if (json.personalRecord) {
           void hapticPersonalRecord();
+          toast.success(t("workouts.newPrToast"), {
+            description: t("workouts.newPrToastDesc", {
+              weight: json.data?.weight ?? "",
+              unit: weightUnitLabel,
+              reps: json.data?.reps ?? "",
+            }),
+          });
         } else {
           void hapticSetCompleted();
         }
