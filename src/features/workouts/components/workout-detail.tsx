@@ -373,7 +373,7 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
             <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">{weightLabel}</span>
             <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">{t("workouts.reps")}</span>
           </div>
-          {sortSetsForDisplay(we.sets).map((set, _idx, sorted) => {
+          {sortSetsForDisplay(we.sets).map((set, idx, sorted) => {
             let workingIdx = 0;
             if (!set.isWarmup) {
               for (const s of sorted) {
@@ -387,11 +387,20 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
             const progressionSuggestion = !set.isWarmup
               ? progressionSuggestions?.find((suggestion) => suggestion.setIndex === workingIdx)
               : undefined;
+            const nextOpenId = sorted.find((s) => !s.isCompleted)?.id;
+            const above = idx > 0 ? sorted[idx - 1] : undefined;
             return (
             <SetRow
               key={set.id}
               set={set}
               workoutId={workoutId}
+              isNext={isActive && set.id === nextOpenId}
+              prevSetValues={
+                above && (above.weight != null || above.reps != null)
+                  ? { setNumber: above.setNumber, weight: above.weight, reps: above.reps }
+                  : null
+              }
+              isBarbell={we.exercise.equipment === "BARBELL"}
               weightUnitLabel={weightLabel}
               unlockCompleted={reviseCompletedSets}
               previousHint={

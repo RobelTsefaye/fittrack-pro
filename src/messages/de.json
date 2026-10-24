@@ -351,7 +351,14 @@
     "cancelWorkoutFailed": "Workout konnte nicht abgebrochen werden.",
     "supersetLabel": "Superset",
     "supersetGroupWithNext": "Mit nächster Übung zum Superset",
-    "supersetDissolve": "Superset auflösen"
+    "supersetDissolve": "Superset auflösen",
+    "sameAsSet": "Wie Satz {n}: {weight} × {reps}",
+    "platesPerSide": "Pro Seite: {plates}",
+    "weightDown": "Gewicht verringern",
+    "weightUp": "Gewicht erhöhen",
+    "repsDown": "Eine Wiederholung weniger",
+    "repsUp": "Eine Wiederholung mehr",
+    "rpeHint": "Gefühlte Anstrengung (10 = Maximum)"
   },
   "cardio": {
     "pickTitle": "Cardio starten",

@@ -351,7 +351,14 @@
     "cancelWorkoutFailed": "Could not cancel workout.",
     "supersetLabel": "Superset",
     "supersetGroupWithNext": "Superset with next",
-    "supersetDissolve": "Dissolve superset"
+    "supersetDissolve": "Dissolve superset",
+    "sameAsSet": "Same as set {n}: {weight} × {reps}",
+    "platesPerSide": "Per side: {plates}",
+    "weightDown": "Decrease weight",
+    "weightUp": "Increase weight",
+    "repsDown": "One rep less",
+    "repsUp": "One rep more",
+    "rpeHint": "Rate of perceived exertion (10 = max)"
   },
   "cardio": {
     "pickTitle": "Start cardio",
