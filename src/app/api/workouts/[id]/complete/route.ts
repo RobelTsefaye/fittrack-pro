@@ -133,10 +133,9 @@ export const POST = withApi(async function POST(
       volumeDeltaPct,
     },
     newPersonalRecords,
-    records: workoutRecords.map((r) => ({
-      exerciseName: r.exercise.name,
-      weight: r.weight,
-      reps: r.reps,
-    })),
+    // Best record per exercise (a ramp can set several PRs in one session).
+    records: workoutRecords
+      .filter((r, i, all) => all.findIndex((o) => o.exercise.name === r.exercise.name) === i)
+      .map((r) => ({ exerciseName: r.exercise.name, weight: r.weight, reps: r.reps })),
   });
 });

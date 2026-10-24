@@ -33,6 +33,14 @@ export const PATCH = withApi(async function PATCH(
     );
   }
 
+  // Min and max are saved separately (one field per blur): validate the
+  // range the row will end up with, not just this request.
+  const nextMin = parsed.data.repMin !== undefined ? parsed.data.repMin : existing.repMin;
+  const nextMax = parsed.data.repMax !== undefined ? parsed.data.repMax : existing.repMax;
+  if (nextMin != null && nextMax != null && nextMin > nextMax) {
+    return NextResponse.json({ error: "Min. Wiederholungen müssen ≤ Max. sein" }, { status: 400 });
+  }
+
   const updated = await prisma.planSessionExercise.update({
     where: { id: pseId },
     data: {

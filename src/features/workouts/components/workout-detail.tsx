@@ -78,6 +78,7 @@ import {
   wakeWatchAppForWorkout,
   clearWatchWorkoutState,
   computeRestTimerEndsAt,
+  latestRestAnchor,
   WatchConnectivity,
 } from "@/lib/native/watch-connectivity";
 
@@ -1591,21 +1592,7 @@ export function WorkoutDetail({
     const endsAtSeconds = computeRestTimerEndsAt(w);
     if (endsAtSeconds == null) return;
     lastRestTimerStartAtRef.current = now;
-    // Same rest source as computeRestTimerEndsAt: the exercise of the most
-    // recently completed set, else the user default.
-    let latestAt = 0;
-    let latestRest: number | null | undefined = null;
-    for (const we of w.workoutExercises) {
-      for (const set of we.sets) {
-        const at = set.completedAt ? Date.parse(set.completedAt) : 0;
-        if (at > latestAt) {
-          latestAt = at;
-          latestRest = we.restSeconds;
-        }
-      }
-    }
-    const totalDuration =
-      (latestRest ?? w.restTimerDefaultSeconds ?? DEFAULT_REST_TIMER) + (w.restTimerAdjustSeconds ?? 0);
+    const totalDuration = latestRestAnchor(w).durationSeconds;
     const secondsUntilEnd = Math.max(1, Math.round(endsAtSeconds - now / 1000));
     restTimer.start(secondsUntilEnd, {
       onExpire: fireRestDone,
@@ -2109,7 +2096,7 @@ export function WorkoutDetail({
       <Dialog
         open={!!completionSummary}
         onOpenChange={(open) => {
-          if (!open) setCompletionSummary(null);
+          if (!open) void closeSummary();
         }}
       >
         {/* Focus the done button, not the note field: on a phone a focused

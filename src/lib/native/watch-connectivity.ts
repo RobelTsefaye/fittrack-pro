@@ -85,31 +85,46 @@ export const WatchConnectivity = registerPlugin<WatchConnectivityPlugin>("WatchC
  * answer regardless of which device asks, and it's non-nil from the moment
  * the workout starts (a set doesn't have to be completed first).
  */
-export function computeRestTimerEndsAt(workout: WorkoutData): number | null {
-  let anchor = new Date(workout.startedAt).getTime();
-  let latestWorkoutExerciseId: string | null = null;
+/**
+ * The set that started the current rest: anchor time (latest completed set,
+ * else workout start), its exercise, and the rest length that applies
+ * (that exercise's plan rest, else the user default, plus any adjustment).
+ */
+export function latestRestAnchor(workout: WorkoutData): {
+  anchorMs: number;
+  workoutExerciseId: string | null;
+  durationSeconds: number;
+} {
+  let anchorMs = new Date(workout.startedAt).getTime();
+  let workoutExerciseId: string | null = null;
   for (const we of workout.workoutExercises) {
     for (const s of we.sets) {
       if (!s.completedAt) continue;
       const t = new Date(s.completedAt).getTime();
-      if (t > anchor) {
-        anchor = t;
-        latestWorkoutExerciseId = we.id;
+      if (t > anchorMs) {
+        anchorMs = t;
+        workoutExerciseId = we.id;
       }
     }
   }
-  if (latestWorkoutExerciseId && !shouldRestAfterExercise(workout, latestWorkoutExerciseId)) {
+  const exerciseRest = workoutExerciseId
+    ? workout.workoutExercises.find((we) => we.id === workoutExerciseId)?.restSeconds
+    : null;
+  return {
+    anchorMs,
+    workoutExerciseId,
+    durationSeconds:
+      (exerciseRest ?? workout.restTimerDefaultSeconds ?? DEFAULT_REST_TIMER) +
+      (workout.restTimerAdjustSeconds ?? 0),
+  };
+}
+
+export function computeRestTimerEndsAt(workout: WorkoutData): number | null {
+  const { anchorMs, workoutExerciseId, durationSeconds } = latestRestAnchor(workout);
+  if (workoutExerciseId && !shouldRestAfterExercise(workout, workoutExerciseId)) {
     return null;
   }
-  // Per-exercise rest (from the plan) for the exercise whose set started it.
-  const exerciseRest = latestWorkoutExerciseId
-    ? workout.workoutExercises.find((we) => we.id === latestWorkoutExerciseId)?.restSeconds
-    : null;
-  return (
-    anchor / 1000 +
-    (exerciseRest ?? workout.restTimerDefaultSeconds ?? DEFAULT_REST_TIMER) +
-    (workout.restTimerAdjustSeconds ?? 0)
-  );
+  return anchorMs / 1000 + durationSeconds;
 }
 
 /**

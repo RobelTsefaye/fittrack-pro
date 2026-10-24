@@ -602,6 +602,9 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
       exercises: session.exercises.map((pse) => ({
         exerciseId: pse.exerciseId,
         targetSets: pse.targetSets,
+        repMin: pse.repMin,
+        repMax: pse.repMax,
+        restSeconds: pse.restSeconds,
         exercise: pse.exercise,
       })),
     });

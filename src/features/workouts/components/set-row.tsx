@@ -148,7 +148,8 @@ export const SetRow = memo(function SetRow({
     if (rN != null) data.reps = rN;
     const wN = parseLocaleDecimal(weightValue);
     if (wN != null) data.weight = wN;
-    if (rpe != null) data.rpe = rpe;
+    // Send RPE only when it changed, including clearing it (null).
+    if (rpe !== (set.rpe ?? null)) data.rpe = rpe;
     if (complete) data.isCompleted = true;
 
     if (offlineHandlers) {
@@ -245,16 +246,24 @@ export const SetRow = memo(function SetRow({
   function bumpWeight(delta: number) {
     const base =
       parseLocaleDecimal(weight) ?? progressionSuggestion?.weight ?? prevSetValues?.weight ?? 0;
-    setWeight(formatNumber(Math.max(0, base + delta)));
+    const next = Math.max(0, base + delta);
+    setWeight(formatNumber(next));
+    void saveSet(false, { weight: next });
   }
   function bumpReps(delta: number) {
     const base = parseRepsInput(reps) ?? progressionSuggestion?.reps ?? prevSetValues?.reps ?? 0;
-    setReps(String(Math.max(0, base + delta)));
+    const next = Math.max(0, base + delta);
+    setReps(String(next));
+    void saveSet(false, { reps: next });
   }
   function copyPrevSet() {
     if (!prevSetValues) return;
     if (prevSetValues.weight != null) setWeight(formatNumber(prevSetValues.weight));
     if (prevSetValues.reps != null) setReps(String(prevSetValues.reps));
+    void saveSet(false, {
+      ...(prevSetValues.weight != null ? { weight: prevSetValues.weight } : {}),
+      ...(prevSetValues.reps != null ? { reps: prevSetValues.reps } : {}),
+    });
   }
   const plates =
     showToolbar && isBarbell ? perSideSummary(parseLocaleDecimal(weight) ?? 0, isLb ? "LB" : "KG") : null;

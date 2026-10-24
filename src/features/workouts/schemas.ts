@@ -28,6 +28,8 @@ export const addSetSchema = z.object({
 
 export const updateSetSchema = addSetSchema.extend({
   isCompleted: z.boolean().optional(),
+  /** null clears a previously saved RPE. */
+  rpe: z.number().min(1).max(10).nullable().optional(),
 });
 
 export type CreateWorkoutInput = z.infer<typeof createWorkoutSchema>;
