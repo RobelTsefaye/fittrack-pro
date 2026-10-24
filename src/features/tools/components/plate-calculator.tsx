@@ -59,8 +59,6 @@ function calcPlates(targetRaw: number, bar: number, specs: PlateSpec[]): CalcRes
   // If remainder > smallest plate, it's not achievable — find nearest achievable
   if (remaining > 0.001) {
     const loaded = target - remaining * 2;
-    // also try rounding up
-    const nextUp = target + (specs[specs.length - 1].weight * 2 - remaining * 2);
     const nearest = Math.round(loaded * 100) / 100;
     return { type: "not-achievable", nearest };
   }

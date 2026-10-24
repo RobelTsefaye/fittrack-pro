@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "@/components/app-link";
 import { useSearchParams } from "next/navigation";
 import { Dumbbell, Plus, TrendingUp } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ExerciseCard, type ExerciseData } from "./exercise-card";
 import { ExerciseFormDialog } from "./exercise-form-dialog";

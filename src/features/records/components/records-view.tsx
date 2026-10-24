@@ -14,12 +14,10 @@ import {
   TrendingUp,
   Sun,
   Shield,
-  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n-provider";
 import { exercisePath } from "@/lib/constants";
-import { MUSCLE_GROUPS } from "@/lib/constants";
 import type { PREntry, Achievement, AchievementId } from "@/services/personal-records";
 
 // ─── Achievement config ───────────────────────────────────────────────────────

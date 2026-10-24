@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import Link from "@/components/app-link";
 import { Dumbbell } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { loginSchema } from "../schemas";
 import { useI18n } from "@/lib/i18n-provider";
 import { APP_NAME } from "@/lib/constants";

@@ -40,7 +40,6 @@ export default function DashboardPage() {
   useEffect(() => {
     document.title = `Dashboard — ${APP_NAME}`;
     let cancelled = false;
-    setFailed(false);
 
     async function load() {
       // Cache-first, always — even online. Paints the last-known dashboard
@@ -93,7 +92,10 @@ export default function DashboardPage() {
           <p className="text-sm text-[var(--sys-label2)]">Dashboard konnte nicht geladen werden.</p>
           <button
             type="button"
-            onClick={() => setRetryCount((n) => n + 1)}
+            onClick={() => {
+              setFailed(false);
+              setRetryCount((n) => n + 1);
+            }}
             className="text-sm font-medium text-primary"
           >
             Erneut versuchen

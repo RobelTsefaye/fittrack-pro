@@ -290,7 +290,6 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
   isActive,
   workoutId,
   weightLabel,
-  weightUnit,
   useLocalWrites,
   previousSets,
   progressionSuggestions,
@@ -996,11 +995,16 @@ export function WorkoutDetail({
     return () => {
       cancelled = true;
     };
+    // Deliberately keyed on identity/shape, not the whole `workout` object —
+    // every set edit replaces `workout` and must not refetch previous logs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workoutId, workout?.id, workout?.completedAt, workout?.workoutExercises?.length, weightUnit]);
 
   useEffect(() => {
     if (workout?.name != null) setNameDraft(workout.name);
     else if (workout) setNameDraft("");
+    // Only resync the draft when the name/workout changes, not on set edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workout?.name, workout?.id]);
 
   useEffect(() => {

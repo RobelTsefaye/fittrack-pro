@@ -150,7 +150,6 @@ export function WeightTrendCard() {
 
   useEffect(() => {
     if (mode === "period") void load(period);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period, mode]);
 
   async function acceptSuggestion() {

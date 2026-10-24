@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import type {
-  CardioSummary, CardioSession, CardioCategoryGroup, CardioWeekPoint,
+  CardioSummary, CardioSession, CardioCategoryGroup,
 } from "../cardio";
 import { getWorkoutTypeMeta } from "../cardio-config";
 
