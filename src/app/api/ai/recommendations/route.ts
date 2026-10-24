@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { buildHeuristicRecommendations } from "@/features/ai/context";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET() {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET() {
+  const userId = await requireUserId();
 
   const items = await buildHeuristicRecommendations(userId);
 
@@ -22,4 +19,4 @@ export async function GET() {
     },
     meta: { endpoint: "recommendations", count: items.length },
   });
-}
+});

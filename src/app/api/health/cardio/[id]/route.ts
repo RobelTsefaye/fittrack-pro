@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 /**
  * Soft-deletes a single Apple Health cardio session. Not a real DELETE —
@@ -9,14 +9,11 @@ import { prisma } from "@/lib/prisma";
  * come back on the next sync. Hiding it instead: the upsert never touches
  * `hiddenAt`, so it stays hidden even after future syncs.
  */
-export async function DELETE(
+export const DELETE = withApi(async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id } = await params;
 
@@ -33,4 +30,4 @@ export async function DELETE(
   });
 
   return NextResponse.json({ success: true });
-}
+});

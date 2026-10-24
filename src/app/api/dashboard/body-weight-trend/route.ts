@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { getBodyWeightTrend } from "@/features/dashboard/queries";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET(req: NextRequest) {
+  const userId = await requireUserId();
 
   const take = Math.min(
     60,
@@ -15,4 +12,4 @@ export async function GET(req: NextRequest) {
 
   const data = await getBodyWeightTrend(userId, take);
   return NextResponse.json({ data });
-}
+});

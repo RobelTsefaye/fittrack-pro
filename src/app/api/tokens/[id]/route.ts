@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function DELETE(
+export const DELETE = withApi(async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id } = await params;
   const existing = await prisma.apiToken.findFirst({
@@ -22,4 +19,4 @@ export async function DELETE(
 
   await prisma.apiToken.delete({ where: { id } });
   return NextResponse.json({ ok: true });
-}
+});

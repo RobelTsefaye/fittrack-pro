@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { updateExerciseSchema } from "@/features/exercises/schemas";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET(
+export const GET = withApi(async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id } = await params;
 
@@ -26,16 +23,13 @@ export async function GET(
   }
 
   return NextResponse.json({ data: exercise });
-}
+});
 
-export async function PATCH(
+export const PATCH = withApi(async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id } = await params;
 
@@ -69,16 +63,13 @@ export async function PATCH(
   });
 
   return NextResponse.json({ data: updated });
-}
+});
 
-export async function DELETE(
+export const DELETE = withApi(async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id } = await params;
 
@@ -96,4 +87,4 @@ export async function DELETE(
   await prisma.exercise.delete({ where: { id } });
 
   return NextResponse.json({ success: true });
-}
+});

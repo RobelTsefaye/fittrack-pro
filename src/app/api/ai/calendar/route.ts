@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import {
   applyOverrides,
@@ -9,6 +8,7 @@ import {
   getCalendarOverrides,
 } from "@/features/calendar/schedule";
 import type { CalendarKind } from "@/generated/prisma/client";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -20,11 +20,8 @@ async function scheduled(userId: string, kind: CalendarKind, today: string, hori
   return applyOverrides(entries, await getCalendarOverrides(userId, kind, entries));
 }
 
-export async function GET(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET(req: NextRequest) {
+  const userId = await requireUserId();
 
   // FitTrack has no server-side notion of the user's local "today" — the
   // web UI always supplies it from the browser clock (see
@@ -61,4 +58,4 @@ export async function GET(req: NextRequest) {
     },
     meta: { endpoint: "calendar", today, horizonDays },
   });
-}
+});

@@ -1,21 +1,18 @@
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { dashboardCacheTag, workoutsListCacheTag, DEFAULT_REST_TIMER } from "@/lib/constants";
 import { updateWorkoutSchema } from "@/features/workouts/schemas";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET(
+export const GET = withApi(async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Bearer-token auth too — GET is also used to fetch a workout's detail
   // right after the Watch starts one via plan-sessions/:id/start, which
   // needs to work without the phone app open (see WatchConnectivityPlugin).
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id } = await params;
 
@@ -49,16 +46,13 @@ export async function GET(
   return NextResponse.json({
     data: { ...workout, restTimerDefaultSeconds: settings?.restTimerDefault ?? DEFAULT_REST_TIMER },
   });
-}
+});
 
-export async function PATCH(
+export const PATCH = withApi(async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id } = await params;
 
@@ -92,19 +86,16 @@ export async function PATCH(
   revalidateTag(workoutsListCacheTag(userId), "max");
 
   return NextResponse.json({ data: updated });
-}
+});
 
-export async function DELETE(
+export const DELETE = withApi(async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Bearer-token auth too — the Watch's "Workout abbrechen" hits this
   // directly (see WatchConnectivityPlugin) and needs to work without the
   // phone app open.
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id } = await params;
 
@@ -122,4 +113,4 @@ export async function DELETE(
   revalidateTag(workoutsListCacheTag(userId), "max");
 
   return NextResponse.json({ success: true });
-}
+});

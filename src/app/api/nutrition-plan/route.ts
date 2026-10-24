@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { parseDateOnlyUtc } from "@/lib/date-only";
 import { createNutritionPlanSchema } from "@/features/health/nutrition-plan-schemas";
 import type { NutritionPlan } from "@/generated/prisma/client";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 function toDTO(row: NutritionPlan) {
   return {
@@ -22,11 +22,8 @@ function toDTO(row: NutritionPlan) {
   };
 }
 
-export async function GET() {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET() {
+  const userId = await requireUserId();
 
   const rows = await prisma.nutritionPlan.findMany({
     where: { userId },
@@ -42,13 +39,10 @@ export async function GET() {
       history: history.map(toDTO),
     },
   });
-}
+});
 
-export async function POST(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const POST = withApi(async function POST(req: NextRequest) {
+  const userId = await requireUserId();
 
   const body = await req.json().catch(() => null);
   const parsed = createNutritionPlanSchema.safeParse(body);
@@ -59,15 +53,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let startDate: Date;
-  try {
-    startDate = parseDateOnlyUtc(parsed.data.startDate);
-  } catch {
-    return NextResponse.json(
-      { error: "Invalid date format; expected YYYY-MM-DD" },
-      { status: 400 }
-    );
-  }
+  const startDate = parseDateOnlyUtc(parsed.data.startDate);
 
   const { phase, startCalories, weeklyCalorieStep, minCalories, maxCalories, proteinPerKg, fatPerKg, notes } =
     parsed.data;
@@ -114,4 +100,4 @@ export async function POST(req: NextRequest) {
     }
     throw err;
   }
-}
+});

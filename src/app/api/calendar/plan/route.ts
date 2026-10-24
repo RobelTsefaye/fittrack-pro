@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { computeCardioSchedule, computeTrainingSchedule, DEFAULT_HORIZON_DAYS, getCalendarOverrides } from "@/features/calendar/schedule";
 import type { CalendarKind } from "@/generated/prisma/client";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
-export async function GET(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withApi(async function GET(req: NextRequest) {
+  const userId = await requireUserId();
   const kindParam = req.nextUrl.searchParams.get("kind");
   const kind: CalendarKind | null = kindParam === "training" ? "TRAINING" : kindParam === "cardio" ? "CARDIO" : null;
   const today = req.nextUrl.searchParams.get("today") ?? "";
@@ -19,4 +18,4 @@ export async function GET(req: NextRequest) {
     const override = byDate.get(entry.sourceDate);
     return { sourceDate: entry.sourceDate, defaultTitle: entry.title, defaultStartMinutes: entry.startMinutes, defaultDurationMinutes: entry.durationMinutes, override: override ? { skip: override.skip, movedToDate: override.movedToDate?.toISOString().slice(0, 10) ?? null, timeMinutes: override.timeMinutes, durationMinutes: override.durationMinutes } : null };
   }) } });
-}
+});

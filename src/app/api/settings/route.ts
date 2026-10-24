@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { updateSettingsSchema } from "@/features/settings/schemas";
 import {
@@ -8,12 +7,10 @@ import {
   prismaLocaleToUi,
 } from "@/lib/i18n-config";
 import { cookies } from "next/headers";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET() {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET() {
+  const userId = await requireUserId();
 
   let settings = await prisma.userSettings.findUnique({
     where: { userId },
@@ -46,13 +43,10 @@ export async function GET() {
       cardioLabel: settings.cardioLabel,
     },
   });
-}
+});
 
-export async function PATCH(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const PATCH = withApi(async function PATCH(req: NextRequest) {
+  const userId = await requireUserId();
 
   const body = await req.json();
   const parsed = updateSettingsSchema.safeParse(body);
@@ -114,4 +108,4 @@ export async function PATCH(req: NextRequest) {
   });
 
   return res;
-}
+});

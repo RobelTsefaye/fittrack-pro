@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { getDashboardClientPayload } from "@/features/dashboard/queries";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 /**
  * The main Dashboard page's bundled payload (project-docs/offline-first-
@@ -10,11 +10,8 @@ import { getDashboardClientPayload } from "@/features/dashboard/queries";
  * that can't run in a client component), plus the settings lookup the page
  * used to do alongside it. No existing route returned this combination.
  */
-export async function GET() {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET() {
+  const userId = await requireUserId();
 
   const [settings, user, payload] = await Promise.all([
     prisma.userSettings.findUnique({ where: { userId } }),
@@ -35,4 +32,4 @@ export async function GET() {
       payload,
     },
   });
-}
+});

@@ -1,9 +1,9 @@
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { dashboardCacheTag, workoutsListCacheTag } from "@/lib/constants";
 import { recordPersonalRecordIfBest } from "@/lib/personal-record";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 async function sumWorkoutVolume(workoutId: string): Promise<number> {
   const sets = await prisma.set.findMany({
@@ -19,17 +19,14 @@ async function sumWorkoutVolume(workoutId: string): Promise<number> {
   return sets.reduce((sum, s) => sum + Number(s.weight) * (s.reps ?? 0), 0);
 }
 
-export async function POST(
+export const POST = withApi(async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Bearer-token auth too — the Watch's "Workout beenden" hits this
   // directly (see WatchConnectivityPlugin) and needs to work without the
   // phone app open.
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id } = await params;
 
@@ -130,4 +127,4 @@ export async function POST(
     },
     newPersonalRecords,
   });
-}
+});

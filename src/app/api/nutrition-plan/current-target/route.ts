@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { getCurrentWeeklyTarget } from "@/features/health/nutrition-plan";
 import { CALORIE_TARGET_DEFAULT, MACRO_TARGETS } from "@/features/health/nutrition-config";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 // Server-side computation kept out of the client bundle (nutrition-plan.ts
 // imports the Prisma client) — the client hook just fetches the already
 // computed target instead of importing that module directly.
-export async function GET() {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET() {
+  const userId = await requireUserId();
 
   const weeklyTarget = await getCurrentWeeklyTarget(userId);
   if (!weeklyTarget) {
@@ -35,4 +32,4 @@ export async function GET() {
       isPersonalized: true,
     },
   });
-}
+});

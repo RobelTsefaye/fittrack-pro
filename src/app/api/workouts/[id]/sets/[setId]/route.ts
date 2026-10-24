@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { updateSetSchema } from "@/features/workouts/schemas";
 import {
   recordPersonalRecordIfBest,
   removePersonalRecordForSet,
 } from "@/lib/personal-record";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function PATCH(
+export const PATCH = withApi(async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; setId: string }> }
 ) {
   // Bearer-token auth too — the Watch's set logging hits this directly
   // (see WatchConnectivityPlugin) and needs to work without the phone app
   // open.
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id: workoutId, setId } = await params;
 
@@ -93,16 +90,13 @@ export async function PATCH(
   }
 
   return NextResponse.json({ data: set, personalRecord });
-}
+});
 
-export async function DELETE(
+export const DELETE = withApi(async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; setId: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id: workoutId, setId } = await params;
 
@@ -124,4 +118,4 @@ export async function DELETE(
   await prisma.set.delete({ where: { id: setId } });
 
   return NextResponse.json({ success: true });
-}
+});

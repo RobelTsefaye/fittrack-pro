@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { getMuscleVolumeLastDays } from "@/services/muscle-heatmap";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 /**
  * Backs the Dashboard's MuscleHeatmapCard (project-docs/offline-first-
@@ -9,11 +9,8 @@ import { getMuscleVolumeLastDays } from "@/services/muscle-heatmap";
  * calling `getMuscleVolumeLastDays` + a settings lookup directly; no existing
  * route exposed this data.
  */
-export async function GET() {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET() {
+  const userId = await requireUserId();
 
   const [data, settings] = await Promise.all([
     getMuscleVolumeLastDays(userId, 7),
@@ -23,4 +20,4 @@ export async function GET() {
   return NextResponse.json({
     data: { entries: data, weightUnit: (settings?.weightUnit ?? "KG").toLowerCase() },
   });
-}
+});

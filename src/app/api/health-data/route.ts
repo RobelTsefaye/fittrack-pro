@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 // All fields optional — Shortcut sends only what Apple Health has available
 const snapshotSchema = z.object({
@@ -54,9 +54,8 @@ const snapshotSchema = z.object({
 });
 
 // GET /api/health-data?from=YYYY-MM-DD&to=YYYY-MM-DD&limit=90
-export async function GET(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withApi(async function GET(req: NextRequest) {
+  const userId = await requireUserId();
 
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from");
@@ -96,7 +95,7 @@ export async function GET(req: NextRequest) {
   data.reverse();
 
   return NextResponse.json({ data });
-}
+});
 
 // Map Health Auto Export metric names to our schema fields.
 // HAE uses lowercase snake_case but spellings differ across versions —
@@ -506,9 +505,8 @@ function transformHAEWorkout(w: HAEWorkout): {
 }
 
 // POST /api/health-data — upsert (iOS Shortcut, Health Auto Export, or web form)
-export async function POST(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const POST = withApi(async function POST(req: NextRequest) {
+  const userId = await requireUserId();
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
@@ -603,12 +601,11 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ data: results, count: results.length, workoutsImported });
-}
+});
 
 // DELETE /api/health-data?date=YYYY-MM-DD
-export async function DELETE(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const DELETE = withApi(async function DELETE(req: NextRequest) {
+  const userId = await requireUserId();
 
   const date = new URL(req.url).searchParams.get("date");
   if (!date) return NextResponse.json({ error: "date required" }, { status: 400 });
@@ -618,4 +615,4 @@ export async function DELETE(req: NextRequest) {
   });
 
   return NextResponse.json({ success: true });
-}
+});

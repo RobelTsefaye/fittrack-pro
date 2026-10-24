@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { getHealthSnapshots } from "@/features/health/health-data";
 import { computeRecovery, computeRecoveryHistory } from "@/features/health/recovery";
 import { clampWeeks } from "@/features/ai/schemas";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET(req: NextRequest) {
+  const userId = await requireUserId();
 
   const days = clampWeeks(req.nextUrl.searchParams.get("days"), 30, 180);
 
@@ -33,4 +30,4 @@ export async function GET(req: NextRequest) {
     },
     meta: { endpoint: "health", days, snapshotCount: snapshots.length },
   });
-}
+});

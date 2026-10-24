@@ -1,22 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import {
   apiTokenPrefixLabel,
   generateApiTokenSecret,
   hashApiTokenSecret,
 } from "@/lib/api-token-crypto";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 const createSchema = z.object({
   name: z.string().trim().max(80).optional(),
 });
 
-export async function GET() {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET() {
+  const userId = await requireUserId();
 
   try {
     const data = await prisma.apiToken.findMany({
@@ -44,13 +41,10 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const POST = withApi(async function POST(req: NextRequest) {
+  const userId = await requireUserId();
 
   const body = await req.json().catch(() => ({}));
   const parsed = createSchema.safeParse(body);
@@ -92,4 +86,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

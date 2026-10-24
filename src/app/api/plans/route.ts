@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { createPlanSchema } from "@/features/plans/schemas";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET() {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET() {
+  const userId = await requireUserId();
 
   const plans = await prisma.workoutPlan.findMany({
     where: { userId },
@@ -18,13 +15,10 @@ export async function GET() {
   });
 
   return NextResponse.json({ data: plans });
-}
+});
 
-export async function POST(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const POST = withApi(async function POST(req: NextRequest) {
+  const userId = await requireUserId();
 
   const body = await req.json();
   const parsed = createPlanSchema.safeParse(body);
@@ -44,4 +38,4 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ data: plan }, { status: 201 });
-}
+});

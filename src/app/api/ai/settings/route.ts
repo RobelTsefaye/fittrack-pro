@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET() {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET() {
+  const userId = await requireUserId();
 
   // Read-only: unlike GET /api/settings, this never creates a UserSettings
   // row on a cache miss — an AI query has no browser-locale cookie to seed
@@ -36,4 +33,4 @@ export async function GET() {
     },
     meta: { endpoint: "settings" },
   });
-}
+});

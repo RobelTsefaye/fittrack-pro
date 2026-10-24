@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import {
   computeProgressBySession,
@@ -8,15 +7,13 @@ import {
   findExerciseVisibleToUser,
   mapSetsToHistoryRows,
 } from "@/features/exercises/history-core";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET(
+export const GET = withApi(async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id: exerciseId } = await params;
 
@@ -58,4 +55,4 @@ export async function GET(
         : null,
     },
   });
-}
+});
