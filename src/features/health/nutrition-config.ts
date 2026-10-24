@@ -169,3 +169,18 @@ export const MICRO_TARGETS: NutrientTarget[] = [
     description: "Über 300 enzymatische Reaktionen, Energieproduktion, Muskelfunktion.",
   },
 ];
+
+/** Protein / fat per kg body weight used when no nutrition plan is active. */
+export const DEFAULT_PROTEIN_PER_KG = 2.0;
+export const DEFAULT_FAT_PER_KG = 0.9;
+
+/**
+ * Macros scaled to body weight (no active plan): protein and fat per kg,
+ * carbs fill the remaining calories (never negative).
+ */
+export function macrosFromBodyWeight(bodyWeightKg: number, calories: number) {
+  const protein = Math.round(DEFAULT_PROTEIN_PER_KG * bodyWeightKg);
+  const fat = Math.round(DEFAULT_FAT_PER_KG * bodyWeightKg);
+  const carbs = Math.max(0, Math.round((calories - protein * 4 - fat * 9) / 4));
+  return { protein, fat, carbs };
+}

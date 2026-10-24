@@ -11,6 +11,9 @@ export type WeeklyNutritionTarget = {
   carbs: number;
   fat: number;
   isPersonalized: boolean;
+  /** Where the macros come from; absent on older cached values. */
+  basis?: "plan" | "bodyWeight" | "default";
+  bodyWeightKg?: number;
 };
 
 function staticFallback(): WeeklyNutritionTarget {

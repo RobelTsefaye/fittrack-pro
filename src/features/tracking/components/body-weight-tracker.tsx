@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Minus, Plus, Pencil, Trash2 } from "lucide-react";
 
 const BodyWeightChart = dynamic(
   () => import("./body-weight-chart").then((m) => m.BodyWeightChart),
@@ -20,6 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { withSevenDayAverage } from "@/features/tracking/weight-average";
 import { WeightTrendCard } from "@/features/health/components/weight-trend-card";
 import { todayLocalISO } from "@/lib/date-only";
 import { useI18n } from "@/lib/i18n-provider";
@@ -112,10 +113,21 @@ export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
   }, [load]);
 
   const chartData = useMemo(() => {
-    return [...entries]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map((e) => ({ date: e.date, weight: e.weight }));
+    return withSevenDayAverage(
+      [...entries]
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((e) => ({ date: e.date, weight: e.weight }))
+    );
   }, [entries]);
+  const lastWeight = chartData.at(-1)?.weight ?? null;
+
+  /** ±0.1 from what's typed, else from the last entry. */
+  function bumpWeight(delta: number) {
+    const base = parseFloat(weight.replace(",", "."));
+    const from = Number.isFinite(base) ? base : lastWeight;
+    if (from == null) return;
+    setWeight(String(Math.round((from + delta) * 10) / 10));
+  }
 
   async function handleLog(e: React.FormEvent) {
     e.preventDefault();
@@ -239,20 +251,52 @@ export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="bw-weight">{t("bodyWeight.weight", { unit: unitLabel })}</Label>
-                  <Input
-                    id="bw-weight"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    placeholder={t("bodyWeight.weightPlaceholder")}
-                    value={weight}
-                    onChange={(e) => setWeight(e.target.value)}
-                    disabled={saving}
-                  />
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon"
+                      onClick={() => bumpWeight(-0.1)}
+                      disabled={saving}
+                      aria-label="-0.1"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <Input
+                      id="bw-weight"
+                      type="number"
+                      inputMode="decimal"
+                      step="0.1"
+                      min="0"
+                      placeholder={lastWeight != null ? String(lastWeight) : t("bodyWeight.weightPlaceholder")}
+                      value={weight}
+                      onChange={(e) => setWeight(e.target.value)}
+                      disabled={saving}
+                      className="text-center font-display text-lg tabular-nums"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon"
+                      onClick={() => bumpWeight(0.1)}
+                      disabled={saving}
+                      aria-label="+0.1"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {lastWeight != null ? (
+                    <p className="text-xs text-muted-foreground">
+                      {t("bodyWeight.lastEntry", { weight: lastWeight, unit: unitLabel })}
+                    </p>
+                  ) : null}
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="bw-notes">{t("bodyWeight.notes")}</Label>
+              <details className="group space-y-2">
+                <summary className="cursor-pointer list-none text-sm text-muted-foreground">
+                  + {t("bodyWeight.addNote")}
+                </summary>
+                <Label htmlFor="bw-notes" className="sr-only">{t("bodyWeight.notes")}</Label>
                 <Textarea
                   id="bw-notes"
                   rows={2}
@@ -261,8 +305,8 @@ export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
                   disabled={saving}
                   placeholder={t("bodyWeight.notesPlaceholder")}
                 />
-              </div>
-              <Button type="submit" disabled={saving}>
+              </details>
+              <Button type="submit" disabled={saving} className="w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
                 {saving ? t("common.saving") : t("bodyWeight.saveEntry")}
               </Button>

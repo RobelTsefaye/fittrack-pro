@@ -189,11 +189,29 @@ function BalanceCell({
 function MacroSection({ snapshot }: { snapshot: HealthSnapshot | null }) {
   const { target: weeklyTarget } = useWeeklyNutritionTarget();
   return (
-    <Section title="Makronährstoffe" subtitle="Tagesziele für Sportler">
+    <Section
+      title="Makronährstoffe"
+      subtitle={
+        weeklyTarget.isPersonalized
+          ? "Aus deinem Ernährungsplan"
+          : weeklyTarget.basis === "bodyWeight"
+            ? `Nach deinem Körpergewicht (${weeklyTarget.bodyWeightKg} kg): 2 g Protein, 0,9 g Fett pro kg`
+            : "Tagesziele für Sportler"
+      }
+    >
+      {!weeklyTarget.isPersonalized ? (
+        <Link
+          href={ROUTES.settings + "/nutrition-plan"}
+          className="mb-1 block rounded-lg bg-primary/10 px-3 py-2 text-[12px] font-medium text-primary"
+        >
+          Ernährungsplan einrichten für persönliche Kalorienziele →
+        </Link>
+      ) : null}
       {MACRO_TARGETS.map((t) => {
-        const dynamicValue = weeklyTarget.isPersonalized
-          ? weeklyTarget[t.key as "protein" | "carbs" | "fat"]
-          : undefined;
+        const dynamicValue =
+          weeklyTarget.isPersonalized || weeklyTarget.basis === "bodyWeight"
+            ? weeklyTarget[t.key as "protein" | "carbs" | "fat"]
+            : undefined;
         return (
           <NutrientRow
             key={t.key}

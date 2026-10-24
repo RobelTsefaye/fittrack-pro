@@ -538,7 +538,10 @@
     "dateLabel": "Date",
     "chartLoading": "Loading chart…",
     "chartSeriesWeight": "Weight",
-    "notesEditLabel": "Notes"
+    "notesEditLabel": "Notes",
+    "chartSeriesAvg": "7-day average",
+    "addNote": "Add note",
+    "lastEntry": "Last: {weight} {unit}"
   },
   "offline": {
     "banner": "You are offline — changes are saved locally and sync when you reconnect.",
