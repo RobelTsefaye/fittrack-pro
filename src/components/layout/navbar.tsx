@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { WifiOff } from "lucide-react";
@@ -40,11 +40,30 @@ function subscribeOnline(callback: () => void) {
   };
 }
 
+/**
+ * iOS large-title behaviour: pages render their own big heading, so the
+ * compact bar title only fades in once the page has scrolled past it.
+ */
+function useScrolledPastTitle(threshold = 56) {
+  const pathname = usePathname();
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const main = document.getElementById("main-content");
+    if (!main) return;
+    const update = () => setScrolled(main.scrollTop > threshold);
+    update();
+    main.addEventListener("scroll", update, { passive: true });
+    return () => main.removeEventListener("scroll", update);
+  }, [pathname, threshold]);
+  return scrolled;
+}
+
 /** Visible only on mobile (< lg). */
 export function MobileTopBar() {
   const { t } = useI18n();
   const { data: session } = useSession();
   const title = usePageTitle();
+  const showTitle = useScrolledPastTitle();
   const isOnline = useSyncExternalStore(
     subscribeOnline,
     () => navigator.onLine,
@@ -76,7 +95,13 @@ export function MobileTopBar() {
           WebkitBackdropFilter: "blur(16px)",
         }}
       >
-        <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold tracking-tight text-white">
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-[0.9375rem] font-semibold tracking-tight text-white transition-all duration-200",
+            showTitle ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
+          )}
+          aria-hidden={!showTitle}
+        >
           {title}
         </span>
 

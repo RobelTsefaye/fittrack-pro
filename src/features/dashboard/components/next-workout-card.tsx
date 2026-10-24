@@ -110,7 +110,7 @@ export function NextWorkoutCard({ nextSession }: NextWorkoutCardProps) {
           className="inline-flex items-center gap-1 rounded-md px-2 py-[3px] text-[11px] font-semibold uppercase tracking-[0.04em]"
           style={{ background: "rgba(212,255,58,0.14)", color: "#D4FF3A" }}
         >
-          {t("dashboard.nextWorkoutTitle")} · Today
+          {t("dashboard.nextWorkoutTitle")}
         </span>
 
         {/* Plan name */}
@@ -125,7 +125,9 @@ export function NextWorkoutCard({ nextSession }: NextWorkoutCardProps) {
 
         {/* Meta */}
         <p className="mt-1 text-[13px]" style={{ color: "#9A9AA2" }}>
-          {t("dashboard.exerciseCount", { count: nextSession.exerciseCount })}
+          {nextSession.exerciseCount === 1
+            ? t("dashboard.exerciseCountOne")
+            : t("dashboard.exerciseCount", { count: nextSession.exerciseCount })}
         </p>
 
         {/* CTA */}

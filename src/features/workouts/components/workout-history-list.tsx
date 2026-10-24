@@ -319,10 +319,14 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
               const dur = formatDuration(w.durationSeconds);
 
               return (
-                <button
+                // A div with button semantics, not <button>: the row contains
+                // its own delete <Button>, and nested buttons are invalid HTML
+                // (React hydration error).
+                <div
                   key={w.id}
-                  type="button"
-                  className="group w-full text-left transition-colors"
+                  role="button"
+                  tabIndex={isAwaitingSync ? -1 : 0}
+                  className="group w-full cursor-pointer text-left transition-colors active:bg-white/[0.04]"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -333,6 +337,13 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                   aria-disabled={isAwaitingSync || undefined}
                   onClick={() => {
                     if (!isAwaitingSync) router.push(workoutHref(w.id));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if ((e.key === "Enter" || e.key === " ") && !isAwaitingSync) {
+                      e.preventDefault();
+                      router.push(workoutHref(w.id));
+                    }
                   }}
                 >
                   {/* Icon */}
@@ -451,7 +462,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                       />
                     )}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>

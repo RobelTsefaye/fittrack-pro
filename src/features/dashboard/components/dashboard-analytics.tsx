@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n-provider";
 import { NextWorkoutCard } from "./next-workout-card";
 
 const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
 
 function VolumeSparkline({ data }: { data: { volume: number; label: string }[] }) {
   const filtered = data.slice(-8);
@@ -111,9 +112,9 @@ export function DashboardAnalytics({
   const statCards = useMemo(
     () => [
       {
-        label: t("dashboard.thisWeek"),
+        label: t("nav.workouts"),
         value: nf.format(summary.completedThisWeek),
-        sub: `/ ${nf.format(summary.totalWorkouts)} ${t("dashboard.completed")}`,
+        sub: t("dashboard.weekWorkoutsSub", { total: nf.format(summary.totalWorkouts) }),
         icon: Dumbbell,
         accent: false,
       },
@@ -125,11 +126,9 @@ export function DashboardAnalytics({
         accent: true,
       },
       {
-        label: "Volume",
-        value: nf.format(
-          Math.round(((volumeWeekly.at(-1)?.volume ?? 0) / 1000) * 10) / 10
-        ),
-        sub: "k kg",
+        label: t("dashboard.volumeLabel"),
+        value: nf1.format((volumeWeekly.at(-1)?.volume ?? 0) / 1000),
+        sub: t(weightUnit === "LB" ? "dashboard.volumeSubLb" : "dashboard.volumeSubKg"),
         icon: TrendingUp,
         accent: false,
       },
@@ -141,17 +140,16 @@ export function DashboardAnalytics({
         accent: true,
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       summary.completedThisWeek,
       summary.totalWorkouts,
       summary.workoutStreakDays,
       summary.personalRecordsCount,
       volumeWeekly,
+      weightUnit,
+      t,
     ]
   );
-
-  const initials = (userName?.[0] ?? "A").toUpperCase();
 
   return (
     <div className="space-y-5">
@@ -167,12 +165,6 @@ export function DashboardAnalytics({
           <h1 className="mt-1 text-[30px] font-bold leading-[1.05] tracking-[-0.02em] text-white">
             Hi, {userName?.split(" ")[0] || "Athlet"}
           </h1>
-        </div>
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold"
-          style={{ background: "#26262B", color: "#F4F4F6" }}
-        >
-          {initials}
         </div>
       </div>
 

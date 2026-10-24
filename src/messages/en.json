@@ -192,7 +192,12 @@
     "viewAll": "View all",
     "noWorkoutsYet": "Finish a workout to see it listed here.",
     "startOne": "Start one",
-    "exerciseCount": "{count} exercise(s)",
+    "exerciseCount": "{count} exercises",
+    "exerciseCountOne": "1 exercise",
+    "weekWorkoutsSub": "{total} in total",
+    "volumeLabel": "Volume",
+    "volumeSubKg": "tonnes lifted this week",
+    "volumeSubLb": "k lb lifted this week",
     "duration": "Duration",
     "gettingStarted": "Getting started",
     "gettingStartedIntro": "Welcome to FitTrack Pro. Quick path to your first insights:",
@@ -597,7 +602,8 @@
     "streak30Desc": "30-day workout streak",
     "earlyBird": "Early Bird",
     "earlyBirdDesc": "Logged a workout before 7am",
-    "locked": "Locked"
+    "locked": "Locked",
+    "unlockedCount": "{count}/{total} unlocked"
   },
   "health": {
     "title": "Health",
