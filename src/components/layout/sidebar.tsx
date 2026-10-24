@@ -18,6 +18,7 @@ import {
   X,
   LogOut,
   ChevronRight,
+  HeartPulse,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { APP_NAME, ROUTES } from "@/lib/constants";
@@ -37,6 +38,7 @@ const mainNav = [
   { labelKey: "nav.plans"      as const, href: ROUTES.plans,      icon: ClipboardList },
   { labelKey: "nav.exercises"  as const, href: ROUTES.exercises,  icon: ListChecks },
   { labelKey: "nav.bodyWeight" as const, href: ROUTES.bodyWeight, icon: Scale },
+  { labelKey: "nav.health"     as const, href: ROUTES.health,     icon: HeartPulse },
   { labelKey: "nav.records"    as const, href: ROUTES.records,    icon: Trophy },
   { labelKey: "nav.coach"      as const, href: ROUTES.coach,      icon: Sparkles },
 ];
@@ -124,7 +126,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         /* base */
         "fixed inset-y-0 left-0 z-50 flex w-[15.5rem] flex-col",
         /* border + subtle background */
-        "border-r border-sidebar-border/60 bg-sidebar",
+        "sidebar-glass border-r border-sidebar-border/60",
         /* mobile: slide in/out */
         "transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
         open ? "translate-x-0" : "-translate-x-full",

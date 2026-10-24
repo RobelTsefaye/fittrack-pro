@@ -46,7 +46,7 @@ export function RecoveryRing({ recovery }: RecoveryRingProps) {
     <Link
       href={`${ROUTES.health}/recovery`}
       className="block space-y-3 rounded-[22px] p-5 transition-colors active:bg-white/5"
-      style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+      data-glass
     >
       <div className="flex items-center gap-4">
         {/* Ring */}

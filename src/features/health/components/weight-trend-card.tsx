@@ -208,7 +208,7 @@ export function WeightTrendCard() {
       : `${deltaKg > 0 ? "+" : ""}${deltaKg.toFixed(1)} kg`;
 
   return (
-    <div className="space-y-3 rounded-[22px] p-4" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+    <div className="space-y-3 rounded-[22px] p-4" data-glass>
       <div className="flex items-center justify-between">
         <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9A9AA2" }}>
           {t("health.weightTrend.title")}

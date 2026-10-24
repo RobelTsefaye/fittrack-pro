@@ -27,7 +27,7 @@ const buttonVariants = cva(
       variant: {
         /* Filled — primary CTA */
         default:
-          "bg-primary text-primary-foreground shadow-sm shadow-black/10 hover:opacity-90 active:opacity-80",
+          "bg-primary text-primary-foreground shadow-sm shadow-black/10 hover:opacity-90 active:opacity-80 dark:shadow-[0_0_22px_-8px_var(--primary)] dark:hover:opacity-100 dark:hover:shadow-[0_0_30px_-6px_var(--primary)]",
         /* Tinted — secondary action (amber tint in dark) */
         secondary:
           "bg-primary/10 text-primary hover:bg-primary/15 dark:bg-primary/15 dark:text-primary dark:hover:bg-primary/20",

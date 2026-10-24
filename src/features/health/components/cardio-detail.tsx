@@ -213,7 +213,7 @@ function Back() {
 
 function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-[22px] p-4" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+    <div className="rounded-[22px] p-4" data-glass>
       <div className="mb-3">
         <p className="text-[15px] font-semibold text-white">{title}</p>
         {subtitle && <p className="text-[11px]" style={{ color: "#5E5E66" }}>{subtitle}</p>}
@@ -233,7 +233,7 @@ function CollapsibleSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-[22px]" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+    <div className="rounded-[22px]" data-glass>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -262,7 +262,7 @@ function EmptyState() {
   return (
     <div
       className="flex flex-col items-center gap-4 rounded-[22px] p-8 text-center"
-      style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+      data-glass
     >
       <Activity className="h-10 w-10" style={{ color: "#64D2FF" }} />
       <div>

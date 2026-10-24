@@ -265,7 +265,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
       {!loading && workouts.length === 0 && (
         <div
           className="flex flex-col items-center gap-4 rounded-[18px] py-16 px-6 text-center"
-          style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+          data-glass
         >
           <div
             className="flex h-14 w-14 items-center justify-center rounded-2xl"
@@ -292,7 +292,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
           {[...Array(3)].map((_, i) => (
             <div key={i}
               className="h-16 rounded-[14px]"
-              style={{ background: "#121214" }}
+              data-glass
             />
           ))}
         </div>
@@ -309,7 +309,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
           </p>
           <div
             className="overflow-hidden rounded-[16px]"
-            style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+            data-glass
           >
             {group.items.map((w, i) => {
               const isActive = !w.completedAt;

@@ -114,7 +114,7 @@ function CalorieBalance({ snapshot }: { snapshot: HealthSnapshot | null }) {
   const inSurplus = net != null && net > 0;
 
   return (
-    <div className="rounded-[22px] p-5" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+    <div className="rounded-[22px] p-5" data-glass>
       <div className="flex items-center justify-between gap-2 mb-1">
         <div className="flex items-center gap-2">
           <Flame className="h-4 w-4" style={{ color: "#FF9F0A" }} />
@@ -267,7 +267,7 @@ function MicroSection({ snapshot }: { snapshot: HealthSnapshot | null }) {
 
 function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-[22px] p-4" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+    <div className="rounded-[22px] p-4" data-glass>
       <div className="mb-3">
         <p className="text-[15px] font-semibold text-white">{title}</p>
         {subtitle && <p className="text-[11px]" style={{ color: "#5E5E66" }}>{subtitle}</p>}

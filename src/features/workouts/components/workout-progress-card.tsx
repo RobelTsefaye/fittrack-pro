@@ -30,12 +30,12 @@ export function WorkoutProgressCard({
   ];
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 p-4 backdrop-blur">
+    <div data-glass className="overflow-hidden rounded-2xl p-4">
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           {t("workouts.progressSets")}
         </span>
-        <span className="font-display text-2xl font-bold tabular-nums text-primary">{pct}%</span>
+        <span className="neon-text font-display text-2xl font-bold tabular-nums">{pct}%</span>
       </div>
       <div
         className="mt-2 h-2 overflow-hidden rounded-full bg-muted"
@@ -45,7 +45,7 @@ export function WorkoutProgressCard({
         aria-valuenow={pct}
       >
         <div
-          className="h-full rounded-full bg-primary shadow-[0_0_12px] shadow-primary/60 transition-[width] duration-500 ease-out"
+          className="progress-sheen h-full rounded-full bg-gradient-to-r from-primary to-[var(--neon-cyan,var(--primary))] shadow-[0_0_14px] shadow-primary/60 transition-[width] duration-500 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>

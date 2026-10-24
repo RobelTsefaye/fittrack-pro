@@ -180,7 +180,7 @@ export function SleepDetail({
       </div>
 
       {/* Explainer */}
-      <div className="rounded-[18px] p-4" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="rounded-[18px] p-4" data-glass>
         <p className="text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: DEEP_COLOR }}>
           Was bedeutet das?
         </p>
@@ -268,7 +268,7 @@ function ChartCard({
   avgLabel: string | null;
 }) {
   return (
-    <div className="rounded-[22px] p-4" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+    <div className="rounded-[22px] p-4" data-glass>
       <div className="flex items-baseline justify-between mb-1">
         <p className="text-[15px] font-semibold text-white">{title}</p>
         {avgLabel && (
@@ -305,7 +305,7 @@ function StageSection({
   const fmt = (v: number) => Math.round(v).toString();
 
   return (
-    <div className="rounded-[22px] p-4" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+    <div className="rounded-[22px] p-4" data-glass>
       <div className="flex items-baseline justify-between mb-1">
         <p className="text-[15px] font-semibold text-white">{title}</p>
         {avgPct != null && (

@@ -30,7 +30,7 @@ function VolumeSparkline({ data }: { data: { volume: number; label: string }[] }
   return (
     <div
       className="rounded-[16px] p-4"
-      style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+      data-glass
     >
       <div className="mb-2 flex items-baseline justify-between px-0.5">
         <span
@@ -179,15 +179,12 @@ export function DashboardAnalytics({
         >
           {t("dashboard.thisWeek")}
         </p>
-        <div className="stagger-children grid grid-cols-2 gap-2">
+        <div className="stagger-children grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
           {statCards.map((s) => (
             <div
               key={s.label}
               className="rounded-[16px] p-[14px]"
-              style={{
-                background: "#121214",
-                border: "1px solid rgba(255,255,255,0.08)",
-              }}
+              data-glass
             >
               <div className="mb-1.5 flex items-center justify-between">
                 <span
@@ -230,10 +227,7 @@ export function DashboardAnalytics({
           </p>
           <div
             className="overflow-hidden rounded-[16px]"
-            style={{
-              background: "#121214",
-              border: "1px solid rgba(255,255,255,0.08)",
-            }}
+            data-glass
           >
             {recentPRs.slice(0, 3).map((pr, i) => (
               <div
@@ -287,10 +281,7 @@ export function DashboardAnalytics({
       {summary.totalWorkouts === 0 && (
         <div
           className="rounded-[16px] p-6 text-center"
-          style={{
-            background: "#121214",
-            border: "1px solid rgba(255,255,255,0.08)",
-          }}
+          data-glass
         >
           <p className="text-[15px] font-semibold text-white">
             {t("dashboard.gettingStarted")}

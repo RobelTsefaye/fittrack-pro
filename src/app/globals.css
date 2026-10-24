@@ -165,6 +165,12 @@
   --nav-active-bg:  oklch(1 0 0 / 8%);
   --nav-active-fg:  var(--sys-label);
   --nav-hover-bg:   oklch(1 0 0 / 5%);
+
+  /* Futuristic layer — second neon accent + glass surfaces */
+  --neon-cyan:      oklch(0.86 0.15 200);
+  --glass-bg:       oklch(0.135 0.006 270 / 86%);
+  --glass-border:   oklch(1 0 0 / 9%);
+  --glass-highlight: oklch(1 0 0 / 7%);
 }
 
 /* ─── Base ───────────────────────────────────────────────────────────────── */
@@ -247,8 +253,9 @@ html, body {
   height: calc(100dvh - 3.5rem - var(--tab-bar-h) - env(safe-area-inset-bottom, 0px));
 }
 @media (min-width: 1024px) {
-  /* desktop: no top bar (lg:hidden) */
-  .fill-mobile-viewport { height: calc(100dvh - var(--tab-bar-h) - env(safe-area-inset-bottom, 0px)); }
+  /* desktop: no top bar and no tab bar (sidebar instead) */
+  .fill-mobile-viewport { height: calc(100dvh - 4rem); }
+  .tab-bar-safe { padding-bottom: 2.5rem; }
 }
 
 .main-scroll {
@@ -256,19 +263,6 @@ html, body {
   contain: layout style;
   overscroll-behavior-y: contain;
 }
-/* Ambient volt glow at the top of the canvas — gives the flat dark page a
-   sense of depth without touching any component. */
-.dark .main-scroll {
-  background-image:
-    radial-gradient(
-      120% 320px at 50% -120px,
-      oklch(0.937 0.267 131 / 5.5%) 0%,
-      transparent 70%
-    );
-  background-repeat: no-repeat;
-  background-attachment: local;
-}
-
 /* ─── Press feedback (native-app feel) ───────────────────────────────────── */
 @media (hover: none) {
   button:not(:disabled):active,
@@ -387,4 +381,196 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .stagger-children > * { animation: fade-in-only 180ms ease forwards; }
   @keyframes fade-in-only { from { opacity: 0; } to { opacity: 1; } }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Futuristic layer (dark mode). Purely visual; every rule degrades to the
+ * plain dark theme where a feature (backdrop-filter, mask) is unsupported.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Fixed backdrop behind the app: drifting volt/cyan aurora + a faint tech grid
+   that fades out towards the bottom. */
+.app-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.dark .app-aurora::before {
+  content: "";
+  position: absolute;
+  inset: -20% -10% auto;
+  height: 70vh;
+  background:
+    radial-gradient(40% 55% at 22% 30%, oklch(0.937 0.267 131 / 11%), transparent 70%),
+    radial-gradient(35% 50% at 80% 20%, oklch(0.86 0.15 200 / 9%), transparent 70%);
+  filter: blur(40px);
+  animation: aurora-drift 22s var(--ease-in-out) infinite alternate;
+}
+.dark .app-aurora::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(oklch(1 0 0 / 3.5%) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 3.5%) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(120% 70% at 50% 0%, #000 0%, transparent 75%);
+  mask-image: radial-gradient(120% 70% at 50% 0%, #000 0%, transparent 75%);
+}
+@keyframes aurora-drift {
+  from { transform: translate3d(-3%, 0, 0) scale(1); }
+  to   { transform: translate3d(4%, 3%, 0) scale(1.08); }
+}
+
+/* Glass surfaces: shared look for cards, grouped lists and legacy inline
+   "#121214" panels (now tagged data-glass). Blur only where it is cheap. */
+.dark [data-glass],
+.dark .ios-group,
+.dark [data-slot="card"] {
+  background-color: var(--glass-bg);
+  background-image: linear-gradient(180deg, oklch(1 0 0 / 4%) 0%, transparent 2.5rem);
+  border: 1px solid var(--glass-border) !important;
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-highlight),
+    0 12px 32px -18px oklch(0 0 0 / 80%);
+}
+@media (min-width: 768px) {
+  .dark [data-glass],
+  .dark .ios-group,
+  .dark [data-slot="card"] {
+    --glass-bg: oklch(0.135 0.006 270 / 72%);
+    backdrop-filter: blur(16px) saturate(1.4);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  }
+}
+/* Interactive glass lights up on hover (pointer devices only). */
+@media (hover: hover) {
+  .dark a[data-glass], .dark button[data-glass], .dark [role="button"][data-glass],
+  .dark a.ios-group, .dark [data-slot="card"]:has(> a) {
+    transition: border-color 200ms var(--ease-out), box-shadow 200ms var(--ease-out), transform 200ms var(--ease-out);
+  }
+  .dark a[data-glass]:hover, .dark button[data-glass]:hover, .dark [role="button"][data-glass]:hover,
+  .dark a.ios-group:hover {
+    border-color: oklch(0.937 0.267 131 / 35%) !important;
+    box-shadow:
+      inset 0 1px 0 0 var(--glass-highlight),
+      0 0 0 1px oklch(0.937 0.267 131 / 10%),
+      0 0 32px -8px oklch(0.937 0.267 131 / 30%);
+    transform: translateY(-1px);
+  }
+}
+
+/* Neon accent text and a gradient headline helper. */
+.neon-text {
+  color: var(--primary);
+  text-shadow: 0 0 18px color-mix(in oklch, var(--primary) 45%, transparent);
+}
+.dark .text-gradient {
+  background: linear-gradient(100deg, var(--sys-label) 30%, var(--primary) 75%, var(--neon-cyan));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Scan-light sweep for progress fills (add .progress-sheen to the bar). */
+.progress-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.progress-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, oklch(1 0 0 / 45%) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: sheen 2.4s var(--ease-in-out) infinite;
+}
+@keyframes sheen {
+  to { transform: translateX(100%); }
+}
+
+/* Breathing glow for the primary call to action. */
+.cta-glow {
+  animation: cta-breathe 3.2s ease-in-out infinite;
+}
+@keyframes cta-breathe {
+  0%, 100% { box-shadow: 0 0 18px -6px color-mix(in oklch, var(--primary) 70%, transparent); }
+  50%      { box-shadow: 0 0 34px -4px color-mix(in oklch, var(--primary) 85%, transparent); }
+}
+
+/* Tab bar pill: glass + hairline neon edge on top. */
+.dark .tab-pill {
+  background: oklch(0.15 0.006 270 / 78%) !important;
+  border-color: oklch(1 0 0 / 10%) !important;
+  box-shadow:
+    inset 0 1px 0 0 oklch(1 0 0 / 8%),
+    0 -1px 0 0 oklch(0.937 0.267 131 / 12%),
+    0 18px 40px -16px oklch(0 0 0 / 90%);
+  backdrop-filter: blur(18px) saturate(1.5);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+}
+
+/* Sidebar on desktop: glass over the aurora with a neon edge. */
+.dark .sidebar-glass {
+  background-color: oklch(0.09 0.004 270 / 70%);
+  box-shadow: inset -1px 0 0 0 oklch(0.937 0.267 131 / 8%);
+}
+
+/* Inputs: subtle neon focus ring. */
+.dark input:focus-visible, .dark textarea:focus-visible {
+  box-shadow: 0 0 0 1px oklch(0.937 0.267 131 / 55%), 0 0 18px -6px oklch(0.937 0.267 131 / 60%);
+}
+
+/* Light-mode fallback for panels that used to hardcode a dark background. */
+[data-glass] {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+}
+
+/* Hero card: slowly rotating neon edge (conic gradient behind a 1px inset)
+   plus a scanline grid inside. */
+@property --hero-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.dark .hero-card {
+  isolation: isolate;
+  border-color: transparent !important;
+}
+.dark .hero-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--hero-angle),
+    oklch(0.937 0.267 131 / 70%),
+    oklch(0.86 0.15 200 / 45%) 25%,
+    oklch(1 0 0 / 6%) 45%,
+    oklch(1 0 0 / 6%) 75%,
+    oklch(0.937 0.267 131 / 70%)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: hero-spin 8s linear infinite;
+}
+.dark .hero-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background-image: repeating-linear-gradient(0deg, oklch(1 0 0 / 2.5%) 0 1px, transparent 1px 4px);
+  -webkit-mask-image: linear-gradient(110deg, transparent 35%, #000 100%);
+  mask-image: linear-gradient(110deg, transparent 35%, #000 100%);
+  pointer-events: none;
+}
+@keyframes hero-spin {
+  to { --hero-angle: 360deg; }
 }

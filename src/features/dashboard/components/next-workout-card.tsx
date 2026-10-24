@@ -92,7 +92,7 @@ export function NextWorkoutCard({ nextSession }: NextWorkoutCardProps) {
 
   return (
     <div
-      className="relative overflow-hidden rounded-[22px] p-[18px]"
+      className="hero-card relative overflow-hidden rounded-[22px] p-[18px] md:p-6"
       style={{
         background: "linear-gradient(140deg, #1B2207 0%, #121214 70%)",
         border: "1px solid rgba(255,255,255,0.14)",
@@ -135,7 +135,7 @@ export function NextWorkoutCard({ nextSession }: NextWorkoutCardProps) {
           <button
             onClick={handleStart}
             disabled={loading}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] font-bold text-[15px] transition-opacity active:opacity-80 disabled:opacity-60"
+            className="cta-glow flex h-12 w-full items-center justify-center gap-2 rounded-[14px] font-bold text-[15px] transition-opacity active:opacity-80 disabled:opacity-60 md:h-14 md:text-base"
             style={{ background: "#D4FF3A", color: "#0A1300" }}
           >
             <Play className="h-[1.125rem] w-[1.125rem] fill-current" />

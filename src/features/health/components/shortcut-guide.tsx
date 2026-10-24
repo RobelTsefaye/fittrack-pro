@@ -87,7 +87,7 @@ export function ShortcutGuide() {
           <div
             key={key}
             className="rounded-[18px] p-4"
-            style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+            data-glass
           >
             <div className="flex items-start gap-3">
               <span className="text-xl">{emoji}</span>
@@ -111,7 +111,7 @@ export function ShortcutGuide() {
       {/* API URL copy box */}
       <div
         className="rounded-[18px] p-4"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
         <p className="mb-2 text-[13px] font-semibold text-white">{t("health.shortcutGuide.apiUrl")}</p>
         <div className="flex items-center gap-2">
@@ -138,7 +138,7 @@ export function ShortcutGuide() {
       {/* Shortcut JSON reference */}
       <div
         className="rounded-[18px] p-4"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
         <div className="mb-3 flex items-center justify-between">
           <p className="text-[13px] font-semibold text-white">JSON Payload Reference</p>
@@ -169,7 +169,7 @@ export function ShortcutGuide() {
       {/* How to build the Shortcut */}
       <div
         className="rounded-[18px] p-4 space-y-3"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
         <p className="font-semibold text-white">Shortcut Actions (in order)</p>
         {[

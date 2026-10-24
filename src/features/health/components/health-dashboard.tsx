@@ -285,7 +285,7 @@ export function HealthDashboard({
     return (
       <div
         className="flex flex-col items-center gap-4 rounded-[22px] p-8 text-center"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
         <span className="text-4xl">🍎</span>
         <div>
@@ -490,7 +490,7 @@ export function HealthDashboard({
       <Link
         href={`${ROUTES.health}/shortcut`}
         className="flex items-center gap-3 rounded-[18px] p-4 transition-colors active:bg-white/5"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
         <div
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg"

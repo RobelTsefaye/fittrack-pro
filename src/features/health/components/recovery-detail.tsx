@@ -81,7 +81,7 @@ export function RecoveryDetail({
     return (
       <div className="space-y-4">
         <Back />
-        <div className="rounded-[22px] p-8 text-center" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="rounded-[22px] p-8 text-center" data-glass>
           <p className="text-[14px]" style={{ color: "#9A9AA2" }}>
             Noch keine Recovery-Daten. Schlaf, HRV oder Ruhepuls in Apple Health eintragen.
           </p>
@@ -184,7 +184,7 @@ function HistoryChart({ history }: { history: RecoveryHistoryPoint[] }) {
     return (
       <div
         className="rounded-[22px] p-5 text-center"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
         <p className="text-[13px]" style={{ color: "#5E5E66" }}>
           Verlauf erscheint nach einigen Tagen.
@@ -198,7 +198,7 @@ function HistoryChart({ history }: { history: RecoveryHistoryPoint[] }) {
   return (
     <div
       className="rounded-[22px] p-4"
-      style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+      data-glass
     >
       <div className="flex items-baseline justify-between mb-3">
         <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9A9AA2" }}>
@@ -269,18 +269,17 @@ function Card({ icon, title, accent, children, score, weight, hint, href }: {
     </>
   );
 
-  const style = { background: "#121214", border: "1px solid rgba(255,255,255,0.08)" };
 
   if (href) {
     return (
-      <Link href={href} className="block rounded-[22px] p-4 transition-colors active:bg-white/5" style={style}>
+      <Link href={href} className="block rounded-[22px] p-4 transition-colors active:bg-white/5" data-glass>
         {body}
       </Link>
     );
   }
 
   return (
-    <div className="rounded-[22px] p-4" style={style}>
+    <div className="rounded-[22px] p-4" data-glass>
       {body}
     </div>
   );
