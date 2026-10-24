@@ -111,7 +111,40 @@ async function main() {
       data: { userId: user.id, date, weight: Math.round((78 + (days - d) * 0.03 + (Math.random() - 0.5) * 0.8) * 10) / 10 },
     });
   }
-  console.log(`Seeded plan + ${sessionIdx} workouts for ${email}`);
+  await prisma.healthSnapshot.deleteMany({ where: { userId: user.id } });
+  const rand = (min: number, max: number) => min + Math.random() * (max - min);
+  for (let d = 28; d >= 0; d--) {
+    const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - d));
+    const sleep = rand(6.2, 8.4);
+    await prisma.healthSnapshot.create({
+      data: {
+        userId: user.id,
+        date,
+        sleepDuration: Math.round(sleep * 10) / 10,
+        sleepBedtime: "23:" + String(Math.floor(rand(0, 59))).padStart(2, "0"),
+        sleepWakeTime: "07:" + String(Math.floor(rand(0, 40))).padStart(2, "0"),
+        sleepDeepMinutes: Math.round(rand(55, 100)),
+        sleepRemMinutes: Math.round(rand(80, 120)),
+        restingHeartRate: Math.round(rand(52, 60)),
+        heartRateAvg: Math.round(rand(68, 80)),
+        hrv: Math.round(rand(48, 78)),
+        respiratoryRate: Math.round(rand(13.5, 15.5) * 10) / 10,
+        wristTemperature: Math.round(rand(35.6, 36.2) * 100) / 100,
+        steps: Math.round(rand(6000, 13500)),
+        activeCalories: Math.round(rand(450, 900)),
+        exerciseMinutes: Math.round(rand(25, 85)),
+        standHours: Math.round(rand(9, 14)),
+        vo2Max: 47.5,
+        calories: 1850,
+        dietaryCalories: Math.round(rand(2500, 3100)),
+        protein: Math.round(rand(150, 190)),
+        carbs: Math.round(rand(280, 360)),
+        fat: Math.round(rand(70, 95)),
+        water: Math.round(rand(2200, 3500)),
+      },
+    });
+  }
+  console.log(`Seeded plan + ${sessionIdx} workouts + 29 days of health data for ${email}`);
 }
 
 main().finally(() => prisma.$disconnect());
