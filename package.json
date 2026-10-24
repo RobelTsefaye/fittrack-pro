@@ -8,7 +8,7 @@
     "build": "prisma generate && next build",
     "build:native": "prisma generate && node scripts/build-native.mjs",
     "sync:native": "npm run build:native && npx cap sync ios",
-    "vercel-build": "prisma generate && next build",
+    "vercel-build": "prisma generate && node scripts/db-sync-on-build.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "db:seed": "npx tsx prisma/seed.ts",

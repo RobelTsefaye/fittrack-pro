@@ -92,12 +92,14 @@ Or run it from the Vercel dashboard → Functions → use the Neon SQL Editor to
 
 1. Develop locally with `npx prisma dev` + `npm run dev`
 2. If schema changes: `npx prisma migrate dev --name feature-name`
-3. **Before** merging/deploying a schema change, apply it to production:
-   `DATABASE_URL=<prod> npm run db:migrate` (or `npm run db:push` if the
-   production database is not managed with migration history).
-   The `vercel-build` script does **not** run migrations; deploying code
-   that expects new columns before they exist causes
-   "column … does not exist" errors at runtime.
+3. Schema changes are applied automatically during the Vercel build:
+   `vercel-build` runs `scripts/db-sync-on-build.mjs` before `next build`.
+   It tries `prisma migrate deploy`, falls back to a non-destructive
+   `prisma db push` (no `--accept-data-loss`, so anything that would drop
+   data aborts), and otherwise fails the build — Vercel then keeps serving
+   the previous deployment. Preview deployments run it too, against
+   whatever `DATABASE_URL` the preview environment has.
+   Manual alternative: `DATABASE_URL=<prod> node scripts/db-sync-on-build.mjs`.
 4. Push to GitHub → Vercel auto-deploys
 
 ### Updating Dependencies
