@@ -73,7 +73,7 @@ export function RecoveryRing({ recovery }: RecoveryRingProps) {
             {t("health.recoveryScore")}
           </p>
           <p className="mt-0.5 text-[15px] font-semibold" style={{ color }}>
-            {level === "high" ? "Ready to Train" : level === "mid" ? "Moderate" : "Rest Day"}
+            {level === "high" ? t("health.readyToTrain") : level === "mid" ? t("health.moderate") : t("health.restDay")}
           </p>
           <p className="mt-1 text-[12px] leading-snug" style={{ color: "#9A9AA2" }}>
             {label}

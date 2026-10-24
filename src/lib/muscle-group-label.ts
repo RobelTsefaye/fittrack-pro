@@ -14,3 +14,10 @@ export function muscleGroupLabel(t: Translate, group: string): string {
   const label = t(key);
   return label === key ? titleCaseEnum(group) : label;
 }
+
+/** Localized equipment name (`equipment.<TYPE>`), title-cased fallback. */
+export function equipmentLabel(t: Translate, equipment: string): string {
+  const key = `equipment.${equipment}`;
+  const label = t(key);
+  return label === key ? titleCaseEnum(equipment) : label;
+}

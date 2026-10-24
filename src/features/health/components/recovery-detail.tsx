@@ -96,9 +96,9 @@ export function RecoveryDetail({
     : "#FF453A";
 
   const levelLabel =
-    recovery.level === "high" ? "Ready to Train"
-    : recovery.level === "mid" ? "Moderate"
-    : "Rest Day";
+    recovery.level === "high" ? "Bereit fürs Training"
+    : recovery.level === "mid" ? "Mittel"
+    : "Ruhetag";
 
   return (
     <div className="space-y-4 pb-8">

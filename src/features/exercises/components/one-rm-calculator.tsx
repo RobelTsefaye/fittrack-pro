@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Target } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n-provider";
 
 function epley(weight: number, reps: number) {
   if (reps < 1 || weight <= 0) return 0;
@@ -23,6 +24,7 @@ interface OneRMCalculatorProps {
 }
 
 export function OneRMCalculator({ initialWeight = 0, initialReps = 5, weightUnit }: OneRMCalculatorProps) {
+  const { t } = useI18n();
   const [weight, setWeight] = useState(initialWeight > 0 ? initialWeight : 0);
   const [reps, setReps] = useState(initialReps);
 
@@ -84,8 +86,8 @@ export function OneRMCalculator({ initialWeight = 0, initialReps = 5, weightUnit
           <div className="rounded-xl border border-[var(--sys-separator)] overflow-hidden">
             <div className="grid grid-cols-3 bg-[var(--sys-fill)] px-3 py-1.5 text-[0.62rem] font-semibold uppercase tracking-wider text-[var(--sys-label3)]">
               <span>% 1RM</span>
-              <span className="text-center">Reps</span>
-              <span className="text-right">Weight</span>
+              <span className="text-center">{t("records.reps")}</span>
+              <span className="text-right">{t("records.weight")}</span>
             </div>
             {REP_PERCENTAGES.map(([repCount, pct]) => (
               <div

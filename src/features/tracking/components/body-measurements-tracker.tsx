@@ -6,6 +6,7 @@ import { Plus, Trash2, ChevronDown, ChevronUp, Ruler } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { saveBodyMeasurementsCache, loadBodyMeasurementsCache } from "@/lib/offline/screen-caches";
+import { useI18n } from "@/lib/i18n-provider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,15 +29,15 @@ type Entry = MeasurementFields & {
 
 type FieldKey = keyof MeasurementFields;
 
-const FIELDS: { key: FieldKey; label: string; emoji: string }[] = [
-  { key: "neck",       label: "Neck",        emoji: "🧣" },
-  { key: "chest",      label: "Chest",       emoji: "💪" },
-  { key: "leftArm",    label: "Left Arm",    emoji: "💪" },
-  { key: "rightArm",   label: "Right Arm",   emoji: "💪" },
-  { key: "waist",      label: "Waist",       emoji: "📏" },
-  { key: "hips",       label: "Hips",        emoji: "📏" },
-  { key: "leftThigh",  label: "Left Thigh",  emoji: "🦵" },
-  { key: "rightThigh", label: "Right Thigh", emoji: "🦵" },
+const FIELDS: { key: FieldKey; labelKey: string; emoji: string }[] = [
+  { key: "neck",       labelKey: "measurements.neck",        emoji: "🧣" },
+  { key: "chest",      labelKey: "measurements.chest",       emoji: "💪" },
+  { key: "leftArm",    labelKey: "measurements.leftArm",    emoji: "💪" },
+  { key: "rightArm",   labelKey: "measurements.rightArm",   emoji: "💪" },
+  { key: "waist",      labelKey: "measurements.waist",       emoji: "📏" },
+  { key: "hips",       labelKey: "measurements.hips",        emoji: "📏" },
+  { key: "leftThigh",  labelKey: "measurements.leftThigh",  emoji: "🦵" },
+  { key: "rightThigh", labelKey: "measurements.rightThigh", emoji: "🦵" },
 ];
 
 const MeasurementLineChart = dynamic(
@@ -83,6 +84,7 @@ function getDelta(entries: Entry[], key: FieldKey): string | null {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function BodyMeasurementsTracker() {
+  const { t } = useI18n();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -179,7 +181,7 @@ export function BodyMeasurementsTracker() {
   async function handleSave() {
     const hasAny = FIELDS.some((f) => formValues[f.key].trim() !== "");
     if (!hasAny) {
-      toast.error("Enter at least one measurement.");
+      toast.error(t("measurements.enterOne"));
       return;
     }
     setSaving(true);
@@ -194,11 +196,11 @@ export function BodyMeasurementsTracker() {
       body: JSON.stringify(body),
     });
     if (res.ok) {
-      toast.success("Measurements saved.");
+      toast.success(t("measurements.saved"));
       setShowForm(false);
       await load();
     } else {
-      toast.error("Failed to save.");
+      toast.error(t("measurements.saveFailed"));
     }
     setSaving(false);
   }
@@ -206,7 +208,7 @@ export function BodyMeasurementsTracker() {
   async function handleDelete(id: string) {
     const res = await fetch(`/api/body-measurements?id=${id}`, { method: "DELETE" });
     if (res.ok) {
-      toast.success("Entry deleted.");
+      toast.success(t("measurements.deleted"));
       setEntries((prev) => prev.filter((e) => e.id !== id));
     }
   }
@@ -216,7 +218,7 @@ export function BodyMeasurementsTracker() {
     .filter((e) => e[activeChart] != null)
     .map((e) => ({
       date: e.date.slice(5), // MM-DD
-      [FIELDS.find((f) => f.key === activeChart)!.label]: e[activeChart],
+      [t(FIELDS.find((f) => f.key === activeChart)!.labelKey)]: e[activeChart],
     }));
 
   // Active fields that have any data
@@ -244,7 +246,7 @@ export function BodyMeasurementsTracker() {
           className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[var(--sys-separator)] py-4 text-sm font-medium text-[var(--sys-label2)] transition-colors hover:border-primary/40 hover:text-primary"
         >
           <Plus className="h-4 w-4" />
-          Log today&apos;s measurements
+          {t("measurements.logToday")}
         </button>
       )}
 
@@ -252,20 +254,20 @@ export function BodyMeasurementsTracker() {
       {showForm && (
         <div className="ios-group px-4 py-4 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-[0.9rem]">Log Measurements</h3>
+            <h3 className="font-semibold text-[0.9rem]">{t("measurements.logTitle")}</h3>
             <button
               type="button"
               onClick={() => setShowForm(false)}
               className="text-[0.78rem] text-[var(--sys-label2)] hover:text-foreground"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
 
           {/* Date */}
           <div>
             <label className="block text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--sys-label3)] mb-1.5">
-              Date
+              {t("measurements.date")}
             </label>
             <input
               type="date"
@@ -281,7 +283,7 @@ export function BodyMeasurementsTracker() {
             {FIELDS.map((f) => (
               <label key={f.key}>
                 <span className="block text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--sys-label3)] mb-1">
-                  {f.label} <span className="normal-case font-normal">(cm)</span>
+                  {t(f.labelKey)} <span className="normal-case font-normal">(cm)</span>
                 </span>
                 <input
                   type="number"
@@ -299,7 +301,7 @@ export function BodyMeasurementsTracker() {
           {/* Notes */}
           <label>
             <span className="block text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--sys-label3)] mb-1">
-              Notes (optional)
+              {t("measurements.notes")}
             </span>
             <textarea
               value={formNotes}
@@ -316,7 +318,7 @@ export function BodyMeasurementsTracker() {
             disabled={saving}
             className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition-opacity disabled:opacity-60"
           >
-            {saving ? "Saving…" : "Save"}
+            {saving ? t("common.saving") : t("common.save")}
           </button>
         </div>
       )}
@@ -375,7 +377,7 @@ export function BodyMeasurementsTracker() {
                   return (
                     <div key={f.key} className="rounded-xl bg-[var(--sys-fill)] px-3 py-2.5">
                       <p className="text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--sys-label3)]">
-                        {f.label}
+                        {t(f.labelKey)}
                       </p>
                       <p className="text-[1.05rem] font-bold text-foreground leading-tight">
                         {latestEntry[f.key]} <span className="text-[0.72rem] font-normal text-[var(--sys-label3)]">cm</span>
@@ -414,14 +416,14 @@ export function BodyMeasurementsTracker() {
                         : "bg-[var(--sys-fill)] text-[var(--sys-label2)]"
                     )}
                   >
-                    {f.label}
+                    {t(f.labelKey)}
                   </button>
                 ))}
               </div>
 
               <MeasurementLineChart
                 data={chartData}
-                dataKey={FIELDS.find((f) => f.key === activeChart)!.label}
+                dataKey={t(FIELDS.find((f) => f.key === activeChart)!.labelKey)}
                 color={CHART_COLORS[activeChart]}
               />
             </div>
@@ -441,7 +443,7 @@ export function BodyMeasurementsTracker() {
                     <p className="text-[0.82rem] font-semibold">{formatDate(entry.date)}</p>
                     <p className="text-[0.72rem] text-[var(--sys-label3)] leading-relaxed mt-0.5 flex flex-wrap gap-x-3">
                       {FIELDS.filter((f) => entry[f.key] != null).map((f) => (
-                        <span key={f.key}>{f.label}: <strong className="text-foreground">{entry[f.key]}</strong></span>
+                        <span key={f.key}>{t(f.labelKey)}: <strong className="text-foreground">{entry[f.key]}</strong></span>
                       ))}
                     </p>
                     {entry.notes && (

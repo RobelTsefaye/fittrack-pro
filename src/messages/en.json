@@ -17,7 +17,8 @@
     "sectionTraining": "Training",
     "sectionTools": "Tools",
     "sectionAccount": "Account",
-    "more": "More"
+    "more": "More",
+    "bodyTracking": "Body"
   },
   "navbar": {
     "settings": "Settings",
@@ -134,7 +135,19 @@
     "crossDeviceUrlLabel": "Open this address on every device (bookmark or “Add to Home Screen”):",
     "crossDeviceHint": "Sign in with the same email and password on each device. Do not use a computer-only URL such as localhost on your phone — use your real app link (for example your Vercel domain or home server).",
     "crossDeviceSyncNote": "Workouts you log offline are stored on this device until you are online again; then they sync to your account and appear on your other devices. Install the app from the browser menu (“Add to Home Screen”) for a full-screen experience similar to an App Store app.",
-    "trainingDaysTitle": "Training days & calendar", "calendarSyncToggle": "Add to iPhone calendar", "trainingDaysLabel": "Training days", "trainingTime": "Training time", "calendarHint": "Upcoming training days are added to a \"FitTrack Pro\" calendar, labeled with the next session from your plan.", "calendarWebHint": "Days and time are saved to your account; calendar entries are created by the iOS app.", "weekdayMon": "Mo", "weekdayTue": "Tu", "weekdayWed": "We", "weekdayThu": "Th", "weekdayFri": "Fr", "weekdaySat": "Sa", "weekdaySun": "Su",
+    "trainingDaysTitle": "Training days & calendar",
+    "calendarSyncToggle": "Add to iPhone calendar",
+    "trainingDaysLabel": "Training days",
+    "trainingTime": "Training time",
+    "calendarHint": "Upcoming training days are added to a \"FitTrack Pro\" calendar, labeled with the next session from your plan.",
+    "calendarWebHint": "Days and time are saved to your account; calendar entries are created by the iOS app.",
+    "weekdayMon": "Mo",
+    "weekdayTue": "Tu",
+    "weekdayWed": "We",
+    "weekdayThu": "Th",
+    "weekdayFri": "Fr",
+    "weekdaySat": "Sa",
+    "weekdaySun": "Su",
     "saved": "Preferences saved",
     "saveFailed": "Could not save preferences",
     "cardioDaysTitle": "Cardio days & calendar",
@@ -154,7 +167,18 @@
     "menuExport": "Export data"
   },
   "calendarEditor": {
-    "titleTraining": "Edit training days", "titleCardio": "Edit cardio days", "skip": "Skip", "moveTo": "Move to", "time": "Time", "duration": "Duration", "reset": "Reset", "save": "Save", "badgeDefault": "Default", "badgeSkipped": "Skipped", "badgeMoved": "Moved", "badgeCustom": "Custom"
+    "titleTraining": "Edit training days",
+    "titleCardio": "Edit cardio days",
+    "skip": "Skip",
+    "moveTo": "Move to",
+    "time": "Time",
+    "duration": "Duration",
+    "reset": "Reset",
+    "save": "Save",
+    "badgeDefault": "Default",
+    "badgeSkipped": "Skipped",
+    "badgeMoved": "Moved",
+    "badgeCustom": "Custom"
   },
   "dashboard": {
     "welcome": "Welcome back",
@@ -205,7 +229,6 @@
     "gsStep2": "and log working sets (warmups don't count toward volume here).",
     "gsStep3": "Log body weight for the dashboard sparkline (Body Weight page).",
     "volumeEmpty": "No volume in this range yet. Complete workouts with logged weight and reps.",
-    "volumeLabel": "Volume",
     "weightLabel": "Weight",
     "est1rm": "Est. 1RM",
     "heatmapTitle": "Activity",
@@ -225,7 +248,8 @@
     "nextWorkoutTitle": "Next up",
     "nextWorkoutStart": "Start workout",
     "nextWorkoutStarting": "Starting…",
-    "nextWorkoutOfflineFallback": "Can't start from a plan offline — start a workout manually instead."
+    "nextWorkoutOfflineFallback": "Can't start from a plan offline — start a workout manually instead.",
+    "volumeChartTitle": "Volume · 8 weeks"
   },
   "workouts": {
     "title": "Workouts",
@@ -324,10 +348,10 @@
     "summaryDone": "Done",
     "cancellingWorkout": "Cancelling…",
     "cancelWorkoutConfirm": "Cancel and discard this workout? All logged sets will be lost.",
-    "cancelWorkoutFailed": "Could not cancel workout."
-    ,"supersetLabel": "Superset"
-    ,"supersetGroupWithNext": "Superset with next"
-    ,"supersetDissolve": "Dissolve superset"
+    "cancelWorkoutFailed": "Could not cancel workout.",
+    "supersetLabel": "Superset",
+    "supersetGroupWithNext": "Superset with next",
+    "supersetDissolve": "Dissolve superset"
   },
   "cardio": {
     "pickTitle": "Start cardio",
@@ -538,7 +562,8 @@
     "notAchievable": "Not achievable with standard plates. Nearest: {nearest}",
     "unit": "Unit",
     "plateLabel": "× {count}",
-    "emptyHint": "Enter a target weight to calculate plates."
+    "emptyHint": "Enter a target weight to calculate plates.",
+    "barCustomShort": "Custom"
   },
   "share": {
     "shareWorkout": "Share workout",
@@ -580,7 +605,11 @@
     "achievedOn": "Achieved",
     "allGroups": "All",
     "viewExercise": "View exercise",
-    "recordCount": "{count} PRs"
+    "recordCount": "{count} PRs",
+    "statWorkouts": "Workouts",
+    "statRecords": "Records",
+    "statStreak": "Streak",
+    "statBadges": "Badges"
   },
   "achievements": {
     "title": "Achievements",
@@ -724,6 +753,43 @@
       "modePeriod": "Period",
       "currentWeek": "current",
       "noCalorieData": "No calories logged"
-    }
+    },
+    "readyToTrain": "Ready to train",
+    "moderate": "Moderate",
+    "restDay": "Rest day"
+  },
+  "equipment": {
+    "BARBELL": "Barbell",
+    "DUMBBELL": "Dumbbell",
+    "MACHINE": "Machine",
+    "CABLE": "Cable",
+    "BODYWEIGHT": "Bodyweight",
+    "KETTLEBELL": "Kettlebell",
+    "BAND": "Band",
+    "OTHER": "Other"
+  },
+  "bodyTracking": {
+    "title": "Body Tracking",
+    "subtitle": "Weight and measurements over time",
+    "tabWeight": "Weight",
+    "tabMeasurements": "Measurements"
+  },
+  "measurements": {
+    "neck": "Neck",
+    "chest": "Chest",
+    "leftArm": "Left arm",
+    "rightArm": "Right arm",
+    "waist": "Waist",
+    "hips": "Hips",
+    "leftThigh": "Left thigh",
+    "rightThigh": "Right thigh",
+    "logToday": "Log today's measurements",
+    "logTitle": "Log measurements",
+    "date": "Date",
+    "notes": "Notes (optional)",
+    "enterOne": "Enter at least one measurement.",
+    "saved": "Measurements saved.",
+    "saveFailed": "Failed to save.",
+    "deleted": "Entry deleted."
   }
 }

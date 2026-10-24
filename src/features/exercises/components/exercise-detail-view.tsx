@@ -7,7 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ROUTES } from "@/lib/constants";
-import { muscleGroupLabel, titleCaseEnum } from "@/lib/muscle-group-label";
+import { equipmentLabel, muscleGroupLabel } from "@/lib/muscle-group-label";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n-provider";
 import { saveExerciseDetailCache, loadExerciseDetailCache } from "@/lib/offline/screen-caches";
@@ -136,7 +136,7 @@ export function ExerciseDetailView({ exerciseId, weightUnit }: ExerciseDetailVie
         <h1 className="text-2xl font-bold tracking-tight">{name}</h1>
         <div className="mt-1 flex flex-wrap gap-2">
           <Badge variant="secondary">{muscleGroupLabel(t, muscleGroup)}</Badge>
-          <Badge variant="outline">{titleCaseEnum(equipment)}</Badge>
+          <Badge variant="outline">{equipmentLabel(t, equipment)}</Badge>
         </div>
       </div>
 

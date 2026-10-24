@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { exercisePath } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
 import { cn } from "@/lib/utils";
+import { equipmentLabel, muscleGroupLabel } from "@/lib/muscle-group-label";
 
 export interface ExerciseData {
   id: string;
@@ -15,13 +16,6 @@ export interface ExerciseData {
   equipment: string;
   notes: string | null;
   isCustom: boolean;
-}
-
-function formatLabel(value: string) {
-  return value
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 interface ExerciseCardProps {
@@ -54,9 +48,9 @@ export function ExerciseCard({ exercise, onEdit, onDelete }: ExerciseCardProps) 
           )}
         </div>
         <p className="mt-0.5 text-xs text-[var(--sys-label2)]">
-          {formatLabel(exercise.muscleGroup)}
+          {muscleGroupLabel(t, exercise.muscleGroup)}
           <span className="mx-1 opacity-40">·</span>
-          {formatLabel(exercise.equipment)}
+          {equipmentLabel(t, exercise.equipment)}
         </p>
         {exercise.notes && (
           <p className="mt-0.5 truncate text-xs text-[var(--sys-label3)]">{exercise.notes}</p>

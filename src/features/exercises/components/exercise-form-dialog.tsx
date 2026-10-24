@@ -16,13 +16,7 @@ import { MUSCLE_GROUPS, EQUIPMENT_TYPES } from "@/lib/constants";
 import { createExerciseSchema } from "../schemas";
 import type { ExerciseData } from "./exercise-card";
 import { useI18n } from "@/lib/i18n-provider";
-
-function formatLabel(value: string) {
-  return value
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
+import { equipmentLabel, muscleGroupLabel } from "@/lib/muscle-group-label";
 
 interface ExerciseFormDialogProps {
   open: boolean;
@@ -124,7 +118,7 @@ export function ExerciseFormDialog({
               >
                 {MUSCLE_GROUPS.map((mg) => (
                   <option key={mg} value={mg}>
-                    {formatLabel(mg)}
+                    {muscleGroupLabel(t, mg)}
                   </option>
                 ))}
               </select>
@@ -140,7 +134,7 @@ export function ExerciseFormDialog({
               >
                 {EQUIPMENT_TYPES.map((eq) => (
                   <option key={eq} value={eq}>
-                    {formatLabel(eq)}
+                    {equipmentLabel(t, eq)}
                   </option>
                 ))}
               </select>

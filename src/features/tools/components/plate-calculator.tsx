@@ -202,7 +202,7 @@ export function PlateCalculator({ defaultUnit = "KG" }: { defaultUnit?: "KG" | "
                   : "bg-[var(--sys-fill2)] text-[var(--sys-label)]"
               )}
             >
-              {t("plateCalc.barCustom").split(" ")[0]}
+              {t("plateCalc.barCustomShort")}
             </button>
             {useCustomBar && (
               <input

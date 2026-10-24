@@ -6,7 +6,7 @@ import { ArrowLeft, TrendingUp } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { muscleGroupLabel, titleCaseEnum } from "@/lib/muscle-group-label";
+import { equipmentLabel, muscleGroupLabel } from "@/lib/muscle-group-label";
 import { cn } from "@/lib/utils";
 import { ROUTES, exercisePath } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
@@ -313,7 +313,7 @@ export function MostUsedExercisesView({ weightUnit }: MostUsedExercisesViewProps
                     <h2 className="text-xl font-semibold tracking-tight">{meta.name}</h2>
                     <div className="mt-1 flex flex-wrap gap-2">
                       <Badge variant="secondary">{muscleGroupLabel(t, meta.muscleGroup)}</Badge>
-                      <Badge variant="outline">{titleCaseEnum(meta.equipment)}</Badge>
+                      <Badge variant="outline">{equipmentLabel(t, meta.equipment)}</Badge>
                     </div>
                     {selectedUsage ? (
                       <p className="text-sm text-muted-foreground mt-2">

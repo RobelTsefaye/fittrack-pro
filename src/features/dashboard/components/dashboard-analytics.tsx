@@ -10,6 +10,7 @@ const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const nf1 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
 
 function VolumeSparkline({ data }: { data: { volume: number; label: string }[] }) {
+  const { t } = useI18n();
   const filtered = data.slice(-8);
   if (filtered.length < 2) return null;
 
@@ -37,7 +38,7 @@ function VolumeSparkline({ data }: { data: { volume: number; label: string }[] }
           className="text-[11px] font-semibold uppercase tracking-[0.06em]"
           style={{ color: "#5E5E66" }}
         >
-          Volume · 8 Wochen
+          {t("dashboard.volumeChartTitle")}
         </span>
         <span className="text-[11px] font-semibold" style={{ color: "#D4FF3A" }}>
           ↑
