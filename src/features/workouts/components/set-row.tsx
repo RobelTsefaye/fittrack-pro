@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,7 +66,11 @@ export const SetRow = memo(function SetRow({
   const { t } = useI18n();
   const [reps, setReps] = useState(set.reps?.toString() ?? "");
   const [weight, setWeight] = useState(set.weight?.toString() ?? "");
-  const [saving, setSaving] = useState(false);
+  // Guards double-completion only. An in-flight save must NOT disable the checkmark:
+  // tapping it while an input is focused first fires that input's blur
+  // save, which would disable the button before its click lands — the tap
+  // was silently lost and users had to tap twice.
+  const completingRef = useRef(false);
 
   // Re-seed the inputs from props only when this row starts representing a
   // *different* set (id change) — not on every prop update. The active-workout
@@ -104,7 +108,18 @@ export const SetRow = memo(function SetRow({
     const repsValue = values.reps?.toString() ?? reps;
     const weightValue = values.weight?.toString() ?? weight;
     if (complete && repsValue.trim() === "" && weightValue.trim() === "") return;
-    setSaving(true);
+    if (complete) {
+      if (completingRef.current) return;
+      completingRef.current = true;
+    }
+    try {
+      await persistSet(complete, repsValue, weightValue);
+    } finally {
+      if (complete) completingRef.current = false;
+    }
+  }
+
+  async function persistSet(complete: boolean, repsValue: string, weightValue: string) {
     const data: Record<string, unknown> = {};
     const rN = parseRepsInput(repsValue);
     if (rN != null) data.reps = rN;
@@ -114,7 +129,6 @@ export const SetRow = memo(function SetRow({
 
     if (offlineHandlers) {
       await offlineHandlers.patchSet(data, complete);
-      setSaving(false);
       if (complete) {
         void hapticSetCompleted();
         onComplete();
@@ -128,8 +142,6 @@ export const SetRow = memo(function SetRow({
       credentials: "include",
       body: JSON.stringify(data),
     });
-
-    setSaving(false);
 
     if (res.ok) {
       const json = (await res.json()) as {
@@ -241,7 +253,8 @@ export const SetRow = memo(function SetRow({
               size="icon"
               variant="ghost"
               onClick={() => saveSet(true)}
-              disabled={saving || !hasAnyValue}
+              disabled={!hasAnyValue}
+              aria-label={t("workouts.completeSetAria", { n: set.setNumber })}
               className="h-11 w-11 sm:h-7 sm:w-7 text-primary hover:bg-primary/10"
             >
               <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
@@ -252,6 +265,7 @@ export const SetRow = memo(function SetRow({
               variant="ghost"
               onClick={deleteSet}
               className="h-11 w-11 text-muted-foreground hover:text-destructive sm:h-7 sm:w-7"
+              aria-label={t("workouts.deleteSetAria", { n: set.setNumber })}
             >
               <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
             </Button>

@@ -56,6 +56,8 @@ import { nextWorkingSet } from "../progression";
 import { useI18n } from "@/lib/i18n-provider";
 import type { WorkoutData, WorkoutExerciseData, WorkoutSetData } from "@/features/workouts/workout-types";
 import { shouldRestAfterExercise } from "@/features/workouts/superset-utils";
+import { summarizeWorkout } from "@/features/workouts/workout-progress";
+import { WorkoutProgressCard } from "./workout-progress-card";
 import {
   enqueueWorkoutOp,
   listQueueForWorkout,
@@ -1781,10 +1783,22 @@ export function WorkoutDetail({
     );
   }
 
+  const progress = summarizeWorkout(workout);
+  const reviseToggle = !useLocalWrites ? (
+    <Button
+      variant="secondary"
+      className="w-full sm:w-auto"
+      type="button"
+      onClick={() => setReviseCompletedSets((v) => !v)}
+    >
+      {reviseCompletedSets ? t("workouts.doneEditingSets") : t("workouts.editCompletedSets")}
+    </Button>
+  ) : null;
+
   return (
-    <div className="space-y-6 pb-24 max-[1024px]:pb-[max(5.5rem,env(safe-area-inset-bottom))]">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1 space-y-1">
+    <div className="space-y-5 pb-24 max-[1024px]:pb-[max(5.5rem,env(safe-area-inset-bottom))]">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
           <Link
             href={ROUTES.workouts}
             className={cn(
@@ -1795,118 +1809,78 @@ export function WorkoutDetail({
             <ArrowLeft className="h-4 w-4" />
             {t("workouts.backToWorkouts")}
           </Link>
-          {workout.completedAt ? (
-            <h1 className="text-2xl font-bold tracking-tight">
-              {workout.name?.trim() || t("workouts.workoutFallback")}
-            </h1>
-          ) : (
-            <Input
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onBlur={saveName}
-              disabled={savingName}
-              placeholder={t("workouts.workoutNamePlaceholder")}
-              className="max-w-md text-2xl font-bold h-auto py-1 border-0 px-0 shadow-none focus-visible:ring-0"
-            />
-          )}
-          <p className="text-sm text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span>{formatShortDate(workout.startedAt)}</span>
-            {workout.planSessionId ? (
-              <Badge variant="secondary" className="text-xs font-normal">
-                {t("workouts.fromPlanBadge")}
-              </Badge>
-            ) : null}
-            {workout.completedAt ? (
-              <>
-                <span className="inline-flex items-center gap-1 text-green-600">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  {t("workouts.sessionComplete")}
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5" />
-                  {formatDuration(workout.durationSeconds)}
-                </span>
-              </>
-            ) : (
-              <span className="inline-flex items-center gap-1 font-mono tabular-nums">
-                <Timer className="h-3.5 w-3.5" />
-                {elapsedLabel}
-              </span>
-            )}
-          </p>
           {isActive ? (
-            <div className="max-w-md space-y-1 text-xs text-muted-foreground">
-              <p>{t("workouts.timerTrackingHint")}</p>
-              <p>{t("workouts.restTimerBackgroundHint")}</p>
-            </div>
-          ) : null}
-        </div>
-
-        {isActive ? (
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-            {/* Fixing a checkmarked set used to require finishing the whole
-                workout first (this toggle only appeared once workout.completedAt
-                was set) — mid-workout it's just as reachable now. */}
-            {!useLocalWrites ? (
-              <Button
-                variant="secondary"
-                className="w-full sm:w-auto"
-                type="button"
-                onClick={() => setReviseCompletedSets((v) => !v)}
-              >
-                {reviseCompletedSets
-                  ? t("workouts.doneEditingSets")
-                  : t("workouts.editCompletedSets")}
-              </Button>
-            ) : null}
             <Button
-              className="w-full shrink-0 sm:w-auto font-semibold"
-              size="lg"
+              size="sm"
+              className="rounded-full px-4 font-semibold"
               onClick={completeWorkout}
               disabled={completing || cancelling}
             >
-              <CheckCircle2 className="mr-2 h-4 w-4" />
+              <CheckCircle2 className="mr-1.5 h-4 w-4" />
               {completing ? t("workouts.finishing") : t("workouts.finishWorkout")}
             </Button>
-            <Button
-              variant="outline"
-              className="w-full shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
-              onClick={() => void cancelWorkout()}
-              disabled={completing || cancelling}
-            >
-              <X className="mr-2 h-4 w-4" />
-              {cancelling ? t("workouts.cancellingWorkout") : t("workouts.cancelWorkout")}
-            </Button>
-          </div>
-        ) : workout.completedAt ? (
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-            {/* Share button */}
-            <WorkoutShareButton workout={workout} weightUnit={weightLabel} />
-
-            {!useLocalWrites ? (
-              <Button
-                variant="secondary"
-                className="w-full sm:w-auto"
-                type="button"
-                onClick={() => setReviseCompletedSets((v) => !v)}
-              >
-                {reviseCompletedSets
-                  ? t("workouts.doneEditingSets")
-                  : t("workouts.editCompletedSets")}
-              </Button>
-            ) : null}
-            <Button
-              variant="outline"
-              className="w-full shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
-              onClick={() => void deleteCompletedWorkout()}
-              disabled={deletingWorkout}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              {deletingWorkout ? t("workouts.deletingWorkout") : t("workouts.deleteCompleted")}
-            </Button>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
+        {workout.completedAt ? (
+          <h1 className="text-2xl font-bold tracking-tight">
+            {workout.name?.trim() || t("workouts.workoutFallback")}
+          </h1>
+        ) : (
+          <Input
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={saveName}
+            disabled={savingName}
+            placeholder={t("workouts.workoutNamePlaceholder")}
+            className="max-w-md text-2xl font-bold h-auto py-1 border-0 px-0 shadow-none focus-visible:ring-0"
+          />
+        )}
+        <p className="text-sm text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>{formatShortDate(workout.startedAt)}</span>
+          {workout.planSessionId ? (
+            <Badge variant="secondary" className="text-xs font-normal">
+              {t("workouts.fromPlanBadge")}
+            </Badge>
+          ) : null}
+          {workout.completedAt ? (
+            <>
+              <span className="inline-flex items-center gap-1 text-green-600">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {t("workouts.sessionComplete")}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5" />
+                {formatDuration(workout.durationSeconds)}
+              </span>
+            </>
+          ) : (
+            <span className="inline-flex items-center gap-1 font-mono tabular-nums text-foreground">
+              <Timer className="h-3.5 w-3.5 text-primary" />
+              {elapsedLabel}
+            </span>
+          )}
+        </p>
       </div>
+
+      {isActive && workout.workoutExercises.length > 0 ? (
+        <WorkoutProgressCard progress={progress} weightLabel={weightLabel} />
+      ) : null}
+
+      {workout.completedAt ? (
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <WorkoutShareButton workout={workout} weightUnit={weightLabel} />
+          {reviseToggle}
+          <Button
+            variant="outline"
+            className="w-full shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+            onClick={() => void deleteCompletedWorkout()}
+            disabled={deletingWorkout}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            {deletingWorkout ? t("workouts.deletingWorkout") : t("workouts.deleteCompleted")}
+          </Button>
+        </div>
+      ) : null}
 
       {useLocalWrites && isActive ? (
         <p
@@ -1983,6 +1957,40 @@ export function WorkoutDetail({
         </div>
       )}
 
+      {isActive ? (
+        <div className="space-y-2 border-t border-border/60 pt-5">
+          <Button
+            className="w-full font-semibold"
+            size="lg"
+            onClick={completeWorkout}
+            disabled={completing || cancelling}
+          >
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+            {completing ? t("workouts.finishing") : t("workouts.finishWorkout")}
+          </Button>
+          {/* Fixing a checkmarked set mid-workout, not only after finishing. */}
+          {reviseToggle}
+          <Button
+            variant="ghost"
+            className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => void cancelWorkout()}
+            disabled={completing || cancelling}
+          >
+            <X className="mr-2 h-4 w-4" />
+            {cancelling ? t("workouts.cancellingWorkout") : t("workouts.cancelWorkout")}
+          </Button>
+          <details className="group rounded-xl px-1 pt-2 text-xs text-muted-foreground">
+            <summary className="cursor-pointer list-none text-center underline-offset-4 hover:underline">
+              {t("workouts.timerInfo")}
+            </summary>
+            <div className="mt-2 space-y-1">
+              <p>{t("workouts.timerTrackingHint")}</p>
+              <p>{t("workouts.restTimerBackgroundHint")}</p>
+            </div>
+          </details>
+        </div>
+      ) : null}
+
       <ExercisePickerDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}
@@ -1996,36 +2004,67 @@ export function WorkoutDetail({
           if (!open) setCompletionSummary(null);
         }}
       >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("workouts.sessionSummaryTitle")}</DialogTitle>
-            <DialogDescription className="space-y-2 pt-1 text-left">
-              {completionSummary?.hasPrevious ? (
-                <>
-                  <p>
-                    {t("workouts.sessionSummaryVolume", {
-                      current: Math.round(completionSummary.currentVolume),
-                    })}
-                  </p>
-                  <p>
-                    {t("workouts.sessionSummaryDelta", {
-                      delta:
-                        completionSummary.volumeDelta >= 0
-                          ? `+${Math.round(completionSummary.volumeDelta)}`
-                          : String(Math.round(completionSummary.volumeDelta)),
-                      pct:
-                        completionSummary.volumeDeltaPct != null
-                          ? (completionSummary.volumeDeltaPct > 0 ? "+" : "") +
-                            completionSummary.volumeDeltaPct.toFixed(1)
-                          : "—",
-                    })}
-                  </p>
-                </>
-              ) : (
-                <p>{t("workouts.sessionSummaryNoPrevious")}</p>
-              )}
-            </DialogDescription>
+        <DialogContent className="overflow-hidden sm:max-w-md">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 -top-24 h-48 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--primary)_35%,transparent),transparent)]"
+          />
+          <DialogHeader className="relative items-center text-center">
+            <div className="mb-1 flex h-14 w-14 items-center justify-center rounded-full bg-primary/15 ring-1 ring-primary/40">
+              <CheckCircle2 className="h-7 w-7 text-primary" />
+            </div>
+            <DialogTitle className="text-2xl">{t("workouts.summaryHeadline")}</DialogTitle>
+            <DialogDescription>{t("workouts.sessionSummaryTitle")}</DialogDescription>
           </DialogHeader>
+          {completionSummary ? (
+            <div className="relative space-y-4">
+              <dl className="grid grid-cols-3 gap-2">
+                {[
+                  { label: t("workouts.summaryDuration"), value: formatDuration(workout.durationSeconds) },
+                  { label: t("workouts.summarySets"), value: String(progress.completedSets) },
+                  {
+                    label: t("workouts.summaryVolume"),
+                    value: `${Math.round(completionSummary.currentVolume).toLocaleString()} ${weightLabel}`,
+                  },
+                ].map((stat) => (
+                  <div key={stat.label} className="rounded-xl bg-muted/60 px-2 py-3 text-center">
+                    <dt className="text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">
+                      {stat.label}
+                    </dt>
+                    <dd className="mt-1 truncate font-display text-lg font-bold tabular-nums">
+                      {stat.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              {completionSummary.hasPrevious ? (
+                <p className="text-center text-sm">
+                  <span
+                    className={cn(
+                      "mr-1.5 inline-flex rounded-full px-2 py-0.5 font-semibold tabular-nums",
+                      completionSummary.volumeDelta >= 0
+                        ? "bg-primary/15 text-primary"
+                        : "bg-destructive/15 text-destructive"
+                    )}
+                  >
+                    {completionSummary.volumeDelta >= 0 ? "+" : ""}
+                    {Math.round(completionSummary.volumeDelta).toLocaleString()} {weightLabel}
+                    {completionSummary.volumeDeltaPct != null
+                      ? ` (${completionSummary.volumeDeltaPct > 0 ? "+" : ""}${completionSummary.volumeDeltaPct.toFixed(1)} %)`
+                      : ""}
+                  </span>
+                  <span className="text-muted-foreground">{t("workouts.summaryVsLast")}</span>
+                </p>
+              ) : (
+                <p className="text-center text-sm text-muted-foreground">
+                  {t("workouts.sessionSummaryNoPrevious")}
+                </p>
+              )}
+              <Button className="w-full" size="lg" onClick={() => setCompletionSummary(null)}>
+                {t("workouts.summaryDone")}
+              </Button>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
 

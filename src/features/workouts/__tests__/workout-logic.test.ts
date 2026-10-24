@@ -76,3 +76,27 @@ describe("supersets", () => {
     expect(shouldRestAfterExercise(workout, "missing")).toBe(true);
   });
 });
+
+describe("summarizeWorkout", () => {
+  it("counts working sets, volume and finished exercises (ignoring warmups)", async () => {
+    const { summarizeWorkout } = await import("../workout-progress");
+    const set = (isCompleted: boolean, weight: number | null, reps: number | null, isWarmup = false) =>
+      ({ isCompleted, weight, reps, isWarmup }) as WorkoutExerciseData["sets"][number];
+    const p = summarizeWorkout({
+      workoutExercises: [
+        { sets: [set(true, 40, 8, true), set(true, 100, 5), set(true, 100, 5)] },
+        { sets: [set(true, 20, 10), set(false, null, null)] },
+        { sets: [] },
+      ] as WorkoutExerciseData[],
+    });
+    expect(p).toEqual({
+      completedSets: 3,
+      totalSets: 4,
+      volume: 1200,
+      exercisesDone: 1,
+      exerciseCount: 3,
+      ratio: 0.75,
+    });
+    expect(summarizeWorkout({ workoutExercises: [] }).ratio).toBe(0);
+  });
+});

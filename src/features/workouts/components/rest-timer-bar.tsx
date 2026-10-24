@@ -1,26 +1,61 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Minus, Pause, Play, Plus, Timer, X } from "lucide-react";
+import { ChevronUp, Minus, Pause, Play, Plus, SkipForward } from "lucide-react";
 import type { RestTimerApi } from "../rest-timer-context";
 import { useI18n } from "@/lib/i18n-provider";
+import { cn } from "@/lib/utils";
 
 interface RestTimerBarProps {
   timer: RestTimerApi;
 }
 
 const STEP = 10;
+const RING_RADIUS = 13;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
-/** Compact floating rest timer (no full-width bar). */
+/** Small circular countdown ring, filled by `progress` (0–100). */
+function ProgressRing({ progress, done }: { progress: number; done: boolean }) {
+  return (
+    <svg viewBox="0 0 32 32" className="h-7 w-7 shrink-0 -rotate-90" aria-hidden>
+      <circle cx="16" cy="16" r={RING_RADIUS} fill="none" strokeWidth="3" className="stroke-white/15" />
+      <circle
+        cx="16"
+        cy="16"
+        r={RING_RADIUS}
+        fill="none"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeDasharray={RING_CIRCUMFERENCE}
+        strokeDashoffset={RING_CIRCUMFERENCE * (1 - Math.min(100, Math.max(0, progress)) / 100)}
+        className={cn(
+          "transition-[stroke-dashoffset] duration-1000 ease-linear",
+          done ? "stroke-[oklch(0.937_0.267_131)]" : "stroke-orange-400"
+        )}
+      />
+    </svg>
+  );
+}
+
+/**
+ * Floating "Dynamic Island" rest timer. Collapsed it is a slim pill (ring +
+ * countdown) that leaves the workout visible; tapping it reveals the
+ * controls.
+ */
 export function RestTimerBar({ timer }: RestTimerBarProps) {
   const { t } = useI18n();
+  const [expanded, setExpanded] = useState(false);
   if (!timer.isRestActive) return null;
 
   const minutes = Math.floor(timer.remaining / 60);
   const seconds = timer.remaining % 60;
   const display = `${minutes}:${String(seconds).padStart(2, "0")}`;
+  const done = timer.remaining === 0;
+  const canTick = !done;
 
-  const canTick = timer.remaining > 0;
+  const controlClass =
+    "h-10 gap-1 rounded-full px-3 text-sm text-white/85 hover:bg-white/10 hover:text-white";
 
   return (
     <div
@@ -29,95 +64,91 @@ export function RestTimerBar({ timer }: RestTimerBarProps) {
       role="status"
       aria-live="polite"
     >
-      {/* "Dynamic Island" look — dark capsule regardless of app theme, so it
-       *  reads as a native-style notch even though iOS never actually shows
-       *  a Live Activity for the foreground app itself. The wrapper above is
-       *  pointer-events-none because it spans the full viewport width (for
-       *  centering) even where the capsule isn't — without this, its empty
-       *  edges silently swallowed taps on whatever sat underneath them
-       *  (e.g. the "Finish workout" button on narrow screens where it lands
-       *  right below the header, inside this bar's full-width hit area). */}
-      <div className="pointer-events-auto w-[min(100%,22rem)] overflow-hidden rounded-[1.75rem] bg-black/92 px-4 py-2.5 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-xl supports-[backdrop-filter]:bg-black/85">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <Timer className="h-4 w-4 shrink-0 text-orange-400" />
-            <span className="truncate text-xs font-medium text-white/60">{t("workouts.restTimerTitle")}</span>
-          </div>
-          <span className="font-display text-xl font-bold tabular-nums tracking-tight text-white">
-            {timer.remaining === 0 ? (
-              <span className="text-green-400">{t("workouts.restDone")}</span>
-            ) : (
-              display
+      {/* Dark capsule regardless of app theme so it reads as a native notch.
+       *  The full-width wrapper is pointer-events-none so its empty edges
+       *  never swallow taps on content underneath. */}
+      <div
+        className={cn(
+          "pointer-events-auto overflow-hidden bg-black/92 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-xl transition-all duration-300 ease-out supports-[backdrop-filter]:bg-black/85",
+          expanded ? "w-[min(100%,22rem)] rounded-[1.75rem]" : "w-auto rounded-full",
+          done && "ring-[oklch(0.937_0.267_131)]/60 animate-[pulse_1.6s_ease-in-out_infinite]"
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-label={t("workouts.restTimerTitle")}
+          className="flex w-full items-center gap-2.5 py-1.5 pl-1.5 pr-4 text-left"
+        >
+          <ProgressRing progress={done ? 100 : timer.progress} done={done} />
+          {expanded ? (
+            <span className="flex-1 truncate text-xs font-medium text-white/60">
+              {t("workouts.restTimerTitle")}
+            </span>
+          ) : null}
+          <span
+            className={cn(
+              "font-display text-lg font-bold tabular-nums tracking-tight",
+              done ? "text-[oklch(0.937_0.267_131)]" : "text-white",
+              !timer.isRunning && canTick && "opacity-60"
             )}
+          >
+            {done ? t("workouts.restDone") : display}
           </span>
-        </div>
+          {expanded ? <ChevronUp className="h-4 w-4 text-white/50" /> : null}
+        </button>
 
-        {/* Progress bar */}
-        <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/15">
-          <div
-            className="h-full bg-orange-400 transition-[width] duration-1000 ease-linear"
-            style={{ width: `${timer.progress}%` }}
-          />
-        </div>
-
-        {/* Controls — 44px touch targets on mobile, compact on desktop */}
-        <div className="mt-2.5 flex items-center justify-between gap-2">
-          <div className="flex gap-1.5">
+        {expanded ? (
+          <div className="flex items-center justify-between gap-1 border-t border-white/10 px-2 py-1.5">
             <Button
               size="xs"
               variant="ghost"
-              className="h-9 gap-0.5 px-2.5 text-xs text-white/85 hover:bg-white/10 hover:text-white sm:h-7 sm:px-1.5"
+              className={controlClass}
               onClick={() => timer.adjustTime(-STEP)}
               disabled={!canTick}
               aria-label={t("workouts.restTimerSkipForward")}
             >
-              <Minus className="h-3 w-3" />
+              <Minus className="h-3.5 w-3.5" />
               {STEP}s
             </Button>
             <Button
               size="xs"
               variant="ghost"
-              className="h-9 gap-0.5 px-2.5 text-xs text-white/85 hover:bg-white/10 hover:text-white sm:h-7 sm:px-1.5"
+              className={controlClass}
               onClick={() => timer.adjustTime(STEP)}
               aria-label={t("workouts.restTimerRewind")}
             >
-              <Plus className="h-3 w-3" />
+              <Plus className="h-3.5 w-3.5" />
               {STEP}s
             </Button>
-          </div>
-          <div className="flex gap-1">
-            {timer.isRunning && canTick ? (
+            {canTick ? (
               <Button
                 size="icon-xs"
                 variant="ghost"
-                className="h-9 w-9 text-white/85 hover:bg-white/10 hover:text-white sm:h-7 sm:w-7"
-                onClick={timer.pause}
-                aria-label={t("workouts.restTimerPause")}
+                className="h-10 w-10 rounded-full text-white/85 hover:bg-white/10 hover:text-white"
+                onClick={timer.isRunning ? timer.pause : timer.resume}
+                aria-label={
+                  timer.isRunning ? t("workouts.restTimerPause") : t("workouts.restTimerResume")
+                }
               >
-                <Pause className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-              </Button>
-            ) : canTick ? (
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                className="h-9 w-9 text-white/85 hover:bg-white/10 hover:text-white sm:h-7 sm:w-7"
-                onClick={timer.resume}
-                aria-label={t("workouts.restTimerResume")}
-              >
-                <Play className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                {timer.isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               </Button>
             ) : null}
             <Button
               size="icon-xs"
               variant="ghost"
-              className="h-9 w-9 text-white/85 hover:bg-white/10 hover:text-white sm:h-7 sm:w-7"
-              onClick={timer.stop}
+              className="h-10 w-10 rounded-full text-white/85 hover:bg-white/10 hover:text-white"
+              onClick={() => {
+                setExpanded(false);
+                timer.stop();
+              }}
               aria-label={t("workouts.restTimerDismiss")}
             >
-              <X className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+              <SkipForward className="h-4 w-4" />
             </Button>
           </div>
-        </div>
+        ) : null}
       </div>
     </div>
   );
