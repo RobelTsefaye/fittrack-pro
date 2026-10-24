@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updatePlanSchema } from "@/features/plans/schemas";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 async function getOwnedPlan(planId: string, userId: string) {
   return prisma.workoutPlan.findFirst({
@@ -53,7 +53,7 @@ export const PATCH = withApi(async function PATCH(
     return NextResponse.json({ error: "Plan not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = updatePlanSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(

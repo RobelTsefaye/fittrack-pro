@@ -14,7 +14,7 @@ export const GET = withApi(async function GET(req: NextRequest) {
 
 - `requireUserId()` → `401 { error: "Unauthorized" }` when neither a session nor an API token resolves.
 - `throw new ApiError(status, message)` anywhere inside the handler → `{ error: message }` with that status.
-- Malformed JSON bodies (`await req.json()`) → `400 { error: "Invalid JSON body" }` (previously a 500).
+- Read bodies with `await readJsonBody(req)` → malformed JSON becomes `400 { error: "Invalid JSON body" }` (previously a 500).
 - Invalid `YYYY-MM-DD` dates (`parseDateOnlyUtc` throws `InvalidDateError`, including overflow like `2024-02-30`) → `400`.
 - Any other error is rethrown unchanged (500).
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { addExerciseToWorkoutSchema } from "@/features/workouts/schemas";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 export const POST = withApi(async function POST(
   req: NextRequest,
@@ -22,7 +22,7 @@ export const POST = withApi(async function POST(
     );
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = addExerciseToWorkoutSchema.safeParse(body);
 
   if (!parsed.success) {

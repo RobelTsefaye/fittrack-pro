@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updateNutritionPlanSchema } from "@/features/health/nutrition-plan-schemas";
 import type { NutritionPlan } from "@/generated/prisma/client";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 function toDTO(row: NutritionPlan) {
   return {
@@ -32,7 +32,7 @@ export const PATCH = withApi(async function PATCH(
 
   const { id } = await params;
 
-  const body = await req.json().catch(() => null);
+  const body = await readJsonBody(req).catch(() => null);
   if (body && typeof body === "object" && ("phase" in body || "startDate" in body)) {
     return NextResponse.json(
       { error: "phase/startDate cannot be changed — start a new plan instead" },

@@ -24,21 +24,26 @@ export async function requireUserId(): Promise<string> {
   return userId;
 }
 
+/** `req.json()` that turns a malformed body into a 400 instead of a 500. */
+export async function readJsonBody(req: Request): Promise<unknown> {
+  try {
+    return await req.json();
+  } catch {
+    throw new ApiError(400, "Invalid JSON body");
+  }
+}
+
 function toErrorResponse(error: unknown): NextResponse | null {
   if (error instanceof ApiError) return jsonError(error.status, error.message);
   if (error instanceof InvalidDateError) {
     return jsonError(400, "Invalid date format; expected YYYY-MM-DD");
   }
-  // `await req.json()` on a malformed body — a client error, not a 500.
-  if (error instanceof SyntaxError && /JSON/i.test(error.message)) {
-    return jsonError(400, "Invalid JSON body");
-  }
   return null;
 }
 
 /**
- * Wraps a route handler so `ApiError`s, bad JSON bodies and invalid dates
- * become 4xx JSON responses. Anything else is rethrown unchanged (Next logs
+ * Wraps a route handler so `ApiError`s (incl. `requireUserId` / `readJsonBody`)
+ * and invalid `YYYY-MM-DD` dates become 4xx JSON responses. Anything else is rethrown unchanged (Next logs
  * it and responds 500, as before).
  */
 export function withApi<Args extends unknown[]>(

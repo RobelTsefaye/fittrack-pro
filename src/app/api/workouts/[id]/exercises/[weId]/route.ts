@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 const patchSchema = z.object({ supersetGroup: z.number().int().nullable() });
 
@@ -11,7 +11,7 @@ export const PATCH = withApi(async function PATCH(
 ) {
   const userId = await requireUserId();
   const { id: workoutId, weId } = await params;
-  const body = patchSchema.safeParse(await req.json());
+  const body = patchSchema.safeParse(await readJsonBody(req));
   if (!body.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   const workout = await prisma.workout.findFirst({ where: { id: workoutId, userId, completedAt: null } });
   if (!workout) return NextResponse.json({ error: "Workout not found" }, { status: 404 });

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { dashboardCacheTag } from "@/lib/constants";
 import { updateBodyWeightSchema } from "@/features/tracking/schemas";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 export const PATCH = withApi(async function PATCH(
   req: NextRequest,
@@ -21,7 +21,7 @@ export const PATCH = withApi(async function PATCH(
     return NextResponse.json({ error: "Entry not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = updateBodyWeightSchema.safeParse(body);
 
   if (!parsed.success) {

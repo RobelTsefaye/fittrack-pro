@@ -37,7 +37,8 @@
     "completed": "Completed",
     "inProgress": "In progress",
     "loadFailed": "Could not load data. Check your connection.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "saveFailed": "Couldn't save. Check your connection."
   },
   "auth": {
     "login": {

@@ -5,7 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { dashboardCacheTag } from "@/lib/constants";
 import { createBodyWeightSchema } from "@/features/tracking/schemas";
 import { parseDateOnlyUtc } from "@/lib/date-only";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 export const GET = withApi(async function GET(req: NextRequest) {
   const userId = await requireUserId();
@@ -42,7 +42,7 @@ export const GET = withApi(async function GET(req: NextRequest) {
 export const POST = withApi(async function POST(req: NextRequest) {
   const userId = await requireUserId();
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = createBodyWeightSchema.safeParse(body);
 
   if (!parsed.success) {

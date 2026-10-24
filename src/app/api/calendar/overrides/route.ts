@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { parseDateOnlyUtc } from "@/lib/date-only";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const kind = z.enum(["training", "cardio"]);
 const schema = z.object({
@@ -17,14 +17,13 @@ const toKind = (value: z.infer<typeof kind>) =>
   value === "training" ? ("TRAINING" as const) : ("CARDIO" as const);
 export const PUT = withApi(async function PUT(req: NextRequest) {
   const userId = await requireUserId();
-  const parsed = schema.safeParse(await req.json());
+  const parsed = schema.safeParse(await readJsonBody(req));
   if (!parsed.success)
     return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
   const value = parsed.data;
   const calendarKind = toKind(value.kind);
-  const key = {
-    userId_kind_date: { userId, kind: calendarKind, date: parseDateOnlyUtc(value.date) },
-  };
+  const day = parseDateOnlyUtc(value.date);
+  const key = { userId_kind_date: { userId, kind: calendarKind, date: day } };
   const data = {
     skip: value.skip ?? false,
     movedToDate: value.movedToDate ? parseDateOnlyUtc(value.movedToDate) : null,
@@ -42,7 +41,7 @@ export const PUT = withApi(async function PUT(req: NextRequest) {
   }
   const override = await prisma.calendarOverride.upsert({
     where: key,
-    create: { userId, kind: calendarKind, date: parseDateOnlyUtc(value.date), ...data },
+    create: { userId, kind: calendarKind, date: day, ...data },
     update: data,
   });
   return NextResponse.json({ data: override });

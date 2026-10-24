@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createPlanSessionSchema } from "@/features/plans/schemas";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 export const POST = withApi(async function POST(
   req: NextRequest,
@@ -17,7 +17,7 @@ export const POST = withApi(async function POST(
     return NextResponse.json({ error: "Plan not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = createPlanSessionSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(

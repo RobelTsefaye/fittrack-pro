@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adjustRestTimerSchema } from "@/features/workouts/schemas";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 /**
  * Persists a +/-15s rest-timer nudge server-side so every surface (phone
@@ -29,7 +29,7 @@ export const PATCH = withApi(async function PATCH(
     return NextResponse.json({ error: "Workout not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = adjustRestTimerSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(

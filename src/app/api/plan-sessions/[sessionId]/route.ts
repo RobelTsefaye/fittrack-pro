@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updatePlanSessionSchema } from "@/features/plans/schemas";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 async function getSessionForUser(sessionId: string, userId: string) {
   return prisma.planSession.findFirst({
@@ -21,7 +21,7 @@ export const PATCH = withApi(async function PATCH(
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = updatePlanSessionSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(

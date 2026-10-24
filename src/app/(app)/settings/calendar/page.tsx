@@ -16,6 +16,7 @@ import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { syncTrainingCalendar } from "@/lib/native/calendar";
 import { todayLocalISO } from "@/lib/date-only";
 import { useI18n } from "@/lib/i18n-provider";
+import { toast } from "sonner";
 
 type Override = {
   skip: boolean;
@@ -59,17 +60,21 @@ export default function CalendarEditorPage() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const res = await authenticatedFetch(
-        `/api/calendar/plan?kind=${kind}&today=${todayLocalISO()}&horizonDays=28`,
-        { credentials: "include" }
-      );
-      const json = res.ok ? await res.json() : null;
-      if (!cancelled) setEntries(json?.data?.entries ?? []);
+      try {
+        const res = await authenticatedFetch(
+          `/api/calendar/plan?kind=${kind}&today=${todayLocalISO()}&horizonDays=28`,
+          { credentials: "include" }
+        );
+        const json = res.ok ? await res.json() : null;
+        if (!cancelled) setEntries(json?.data?.entries ?? []);
+      } catch {
+        if (!cancelled) toast.error(t("common.loadFailed"));
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [kind, reloadKey]);
+  }, [kind, reloadKey, t]);
 
   function open(entry: Entry) {
     setSelected(entry);
@@ -92,39 +97,50 @@ export default function CalendarEditorPage() {
       return t("calendarEditor.badgeCustom");
     return t("calendarEditor.badgeDefault");
   }
+  function afterChange() {
+    setSelected(null);
+    setReloadKey((k) => k + 1);
+    void syncTrainingCalendar();
+  }
   async function save() {
     if (!selected) return;
     const durationMinutes = duration === "" ? null : Number(duration);
     if (!Number.isInteger(durationMinutes) && durationMinutes !== null) return;
     setSaving(true);
-    const res = await authenticatedFetch("/api/calendar/overrides", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        kind,
-        date: selected.sourceDate,
-        skip,
-        movedToDate: movedToDate || null,
-        timeMinutes: time ? minutes(time) : null,
-        durationMinutes,
-      }),
-    });
-    setSaving(false);
-    if (!res.ok) return;
-    setSelected(null);
-    setReloadKey((k) => k + 1);
-    void syncTrainingCalendar();
+    try {
+      const res = await authenticatedFetch("/api/calendar/overrides", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          kind,
+          date: selected.sourceDate,
+          skip,
+          movedToDate: movedToDate || null,
+          timeMinutes: time ? minutes(time) : null,
+          durationMinutes,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      afterChange();
+    } catch {
+      toast.error(t("common.saveFailed"));
+    } finally {
+      setSaving(false);
+    }
   }
   async function reset() {
     if (!selected) return;
-    await authenticatedFetch(`/api/calendar/overrides?kind=${kind}&date=${selected.sourceDate}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    setSelected(null);
-    setReloadKey((k) => k + 1);
-    void syncTrainingCalendar();
+    try {
+      const res = await authenticatedFetch(
+        `/api/calendar/overrides?kind=${kind}&date=${selected.sourceDate}`,
+        { method: "DELETE", credentials: "include" }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      afterChange();
+    } catch {
+      toast.error(t("common.saveFailed"));
+    }
   }
   return (
     <RequireAuth>

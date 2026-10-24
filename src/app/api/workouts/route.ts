@@ -7,7 +7,7 @@ import {
 } from "@/features/workouts/workouts-list-data";
 import { revalidateTag } from "next/cache";
 import { dashboardCacheTag, workoutsListCacheTag } from "@/lib/constants";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 export const GET = withApi(async function GET(req: NextRequest) {
   const userId = await requireUserId();
@@ -50,7 +50,7 @@ export const GET = withApi(async function GET(req: NextRequest) {
 export const POST = withApi(async function POST(req: NextRequest) {
   const userId = await requireUserId();
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = createWorkoutSchema.safeParse(body);
 
   if (!parsed.success) {

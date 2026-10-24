@@ -6,7 +6,7 @@ import {
   generateApiTokenSecret,
   hashApiTokenSecret,
 } from "@/lib/api-token-crypto";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 const createSchema = z.object({
   name: z.string().trim().max(80).optional(),
@@ -46,7 +46,7 @@ export const GET = withApi(async function GET() {
 export const POST = withApi(async function POST(req: NextRequest) {
   const userId = await requireUserId();
 
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonBody(req).catch(() => ({}));
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { parseDateOnlyUtc } from "@/lib/date-only";
 import { createNutritionPlanSchema } from "@/features/health/nutrition-plan-schemas";
 import type { NutritionPlan } from "@/generated/prisma/client";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 function toDTO(row: NutritionPlan) {
   return {
@@ -44,7 +44,7 @@ export const GET = withApi(async function GET() {
 export const POST = withApi(async function POST(req: NextRequest) {
   const userId = await requireUserId();
 
-  const body = await req.json().catch(() => null);
+  const body = await readJsonBody(req).catch(() => null);
   const parsed = createNutritionPlanSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(

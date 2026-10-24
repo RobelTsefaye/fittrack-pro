@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { updateExerciseSchema } from "@/features/exercises/schemas";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 export const GET = withApi(async function GET(
   _req: NextRequest,
@@ -44,7 +44,7 @@ export const PATCH = withApi(async function PATCH(
     );
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = updateExerciseSchema.safeParse(body);
 
   if (!parsed.success) {

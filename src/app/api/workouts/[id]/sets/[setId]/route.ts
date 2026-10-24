@@ -5,7 +5,7 @@ import {
   recordPersonalRecordIfBest,
   removePersonalRecordForSet,
 } from "@/lib/personal-record";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 export const PATCH = withApi(async function PATCH(
   req: NextRequest,
@@ -35,7 +35,7 @@ export const PATCH = withApi(async function PATCH(
     return NextResponse.json({ error: "Set not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = updateSetSchema.safeParse(body);
 
   if (!parsed.success) {

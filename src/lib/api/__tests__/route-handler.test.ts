@@ -25,18 +25,11 @@ describe("withApi", () => {
     expect(await res.json()).toEqual({ error: "Unauthorized" });
   });
 
-  it("maps ApiError, malformed JSON and invalid dates to 4xx", async () => {
+  it("maps ApiError and invalid dates to 4xx", async () => {
     const notFound = await withApi(async () => {
       throw new ApiError(404, "Workout not found");
     })();
     expect(notFound.status).toBe(404);
-
-    const badJson = await withApi(async () => {
-      await new Request("http://x", { method: "POST", body: "{nope" }).json();
-      return Response.json({});
-    })();
-    expect(badJson.status).toBe(400);
-    expect(await badJson.json()).toEqual({ error: "Invalid JSON body" });
 
     const badDate = await withApi(async () => {
       parseDateOnlyUtc("2024-02-30");
@@ -56,5 +49,28 @@ describe("withApi", () => {
   it("returns the user id when authenticated", async () => {
     resolveUserId.mockResolvedValue("user_1");
     await expect(requireUserId()).resolves.toBe("user_1");
+  });
+});
+
+describe("readJsonBody", () => {
+  it("parses valid JSON and rejects malformed bodies with 400", async () => {
+    const { readJsonBody } = await import("@/lib/api/route-handler");
+    await expect(
+      readJsonBody(new Request("http://x", { method: "POST", body: '{"a":1}' }))
+    ).resolves.toEqual({ a: 1 });
+    const res = await withApi(async () => {
+      await readJsonBody(new Request("http://x", { method: "POST", body: "{nope" }));
+      return Response.json({});
+    })();
+    expect(res.status).toBe(400);
+  });
+
+  it("no longer masks unrelated SyntaxErrors as client errors", async () => {
+    await expect(
+      withApi(async () => {
+        JSON.parse("{corrupt");
+        return Response.json({});
+      })()
+    ).rejects.toThrow(SyntaxError);
   });
 });

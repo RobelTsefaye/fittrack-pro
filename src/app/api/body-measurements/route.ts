@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
+import { parseDateOnlyUtc } from "@/lib/date-only";
 
 const schema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -34,16 +35,17 @@ export const GET = withApi(async function GET() {
 export const POST = withApi(async function POST(req: Request) {
   const userId = await requireUserId();
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { date, ...rest } = parsed.data;
+  const { date: dateStr, ...rest } = parsed.data;
+  const date = parseDateOnlyUtc(dateStr);
 
   const entry = await prisma.bodyMeasurement.upsert({
-    where: { userId_date: { userId: userId, date: new Date(date) } },
+    where: { userId_date: { userId, date } },
     update: rest,
-    create: { userId: userId, date: new Date(date), ...rest },
+    create: { userId, date, ...rest },
   });
 
   return NextResponse.json({ data: { ...entry, date: entry.date.toISOString().slice(0, 10) } });

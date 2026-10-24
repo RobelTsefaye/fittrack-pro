@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { dashboardCacheTag, workoutsListCacheTag, DEFAULT_REST_TIMER } from "@/lib/constants";
 import { updateWorkoutSchema } from "@/features/workouts/schemas";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 export const GET = withApi(async function GET(
   _req: NextRequest,
@@ -64,7 +64,7 @@ export const PATCH = withApi(async function PATCH(
     return NextResponse.json({ error: "Workout not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = updateWorkoutSchema.safeParse(body);
 
   if (!parsed.success) {

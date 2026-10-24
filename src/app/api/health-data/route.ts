@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { parseDateOnlyUtc } from "@/lib/date-only";
 
 // All fields optional — Shortcut sends only what Apple Health has available
 const snapshotSchema = z.object({
@@ -611,7 +612,7 @@ export const DELETE = withApi(async function DELETE(req: NextRequest) {
   if (!date) return NextResponse.json({ error: "date required" }, { status: 400 });
 
   await prisma.healthSnapshot.deleteMany({
-    where: { userId, date: new Date(date + "T00:00:00.000Z") },
+    where: { userId, date: parseDateOnlyUtc(date) },
   });
 
   return NextResponse.json({ success: true });

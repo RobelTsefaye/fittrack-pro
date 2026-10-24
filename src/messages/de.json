@@ -37,7 +37,8 @@
     "completed": "Abgeschlossen",
     "inProgress": "Läuft",
     "loadFailed": "Daten konnten nicht geladen werden. Prüfe deine Verbindung.",
-    "retry": "Nochmal versuchen"
+    "retry": "Nochmal versuchen",
+    "saveFailed": "Speichern fehlgeschlagen. Prüfe deine Verbindung."
   },
   "auth": {
     "login": {

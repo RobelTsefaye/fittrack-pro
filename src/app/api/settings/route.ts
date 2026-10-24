@@ -7,7 +7,7 @@ import {
   prismaLocaleToUi,
 } from "@/lib/i18n-config";
 import { cookies } from "next/headers";
-import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 export const GET = withApi(async function GET() {
   const userId = await requireUserId();
@@ -48,7 +48,7 @@ export const GET = withApi(async function GET() {
 export const PATCH = withApi(async function PATCH(req: NextRequest) {
   const userId = await requireUserId();
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = updateSettingsSchema.safeParse(body);
 
   if (!parsed.success) {
