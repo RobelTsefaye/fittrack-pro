@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 export const dynamic = "force-dynamic";
 // Hold the stream open up to a minute, then close cleanly and let the client
@@ -42,9 +41,8 @@ type LivePayload = {
  * Auth is cookie session OR `Authorization: Bearer <token>` (native clients),
  * both via resolveUserIdForDataApi.
  */
-export async function GET(req: Request) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withApi(async function GET(req: Request) {
+  const userId = await requireUserId();
 
   const encoder = new TextEncoder();
   const signal = req.signal;
@@ -115,4 +113,4 @@ export async function GET(req: Request) {
       "X-Accel-Buffering": "no",
     },
   });
-}
+});

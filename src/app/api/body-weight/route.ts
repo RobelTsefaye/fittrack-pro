@@ -1,39 +1,26 @@
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import { dashboardCacheTag } from "@/lib/constants";
 import { createBodyWeightSchema } from "@/features/tracking/schemas";
 import { parseDateOnlyUtc } from "@/lib/date-only";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET(req: NextRequest) {
+  const userId = await requireUserId();
 
   const { searchParams } = req.nextUrl;
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
-  // `parseDateOnlyUtc` throws on a malformed date; catch it and reject with a
-  // 400 rather than letting it bubble up as an opaque 500.
-  const where: Record<string, unknown> = { userId };
-  try {
-    if (from || to) {
-      where.date = {};
-      if (from) {
-        (where.date as Record<string, Date>).gte = parseDateOnlyUtc(from);
-      }
-      if (to) {
-        (where.date as Record<string, Date>).lte = parseDateOnlyUtc(to);
-      }
-    }
-  } catch {
-    return NextResponse.json(
-      { error: "Invalid date format; expected YYYY-MM-DD" },
-      { status: 400 }
-    );
+  // Malformed dates throw InvalidDateError → 400 via withApi.
+  const where: Prisma.BodyWeightWhereInput = { userId };
+  if (from || to) {
+    where.date = {
+      ...(from && { gte: parseDateOnlyUtc(from) }),
+      ...(to && { lte: parseDateOnlyUtc(to) }),
+    };
   }
 
   const entries = await prisma.bodyWeight.findMany({
@@ -50,15 +37,12 @@ export async function GET(req: NextRequest) {
   }));
 
   return NextResponse.json({ data });
-}
+});
 
-export async function POST(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const POST = withApi(async function POST(req: NextRequest) {
+  const userId = await requireUserId();
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = createBodyWeightSchema.safeParse(body);
 
   if (!parsed.success) {
@@ -101,4 +85,4 @@ export async function POST(req: NextRequest) {
       createdAt: entry.createdAt.toISOString(),
     },
   });
-}
+});

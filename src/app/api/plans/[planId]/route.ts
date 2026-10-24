@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { updatePlanSchema } from "@/features/plans/schemas";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 async function getOwnedPlan(planId: string, userId: string) {
   return prisma.workoutPlan.findFirst({
@@ -24,14 +24,11 @@ async function getOwnedPlan(planId: string, userId: string) {
   });
 }
 
-export async function GET(
+export const GET = withApi(async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ planId: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { planId } = await params;
   const plan = await getOwnedPlan(planId, userId);
@@ -40,16 +37,13 @@ export async function GET(
   }
 
   return NextResponse.json({ data: plan });
-}
+});
 
-export async function PATCH(
+export const PATCH = withApi(async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ planId: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { planId } = await params;
   const existing = await prisma.workoutPlan.findFirst({
@@ -59,7 +53,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Plan not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = updatePlanSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -79,16 +73,13 @@ export async function PATCH(
   });
 
   return NextResponse.json({ data: updated });
-}
+});
 
-export async function DELETE(
+export const DELETE = withApi(async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ planId: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { planId } = await params;
   const existing = await prisma.workoutPlan.findFirst({
@@ -100,4 +91,4 @@ export async function DELETE(
 
   await prisma.workoutPlan.delete({ where: { id: planId } });
   return NextResponse.json({ ok: true });
-}
+});

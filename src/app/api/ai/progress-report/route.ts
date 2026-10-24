@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { buildProgressReport } from "@/features/ai/context";
 import { clampWeeks } from "@/features/ai/schemas";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET(req: NextRequest) {
+  const userId = await requireUserId();
 
   const weeks = clampWeeks(req.nextUrl.searchParams.get("weeks"), 12, 52);
   const data = await buildProgressReport(userId, weeks);
@@ -19,4 +16,4 @@ export async function GET(req: NextRequest) {
       weeks,
     },
   });
-}
+});

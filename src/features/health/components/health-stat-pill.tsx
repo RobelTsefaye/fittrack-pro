@@ -43,24 +43,23 @@ export function HealthStatPill({
           )}
         </p>
       ) : (
-        <p className="text-[15px] font-medium" style={{ color: "#5E5E66" }}>—</p>
+        <p className="text-[15px] font-medium" style={{ color: "#83838C" }}>—</p>
       )}
     </>
   );
 
-  const sharedStyle = { background: "#121214", border: "1px solid rgba(255,255,255,0.08)" };
   const sharedClass = cn("flex flex-col gap-1 rounded-2xl p-3.5", className);
 
   if (href) {
     return (
-      <Link href={href} className={cn(sharedClass, "transition-colors active:bg-white/5")} style={sharedStyle}>
+      <Link href={href} className={cn(sharedClass, "transition-colors active:bg-white/5")} data-glass>
         {inner}
       </Link>
     );
   }
 
   return (
-    <div className={sharedClass} style={sharedStyle}>
+    <div className={sharedClass} data-glass>
       {inner}
     </div>
   );

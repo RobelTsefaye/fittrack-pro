@@ -30,7 +30,7 @@ const MORE_ROUTES = [
 ];
 
 const VOLT = "#D4FF3A";
-const DIM  = "#5E5E66";
+const DIM  = "#83838C";
 
 export function BottomTabBar() {
   const pathname = usePathname();
@@ -45,7 +45,7 @@ export function BottomTabBar() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-30"
+      className="fixed inset-x-0 bottom-0 z-30 lg:hidden"
       aria-label="Hauptnavigation"
     >
       {/* Gradient fade + blur — single glass surface */}
@@ -60,7 +60,7 @@ export function BottomTabBar() {
       >
         {/* Floating pill */}
         <div
-          className="mx-3 flex h-[58px] items-stretch overflow-hidden"
+          className="tab-pill mx-3 flex h-[58px] items-stretch overflow-hidden md:mx-auto md:max-w-lg"
           style={{
             background: "rgba(28,28,32,0.94)",
             borderRadius: 22,

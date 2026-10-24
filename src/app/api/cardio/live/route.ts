@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 export const dynamic = "force-dynamic";
 
@@ -36,11 +36,10 @@ const liveUpdateSchema = z.object({
   zone: z.number().int().min(1).max(5).nullable().optional(),
 });
 
-export async function POST(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const POST = withApi(async function POST(req: NextRequest) {
+  const userId = await requireUserId();
 
-  const body = await req.json().catch(() => null);
+  const body = await readJsonBody(req).catch(() => null);
   const parsed = liveUpdateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
@@ -54,11 +53,10 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ success: true });
-}
+});
 
-export async function GET() {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withApi(async function GET() {
+  const userId = await requireUserId();
 
   const snapshot = await prisma.cardioLiveSnapshot.findUnique({ where: { userId } });
   if (!snapshot) return NextResponse.json({ data: null });
@@ -74,4 +72,4 @@ export async function GET() {
       zone: snapshot.zone,
     },
   });
-}
+});

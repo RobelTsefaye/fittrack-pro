@@ -14,13 +14,12 @@ import {
   TrendingUp,
   Sun,
   Shield,
-  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n-provider";
 import { exercisePath } from "@/lib/constants";
-import { MUSCLE_GROUPS } from "@/lib/constants";
 import type { PREntry, Achievement, AchievementId } from "@/services/personal-records";
+import { muscleGroupLabel } from "@/lib/muscle-group-label";
 
 // ─── Achievement config ───────────────────────────────────────────────────────
 
@@ -42,12 +41,6 @@ const ACHIEVEMENT_CONFIG: Record<
 
 // ─── Muscle group label map ───────────────────────────────────────────────────
 
-const MG_LABEL: Record<string, string> = {
-  CHEST: "Chest", BACK: "Back", SHOULDERS: "Shoulders",
-  BICEPS: "Biceps", TRICEPS: "Triceps", LEGS: "Legs",
-  GLUTES: "Glutes", CORE: "Core", FOREARMS: "Forearms",
-  CALVES: "Calves", FULL_BODY: "Full Body", CARDIO: "Cardio", OTHER: "Other",
-};
 
 // ─── Components ───────────────────────────────────────────────────────────────
 
@@ -63,12 +56,12 @@ function StatPill({
   color: string;
 }) {
   return (
-    <div className="flex flex-col items-center gap-1 rounded-2xl bg-[var(--card)] px-5 py-4 ring-1 ring-[var(--sys-separator)] flex-1 min-w-[90px]">
+    <div data-glass className="flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1 py-3 sm:px-5 sm:py-4">
       <Icon className={cn("h-5 w-5", color)} />
-      <span className="text-[1.35rem] font-bold tracking-tight text-foreground leading-none">
+      <span className="font-display text-[1.5rem] font-bold tracking-tight text-foreground leading-none tabular-nums">
         {value}
       </span>
-      <span className="text-[0.65rem] font-medium uppercase tracking-widest text-[var(--sys-label3)]">
+      <span className="max-w-full truncate text-[0.6rem] font-medium uppercase tracking-wider text-[var(--sys-label3)] sm:text-[0.65rem]">
         {label}
       </span>
     </div>
@@ -194,11 +187,11 @@ export function RecordsView({
       </div>
 
       {/* ── Stats row ───────────────────────────────────── */}
-      <div className="flex gap-3">
-        <StatPill icon={Dumbbell}  label="Workouts" value={totalWorkouts} color="text-sky-500" />
-        <StatPill icon={Trophy}    label="Records"  value={totalPRs}      color="text-amber-500" />
-        <StatPill icon={Flame}     label="Streak"   value={`${streak}d`}  color="text-orange-500" />
-        <StatPill icon={Award}     label="Badges"   value={`${unlockedCount}/${achievements.length}`} color="text-violet-500" />
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
+        <StatPill icon={Dumbbell}  label={t("records.statWorkouts")} value={totalWorkouts} color="text-sky-500" />
+        <StatPill icon={Trophy}    label={t("records.statRecords")} value={totalPRs}      color="text-amber-500" />
+        <StatPill icon={Flame}     label={t("records.statStreak")}  value={`${streak}d`}  color="text-orange-500" />
+        <StatPill icon={Award}     label={t("records.statBadges")}  value={`${unlockedCount}/${achievements.length}`} color="text-violet-500" />
       </div>
 
       {/* ── Achievements ────────────────────────────────── */}
@@ -230,7 +223,7 @@ export function RecordsView({
                     : "bg-[var(--sys-fill)] text-[var(--sys-label2)] hover:bg-[var(--sys-fill2)]"
                 )}
               >
-                {mg === "ALL" ? t("records.allGroups") : (MG_LABEL[mg] ?? mg)}
+                {mg === "ALL" ? t("records.allGroups") : muscleGroupLabel(t, mg)}
               </button>
             ))}
           </div>

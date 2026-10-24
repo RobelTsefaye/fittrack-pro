@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { adjustRestTimerSchema } from "@/features/workouts/schemas";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 /**
  * Persists a +/-15s rest-timer nudge server-side so every surface (phone
@@ -11,16 +11,13 @@ import { adjustRestTimerSchema } from "@/features/workouts/schemas";
  * any one of them is reflected on the others on next sync, instead of each
  * tracking its own disconnected local overlay.
  */
-export async function PATCH(
+export const PATCH = withApi(async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Bearer-token auth too — the Watch's own +/-15 buttons hit this directly
   // (see WatchConnectivityPlugin) and need to work without the phone app open.
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id } = await params;
 
@@ -32,7 +29,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Workout not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = adjustRestTimerSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -48,4 +45,4 @@ export async function PATCH(
   });
 
   return NextResponse.json({ data: updated });
-}
+});

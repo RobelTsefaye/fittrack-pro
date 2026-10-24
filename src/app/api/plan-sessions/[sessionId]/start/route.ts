@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function POST(
+export const POST = withApi(async function POST(
   _req: Request,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { sessionId } = await params;
 
@@ -44,6 +41,9 @@ export async function POST(
           workoutId: w.id,
           exerciseId: pse.exerciseId,
           order: pse.order,
+          repMin: pse.repMin,
+          repMax: pse.repMax,
+          restSeconds: pse.restSeconds,
         },
       });
       for (let i = 1; i <= pse.targetSets; i++) {
@@ -60,4 +60,4 @@ export async function POST(
   });
 
   return NextResponse.json({ data: { id: workout.id } }, { status: 201 });
-}
+});

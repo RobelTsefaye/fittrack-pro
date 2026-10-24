@@ -1,18 +1,15 @@
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { dashboardCacheTag } from "@/lib/constants";
 import { updateBodyWeightSchema } from "@/features/tracking/schemas";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function PATCH(
+export const PATCH = withApi(async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id } = await params;
 
@@ -24,7 +21,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Entry not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = updateBodyWeightSchema.safeParse(body);
 
   if (!parsed.success) {
@@ -58,16 +55,13 @@ export async function PATCH(
       createdAt: updated.createdAt.toISOString(),
     },
   });
-}
+});
 
-export async function DELETE(
+export const DELETE = withApi(async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id } = await params;
 
@@ -84,4 +78,4 @@ export async function DELETE(
   revalidateTag(dashboardCacheTag(userId), "max");
 
   return NextResponse.json({ success: true });
-}
+});

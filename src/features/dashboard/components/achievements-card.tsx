@@ -6,6 +6,7 @@ import {
   Trophy, Flame, Dumbbell, Lock, Star, Zap, Award, TrendingUp, Sun, Shield, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n-provider";
 import { ROUTES } from "@/lib/constants";
 import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { saveAchievementsCache, loadAchievementsCache } from "@/lib/offline/screen-caches";
@@ -28,6 +29,7 @@ const ACHIEVEMENT_CONFIG: Record<
 };
 
 function AchievementsData({ achievements }: { achievements: Achievement[] }) {
+  const { t } = useI18n();
   const unlocked = achievements.filter((a) => a.unlocked);
   const locked = achievements.filter((a) => !a.unlocked);
 
@@ -35,16 +37,16 @@ function AchievementsData({ achievements }: { achievements: Achievement[] }) {
     <div className="ios-group px-4 py-4">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="text-[0.9375rem] font-semibold text-foreground">Achievements</h2>
+          <h2 className="text-[0.9375rem] font-semibold text-foreground">{t("achievements.title")}</h2>
           <p className="text-[0.72rem] text-[var(--sys-label3)]">
-            {unlocked.length}/{achievements.length} unlocked
+            {t("achievements.unlockedCount", { count: unlocked.length, total: achievements.length })}
           </p>
         </div>
         <Link
           href={ROUTES.records}
           className="flex items-center gap-0.5 text-[0.78rem] font-medium text-primary"
         >
-          View all <ChevronRight className="h-3.5 w-3.5" />
+          {t("dashboard.viewAll")} <ChevronRight className="h-3.5 w-3.5" />
         </Link>
       </div>
 

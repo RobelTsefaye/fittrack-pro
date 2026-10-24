@@ -64,7 +64,7 @@ export default function MorePage() {
       {/* User profile */}
       <div
         className="flex items-center gap-3 rounded-[16px] p-4"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
         <Avatar className="h-11 w-11 shrink-0">
           <AvatarFallback
@@ -87,7 +87,7 @@ export default function MorePage() {
       {/* Nav items */}
       <div
         className="overflow-hidden rounded-[16px]"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
         {ITEMS.map(({ href, icon: Icon, labelKey }, i) => (
           <Link
@@ -109,7 +109,7 @@ export default function MorePage() {
             <span className="flex-1 text-[0.9375rem] font-medium text-white">
               {t(labelKey)}
             </span>
-            <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#5E5E66" }} />
+            <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#83838C" }} />
           </Link>
         ))}
       </div>
@@ -117,7 +117,7 @@ export default function MorePage() {
       {/* Sign out */}
       <div
         className="overflow-hidden rounded-[16px]"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
         <button
           type="button"

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
+import { dateOnlySchema, parseDateOnlyUtc } from "@/lib/date-only";
 
 // All fields optional — Shortcut sends only what Apple Health has available
 const snapshotSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: dateOnlySchema.optional(),
 
   sleepDuration: z.number().min(0).max(24).optional().nullable(),
   sleepBedtime: z.string().max(10).optional().nullable(),
@@ -54,9 +55,8 @@ const snapshotSchema = z.object({
 });
 
 // GET /api/health-data?from=YYYY-MM-DD&to=YYYY-MM-DD&limit=90
-export async function GET(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withApi(async function GET(req: NextRequest) {
+  const userId = await requireUserId();
 
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from");
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
   data.reverse();
 
   return NextResponse.json({ data });
-}
+});
 
 // Map Health Auto Export metric names to our schema fields.
 // HAE uses lowercase snake_case but spellings differ across versions —
@@ -506,9 +506,8 @@ function transformHAEWorkout(w: HAEWorkout): {
 }
 
 // POST /api/health-data — upsert (iOS Shortcut, Health Auto Export, or web form)
-export async function POST(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const POST = withApi(async function POST(req: NextRequest) {
+  const userId = await requireUserId();
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
@@ -603,19 +602,18 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ data: results, count: results.length, workoutsImported });
-}
+});
 
 // DELETE /api/health-data?date=YYYY-MM-DD
-export async function DELETE(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const DELETE = withApi(async function DELETE(req: NextRequest) {
+  const userId = await requireUserId();
 
   const date = new URL(req.url).searchParams.get("date");
   if (!date) return NextResponse.json({ error: "date required" }, { status: 400 });
 
   await prisma.healthSnapshot.deleteMany({
-    where: { userId, date: new Date(date + "T00:00:00.000Z") },
+    where: { userId, date: parseDateOnlyUtc(date) },
   });
 
   return NextResponse.json({ success: true });
-}
+});

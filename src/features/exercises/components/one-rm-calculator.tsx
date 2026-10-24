@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Target } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n-provider";
 
 function epley(weight: number, reps: number) {
   if (reps < 1 || weight <= 0) return 0;
@@ -23,6 +24,7 @@ interface OneRMCalculatorProps {
 }
 
 export function OneRMCalculator({ initialWeight = 0, initialReps = 5, weightUnit }: OneRMCalculatorProps) {
+  const { t } = useI18n();
   const [weight, setWeight] = useState(initialWeight > 0 ? initialWeight : 0);
   const [reps, setReps] = useState(initialReps);
 
@@ -33,14 +35,14 @@ export function OneRMCalculator({ initialWeight = 0, initialReps = 5, weightUnit
     <div className="ios-group overflow-hidden">
       <div className="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-[var(--sys-separator)]">
         <Target className="h-4 w-4 text-primary shrink-0" />
-        <h3 className="text-[0.9rem] font-semibold">1RM Calculator</h3>
+        <h3 className="text-[0.9rem] font-semibold">{t("records.oneRmTitle")}</h3>
       </div>
 
       {/* Inputs */}
       <div className="flex gap-4 px-4 py-4">
         <label className="flex-1">
           <span className="block text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--sys-label3)] mb-1.5">
-            Weight ({unit})
+            {t("records.weight")} ({unit})
           </span>
           <input
             type="number"
@@ -54,7 +56,7 @@ export function OneRMCalculator({ initialWeight = 0, initialReps = 5, weightUnit
         </label>
         <label className="w-24">
           <span className="block text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--sys-label3)] mb-1.5">
-            Reps
+            {t("records.reps")}
           </span>
           <input
             type="number"
@@ -73,7 +75,7 @@ export function OneRMCalculator({ initialWeight = 0, initialReps = 5, weightUnit
         <div className="px-4 pb-4 space-y-3">
           <div className="rounded-xl bg-primary/8 px-4 py-3 flex items-baseline justify-between">
             <span className="text-[0.78rem] font-semibold text-primary/80 uppercase tracking-wide">
-              Estimated 1RM
+              {t("records.estimated1RMShort")}
             </span>
             <span className="text-[1.6rem] font-bold text-primary leading-none">
               {Math.round(oneRM)} <span className="text-[0.85rem] font-semibold">{unit}</span>
@@ -84,8 +86,8 @@ export function OneRMCalculator({ initialWeight = 0, initialReps = 5, weightUnit
           <div className="rounded-xl border border-[var(--sys-separator)] overflow-hidden">
             <div className="grid grid-cols-3 bg-[var(--sys-fill)] px-3 py-1.5 text-[0.62rem] font-semibold uppercase tracking-wider text-[var(--sys-label3)]">
               <span>% 1RM</span>
-              <span className="text-center">Reps</span>
-              <span className="text-right">Weight</span>
+              <span className="text-center">{t("records.reps")}</span>
+              <span className="text-right">{t("records.weight")}</span>
             </div>
             {REP_PERCENTAGES.map(([repCount, pct]) => (
               <div

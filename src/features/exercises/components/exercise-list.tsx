@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "@/components/app-link";
 import { useSearchParams } from "next/navigation";
 import { Dumbbell, Plus, TrendingUp } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ExerciseCard, type ExerciseData } from "./exercise-card";
 import { ExerciseFormDialog } from "./exercise-form-dialog";
@@ -12,6 +12,7 @@ import { ExerciseDeleteDialog } from "./exercise-delete-dialog";
 import { useI18n } from "@/lib/i18n-provider";
 import { ROUTES } from "@/lib/constants";
 import { saveExerciseCatalog, loadExerciseCatalog } from "@/lib/offline/workout-offline-store";
+import { muscleGroupLabel } from "@/lib/muscle-group-label";
 
 export function ExerciseList({
   initialExercises,
@@ -102,9 +103,6 @@ export function ExerciseList({
     return acc;
   }, {});
 
-  const formatLabel = (v: string) =>
-    v.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-
   return (
     <>
       {/* ── Page header ─────────────────────────────── */}
@@ -183,11 +181,11 @@ export function ExerciseList({
       {!loading && exercises.length > 0 && (
         <div className="space-y-6">
           {Object.entries(grouped)
-            .sort(([a], [b]) => a.localeCompare(b))
+            .sort(([a], [b]) => muscleGroupLabel(t, a).localeCompare(muscleGroupLabel(t, b)))
             .map(([group, groupExercises]) => (
               <section key={group} className="space-y-2">
                 <p className="ios-section-label">
-                  {formatLabel(group)}{" "}
+                  {muscleGroupLabel(t, group)}{" "}
                   <span className="font-normal opacity-60">({groupExercises.length})</span>
                 </p>
                 <div className="ios-group">

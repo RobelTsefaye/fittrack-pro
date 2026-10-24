@@ -38,6 +38,41 @@ export function computeWorkoutStreak(completedAts: Date[]): number {
   return streak;
 }
 
+/** Monday 00:00 UTC of the ISO week containing `d`, as `YYYY-MM-DD`. */
+function isoWeekKey(d: Date): string {
+  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = date.getUTCDay();
+  date.setUTCDate(date.getUTCDate() + (day === 0 ? -6 : 1 - day));
+  return utcDayKey(date);
+}
+
+/**
+ * Consecutive weeks (Mon–Sun) in which at least `goal` workouts were
+ * completed. The current week only adds to the streak once its goal is met;
+ * an unfinished current week never breaks it, so rest days don't hurt.
+ */
+export function computeWeekStreak(completedAts: Date[], goal: number, now: Date = new Date()): number {
+  if (goal <= 0) return 0;
+  const perWeek = new Map<string, number>();
+  for (const d of completedAts) {
+    const key = isoWeekKey(d);
+    perWeek.set(key, (perWeek.get(key) ?? 0) + 1);
+  }
+  const cursor = new Date(`${isoWeekKey(now)}T12:00:00.000Z`);
+  let streak = (perWeek.get(utcDayKey(cursor)) ?? 0) >= goal ? 1 : 0;
+  for (;;) {
+    cursor.setUTCDate(cursor.getUTCDate() - 7);
+    if ((perWeek.get(utcDayKey(cursor)) ?? 0) < goal) break;
+    streak++;
+  }
+  return streak;
+}
+
+/** Weekly workout goal: the configured training days, else 3. */
+export function weeklyGoalFromSettings(trainingWeekdays: number[] | null | undefined): number {
+  return trainingWeekdays && trainingWeekdays.length > 0 ? trainingWeekdays.length : 3;
+}
+
 export async function getDashboardSummary(userId: string) {
   const now = new Date();
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
@@ -46,7 +81,7 @@ export async function getDashboardSummary(userId: string) {
   /** Cap streak query — full history can be huge; streak beyond ~5y is negligible */
   const streakSince = subDays(now, 5 * 365);
 
-  const [completedAll, weekCount, monthCount, prCount, completedWorkouts] =
+  const [completedAll, weekCount, monthCount, prCount, completedWorkouts, settings] =
     await Promise.all([
       prisma.workout.count({
         where: { userId, completedAt: { not: null } },
@@ -71,11 +106,12 @@ export async function getDashboardSummary(userId: string) {
         },
         select: { completedAt: true },
       }),
+      prisma.userSettings.findUnique({ where: { userId }, select: { trainingWeekdays: true } }),
     ]);
 
-  const streak = computeWorkoutStreak(
-    completedWorkouts.map((w) => w.completedAt!).filter(Boolean)
-  );
+  const completedDates = completedWorkouts.map((w) => w.completedAt!).filter(Boolean);
+  const streak = computeWorkoutStreak(completedDates);
+  const weeklyGoal = weeklyGoalFromSettings(settings?.trainingWeekdays);
 
   return {
     totalWorkouts: completedAll,
@@ -83,6 +119,8 @@ export async function getDashboardSummary(userId: string) {
     completedThisMonth: monthCount,
     personalRecordsCount: prCount,
     workoutStreakDays: streak,
+    weeklyGoal,
+    weekStreak: computeWeekStreak(completedDates, weeklyGoal, now),
   };
 }
 

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { updateSettingsSchema } from "@/features/settings/schemas";
 import {
@@ -8,12 +7,10 @@ import {
   prismaLocaleToUi,
 } from "@/lib/i18n-config";
 import { cookies } from "next/headers";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET() {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET() {
+  const userId = await requireUserId();
 
   let settings = await prisma.userSettings.findUnique({
     where: { userId },
@@ -35,6 +32,7 @@ export async function GET() {
       weightUnit: settings.weightUnit,
       theme: settings.theme,
       restTimerDefault: settings.restTimerDefault,
+      goalWeight: settings.goalWeight,
       calendarSyncEnabled: settings.calendarSyncEnabled,
       trainingWeekdays: settings.trainingWeekdays,
       trainingTimeMinutes: settings.trainingTimeMinutes,
@@ -46,15 +44,12 @@ export async function GET() {
       cardioLabel: settings.cardioLabel,
     },
   });
-}
+});
 
-export async function PATCH(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const PATCH = withApi(async function PATCH(req: NextRequest) {
+  const userId = await requireUserId();
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = updateSettingsSchema.safeParse(body);
 
   if (!parsed.success) {
@@ -94,6 +89,7 @@ export async function PATCH(req: NextRequest) {
       weightUnit: updated.weightUnit,
       theme: updated.theme,
       restTimerDefault: updated.restTimerDefault,
+      goalWeight: updated.goalWeight,
       calendarSyncEnabled: updated.calendarSyncEnabled,
       trainingWeekdays: updated.trainingWeekdays,
       trainingTimeMinutes: updated.trainingTimeMinutes,
@@ -114,4 +110,4 @@ export async function PATCH(req: NextRequest) {
   });
 
   return res;
-}
+});

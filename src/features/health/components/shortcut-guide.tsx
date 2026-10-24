@@ -87,7 +87,7 @@ export function ShortcutGuide() {
           <div
             key={key}
             className="rounded-[18px] p-4"
-            style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+            data-glass
           >
             <div className="flex items-start gap-3">
               <span className="text-xl">{emoji}</span>
@@ -111,7 +111,7 @@ export function ShortcutGuide() {
       {/* API URL copy box */}
       <div
         className="rounded-[18px] p-4"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
         <p className="mb-2 text-[13px] font-semibold text-white">{t("health.shortcutGuide.apiUrl")}</p>
         <div className="flex items-center gap-2">
@@ -138,7 +138,7 @@ export function ShortcutGuide() {
       {/* Shortcut JSON reference */}
       <div
         className="rounded-[18px] p-4"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
         <div className="mb-3 flex items-center justify-between">
           <p className="text-[13px] font-semibold text-white">JSON Payload Reference</p>
@@ -160,7 +160,7 @@ export function ShortcutGuide() {
         >
           {SHORTCUT_PAYLOAD}
         </pre>
-        <p className="mt-2 text-[11px]" style={{ color: "#5E5E66" }}>
+        <p className="mt-2 text-[11px]" style={{ color: "#83838C" }}>
           All fields are optional — send only what Apple Health provides.
           Use <code style={{ color: "#D4FF3A" }}>Authorization: Bearer ftp_yourtoken</code> header.
         </p>
@@ -169,7 +169,7 @@ export function ShortcutGuide() {
       {/* How to build the Shortcut */}
       <div
         className="rounded-[18px] p-4 space-y-3"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
         <p className="font-semibold text-white">Shortcut Actions (in order)</p>
         {[
@@ -205,7 +205,7 @@ export function ShortcutGuide() {
       </div>
 
       {/* HAE fallback note */}
-      <p className="px-2 text-center text-[11px]" style={{ color: "#5E5E66" }}>
+      <p className="px-2 text-center text-[11px]" style={{ color: "#83838C" }}>
         Alternativ funktioniert weiterhin die App „Health Auto Export&ldquo; (REST-API-Export an dieselbe URL) —
         der native Kurzbefehl oben kommt aber ohne Zusatz-App und ohne Kosten aus.
       </p>

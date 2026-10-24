@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "@/components/app-link";
 import { useRouter } from "next/navigation";
 import { workoutHref } from "@/lib/workout-href";
-import { ArrowLeft, GripVertical, Plus, Trash2, Play } from "lucide-react";
+import { ArrowLeft, GripVertical, MoreHorizontal, Plus, Trash2, Play } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   DndContext,
   closestCenter,
@@ -38,6 +39,7 @@ import { notifyActiveWorkoutChanged } from "@/components/layout/active-workout-b
 import { loadPlanDetailCache, savePlanDetailCache } from "@/lib/offline/screen-caches";
 import { startPlanSessionOffline } from "@/lib/offline/plan-session-offline";
 import { useI18n } from "@/lib/i18n-provider";
+import { toast } from "sonner";
 import { ExercisePickerDialog } from "@/features/workouts/components/exercise-picker-dialog";
 
 type ExerciseRef = {
@@ -52,8 +54,31 @@ type Pse = {
   exerciseId: string;
   order: number;
   targetSets: number;
+  repMin?: number | null;
+  repMax?: number | null;
+  restSeconds?: number | null;
   exercise: ExerciseRef;
 };
+
+type PsePatch = {
+  targetSets?: number;
+  repMin?: number | null;
+  repMax?: number | null;
+  restSeconds?: number | null;
+};
+
+const REST_OPTIONS = [60, 90, 120, 150, 180, 240, 300] as const;
+
+function formatRest(seconds: number) {
+  return seconds % 60 === 0 ? `${seconds / 60} min` : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")} min`;
+}
+
+/** "" → null, otherwise an int in [1, 100] (undefined when invalid). */
+function parseReps(value: string): number | null | undefined {
+  if (value.trim() === "") return null;
+  const n = parseInt(value, 10);
+  return Number.isInteger(n) && n >= 1 && n <= 100 ? n : undefined;
+}
 
 type PlanSession = {
   id: string;
@@ -75,16 +100,17 @@ type PlanDetail = {
 interface SortablePseRowProps {
   pse: Pse;
   onRemove: (pseId: string) => void;
-  onUpdateTargetSets: (pseId: string, value: string) => void;
+  onUpdatePse: (pseId: string, patch: PsePatch) => void;
   targetSetsLabel: string;
 }
 
 function SortablePseRow({
   pse,
   onRemove,
-  onUpdateTargetSets,
+  onUpdatePse,
   targetSetsLabel,
 }: SortablePseRowProps) {
+  const { t } = useI18n();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: pse.id });
 
@@ -98,8 +124,9 @@ function SortablePseRow({
     <li
       ref={setNodeRef}
       style={style}
-      className="flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm"
+      className="space-y-1.5 rounded-lg border px-2 py-1.5 text-sm"
     >
+      <div className="flex items-center gap-2">
       <button
         type="button"
         className="cursor-grab touch-none shrink-0 text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
@@ -111,12 +138,12 @@ function SortablePseRow({
       </button>
       <Link
         href={exercisePath(pse.exerciseId)}
-        className="font-medium flex-1 min-w-[120px] hover:underline underline-offset-2"
+        className="min-w-0 flex-1 truncate font-medium hover:underline underline-offset-2"
       >
         {pse.exercise.name}
       </Link>
       <div className="flex items-center gap-2">
-        <Label htmlFor={`sets-${pse.id}`} className="text-muted-foreground text-xs">
+        <Label htmlFor={`sets-${pse.id}`} className="sr-only sm:not-sr-only text-muted-foreground text-xs">
           {targetSetsLabel}
         </Label>
         <Input
@@ -124,13 +151,12 @@ function SortablePseRow({
           type="number"
           min={1}
           max={20}
-          className="h-8 w-16"
+          className="h-8 w-14 text-center"
           defaultValue={pse.targetSets}
           key={`${pse.id}-${pse.targetSets}`}
           onBlur={(e) => {
-            if (e.target.value !== String(pse.targetSets)) {
-              onUpdateTargetSets(pse.id, e.target.value);
-            }
+            const n = parseInt(e.target.value, 10);
+            if (n !== pse.targetSets && n >= 1 && n <= 20) onUpdatePse(pse.id, { targetSets: n });
           }}
         />
       </div>
@@ -138,11 +164,66 @@ function SortablePseRow({
         type="button"
         variant="ghost"
         size="icon-sm"
-        className="text-destructive hover:text-destructive"
+        className="shrink-0 text-muted-foreground hover:text-destructive"
         onClick={() => onRemove(pse.id)}
+        aria-label={t("plans.removeExercise")}
       >
         <Trash2 className="h-4 w-4" />
       </Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pl-7 text-xs text-muted-foreground">
+        <label className="flex items-center gap-1.5" title={t("plans.repRangeHint")}>
+          {t("plans.repRange")}
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={100}
+            placeholder="–"
+            aria-label={`${t("plans.repRange")} min`}
+            className="h-7 w-12 px-1 text-center text-xs"
+            defaultValue={pse.repMin ?? ""}
+            key={`${pse.id}-min-${pse.repMin}`}
+            onBlur={(e) => {
+              const v = parseReps(e.target.value);
+              if (v !== undefined && v !== (pse.repMin ?? null)) onUpdatePse(pse.id, { repMin: v });
+            }}
+          />
+          –
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={100}
+            placeholder="–"
+            aria-label={`${t("plans.repRange")} max`}
+            className="h-7 w-12 px-1 text-center text-xs"
+            defaultValue={pse.repMax ?? ""}
+            key={`${pse.id}-max-${pse.repMax}`}
+            onBlur={(e) => {
+              const v = parseReps(e.target.value);
+              if (v !== undefined && v !== (pse.repMax ?? null)) onUpdatePse(pse.id, { repMax: v });
+            }}
+          />
+        </label>
+        <label className="flex items-center gap-1.5">
+          {t("plans.rest")}
+          <select
+            className="h-7 rounded-md border bg-transparent px-1.5 text-xs text-foreground"
+            value={pse.restSeconds ?? ""}
+            onChange={(e) =>
+              onUpdatePse(pse.id, { restSeconds: e.target.value === "" ? null : Number(e.target.value) })
+            }
+          >
+            <option value="">{t("plans.restDefault")}</option>
+            {REST_OPTIONS.map((sec) => (
+              <option key={sec} value={sec}>
+                {formatRest(sec)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
     </li>
   );
 }
@@ -158,7 +239,7 @@ interface SortableSessionCardProps {
   onPickExercise: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onRemovePse: (pseId: string) => void;
-  onUpdateTargetSets: (pseId: string, value: string) => void;
+  onUpdatePse: (pseId: string, patch: PsePatch) => void;
   onExerciseDragEnd: (sessionId: string, event: DragEndEvent) => void;
   t: (key: string) => string;
 }
@@ -172,7 +253,7 @@ function SortableSessionCard({
   onPickExercise,
   onDeleteSession,
   onRemovePse,
-  onUpdateTargetSets,
+  onUpdatePse,
   onExerciseDragEnd,
   t,
 }: SortableSessionCardProps) {
@@ -247,7 +328,7 @@ function SortableSessionCard({
                         key={pse.id}
                         pse={pse}
                         onRemove={onRemovePse}
-                        onUpdateTargetSets={onUpdateTargetSets}
+                        onUpdatePse={onUpdatePse}
                         targetSetsLabel={t("plans.targetSets")}
                       />
                     ))}
@@ -435,7 +516,12 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
 
   async function savePlanName() {
     const trimmed = planNameDraft.trim();
-    if (!trimmed || !plan || trimmed === plan.name) return;
+    if (!plan) return;
+    if (!trimmed) {
+      setPlanNameDraft(plan.name);
+      return;
+    }
+    if (trimmed === plan.name) return;
     setSavingPlanName(true);
     await fetch(`/api/plans/${planId}`, {
       method: "PATCH",
@@ -443,6 +529,7 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
       body: JSON.stringify({ name: trimmed }),
     });
     setSavingPlanName(false);
+    toast.success(t("plans.nameSaved"));
     await load();
   }
 
@@ -488,14 +575,16 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
     if (res.ok) await load();
   }
 
-  async function updateTargetSets(pseId: string, value: string) {
-    const n = parseInt(value, 10);
-    if (Number.isNaN(n) || n < 1 || n > 20) return;
-    await fetch(`/api/plan-session-exercises/${pseId}`, {
+  async function updatePse(pseId: string, patch: PsePatch) {
+    const res = await fetch(`/api/plan-session-exercises/${pseId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetSets: n }),
+      body: JSON.stringify(patch),
     });
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      toast.error(json?.error ?? t("common.saveFailed"));
+    }
     await load();
   }
 
@@ -513,6 +602,9 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
       exercises: session.exercises.map((pse) => ({
         exerciseId: pse.exerciseId,
         targetSets: pse.targetSets,
+        repMin: pse.repMin,
+        repMax: pse.repMax,
+        restSeconds: pse.restSeconds,
         exercise: pse.exercise,
       })),
     });
@@ -592,34 +684,38 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
         {t("plans.backToPlans")}
       </Link>
 
-      <h1 className="text-2xl font-bold tracking-tight">{plan.name}</h1>
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-2 flex-1 max-w-xl">
-          <Label className="text-muted-foreground text-xs">{t("plans.renamePlan")}</Label>
-          <div className="flex flex-wrap gap-2">
-            <Input
-              value={planNameDraft}
-              onChange={(e) => setPlanNameDraft(e.target.value)}
-              className="max-w-md"
-              maxLength={120}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={savePlanName}
-              disabled={savingPlanName || planNameDraft.trim() === plan.name}
-            >
-              {savingPlanName ? t("common.saving") : t("plans.savePlanName")}
-            </Button>
-          </div>
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1 space-y-1">
+          {/* Inline-editable title: saves on blur / Enter, no extra button. */}
+          <Input
+            aria-label={t("plans.renamePlan")}
+            value={planNameDraft}
+            onChange={(e) => setPlanNameDraft(e.target.value)}
+            onBlur={() => void savePlanName()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
+            maxLength={120}
+            disabled={savingPlanName}
+            className="h-auto border-0 bg-transparent px-0 py-1 text-2xl font-bold tracking-tight shadow-none focus-visible:ring-0 dark:bg-transparent"
+          />
           {plan.description ? (
             <p className="text-sm text-muted-foreground">{plan.description}</p>
           ) : null}
         </div>
-        <Button variant="destructive" className="shrink-0" onClick={deletePlan}>
-          {t("plans.deletePlan")}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button type="button" variant="ghost" size="icon" aria-label={t("plans.moreActions")} />}
+          >
+            <MoreHorizontal className="h-5 w-5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem variant="destructive" onClick={() => void deletePlan()}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              {t("plans.deletePlan")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="flex items-center justify-between gap-2">
@@ -655,7 +751,7 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
                   onPickExercise={setPickerSessionId}
                   onDeleteSession={deleteSession}
                   onRemovePse={removePse}
-                  onUpdateTargetSets={updateTargetSets}
+                  onUpdatePse={updatePse}
                   onExerciseDragEnd={handleExerciseDragEnd}
                   t={t}
                 />

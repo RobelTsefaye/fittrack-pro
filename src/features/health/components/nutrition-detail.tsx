@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "@/components/app-link";
 import { ArrowLeft, Flame, TrendingDown, TrendingUp } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
@@ -114,7 +114,7 @@ function CalorieBalance({ snapshot }: { snapshot: HealthSnapshot | null }) {
   const inSurplus = net != null && net > 0;
 
   return (
-    <div className="rounded-[22px] p-5" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+    <div className="rounded-[22px] p-5" data-glass>
       <div className="flex items-center justify-between gap-2 mb-1">
         <div className="flex items-center gap-2">
           <Flame className="h-4 w-4" style={{ color: "#FF9F0A" }} />
@@ -122,13 +122,13 @@ function CalorieBalance({ snapshot }: { snapshot: HealthSnapshot | null }) {
             Kalorien
           </p>
         </div>
-        <span className="text-[10px] font-medium" style={{ color: weeklyTarget.isPersonalized ? "#30D158" : "#5E5E66" }}>
+        <span className="text-[10px] font-medium" style={{ color: weeklyTarget.isPersonalized ? "#30D158" : "#83838C" }}>
           {weeklyTarget.isPersonalized ? "Personalisiert" : "Standardwert"}
         </span>
       </div>
 
       {eaten == null ? (
-        <p className="mt-3 text-[13px]" style={{ color: "#5E5E66" }}>
+        <p className="mt-3 text-[13px]" style={{ color: "#83838C" }}>
           Noch keine Kalorien-Einträge in Apple Health.
         </p>
       ) : (
@@ -174,11 +174,11 @@ function BalanceCell({
 }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wide" style={{ color: "#5E5E66" }}>{label}</p>
+      <p className="text-[10px] uppercase tracking-wide" style={{ color: "#83838C" }}>{label}</p>
       <p className="mt-0.5 flex items-center gap-1 text-[16px] font-bold tabular-nums" style={{ color }}>
         {icon}
         {value.toLocaleString("de-DE")}
-        <span className="text-[10px] font-normal" style={{ color: "#5E5E66" }}>kcal</span>
+        <span className="text-[10px] font-normal" style={{ color: "#83838C" }}>kcal</span>
       </p>
     </div>
   );
@@ -189,11 +189,29 @@ function BalanceCell({
 function MacroSection({ snapshot }: { snapshot: HealthSnapshot | null }) {
   const { target: weeklyTarget } = useWeeklyNutritionTarget();
   return (
-    <Section title="Makronährstoffe" subtitle="Tagesziele für Sportler">
+    <Section
+      title="Makronährstoffe"
+      subtitle={
+        weeklyTarget.isPersonalized
+          ? "Aus deinem Ernährungsplan"
+          : weeklyTarget.basis === "bodyWeight"
+            ? `Nach deinem Körpergewicht (${weeklyTarget.bodyWeightKg} kg): 2 g Protein, 0,9 g Fett pro kg`
+            : "Tagesziele für Sportler"
+      }
+    >
+      {!weeklyTarget.isPersonalized ? (
+        <Link
+          href={ROUTES.settings + "/nutrition-plan"}
+          className="mb-1 block rounded-lg bg-primary/10 px-3 py-2 text-[12px] font-medium text-primary"
+        >
+          Ernährungsplan einrichten für persönliche Kalorienziele →
+        </Link>
+      ) : null}
       {MACRO_TARGETS.map((t) => {
-        const dynamicValue = weeklyTarget.isPersonalized
-          ? weeklyTarget[t.key as "protein" | "carbs" | "fat"]
-          : undefined;
+        const dynamicValue =
+          weeklyTarget.isPersonalized || weeklyTarget.basis === "bodyWeight"
+            ? weeklyTarget[t.key as "protein" | "carbs" | "fat"]
+            : undefined;
         return (
           <NutrientRow
             key={t.key}
@@ -242,7 +260,7 @@ function MicroSection({ snapshot }: { snapshot: HealthSnapshot | null }) {
   if (visible.length === 0) {
     return (
       <Section title="Mikronährstoffe">
-        <p className="text-[12px]" style={{ color: "#5E5E66" }}>
+        <p className="text-[12px]" style={{ color: "#83838C" }}>
           Keine Mikronährstoff-Daten in Apple Health.
           Diese Daten werden meist erst eingetragen wenn du eine Tracking-App wie MyFitnessPal oder Cronometer nutzt.
         </p>
@@ -267,10 +285,10 @@ function MicroSection({ snapshot }: { snapshot: HealthSnapshot | null }) {
 
 function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-[22px] p-4" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+    <div className="rounded-[22px] p-4" data-glass>
       <div className="mb-3">
         <p className="text-[15px] font-semibold text-white">{title}</p>
-        {subtitle && <p className="text-[11px]" style={{ color: "#5E5E66" }}>{subtitle}</p>}
+        {subtitle && <p className="text-[11px]" style={{ color: "#83838C" }}>{subtitle}</p>}
       </div>
       <div className="space-y-3">{children}</div>
     </div>
@@ -299,7 +317,7 @@ function NutrientRow({ target, value }: { target: NutrientTarget; value: number 
           {" / "}
           {target.target.toLocaleString("de-DE")} {target.unit}
           {value != null && (
-            <span className="ml-1" style={{ color: overLimit ? "#FF453A" : reached ? "#30D158" : "#5E5E66" }}>
+            <span className="ml-1" style={{ color: overLimit ? "#FF453A" : reached ? "#30D158" : "#83838C" }}>
               · {Math.round(pct)}%
             </span>
           )}
@@ -312,7 +330,7 @@ function NutrientRow({ target, value }: { target: NutrientTarget; value: number 
         />
       </div>
       {target.description && (
-        <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
+        <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: "#83838C" }}>
           {target.description}
         </p>
       )}

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { createWorkoutSchema } from "@/features/workouts/schemas";
 import {
@@ -8,12 +7,10 @@ import {
 } from "@/features/workouts/workouts-list-data";
 import { revalidateTag } from "next/cache";
 import { dashboardCacheTag, workoutsListCacheTag } from "@/lib/constants";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET(req: NextRequest) {
+  const userId = await requireUserId();
 
   const { searchParams } = req.nextUrl;
   // Clamp pagination so malformed input (NaN, negative, or an absurdly large
@@ -48,15 +45,12 @@ export async function GET(req: NextRequest) {
     data: items,
     meta: { page, limit, total },
   });
-}
+});
 
-export async function POST(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const POST = withApi(async function POST(req: NextRequest) {
+  const userId = await requireUserId();
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = createWorkoutSchema.safeParse(body);
 
   if (!parsed.success) {
@@ -102,4 +96,4 @@ export async function POST(req: NextRequest) {
   revalidateTag(workoutsListCacheTag(userId), "max");
 
   return NextResponse.json({ data: workout }, { status: 201 });
-}
+});

@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 const schema = z.object({
   ids: z.array(z.string().uuid()).min(1),
 });
 
-export async function POST(
+export const POST = withApi(async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id: workoutId } = await params;
 
@@ -26,7 +23,7 @@ export async function POST(
     return NextResponse.json({ error: "Workout not found" }, { status: 404 });
   }
 
-  const body = schema.safeParse(await req.json());
+  const body = schema.safeParse(await readJsonBody(req));
   if (!body.success) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
@@ -41,4 +38,4 @@ export async function POST(
   );
 
   return NextResponse.json({ success: true });
-}
+});

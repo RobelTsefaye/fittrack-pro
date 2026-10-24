@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { APP_NAME } from "@/lib/constants";
+import type { DashboardRecovery } from "@/features/dashboard/components/recovery-hint";
 import { DashboardAnalytics } from "@/features/dashboard/components/dashboard-analytics";
 import { MuscleHeatmapCard } from "@/features/dashboard/components/muscle-heatmap-card";
 import { AchievementsCard } from "@/features/dashboard/components/achievements-card";
@@ -21,6 +22,7 @@ type DashboardState = {
    *  (see cached-user.ts). Optional: cached payloads predating this field. */
   userName?: string | null;
   payload: DashboardClientPayload;
+  recovery?: DashboardRecovery | null;
 };
 
 // Client component — no server-side auth()/data-fetching (see
@@ -40,7 +42,6 @@ export default function DashboardPage() {
   useEffect(() => {
     document.title = `Dashboard — ${APP_NAME}`;
     let cancelled = false;
-    setFailed(false);
 
     async function load() {
       // Cache-first, always — even online. Paints the last-known dashboard
@@ -93,7 +94,10 @@ export default function DashboardPage() {
           <p className="text-sm text-[var(--sys-label2)]">Dashboard konnte nicht geladen werden.</p>
           <button
             type="button"
-            onClick={() => setRetryCount((n) => n + 1)}
+            onClick={() => {
+              setFailed(false);
+              setRetryCount((n) => n + 1);
+            }}
             className="text-sm font-medium text-primary"
           >
             Erneut versuchen
@@ -107,6 +111,7 @@ export default function DashboardPage() {
             userName={state.userName ?? session?.user?.name}
             weightUnit={state.weightUnit}
             payload={state.payload}
+            recovery={state.recovery}
           />
           <AchievementsCard />
           <MuscleHeatmapCard />

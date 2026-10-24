@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 type RawRow = {
   exerciseId: string;
@@ -9,11 +9,8 @@ type RawRow = {
   lastUsed: Date;
 };
 
-export async function GET() {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET() {
+  const userId = await requireUserId();
 
   const rows = await prisma.$queryRaw<RawRow[]>`
     SELECT
@@ -69,4 +66,4 @@ export async function GET() {
     .filter(Boolean);
 
   return NextResponse.json({ data });
-}
+});

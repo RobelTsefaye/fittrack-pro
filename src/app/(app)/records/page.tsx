@@ -33,7 +33,6 @@ export default function RecordsPage() {
   useEffect(() => {
     document.title = `Personal Records — ${APP_NAME}`;
     let cancelled = false;
-    setFailed(false);
     (async () => {
       const cached = await loadRecordsCache<RecordsData>();
       if (!cancelled && cached) setData(cached);
@@ -66,7 +65,10 @@ export default function RecordsPage() {
           <p className="text-sm text-[var(--sys-label2)]">Records konnten nicht geladen werden.</p>
           <button
             type="button"
-            onClick={() => setRetryCount((n) => n + 1)}
+            onClick={() => {
+              setFailed(false);
+              setRetryCount((n) => n + 1);
+            }}
             className="text-sm font-medium text-primary"
           >
             Erneut versuchen

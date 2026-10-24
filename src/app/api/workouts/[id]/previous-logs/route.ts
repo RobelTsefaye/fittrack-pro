@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import type { PreviousLogEntry } from "@/features/workouts/previous-logs-types";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 export type { PreviousSetEntry, PreviousLogEntry } from "@/features/workouts/previous-logs-types";
 
@@ -15,14 +15,11 @@ export type { PreviousSetEntry, PreviousLogEntry } from "@/features/workouts/pre
  * - Workouts where the exercise only has empty/warmup sets are skipped via
  *   a nested `sets: { some: … }` filter so we never pick a stale session.
  */
-export async function GET(
+export const GET = withApi(async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id: workoutId } = await params;
 
@@ -103,4 +100,4 @@ export async function GET(
   }
 
   return NextResponse.json({ data });
-}
+});

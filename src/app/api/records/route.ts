@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { getAllPersonalRecords, getAchievements } from "@/services/personal-records";
 import { getDashboardSummary } from "@/features/dashboard/queries";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 /**
  * Bundles everything the Records page needs into one call — records/page.tsx
@@ -11,11 +11,8 @@ import { getDashboardSummary } from "@/features/dashboard/queries";
  * route returned all of it together, so this is a genuinely new route rather
  * than a client-side port of an existing one.
  */
-export async function GET() {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET() {
+  const userId = await requireUserId();
 
   const [settings, records, summary] = await Promise.all([
     prisma.userSettings.findUnique({ where: { userId } }),
@@ -35,4 +32,4 @@ export async function GET() {
       totalPRs: summary.personalRecordsCount,
     },
   });
-}
+});

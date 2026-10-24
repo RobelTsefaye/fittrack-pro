@@ -146,6 +146,7 @@ model UserSettings {
   weightUnit       WeightUnit @default(KG)
   theme            Theme      @default(SYSTEM)
   restTimerDefault Int        @default(180)
+  goalWeight       Float? // body-weight goal in the user's unit; null = none
   locale           AppLocale  @default(EN)
   calendarSyncEnabled Boolean @default(false)
   trainingWeekdays    Int[]   @default([]) // Montag-first: 0=Mo .. 6=So (Konvention wie workout-history-list.tsx)
@@ -243,6 +244,9 @@ model PlanSessionExercise {
   exerciseId    String
   order         Int
   targetSets    Int    @default(3)
+  repMin        Int? // target rep range (double progression); null = no range
+  repMax        Int?
+  restSeconds   Int? // per-exercise rest; null = user default
 
   planSession PlanSession @relation(fields: [planSessionId], references: [id], onDelete: Cascade)
   exercise    Exercise    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
@@ -288,6 +292,9 @@ model WorkoutExercise {
   supersetGroup Int?
   notes       String?
   isCompleted Boolean @default(false)
+  repMin      Int? // copied from the plan when the workout starts
+  repMax      Int?
+  restSeconds Int?
 
   workout  Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exercise Exercise @relation(fields: [exerciseId], references: [id])

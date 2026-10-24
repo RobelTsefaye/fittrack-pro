@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import {
   findExerciseVisibleToUser,
   fetchCompletedSetsForExercise,
@@ -7,12 +6,10 @@ import {
   computeVolumeBySession,
   mapSetsToHistoryRows,
 } from "@/features/exercises/history-core";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET(req: NextRequest) {
+  const userId = await requireUserId();
 
   const exerciseId = req.nextUrl.searchParams.get("exerciseId");
   if (!exerciseId) {
@@ -38,4 +35,4 @@ export async function GET(req: NextRequest) {
     },
     meta: { endpoint: "exercise-history", exerciseId, setCount: sets.length },
   });
-}
+});

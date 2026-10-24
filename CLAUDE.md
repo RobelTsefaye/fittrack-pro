@@ -7,6 +7,9 @@ Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui, Prisma, PostgreSQL
 
 ## Commands
 - `npm run dev` — start dev server
+- `npm test` — Vitest unit tests (`src/**/__tests__/*.test.ts`); `npm run typecheck`; `npm run lint`
+- `npx tsx scripts/seed-demo.ts <email>` — local-only demo data (PPL plan, 6 weeks of workouts, body weight) for UI previews; refuses non-localhost DBs
+- `npm run format -- <files>` — Prettier (opt-in per file; repo is not mass-formatted to avoid branch conflicts)
 - `npx prisma dev` — start local Prisma Postgres + run migrations
 - `npx prisma studio` — database GUI
 - `npx prisma migrate dev` — create/apply migrations (development)
@@ -31,6 +34,7 @@ The app schema is ahead of your database. After `DATABASE_URL` is set, run **`np
 ## Key Patterns
 - Zod validation on all inputs (shared client/server)
 - Server actions for mutations, route handlers for queries
+- API route handlers: `export const GET = withApi(async function GET(...) { const userId = await requireUserId(); ... })` — see `src/lib/api/route-handler.ts`
 - Feature-based folder organization
 - Type-safe end-to-end via Prisma generated types
 - Route groups: `(auth)` for public, `(app)` for protected routes

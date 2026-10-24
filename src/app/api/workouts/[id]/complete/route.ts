@@ -1,9 +1,9 @@
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { dashboardCacheTag, workoutsListCacheTag } from "@/lib/constants";
 import { recordPersonalRecordIfBest } from "@/lib/personal-record";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 async function sumWorkoutVolume(workoutId: string): Promise<number> {
   const sets = await prisma.set.findMany({
@@ -19,17 +19,14 @@ async function sumWorkoutVolume(workoutId: string): Promise<number> {
   return sets.reduce((sum, s) => sum + Number(s.weight) * (s.reps ?? 0), 0);
 }
 
-export async function POST(
+export const POST = withApi(async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Bearer-token auth too — the Watch's "Workout beenden" hits this
   // directly (see WatchConnectivityPlugin) and needs to work without the
   // phone app open.
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id } = await params;
 
@@ -112,6 +109,13 @@ export async function POST(
 
   const currentVolume = await sumWorkoutVolume(id);
 
+  // Every PR set in this workout (recorded live or just now), best first.
+  const workoutRecords = await prisma.personalRecord.findMany({
+    where: { userId, set: { workoutExercise: { workoutId: id } } },
+    select: { weight: true, reps: true, estimated1RM: true, exercise: { select: { name: true } } },
+    orderBy: { estimated1RM: "desc" },
+  });
+
   const volumeDelta = currentVolume - previousVolume;
   const volumeDeltaPct =
     previousVolume > 0 ? (volumeDelta / previousVolume) * 100 : null;
@@ -129,5 +133,9 @@ export async function POST(
       volumeDeltaPct,
     },
     newPersonalRecords,
+    // Best record per exercise (a ramp can set several PRs in one session).
+    records: workoutRecords
+      .filter((r, i, all) => all.findIndex((o) => o.exercise.name === r.exercise.name) === i)
+      .map((r) => ({ exerciseName: r.exercise.name, weight: r.weight, reps: r.reps })),
   });
-}
+});

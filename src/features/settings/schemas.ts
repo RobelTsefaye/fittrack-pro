@@ -5,6 +5,8 @@ export const updateSettingsSchema = z.object({
   weightUnit: z.enum(["KG", "LB"]).optional(),
   theme: z.enum(["LIGHT", "DARK", "SYSTEM"]).optional(),
   restTimerDefault: z.number().int().min(30).max(600).optional(),
+  /** Body-weight goal in the user's unit; null clears it. */
+  goalWeight: z.number().positive().max(999).nullable().optional(),
   calendarSyncEnabled: z.boolean().optional(),
   trainingWeekdays: z
     .array(z.number().int().min(0).max(6))

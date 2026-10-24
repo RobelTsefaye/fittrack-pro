@@ -228,18 +228,17 @@ export default function NewWorkoutPage() {
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting ? t("workouts.starting") : t("workouts.begin")}
             </Button>
-            <Button
+            {/* Starting already falls back to offline automatically when there's
+                no connection; this stays as a quiet manual override. */}
+            <button
               type="button"
-              variant="outline"
-              className="w-full"
+              className="w-full text-center text-xs text-muted-foreground underline-offset-4 hover:underline disabled:opacity-50"
               disabled={submitting}
               onClick={handleStartOfflineClick}
+              title={t("workouts.startOfflineHint")}
             >
               {t("workouts.startOffline")}
-            </Button>
-            <p className="text-center text-xs text-muted-foreground">
-              {t("workouts.startOfflineHint")}
-            </p>
+            </button>
           </form>
         </CardContent>
       </Card>

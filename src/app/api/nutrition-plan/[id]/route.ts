@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { updateNutritionPlanSchema } from "@/features/health/nutrition-plan-schemas";
 import type { NutritionPlan } from "@/generated/prisma/client";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 function toDTO(row: NutritionPlan) {
   return {
@@ -24,18 +24,15 @@ function toDTO(row: NutritionPlan) {
 // Corrections to a plan row only — phase/startDate are immutable (rejected by
 // the schema), since changing them would rewrite history instead of starting
 // a new phase (use POST /api/nutrition-plan for that).
-export async function PATCH(
+export const PATCH = withApi(async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { id } = await params;
 
-  const body = await req.json().catch(() => null);
+  const body = await readJsonBody(req).catch(() => null);
   if (body && typeof body === "object" && ("phase" in body || "startDate" in body)) {
     return NextResponse.json(
       { error: "phase/startDate cannot be changed — start a new plan instead" },
@@ -66,4 +63,4 @@ export async function PATCH(
   });
 
   return NextResponse.json({ data: toDTO(updated) });
-}
+});

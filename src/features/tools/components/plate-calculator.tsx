@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n-provider";
+import { calcPlates } from "@/features/tools/plate-math";
 
 // ─── Plate definitions ───────────────────────────────────────────────────────
 
@@ -30,48 +31,6 @@ const LB_PLATES: PlateSpec[] = [
 
 const KG_BARS  = [20, 15] as const;
 const LB_BARS  = [45, 35] as const;
-
-// ─── Calculation ─────────────────────────────────────────────────────────────
-
-type CalcResult =
-  | { type: "empty" }
-  | { type: "bar-only" }
-  | { type: "plates"; plates: { spec: PlateSpec; count: number }[]; total: number }
-  | { type: "not-achievable"; nearest: number };
-
-function calcPlates(targetRaw: number, bar: number, specs: PlateSpec[]): CalcResult {
-  if (!targetRaw || isNaN(targetRaw)) return { type: "empty" };
-  const target = Math.round(targetRaw * 100) / 100;
-  if (target <= 0) return { type: "empty" };
-  if (target <= bar) return { type: "bar-only" };
-
-  const perSide = (target - bar) / 2;
-  let remaining = Math.round(perSide * 1000) / 1000;
-
-  const buckets = new Map<number, number>();
-  for (const spec of specs) {
-    while (remaining >= spec.weight - 0.0005) {
-      buckets.set(spec.weight, (buckets.get(spec.weight) ?? 0) + 1);
-      remaining = Math.round((remaining - spec.weight) * 1000) / 1000;
-    }
-  }
-
-  // If remainder > smallest plate, it's not achievable — find nearest achievable
-  if (remaining > 0.001) {
-    const loaded = target - remaining * 2;
-    // also try rounding up
-    const nextUp = target + (specs[specs.length - 1].weight * 2 - remaining * 2);
-    const nearest = Math.round(loaded * 100) / 100;
-    return { type: "not-achievable", nearest };
-  }
-
-  const plates = Array.from(buckets.entries())
-    .map(([w, count]) => ({ spec: specs.find(s => s.weight === w)!, count }))
-    .filter(p => p.spec);
-
-  const total = bar + plates.reduce((sum, p) => sum + p.spec.weight * p.count * 2, 0);
-  return { type: "plates", plates, total: Math.round(total * 100) / 100 };
-}
 
 // ─── Plate disc component ─────────────────────────────────────────────────────
 
@@ -204,7 +163,7 @@ export function PlateCalculator({ defaultUnit = "KG" }: { defaultUnit?: "KG" | "
                   : "bg-[var(--sys-fill2)] text-[var(--sys-label)]"
               )}
             >
-              {t("plateCalc.barCustom").split(" ")[0]}
+              {t("plateCalc.barCustomShort")}
             </button>
             {useCustomBar && (
               <input
@@ -240,7 +199,7 @@ export function PlateCalculator({ defaultUnit = "KG" }: { defaultUnit?: "KG" | "
                 inputMode="decimal"
                 value={targetStr}
                 onChange={(e) => setTargetStr(e.target.value)}
-                placeholder="100"
+                placeholder="–"
                 className="w-24 rounded-xl border border-[var(--sys-separator)] bg-transparent py-2 pr-9 pl-3 text-right text-[1.125rem] font-semibold tabular-nums outline-none focus:border-primary"
                 style={{ fontSize: 16 }}
               />

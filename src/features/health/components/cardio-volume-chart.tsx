@@ -26,13 +26,13 @@ export function CardioVolumeChart({
         <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
         <XAxis
           dataKey="label"
-          stroke="#5E5E66"
+          stroke="#83838C"
           fontSize={10}
           tickLine={false}
           axisLine={false}
         />
         <YAxis
-          stroke="#5E5E66"
+          stroke="#83838C"
           fontSize={10}
           width={28}
           tickLine={false}

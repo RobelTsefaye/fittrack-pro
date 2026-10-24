@@ -4,6 +4,9 @@ import { saveWorkoutSnapshot, enqueueWorkoutOp } from "./workout-offline-store";
 export type OfflinePlanSessionExercise = {
   exerciseId: string;
   targetSets: number;
+  repMin?: number | null;
+  repMax?: number | null;
+  restSeconds?: number | null;
   exercise: {
     id: string;
     name: string;
@@ -60,6 +63,11 @@ export async function startPlanSessionOffline(session: OfflinePlanSession): Prom
       exerciseId: pse.exerciseId,
       order,
       supersetGroup: null,
+      // Local only (the sync ops don't carry them): rest + progression
+      // still follow the plan while the offline workout is in progress.
+      repMin: pse.repMin ?? null,
+      repMax: pse.repMax ?? null,
+      restSeconds: pse.restSeconds ?? null,
       notes: null,
       isCompleted: false,
       exercise: pse.exercise,

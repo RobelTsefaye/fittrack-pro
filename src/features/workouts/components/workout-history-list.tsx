@@ -265,13 +265,13 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
       {!loading && workouts.length === 0 && (
         <div
           className="flex flex-col items-center gap-4 rounded-[18px] py-16 px-6 text-center"
-          style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+          data-glass
         >
           <div
             className="flex h-14 w-14 items-center justify-center rounded-2xl"
             style={{ background: "rgba(255,255,255,0.06)" }}
           >
-            <Dumbbell className="h-7 w-7" style={{ color: "#5E5E66" }} />
+            <Dumbbell className="h-7 w-7" style={{ color: "#83838C" }} />
           </div>
           <div>
             <p className="font-semibold text-[0.9375rem]">{t("workouts.noWorkouts")}</p>
@@ -292,7 +292,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
           {[...Array(3)].map((_, i) => (
             <div key={i}
               className="h-16 rounded-[14px]"
-              style={{ background: "#121214" }}
+              data-glass
             />
           ))}
         </div>
@@ -303,13 +303,13 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
         <section key={group.label} className="space-y-2">
           <p
             className="px-0.5 text-[11px] font-bold uppercase tracking-[0.08em]"
-            style={{ color: "#5E5E66" }}
+            style={{ color: "#83838C" }}
           >
             {group.label}
           </p>
           <div
             className="overflow-hidden rounded-[16px]"
-            style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+            data-glass
           >
             {group.items.map((w, i) => {
               const isActive = !w.completedAt;
@@ -319,10 +319,14 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
               const dur = formatDuration(w.durationSeconds);
 
               return (
-                <button
+                // A div with button semantics, not <button>: the row contains
+                // its own delete <Button>, and nested buttons are invalid HTML
+                // (React hydration error).
+                <div
                   key={w.id}
-                  type="button"
-                  className="group w-full text-left transition-colors"
+                  role="button"
+                  tabIndex={isAwaitingSync ? -1 : 0}
+                  className="group w-full cursor-pointer text-left transition-colors active:bg-white/[0.04]"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -333,6 +337,13 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                   aria-disabled={isAwaitingSync || undefined}
                   onClick={() => {
                     if (!isAwaitingSync) router.push(workoutHref(w.id));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if ((e.key === "Enter" || e.key === " ") && !isAwaitingSync) {
+                      e.preventDefault();
+                      router.push(workoutHref(w.id));
+                    }
                   }}
                 >
                   {/* Icon */}
@@ -395,7 +406,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                     {w.workoutExercises.length > 0 && (
                       <p
                         className="mt-0.5 truncate text-[11px]"
-                        style={{ color: "#5E5E66" }}
+                        style={{ color: "#83838C" }}
                       >
                         {w.workoutExercises
                           .slice(0, 4)
@@ -408,7 +419,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
 
                     <div
                       className="mt-1 flex items-center gap-3 text-[11px]"
-                      style={{ color: "#5E5E66" }}
+                      style={{ color: "#83838C" }}
                     >
                       {exerciseCount > 0 && (
                         <span className="flex items-center gap-1">
@@ -433,7 +444,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                         variant="ghost"
                         size="icon-sm"
                         className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        style={{ color: "#5E5E66" }}
+                        style={{ color: "#83838C" }}
                         disabled={deletingId === w.id}
                         aria-label={t("workouts.deleteCompletedAria")}
                         onClick={(e) => {
@@ -447,11 +458,11 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                     {!isAwaitingSync && (
                       <ChevronRight
                         className="h-4 w-4"
-                        style={{ color: "#5E5E66" }}
+                        style={{ color: "#83838C" }}
                       />
                     )}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>

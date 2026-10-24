@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { updatePlanSessionExerciseSchema } from "@/features/plans/schemas";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 async function getPseForUser(pseId: string, userId: string) {
   return prisma.planSessionExercise.findFirst({
@@ -12,14 +12,11 @@ async function getPseForUser(pseId: string, userId: string) {
   });
 }
 
-export async function PATCH(
+export const PATCH = withApi(async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ pseId: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { pseId } = await params;
   const existing = await getPseForUser(pseId, userId);
@@ -27,7 +24,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = updatePlanSessionExerciseSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -36,10 +33,21 @@ export async function PATCH(
     );
   }
 
+  // Min and max are saved separately (one field per blur): validate the
+  // range the row will end up with, not just this request.
+  const nextMin = parsed.data.repMin !== undefined ? parsed.data.repMin : existing.repMin;
+  const nextMax = parsed.data.repMax !== undefined ? parsed.data.repMax : existing.repMax;
+  if (nextMin != null && nextMax != null && nextMin > nextMax) {
+    return NextResponse.json({ error: "Min. Wiederholungen müssen ≤ Max. sein" }, { status: 400 });
+  }
+
   const updated = await prisma.planSessionExercise.update({
     where: { id: pseId },
     data: {
       ...(parsed.data.targetSets != null ? { targetSets: parsed.data.targetSets } : {}),
+      ...(parsed.data.repMin !== undefined ? { repMin: parsed.data.repMin } : {}),
+      ...(parsed.data.repMax !== undefined ? { repMax: parsed.data.repMax } : {}),
+      ...(parsed.data.restSeconds !== undefined ? { restSeconds: parsed.data.restSeconds } : {}),
     },
     include: {
       exercise: {
@@ -49,16 +57,13 @@ export async function PATCH(
   });
 
   return NextResponse.json({ data: updated });
-}
+});
 
-export async function DELETE(
+export const DELETE = withApi(async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ pseId: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { pseId } = await params;
   const existing = await getPseForUser(pseId, userId);
@@ -68,4 +73,4 @@ export async function DELETE(
 
   await prisma.planSessionExercise.delete({ where: { id: pseId } });
   return NextResponse.json({ ok: true });
-}
+});

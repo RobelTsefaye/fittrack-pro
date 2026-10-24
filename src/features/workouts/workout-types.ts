@@ -18,6 +18,12 @@ export type WorkoutExerciseData = {
   supersetGroup: number | null;
   notes: string | null;
   isCompleted: boolean;
+  /** Target rep range from the plan (double progression); optional because
+   *  offline-constructed and older cached workouts don't carry it. */
+  repMin?: number | null;
+  repMax?: number | null;
+  /** Rest after this exercise in seconds; null/undefined = user default. */
+  restSeconds?: number | null;
   exercise: {
     id: string;
     name: string;

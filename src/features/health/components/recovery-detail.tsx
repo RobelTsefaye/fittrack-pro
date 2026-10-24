@@ -81,7 +81,7 @@ export function RecoveryDetail({
     return (
       <div className="space-y-4">
         <Back />
-        <div className="rounded-[22px] p-8 text-center" style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="rounded-[22px] p-8 text-center" data-glass>
           <p className="text-[14px]" style={{ color: "#9A9AA2" }}>
             Noch keine Recovery-Daten. Schlaf, HRV oder Ruhepuls in Apple Health eintragen.
           </p>
@@ -96,9 +96,9 @@ export function RecoveryDetail({
     : "#FF453A";
 
   const levelLabel =
-    recovery.level === "high" ? "Ready to Train"
-    : recovery.level === "mid" ? "Moderate"
-    : "Rest Day";
+    recovery.level === "high" ? "Bereit fürs Training"
+    : recovery.level === "mid" ? "Mittel"
+    : "Ruhetag";
 
   return (
     <div className="space-y-4 pb-8">
@@ -184,9 +184,9 @@ function HistoryChart({ history }: { history: RecoveryHistoryPoint[] }) {
     return (
       <div
         className="rounded-[22px] p-5 text-center"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
-        <p className="text-[13px]" style={{ color: "#5E5E66" }}>
+        <p className="text-[13px]" style={{ color: "#83838C" }}>
           Verlauf erscheint nach einigen Tagen.
         </p>
       </div>
@@ -198,7 +198,7 @@ function HistoryChart({ history }: { history: RecoveryHistoryPoint[] }) {
   return (
     <div
       className="rounded-[22px] p-4"
-      style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+      data-glass
     >
       <div className="flex items-baseline justify-between mb-3">
         <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "#9A9AA2" }}>
@@ -243,44 +243,43 @@ function Card({ icon, title, accent, children, score, weight, hint, href }: {
           <span style={{ color: accent }}>{icon}</span>
           <div>
             <p className="text-[15px] font-semibold text-white">{title}</p>
-            <p className="text-[11px]" style={{ color: "#5E5E66" }}>
+            <p className="text-[11px]" style={{ color: "#83838C" }}>
               {weight > 0 ? `${Math.round(weight * 100)}% Gewicht` : "Modifikator"}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="text-right">
-            <p className="text-[20px] font-bold leading-none" style={{ color: score != null ? accent : "#5E5E66" }}>
+            <p className="text-[20px] font-bold leading-none" style={{ color: score != null ? accent : "#83838C" }}>
               {score != null ? Math.round(score) : "—"}
             </p>
-            <p className="text-[10px]" style={{ color: "#5E5E66" }}>/100</p>
+            <p className="text-[10px]" style={{ color: "#83838C" }}>/100</p>
           </div>
-          {href && <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#5E5E66" }} />}
+          {href && <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#83838C" }} />}
         </div>
       </div>
       <div className="space-y-1.5 text-[13px]" style={{ color: "#9A9AA2" }}>
         {children}
       </div>
       {hint && (
-        <p className="mt-3 text-[11px] leading-relaxed" style={{ color: "#5E5E66" }}>
+        <p className="mt-3 text-[11px] leading-relaxed" style={{ color: "#83838C" }}>
           {hint}
         </p>
       )}
     </>
   );
 
-  const style = { background: "#121214", border: "1px solid rgba(255,255,255,0.08)" };
 
   if (href) {
     return (
-      <Link href={href} className="block rounded-[22px] p-4 transition-colors active:bg-white/5" style={style}>
+      <Link href={href} className="block rounded-[22px] p-4 transition-colors active:bg-white/5" data-glass>
         {body}
       </Link>
     );
   }
 
   return (
-    <div className="rounded-[22px] p-4" style={style}>
+    <div className="rounded-[22px] p-4" data-glass>
       {body}
     </div>
   );

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
+import Link from "@/components/app-link";
 import { useSession } from "next-auth/react";
 import { WifiOff } from "lucide-react";
 import { useI18n } from "@/lib/i18n-provider";
@@ -19,7 +20,7 @@ function usePageTitle() {
   if (pathname.startsWith(ROUTES.workouts))    return t("nav.workouts");
   if (pathname.startsWith(ROUTES.plans))       return t("nav.plans");
   if (pathname.startsWith(ROUTES.exercises))   return t("nav.exercises");
-  if (pathname.startsWith(ROUTES.bodyWeight))  return "Body Tracking";
+  if (pathname.startsWith(ROUTES.bodyWeight))  return t("nav.bodyTracking");
   if (pathname.startsWith(ROUTES.settings))    return t("nav.settings");
   if (pathname.startsWith(ROUTES.coach))           return t("nav.coach");
   if (pathname.startsWith(ROUTES.plateCalculator)) return t("nav.plateCalc");
@@ -40,11 +41,36 @@ function subscribeOnline(callback: () => void) {
   };
 }
 
+/**
+ * iOS large-title behaviour: pages render their own big heading, so the
+ * compact bar title only fades in once the page has scrolled past it.
+ */
+function useScrolledPastTitle(threshold = 56) {
+  const pathname = usePathname();
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const main = document.getElementById("main-content");
+    if (!main) return;
+    // Pages without their own large <h1> always show the bar title.
+    const update = () => setScrolled(!main.querySelector("h1") || main.scrollTop > threshold);
+    update();
+    // Client pages render their heading after data loads — re-check then.
+    const timers = [300, 1500].map((ms) => window.setTimeout(update, ms));
+    main.addEventListener("scroll", update, { passive: true });
+    return () => {
+      timers.forEach((id) => window.clearTimeout(id));
+      main.removeEventListener("scroll", update);
+    };
+  }, [pathname, threshold]);
+  return scrolled;
+}
+
 /** Visible only on mobile (< lg). */
 export function MobileTopBar() {
   const { t } = useI18n();
   const { data: session } = useSession();
   const title = usePageTitle();
+  const showTitle = useScrolledPastTitle();
   const isOnline = useSyncExternalStore(
     subscribeOnline,
     () => navigator.onLine,
@@ -76,7 +102,13 @@ export function MobileTopBar() {
           WebkitBackdropFilter: "blur(16px)",
         }}
       >
-        <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold tracking-tight text-white">
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-[0.9375rem] font-semibold tracking-tight text-white transition-all duration-200",
+            showTitle ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
+          )}
+          aria-hidden={!showTitle}
+        >
           {title}
         </span>
 
@@ -89,14 +121,20 @@ export function MobileTopBar() {
           </span>
         )}
 
-        <Avatar className="h-8 w-8 shrink-0">
-          <AvatarFallback
-            className="text-[0.65rem] font-semibold"
-            style={{ background: "#26262B", color: "#D4FF3A" }}
-          >
-            {initials}
-          </AvatarFallback>
-        </Avatar>
+        <Link
+          href={ROUTES.settings}
+          aria-label={t("nav.settings")}
+          className="shrink-0 rounded-full transition-transform active:scale-95"
+        >
+          <Avatar className="h-8 w-8 shrink-0">
+            <AvatarFallback
+              className="text-[0.65rem] font-semibold"
+              style={{ background: "#26262B", color: "#D4FF3A" }}
+            >
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+        </Link>
       </div>
     </header>
   );

@@ -151,7 +151,7 @@ export function MetricDetail({
       {/* About this metric */}
       <div
         className="rounded-[18px] p-4"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
         <p className="text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: config.color }}>
           Was bedeutet das?
@@ -210,10 +210,10 @@ export function MetricDetail({
       {/* Chart */}
       <div
         className="rounded-[22px] p-4"
-        style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+        data-glass
       >
         {ranged.length === 0 ? (
-          <p className="py-12 text-center text-[14px]" style={{ color: "#5E5E66" }}>
+          <p className="py-12 text-center text-[14px]" style={{ color: "#83838C" }}>
             Keine Daten im gewählten Zeitraum
           </p>
         ) : (
@@ -247,7 +247,7 @@ export function MetricDetail({
         </p>
         <div
           className="overflow-hidden rounded-[18px]"
-          style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+          data-glass
         >
           {[...ranged].reverse().slice(0, 14).map((p, i) => (
             <div
@@ -303,12 +303,12 @@ export function AthleteScale({
   return (
     <div
       className="rounded-[18px] p-4"
-      style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+      data-glass
     >
       <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: accent }}>
         Sportler-Referenz
       </p>
-      <p className="mt-0.5 text-[11px]" style={{ color: "#5E5E66" }}>
+      <p className="mt-0.5 text-[11px]" style={{ color: "#83838C" }}>
         Skala für trainierte Erwachsene — nicht für die Allgemeinbevölkerung.
       </p>
 
@@ -372,7 +372,7 @@ function StatBox({ label, value, unit }: { label: string; value: string; unit: s
   return (
     <div
       className="rounded-2xl p-3"
-      style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+      data-glass
     >
       <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "#9A9AA2" }}>{label}</p>
       <p className="mt-1 text-[18px] font-bold leading-none text-white">

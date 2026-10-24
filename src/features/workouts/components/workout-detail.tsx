@@ -28,6 +28,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
@@ -41,7 +42,7 @@ import {
 import { ROUTES, exercisePath, DEFAULT_REST_TIMER } from "@/lib/constants";
 import { workoutHref } from "@/lib/workout-href";
 import type { PreviousLogEntry, PreviousSetEntry } from "@/features/workouts/previous-logs-types";
-import { suggestProgression, type ProgressionSuggestion } from "@/features/workouts/progression";
+import { suggestProgression, type RepRange, type ProgressionSuggestion } from "@/features/workouts/progression";
 import {
   loadPreviousLogsCache,
   savePreviousLogsCache,
@@ -56,6 +57,10 @@ import { nextWorkingSet } from "../progression";
 import { useI18n } from "@/lib/i18n-provider";
 import type { WorkoutData, WorkoutExerciseData, WorkoutSetData } from "@/features/workouts/workout-types";
 import { shouldRestAfterExercise } from "@/features/workouts/superset-utils";
+import { summarizeWorkout } from "@/features/workouts/workout-progress";
+import { useScreenWakeLock } from "@/lib/use-screen-wake-lock";
+import { muscleGroupLabel } from "@/lib/muscle-group-label";
+import { WorkoutProgressCard } from "./workout-progress-card";
 import {
   enqueueWorkoutOp,
   listQueueForWorkout,
@@ -73,6 +78,7 @@ import {
   wakeWatchAppForWorkout,
   clearWatchWorkoutState,
   computeRestTimerEndsAt,
+  latestRestAnchor,
   WatchConnectivity,
 } from "@/lib/native/watch-connectivity";
 
@@ -194,14 +200,26 @@ function formatProgressionHint(
 
 function deriveProgressions(
   logs: Record<string, PreviousLogEntry>,
-  weightUnit: "KG" | "LB"
+  weightUnit: "KG" | "LB",
+  workout?: WorkoutData | null
 ): Record<string, ProgressionSuggestion[]> {
+  const ranges = repRangesByExercise(workout);
   return Object.fromEntries(
     Object.entries(logs).map(([exerciseId, sets]) => [
       exerciseId,
-      sets ? suggestProgression([sets], weightUnit) : [],
+      sets ? suggestProgression([sets], weightUnit, ranges[exerciseId]) : [],
     ])
   );
+}
+
+/** Plan rep range per exercise id (from the workout's exercises). */
+function repRangesByExercise(workout?: WorkoutData | null): Record<string, RepRange | null> {
+  const out: Record<string, RepRange | null> = {};
+  for (const we of workout?.workoutExercises ?? []) {
+    out[we.exerciseId] =
+      we.repMin != null && we.repMax != null ? { min: we.repMin, max: we.repMax } : null;
+  }
+  return out;
 }
 
 function workoutAsPreviousLogs(workout: WorkoutData): Record<string, PreviousLogEntry> {
@@ -290,7 +308,6 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
   isActive,
   workoutId,
   weightLabel,
-  weightUnit,
   useLocalWrites,
   previousSets,
   progressionSuggestions,
@@ -353,7 +370,7 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
                 </Link>
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {we.exercise.muscleGroup.replace(/_/g, " ")}
+                {muscleGroupLabel(t, we.exercise.muscleGroup)}
               </p>
               {we.supersetGroup != null ? <Badge variant="secondary" className="mt-1 text-[10px]">{t("workouts.supersetLabel")}</Badge> : null}
             </div>
@@ -370,7 +387,7 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
             <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">{weightLabel}</span>
             <span className="w-16 text-center text-[10px] font-medium uppercase text-muted-foreground">{t("workouts.reps")}</span>
           </div>
-          {sortSetsForDisplay(we.sets).map((set, _idx, sorted) => {
+          {sortSetsForDisplay(we.sets).map((set, idx, sorted) => {
             let workingIdx = 0;
             if (!set.isWarmup) {
               for (const s of sorted) {
@@ -384,11 +401,20 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
             const progressionSuggestion = !set.isWarmup
               ? progressionSuggestions?.find((suggestion) => suggestion.setIndex === workingIdx)
               : undefined;
+            const nextOpenId = sorted.find((s) => !s.isCompleted)?.id;
+            const above = idx > 0 ? sorted[idx - 1] : undefined;
             return (
             <SetRow
               key={set.id}
               set={set}
               workoutId={workoutId}
+              isNext={isActive && set.id === nextOpenId}
+              prevSetValues={
+                above && (above.weight != null || above.reps != null)
+                  ? { setNumber: above.setNumber, weight: above.weight, reps: above.reps }
+                  : null
+              }
+              isBarbell={we.exercise.equipment === "BARBELL"}
               weightUnitLabel={weightLabel}
               unlockCompleted={reviseCompletedSets}
               previousHint={
@@ -531,7 +557,13 @@ export function WorkoutDetail({
   const [generatingWarmups, setGeneratingWarmups] = useState(false);
   const generatingWarmupsRef = useRef(false);
   const [reviseCompletedSets, setReviseCompletedSets] = useState(false);
+  const [summaryNote, setSummaryNote] = useState("");
+  const [savingSummaryNote, setSavingSummaryNote] = useState(false);
+  const summaryDoneRef = useRef<HTMLButtonElement>(null);
   const [completionSummary, setCompletionSummary] = useState<{
+    /** From the /complete response — `workout` only catches up after a reload. */
+    durationSeconds?: number | null;
+    records?: { exerciseName: string; weight: number; reps: number }[];
     hasPrevious: boolean;
     previousVolume: number;
     currentVolume: number;
@@ -553,6 +585,8 @@ export function WorkoutDetail({
   const { formatted: elapsedLabel } = useWorkoutTimer(startedAt);
 
   const isActive = workout && !workout.completedAt;
+  // Keep the phone awake for the whole session, not only during rest.
+  useScreenWakeLock(!!isActive);
   const weightLabel = weightUnit === "LB" ? "lb" : "kg";
   const useLocalWrites = nativeWatchOffline || !netOnline || offlineOriginSession || pendingQueue;
 
@@ -976,7 +1010,7 @@ export function WorkoutDetail({
       if (!cancelled && Object.keys(cached).length > 0) {
         setPreviousLogs((prev) => ({ ...cached, ...prev }));
         setProgressionSuggestions((prev) => ({
-          ...deriveProgressions(cached, weightUnit),
+          ...deriveProgressions(cached, weightUnit, workout),
           ...prev,
         }));
       }
@@ -986,7 +1020,7 @@ export function WorkoutDetail({
         const json = (await res.json()) as { data?: Record<string, PreviousLogEntry> };
         if (!cancelled && json.data) {
           setPreviousLogs(json.data);
-          setProgressionSuggestions(deriveProgressions(json.data, weightUnit));
+          setProgressionSuggestions(deriveProgressions(json.data, weightUnit, workout));
           void savePreviousLogsCache(json.data);
         }
       } catch {
@@ -996,11 +1030,16 @@ export function WorkoutDetail({
     return () => {
       cancelled = true;
     };
+    // Deliberately keyed on identity/shape, not the whole `workout` object —
+    // every set edit replaces `workout` and must not refetch previous logs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workoutId, workout?.id, workout?.completedAt, workout?.workoutExercises?.length, weightUnit]);
 
   useEffect(() => {
     if (workout?.name != null) setNameDraft(workout.name);
     else if (workout) setNameDraft("");
+    // Only resync the draft when the name/workout changes, not on set edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workout?.name, workout?.id]);
 
   useEffect(() => {
@@ -1478,8 +1517,16 @@ export function WorkoutDetail({
           volumeDeltaPct: number | null;
         };
         newPersonalRecords?: number;
+        records?: { exerciseName: string; weight: number; reps: number }[];
       };
-      if (json.comparison) setCompletionSummary(json.comparison);
+      if (json.comparison) {
+        setSummaryNote(workout?.notes ?? "");
+        setCompletionSummary({
+          ...json.comparison,
+          records: json.records ?? [],
+          durationSeconds: json.data?.durationSeconds ?? null,
+        });
+      }
       restTimer.stop();
       void syncTrainingCalendar();
       await savePreviousLogsCache(workoutAsPreviousLogs(workout));
@@ -1521,11 +1568,11 @@ export function WorkoutDetail({
   /// watch-connectivity.ts), not tracked here at all anymore.
   const lastRestTimerStartAtRef = useRef(0);
 
-  function startRestTimer() {
+  function startRestTimer(seconds = defaultRestSeconds) {
     const now = Date.now();
     if (now - lastRestTimerStartAtRef.current < 1500) return;
     lastRestTimerStartAtRef.current = now;
-    restTimer.start(defaultRestSeconds, { onExpire: fireRestDone, workoutId: workout?.id });
+    restTimer.start(seconds, { onExpire: fireRestDone, workoutId: workout?.id });
   }
 
   /**
@@ -1545,7 +1592,7 @@ export function WorkoutDetail({
     const endsAtSeconds = computeRestTimerEndsAt(w);
     if (endsAtSeconds == null) return;
     lastRestTimerStartAtRef.current = now;
-    const totalDuration = (w.restTimerDefaultSeconds ?? DEFAULT_REST_TIMER) + (w.restTimerAdjustSeconds ?? 0);
+    const totalDuration = latestRestAnchor(w).durationSeconds;
     const secondsUntilEnd = Math.max(1, Math.round(endsAtSeconds - now / 1000));
     restTimer.start(secondsUntilEnd, {
       onExpire: fireRestDone,
@@ -1555,7 +1602,11 @@ export function WorkoutDetail({
   }
 
   function onSetCompleted(weId: string) {
-    if (isActive && workout && shouldRestAfterExercise(workout, weId)) startRestTimer();
+    if (isActive && workout && shouldRestAfterExercise(workout, weId)) {
+      // Per-exercise rest from the plan (e.g. 4 min squats, 90 s raises).
+      const rest = workout.workoutExercises.find((we) => we.id === weId)?.restSeconds;
+      startRestTimer(rest ?? defaultRestSeconds);
+    }
     void pushWatchWorkoutState();
   }
 
@@ -1673,6 +1724,35 @@ export function WorkoutDetail({
     }
   }
 
+  /** Closes the finish dialog, saving the note first when one was written. */
+  async function closeSummary() {
+    const note = summaryNote.trim();
+    if (note && note !== (workout?.notes ?? "").trim()) {
+      setSavingSummaryNote(true);
+      try {
+        const res = await fetch(`/api/workouts/${workoutId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ notes: note }),
+        });
+        if (res.ok) {
+          setWorkout((w) => (w ? { ...w, notes: note } : w));
+          toast.success(t("workouts.summaryNoteSaved"));
+        } else {
+          toast.error(t("common.saveFailed"));
+          return;
+        }
+      } catch {
+        toast.error(t("common.saveFailed"));
+        return;
+      } finally {
+        setSavingSummaryNote(false);
+      }
+    }
+    setCompletionSummary(null);
+  }
+
   async function cancelWorkout() {
     if (!workout || workout.completedAt) return;
     if (!(await askConfirm(t("workouts.cancelWorkoutConfirm")))) return;
@@ -1777,10 +1857,22 @@ export function WorkoutDetail({
     );
   }
 
+  const progress = summarizeWorkout(workout);
+  const reviseToggle = !useLocalWrites ? (
+    <Button
+      variant="secondary"
+      className="w-full sm:w-auto"
+      type="button"
+      onClick={() => setReviseCompletedSets((v) => !v)}
+    >
+      {reviseCompletedSets ? t("workouts.doneEditingSets") : t("workouts.editCompletedSets")}
+    </Button>
+  ) : null;
+
   return (
-    <div className="space-y-6 pb-24 max-[1024px]:pb-[max(5.5rem,env(safe-area-inset-bottom))]">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1 space-y-1">
+    <div className="space-y-5 pb-24 max-[1024px]:pb-[max(5.5rem,env(safe-area-inset-bottom))]">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
           <Link
             href={ROUTES.workouts}
             className={cn(
@@ -1791,118 +1883,99 @@ export function WorkoutDetail({
             <ArrowLeft className="h-4 w-4" />
             {t("workouts.backToWorkouts")}
           </Link>
-          {workout.completedAt ? (
-            <h1 className="text-2xl font-bold tracking-tight">
-              {workout.name?.trim() || t("workouts.workoutFallback")}
-            </h1>
-          ) : (
-            <Input
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onBlur={saveName}
-              disabled={savingName}
-              placeholder={t("workouts.workoutNamePlaceholder")}
-              className="max-w-md text-2xl font-bold h-auto py-1 border-0 px-0 shadow-none focus-visible:ring-0"
-            />
-          )}
-          <p className="text-sm text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span>{formatShortDate(workout.startedAt)}</span>
-            {workout.planSessionId ? (
-              <Badge variant="secondary" className="text-xs font-normal">
-                {t("workouts.fromPlanBadge")}
-              </Badge>
-            ) : null}
-            {workout.completedAt ? (
-              <>
-                <span className="inline-flex items-center gap-1 text-green-600">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  {t("workouts.sessionComplete")}
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5" />
-                  {formatDuration(workout.durationSeconds)}
-                </span>
-              </>
-            ) : (
-              <span className="inline-flex items-center gap-1 font-mono tabular-nums">
-                <Timer className="h-3.5 w-3.5" />
-                {elapsedLabel}
-              </span>
-            )}
-          </p>
           {isActive ? (
-            <div className="max-w-md space-y-1 text-xs text-muted-foreground">
-              <p>{t("workouts.timerTrackingHint")}</p>
-              <p>{t("workouts.restTimerBackgroundHint")}</p>
-            </div>
-          ) : null}
-        </div>
-
-        {isActive ? (
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-            {/* Fixing a checkmarked set used to require finishing the whole
-                workout first (this toggle only appeared once workout.completedAt
-                was set) — mid-workout it's just as reachable now. */}
-            {!useLocalWrites ? (
-              <Button
-                variant="secondary"
-                className="w-full sm:w-auto"
-                type="button"
-                onClick={() => setReviseCompletedSets((v) => !v)}
-              >
-                {reviseCompletedSets
-                  ? t("workouts.doneEditingSets")
-                  : t("workouts.editCompletedSets")}
-              </Button>
-            ) : null}
             <Button
-              className="w-full shrink-0 sm:w-auto font-semibold"
-              size="lg"
+              size="sm"
+              className="rounded-full px-4 font-semibold"
               onClick={completeWorkout}
               disabled={completing || cancelling}
             >
-              <CheckCircle2 className="mr-2 h-4 w-4" />
+              <CheckCircle2 className="mr-1.5 h-4 w-4" />
               {completing ? t("workouts.finishing") : t("workouts.finishWorkout")}
             </Button>
-            <Button
-              variant="outline"
-              className="w-full shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
-              onClick={() => void cancelWorkout()}
-              disabled={completing || cancelling}
-            >
-              <X className="mr-2 h-4 w-4" />
-              {cancelling ? t("workouts.cancellingWorkout") : t("workouts.cancelWorkout")}
-            </Button>
-          </div>
-        ) : workout.completedAt ? (
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-            {/* Share button */}
-            <WorkoutShareButton workout={workout} weightUnit={weightLabel} />
-
-            {!useLocalWrites ? (
-              <Button
-                variant="secondary"
-                className="w-full sm:w-auto"
-                type="button"
-                onClick={() => setReviseCompletedSets((v) => !v)}
-              >
-                {reviseCompletedSets
-                  ? t("workouts.doneEditingSets")
-                  : t("workouts.editCompletedSets")}
-              </Button>
-            ) : null}
-            <Button
-              variant="outline"
-              className="w-full shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
-              onClick={() => void deleteCompletedWorkout()}
-              disabled={deletingWorkout}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              {deletingWorkout ? t("workouts.deletingWorkout") : t("workouts.deleteCompleted")}
-            </Button>
-          </div>
-        ) : null}
+          ) : workout.completedAt ? (
+            <div className="flex items-center gap-1">
+              <WorkoutShareButton workout={workout} weightUnit={weightLabel} className="px-3 py-1.5" />
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<Button type="button" variant="ghost" size="icon" aria-label={t("workouts.moreActions")} />}
+                >
+                  <MoreHorizontal className="h-5 w-5" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {!useLocalWrites ? (
+                    <DropdownMenuItem onClick={() => setReviseCompletedSets((v) => !v)}>
+                      {reviseCompletedSets ? t("workouts.doneEditingSets") : t("workouts.editCompletedSets")}
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={deletingWorkout}
+                    onClick={() => void deleteCompletedWorkout()}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {deletingWorkout ? t("workouts.deletingWorkout") : t("workouts.deleteCompleted")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : null}
+        </div>
+        {workout.completedAt ? (
+          <h1 className="text-2xl font-bold tracking-tight">
+            {workout.name?.trim() || t("workouts.workoutFallback")}
+          </h1>
+        ) : (
+          <Input
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={saveName}
+            disabled={savingName}
+            placeholder={t("workouts.workoutNamePlaceholder")}
+            className="max-w-md text-2xl font-bold h-auto py-1 border-0 px-0 shadow-none focus-visible:ring-0"
+          />
+        )}
+        <p className="text-sm text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>{formatShortDate(workout.startedAt)}</span>
+          {workout.planSessionId ? (
+            <Badge variant="secondary" className="text-xs font-normal">
+              {t("workouts.fromPlanBadge")}
+            </Badge>
+          ) : null}
+          {workout.completedAt ? (
+            <>
+              <span className="inline-flex items-center gap-1 text-green-600">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {t("workouts.sessionComplete")}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5" />
+                {formatDuration(workout.durationSeconds)}
+              </span>
+            </>
+          ) : (
+            <span className="inline-flex items-center gap-1 font-mono tabular-nums text-foreground">
+              <Timer className="h-3.5 w-3.5 text-primary" />
+              {elapsedLabel}
+            </span>
+          )}
+        </p>
       </div>
+
+      {isActive && workout.workoutExercises.length > 0 ? (
+        <WorkoutProgressCard progress={progress} weightLabel={weightLabel} />
+      ) : null}
+
+      {workout.completedAt && workout.notes?.trim() ? (
+        <p data-glass className="whitespace-pre-line rounded-2xl px-4 py-3 text-sm text-[var(--sys-label2)]">
+          {workout.notes}
+        </p>
+      ) : null}
+
+      {workout.completedAt && reviseCompletedSets ? (
+        // While correcting, the way out stays visible (not hidden in the menu).
+        <div className="sticky top-2 z-10">{reviseToggle}</div>
+      ) : null}
 
       {useLocalWrites && isActive ? (
         <p
@@ -1979,6 +2052,40 @@ export function WorkoutDetail({
         </div>
       )}
 
+      {isActive ? (
+        <div className="space-y-2 border-t border-border/60 pt-5">
+          <Button
+            className="w-full font-semibold"
+            size="lg"
+            onClick={completeWorkout}
+            disabled={completing || cancelling}
+          >
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+            {completing ? t("workouts.finishing") : t("workouts.finishWorkout")}
+          </Button>
+          {/* Fixing a checkmarked set mid-workout, not only after finishing. */}
+          {reviseToggle}
+          <Button
+            variant="ghost"
+            className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => void cancelWorkout()}
+            disabled={completing || cancelling}
+          >
+            <X className="mr-2 h-4 w-4" />
+            {cancelling ? t("workouts.cancellingWorkout") : t("workouts.cancelWorkout")}
+          </Button>
+          <details className="group rounded-xl px-1 pt-2 text-xs text-muted-foreground">
+            <summary className="cursor-pointer list-none text-center underline-offset-4 hover:underline">
+              {t("workouts.timerInfo")}
+            </summary>
+            <div className="mt-2 space-y-1">
+              <p>{t("workouts.timerTrackingHint")}</p>
+              <p>{t("workouts.restTimerBackgroundHint")}</p>
+            </div>
+          </details>
+        </div>
+      ) : null}
+
       <ExercisePickerDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}
@@ -1989,39 +2096,110 @@ export function WorkoutDetail({
       <Dialog
         open={!!completionSummary}
         onOpenChange={(open) => {
-          if (!open) setCompletionSummary(null);
+          if (!open) void closeSummary();
         }}
       >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("workouts.sessionSummaryTitle")}</DialogTitle>
-            <DialogDescription className="space-y-2 pt-1 text-left">
-              {completionSummary?.hasPrevious ? (
-                <>
-                  <p>
-                    {t("workouts.sessionSummaryVolume", {
-                      current: Math.round(completionSummary.currentVolume),
-                    })}
-                  </p>
-                  <p>
-                    {t("workouts.sessionSummaryDelta", {
-                      delta:
-                        completionSummary.volumeDelta >= 0
-                          ? `+${Math.round(completionSummary.volumeDelta)}`
-                          : String(Math.round(completionSummary.volumeDelta)),
-                      pct:
-                        completionSummary.volumeDeltaPct != null
-                          ? (completionSummary.volumeDeltaPct > 0 ? "+" : "") +
-                            completionSummary.volumeDeltaPct.toFixed(1)
-                          : "—",
-                    })}
-                  </p>
-                </>
-              ) : (
-                <p>{t("workouts.sessionSummaryNoPrevious")}</p>
-              )}
-            </DialogDescription>
+        {/* Focus the done button, not the note field: on a phone a focused
+            textarea would pop the keyboard over the summary. */}
+        <DialogContent className="overflow-hidden sm:max-w-md" initialFocus={summaryDoneRef}>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 -top-24 h-48 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--primary)_35%,transparent),transparent)]"
+          />
+          <DialogHeader className="relative items-center text-center">
+            <div className="mb-1 flex h-14 w-14 items-center justify-center rounded-full bg-primary/15 ring-1 ring-primary/40">
+              <CheckCircle2 className="h-7 w-7 text-primary" />
+            </div>
+            <DialogTitle className="text-2xl">{t("workouts.summaryHeadline")}</DialogTitle>
+            <DialogDescription>{t("workouts.sessionSummaryTitle")}</DialogDescription>
           </DialogHeader>
+          {completionSummary ? (
+            <div className="relative space-y-4">
+              <dl className="grid grid-cols-3 gap-2">
+                {[
+                  {
+                    label: t("workouts.summaryDuration"),
+                    value: formatDuration(completionSummary.durationSeconds ?? workout.durationSeconds),
+                  },
+                  { label: t("workouts.summarySets"), value: String(progress.completedSets) },
+                  {
+                    label: t("workouts.summaryVolume"),
+                    value: `${Math.round(completionSummary.currentVolume).toLocaleString()} ${weightLabel}`,
+                  },
+                ].map((stat) => (
+                  <div key={stat.label} className="rounded-xl bg-muted/60 px-2 py-3 text-center">
+                    <dt className="text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">
+                      {stat.label}
+                    </dt>
+                    <dd className="mt-1 truncate font-display text-lg font-bold tabular-nums">
+                      {stat.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              {completionSummary.hasPrevious ? (
+                <p className="text-center text-sm">
+                  <span
+                    className={cn(
+                      "mr-1.5 inline-flex rounded-full px-2 py-0.5 font-semibold tabular-nums",
+                      completionSummary.volumeDelta >= 0
+                        ? "bg-primary/15 text-primary"
+                        : "bg-destructive/15 text-destructive"
+                    )}
+                  >
+                    {completionSummary.volumeDelta >= 0 ? "+" : ""}
+                    {Math.round(completionSummary.volumeDelta).toLocaleString()} {weightLabel}
+                    {completionSummary.volumeDeltaPct != null
+                      ? ` (${completionSummary.volumeDeltaPct > 0 ? "+" : ""}${completionSummary.volumeDeltaPct.toFixed(1)} %)`
+                      : ""}
+                  </span>
+                  <span className="text-muted-foreground">{t("workouts.summaryVsLast")}</span>
+                </p>
+              ) : (
+                <p className="text-center text-sm text-muted-foreground">
+                  {t("workouts.sessionSummaryNoPrevious")}
+                </p>
+              )}
+              {completionSummary.records && completionSummary.records.length > 0 ? (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    🏆 {t("workouts.summaryRecords")}
+                  </p>
+                  <ul className="space-y-1">
+                    {completionSummary.records.map((r, i) => (
+                      <li
+                        key={`${r.exerciseName}-${i}`}
+                        className="flex items-center justify-between gap-3 rounded-lg bg-primary/10 px-3 py-2 text-sm"
+                      >
+                        <span className="min-w-0 truncate font-medium">{r.exerciseName}</span>
+                        <span className="shrink-0 font-display font-bold tabular-nums text-primary">
+                          {r.weight.toLocaleString()} {weightLabel} × {r.reps}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <Textarea
+                value={summaryNote}
+                onChange={(e) => setSummaryNote(e.target.value)}
+                placeholder={t("workouts.summaryNotePlaceholder")}
+                maxLength={1000}
+                rows={2}
+              />
+              <Button
+                ref={summaryDoneRef}
+                className="w-full"
+                size="lg"
+                disabled={savingSummaryNote}
+                onClick={() => void closeSummary()}
+              >
+                {summaryNote.trim() && summaryNote.trim() !== (workout.notes ?? "").trim()
+                  ? t("workouts.summaryNoteSave")
+                  : t("workouts.summaryDone")}
+              </Button>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
 

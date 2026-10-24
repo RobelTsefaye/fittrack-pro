@@ -31,14 +31,14 @@ export function MetricAreaChart({
         <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
         <XAxis
           dataKey="date"
-          stroke="#5E5E66"
+          stroke="#83838C"
           fontSize={10}
           tickFormatter={(d) => {
             const dt = new Date(d);
             return `${dt.getDate()}.${dt.getMonth() + 1}.`;
           }}
         />
-        <YAxis stroke="#5E5E66" fontSize={10} width={40} />
+        <YAxis stroke="#83838C" fontSize={10} width={40} />
         <Tooltip
           contentStyle={{
             background: "#1C1C1E",

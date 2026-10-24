@@ -6,13 +6,7 @@ import { MUSCLE_GROUPS, EQUIPMENT_TYPES } from "@/lib/constants";
 import { Search } from "lucide-react";
 import { useCallback } from "react";
 import { useI18n } from "@/lib/i18n-provider";
-
-function formatLabel(value: string) {
-  return value
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
+import { equipmentLabel, muscleGroupLabel } from "@/lib/muscle-group-label";
 
 export function ExerciseFilters() {
   const { t } = useI18n();
@@ -64,7 +58,7 @@ export function ExerciseFilters() {
         <option value="ALL">{t("exercises.filterAllMuscle")}</option>
         {MUSCLE_GROUPS.map((mg) => (
           <option key={mg} value={mg}>
-            {formatLabel(mg)}
+            {muscleGroupLabel(t, mg)}
           </option>
         ))}
       </select>
@@ -77,7 +71,7 @@ export function ExerciseFilters() {
         <option value="ALL">{t("exercises.filterAllEquipment")}</option>
         {EQUIPMENT_TYPES.map((eq) => (
           <option key={eq} value={eq}>
-            {formatLabel(eq)}
+            {equipmentLabel(t, eq)}
           </option>
         ))}
       </select>

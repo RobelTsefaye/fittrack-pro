@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import type { PreviousLogEntry } from "@/features/workouts/previous-logs-types";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 /** Returns the latest qualifying completed-session working sets for every
  * exercise the user has logged. This is used to warm the offline "last time"
  * cache before a workout is opened. */
-export async function GET() {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const GET = withApi(async function GET() {
+  const userId = await requireUserId();
 
   const latestWes = await prisma.$queryRaw<Array<{ id: string; exerciseId: string }>>`
     SELECT DISTINCT ON (we."exerciseId") we.id, we."exerciseId"
@@ -53,4 +52,4 @@ export async function GET() {
   }
 
   return NextResponse.json({ data });
-}
+});

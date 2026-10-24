@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { updatePlanSessionSchema } from "@/features/plans/schemas";
+import { readJsonBody, requireUserId, withApi } from "@/lib/api/route-handler";
 
 async function getSessionForUser(sessionId: string, userId: string) {
   return prisma.planSession.findFirst({
@@ -9,14 +9,11 @@ async function getSessionForUser(sessionId: string, userId: string) {
   });
 }
 
-export async function PATCH(
+export const PATCH = withApi(async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { sessionId } = await params;
   const existing = await getSessionForUser(sessionId, userId);
@@ -24,7 +21,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
   }
 
-  const body = await req.json();
+  const body = await readJsonBody(req);
   const parsed = updatePlanSessionSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -43,16 +40,13 @@ export async function PATCH(
   });
 
   return NextResponse.json({ data: updated });
-}
+});
 
-export async function DELETE(
+export const DELETE = withApi(async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = await requireUserId();
 
   const { sessionId } = await params;
   const existing = await getSessionForUser(sessionId, userId);
@@ -62,4 +56,4 @@ export async function DELETE(
 
   await prisma.planSession.delete({ where: { id: sessionId } });
   return NextResponse.json({ ok: true });
-}
+});

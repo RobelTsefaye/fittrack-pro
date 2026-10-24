@@ -2,6 +2,22 @@
 
 All routes prefixed with `/api`. All routes except auth require authentication.
 
+## Conventions (`src/lib/api/route-handler.ts`)
+Data routes are written as
+
+```ts
+export const GET = withApi(async function GET(req: NextRequest) {
+  const userId = await requireUserId(); // cookie session or `Bearer ftp_…`
+  ...
+});
+```
+
+- `requireUserId()` → `401 { error: "Unauthorized" }` when neither a session nor an API token resolves.
+- `throw new ApiError(status, message)` anywhere inside the handler → `{ error: message }` with that status.
+- Read bodies with `await readJsonBody(req)` → malformed JSON becomes `400 { error: "Invalid JSON body" }` (previously a 500).
+- Invalid `YYYY-MM-DD` dates (`parseDateOnlyUtc` throws `InvalidDateError`, including overflow like `2024-02-30`) → `400`.
+- Any other error is rethrown unchanged (500).
+
 ## Auth
 | Method | Route | Description |
 |--------|-------|-------------|

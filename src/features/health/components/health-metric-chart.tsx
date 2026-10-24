@@ -44,7 +44,7 @@ export function HealthMetricChart({
   return (
     <div
       className="rounded-[18px] p-4"
-      style={{ background: "#121214", border: "1px solid rgba(255,255,255,0.08)" }}
+      data-glass
     >
       <p className="mb-3 text-[13px] font-semibold text-white">{label}</p>
       <ResponsiveContainer width="100%" height={90}>

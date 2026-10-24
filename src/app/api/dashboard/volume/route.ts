@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveUserIdForDataApi } from "@/lib/api-auth";
 import {
   getVolumeBucketsMonthly,
   getVolumeBucketsWeekly,
 } from "@/features/dashboard/queries";
+import { requireUserId, withApi } from "@/lib/api/route-handler";
 
-export async function GET(req: NextRequest) {
-  const userId = await resolveUserIdForDataApi();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export const GET = withApi(async function GET(req: NextRequest) {
+  const userId = await requireUserId();
 
   const period = req.nextUrl.searchParams.get("period");
   const meta = { period: period === "month" ? "month" : "week" } as const;
@@ -20,4 +17,4 @@ export async function GET(req: NextRequest) {
       : await getVolumeBucketsWeekly(userId);
 
   return NextResponse.json({ data, meta });
-}
+});

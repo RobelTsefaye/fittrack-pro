@@ -1,9 +1,37 @@
+import { z } from "zod";
+
+export class InvalidDateError extends Error {
+  constructor(input: string) {
+    super(`Invalid date: ${JSON.stringify(input)}`);
+    this.name = "InvalidDateError";
+  }
+}
+
 /** Parse `YYYY-MM-DD` as UTC calendar date (matches `@db.Date` storage). */
 export function parseDateOnlyUtc(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) throw new Error("Invalid date");
-  return new Date(Date.UTC(y, m - 1, d));
+  if (!y || !m || !d) throw new InvalidDateError(iso);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  // Date.UTC silently rolls over (2024-02-30 → 2024-03-01); reject instead.
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) {
+    throw new InvalidDateError(iso);
+  }
+  return date;
 }
+
+/** Strict `YYYY-MM-DD` check, including calendar validity (no 2024-02-30). */
+export function isValidDateOnly(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  try {
+    parseDateOnlyUtc(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Shared zod schema for `YYYY-MM-DD` inputs (client + server). */
+export const dateOnlySchema = z.string().refine(isValidDateOnly, "Use YYYY-MM-DD");
 
 export function formatDateOnlyUtc(d: Date): string {
   return d.toISOString().slice(0, 10);

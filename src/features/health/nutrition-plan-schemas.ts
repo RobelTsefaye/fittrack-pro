@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { dateOnlySchema } from "@/lib/date-only";
 
-const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
+const dateOnly = dateOnlySchema;
 
 export const createNutritionPlanSchema = z
   .object({
