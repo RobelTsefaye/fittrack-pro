@@ -4,10 +4,34 @@ import { useMemo } from "react";
 import { Dumbbell, Flame, Trophy, TrendingUp } from "lucide-react";
 import type { DashboardClientPayload } from "@/features/dashboard/queries";
 import { useI18n } from "@/lib/i18n-provider";
+import { RecoveryHint, type DashboardRecovery } from "./recovery-hint";
 import { NextWorkoutCard } from "./next-workout-card";
 
 const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 const nf1 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
+
+/** Small progress ring for the weekly-goal tile. */
+function GoalRing({ progress }: { progress: number }) {
+  const r = 9;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6 -rotate-90" aria-hidden>
+      <circle cx="12" cy="12" r={r} fill="none" strokeWidth="3" stroke="rgba(255,255,255,0.12)" />
+      <circle
+        cx="12"
+        cy="12"
+        r={r}
+        fill="none"
+        strokeWidth="3"
+        strokeLinecap="round"
+        stroke="#D4FF3A"
+        strokeDasharray={c}
+        strokeDashoffset={c * (1 - progress)}
+        style={{ filter: "drop-shadow(0 0 4px rgba(212,255,58,0.6))", transition: "stroke-dashoffset 600ms" }}
+      />
+    </svg>
+  );
+}
 
 function VolumeSparkline({ data }: { data: { volume: number; label: string }[] }) {
   const { t } = useI18n();
@@ -85,12 +109,15 @@ function VolumeSparkline({ data }: { data: { volume: number; label: string }[] }
 
 interface DashboardAnalyticsProps {
   userName?: string | null;
+  /** Optional: absent on cached payloads and without health data. */
+  recovery?: DashboardRecovery | null;
   weightUnit: "KG" | "LB";
   payload: DashboardClientPayload;
 }
 
 export function DashboardAnalytics({
   userName,
+  recovery,
   weightUnit,
   payload,
 }: DashboardAnalyticsProps) {
@@ -110,22 +137,33 @@ export function DashboardAnalytics({
     []
   );
 
+  const weeklyGoal = summary.weeklyGoal ?? 3;
   const statCards = useMemo(
     () => [
       {
         label: t("nav.workouts"),
-        value: nf.format(summary.completedThisWeek),
-        sub: t("dashboard.weekWorkoutsSub", { total: nf.format(summary.totalWorkouts) }),
+        value: `${nf.format(summary.completedThisWeek)}/${weeklyGoal}`,
+        sub: t("dashboard.weekGoalSub", { total: nf.format(summary.totalWorkouts) }),
         icon: Dumbbell,
-        accent: false,
+        accent: summary.completedThisWeek >= weeklyGoal,
+        progress: Math.min(1, summary.completedThisWeek / weeklyGoal),
       },
-      {
-        label: t("dashboard.streak"),
-        value: nf.format(summary.workoutStreakDays),
-        sub: t("dashboard.streakHint"),
-        icon: Flame,
-        accent: true,
-      },
+      // Older cached payloads have no weekStreak yet — fall back to days.
+      summary.weekStreak != null
+        ? {
+            label: t("dashboard.streak"),
+            value: nf.format(summary.weekStreak),
+            sub: t("dashboard.weekStreakHint"),
+            icon: Flame,
+            accent: true,
+          }
+        : {
+            label: t("dashboard.streak"),
+            value: nf.format(summary.workoutStreakDays),
+            sub: t("dashboard.streakHint"),
+            icon: Flame,
+            accent: true,
+          },
       {
         label: t("dashboard.volumeLabel"),
         value: nf1.format((volumeWeekly.at(-1)?.volume ?? 0) / 1000),
@@ -142,6 +180,8 @@ export function DashboardAnalytics({
       },
     ],
     [
+      weeklyGoal,
+      summary.weekStreak,
       summary.completedThisWeek,
       summary.totalWorkouts,
       summary.workoutStreakDays,
@@ -172,6 +212,8 @@ export function DashboardAnalytics({
       {/* ── Up next card ────────────────────── */}
       <NextWorkoutCard nextSession={nextSession} />
 
+      {recovery ? <RecoveryHint recovery={recovery} /> : null}
+
       {/* ── Stats 2×2 grid ──────────────────── */}
       <div>
         <p
@@ -194,11 +236,15 @@ export function DashboardAnalytics({
                 >
                   {s.label}
                 </span>
-                <s.icon
-                  className="h-4 w-4"
-                  style={{ color: s.accent ? "#D4FF3A" : "#83838C" }}
-                  strokeWidth={1.7}
-                />
+                {"progress" in s && s.progress != null ? (
+                  <GoalRing progress={s.progress} />
+                ) : (
+                  <s.icon
+                    className="h-4 w-4"
+                    style={{ color: s.accent ? "#D4FF3A" : "#83838C" }}
+                    strokeWidth={1.7}
+                  />
+                )}
               </div>
               <div
                 className="font-display text-[2rem] font-bold leading-none tracking-tight"

@@ -249,7 +249,13 @@
     "nextWorkoutStart": "Training starten",
     "nextWorkoutStarting": "Startet…",
     "nextWorkoutOfflineFallback": "Offline nicht aus einem Plan startbar — starte stattdessen manuell.",
-    "volumeChartTitle": "Volumen · 8 Wochen"
+    "volumeChartTitle": "Volumen · 8 Wochen",
+    "weekGoalSub": "Wochenziel · {total} insgesamt",
+    "weekStreakHint": "Wochen in Folge Ziel erreicht",
+    "recoveryHigh": "Bereit für hartes Training",
+    "recoveryMid": "Normal trainieren, auf Technik achten",
+    "recoveryLow": "Heute leichter: weniger Sätze oder Deload",
+    "recoveryLabel": "Erholung {score}/100"
   },
   "workouts": {
     "title": "Workouts",

@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { APP_NAME } from "@/lib/constants";
+import type { DashboardRecovery } from "@/features/dashboard/components/recovery-hint";
 import { DashboardAnalytics } from "@/features/dashboard/components/dashboard-analytics";
 import { MuscleHeatmapCard } from "@/features/dashboard/components/muscle-heatmap-card";
 import { AchievementsCard } from "@/features/dashboard/components/achievements-card";
@@ -21,6 +22,7 @@ type DashboardState = {
    *  (see cached-user.ts). Optional: cached payloads predating this field. */
   userName?: string | null;
   payload: DashboardClientPayload;
+  recovery?: DashboardRecovery | null;
 };
 
 // Client component — no server-side auth()/data-fetching (see
@@ -109,6 +111,7 @@ export default function DashboardPage() {
             userName={state.userName ?? session?.user?.name}
             weightUnit={state.weightUnit}
             payload={state.payload}
+            recovery={state.recovery}
           />
           <AchievementsCard />
           <MuscleHeatmapCard />

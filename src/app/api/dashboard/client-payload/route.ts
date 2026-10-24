@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getDashboardClientPayload } from "@/features/dashboard/queries";
+import { computeRecovery } from "@/features/health/recovery";
 import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 /**
@@ -25,11 +26,20 @@ export const GET = withApi(async function GET() {
     getDashboardClientPayload(userId),
   ]);
 
+  // Recovery readiness for the dashboard hint. Best effort: no health data
+  // (or any failure) simply means no hint, never a broken dashboard.
+  const recovery = await computeRecovery(userId)
+    .then((r) =>
+      r.baseline.daysOfData >= 3 ? { score: Math.round(r.score), level: r.level } : null
+    )
+    .catch(() => null);
+
   return NextResponse.json({
     data: {
       weightUnit: settings?.weightUnit ?? "KG",
       userName: user?.name ?? null,
       payload,
+      recovery,
     },
   });
 });
