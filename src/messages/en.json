@@ -455,7 +455,11 @@
     "removeExercise": "Remove",
     "fromPlanLink": "Plans",
     "moreActions": "Plan actions",
-    "nameSaved": "Name saved"
+    "nameSaved": "Name saved",
+    "repRange": "Reps",
+    "repRangeHint": "Target rep range for progression",
+    "rest": "Rest",
+    "restDefault": "Default"
   },
   "exercises": {
     "title": "Exercises",
@@ -541,7 +545,11 @@
     "notesEditLabel": "Notes",
     "chartSeriesAvg": "7-day average",
     "addNote": "Add note",
-    "lastEntry": "Last: {weight} {unit}"
+    "lastEntry": "Last: {weight} {unit}",
+    "goal": "Goal",
+    "goalPlaceholder": "Goal weight",
+    "goalSaved": "Goal saved",
+    "toGoal": "{delta} {unit} to goal"
   },
   "offline": {
     "banner": "You are offline — changes are saved locally and sync when you reconnect.",

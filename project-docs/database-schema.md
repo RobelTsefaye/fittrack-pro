@@ -60,6 +60,15 @@ User 1──* Workout 1──* WorkoutExercise 1──* Set
 | supersetGroup | Int? | Shared ad-hoc group id; null for standalone exercises |
 | notes | String? | Optional |
 | isCompleted | Boolean | Default false |
+| repMin / repMax | Int? | Target rep range copied from the plan at start (double progression) |
+| restSeconds | Int? | Rest after this exercise; null = user default |
+
+### PlanSessionExercise
+| Column | Type | Notes |
+|--------|------|-------|
+| targetSets | Int | Sets created when the day is started (default 3) |
+| repMin / repMax | Int? | Target rep range. When every working set of the last session reached `repMax`, the next suggestion adds one increment and restarts at `repMin`; otherwise +1 rep (see `src/features/workouts/progression.ts`) |
+| restSeconds | Int? | Rest after this exercise (15–900 s); null = user default |
 
 ### Set
 | Column | Type | Notes |
@@ -123,7 +132,8 @@ User 1──* Workout 1──* WorkoutExercise 1──* Set
 | userId | UUID | FK → User, unique |
 | weightUnit | Enum | KG or LB |
 | theme | Enum | LIGHT or DARK |
-| restTimerDefault | Int | Default rest seconds (90) |
+| restTimerDefault | Int | Default rest seconds (180) |
+| goalWeight | Float? | Body-weight goal in the user's unit (dashed line on the weight chart) |
 | trainingDurationMinutes | Int | Default gym calendar event duration |
 | cardioSyncEnabled | Boolean | Enables the separate Cardio calendar |
 | cardioWeekdays / cardioTimeMinutes | Int[] / Int | Cardio weekday and start time |

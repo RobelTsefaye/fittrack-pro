@@ -42,7 +42,7 @@ import {
 import { ROUTES, exercisePath, DEFAULT_REST_TIMER } from "@/lib/constants";
 import { workoutHref } from "@/lib/workout-href";
 import type { PreviousLogEntry, PreviousSetEntry } from "@/features/workouts/previous-logs-types";
-import { suggestProgression, type ProgressionSuggestion } from "@/features/workouts/progression";
+import { suggestProgression, type RepRange, type ProgressionSuggestion } from "@/features/workouts/progression";
 import {
   loadPreviousLogsCache,
   savePreviousLogsCache,
@@ -199,14 +199,26 @@ function formatProgressionHint(
 
 function deriveProgressions(
   logs: Record<string, PreviousLogEntry>,
-  weightUnit: "KG" | "LB"
+  weightUnit: "KG" | "LB",
+  workout?: WorkoutData | null
 ): Record<string, ProgressionSuggestion[]> {
+  const ranges = repRangesByExercise(workout);
   return Object.fromEntries(
     Object.entries(logs).map(([exerciseId, sets]) => [
       exerciseId,
-      sets ? suggestProgression([sets], weightUnit) : [],
+      sets ? suggestProgression([sets], weightUnit, ranges[exerciseId]) : [],
     ])
   );
+}
+
+/** Plan rep range per exercise id (from the workout's exercises). */
+function repRangesByExercise(workout?: WorkoutData | null): Record<string, RepRange | null> {
+  const out: Record<string, RepRange | null> = {};
+  for (const we of workout?.workoutExercises ?? []) {
+    out[we.exerciseId] =
+      we.repMin != null && we.repMax != null ? { min: we.repMin, max: we.repMax } : null;
+  }
+  return out;
 }
 
 function workoutAsPreviousLogs(workout: WorkoutData): Record<string, PreviousLogEntry> {
@@ -997,7 +1009,7 @@ export function WorkoutDetail({
       if (!cancelled && Object.keys(cached).length > 0) {
         setPreviousLogs((prev) => ({ ...cached, ...prev }));
         setProgressionSuggestions((prev) => ({
-          ...deriveProgressions(cached, weightUnit),
+          ...deriveProgressions(cached, weightUnit, workout),
           ...prev,
         }));
       }
@@ -1007,7 +1019,7 @@ export function WorkoutDetail({
         const json = (await res.json()) as { data?: Record<string, PreviousLogEntry> };
         if (!cancelled && json.data) {
           setPreviousLogs(json.data);
-          setProgressionSuggestions(deriveProgressions(json.data, weightUnit));
+          setProgressionSuggestions(deriveProgressions(json.data, weightUnit, workout));
           void savePreviousLogsCache(json.data);
         }
       } catch {
@@ -1555,11 +1567,11 @@ export function WorkoutDetail({
   /// watch-connectivity.ts), not tracked here at all anymore.
   const lastRestTimerStartAtRef = useRef(0);
 
-  function startRestTimer() {
+  function startRestTimer(seconds = defaultRestSeconds) {
     const now = Date.now();
     if (now - lastRestTimerStartAtRef.current < 1500) return;
     lastRestTimerStartAtRef.current = now;
-    restTimer.start(defaultRestSeconds, { onExpire: fireRestDone, workoutId: workout?.id });
+    restTimer.start(seconds, { onExpire: fireRestDone, workoutId: workout?.id });
   }
 
   /**
@@ -1579,7 +1591,21 @@ export function WorkoutDetail({
     const endsAtSeconds = computeRestTimerEndsAt(w);
     if (endsAtSeconds == null) return;
     lastRestTimerStartAtRef.current = now;
-    const totalDuration = (w.restTimerDefaultSeconds ?? DEFAULT_REST_TIMER) + (w.restTimerAdjustSeconds ?? 0);
+    // Same rest source as computeRestTimerEndsAt: the exercise of the most
+    // recently completed set, else the user default.
+    let latestAt = 0;
+    let latestRest: number | null | undefined = null;
+    for (const we of w.workoutExercises) {
+      for (const set of we.sets) {
+        const at = set.completedAt ? Date.parse(set.completedAt) : 0;
+        if (at > latestAt) {
+          latestAt = at;
+          latestRest = we.restSeconds;
+        }
+      }
+    }
+    const totalDuration =
+      (latestRest ?? w.restTimerDefaultSeconds ?? DEFAULT_REST_TIMER) + (w.restTimerAdjustSeconds ?? 0);
     const secondsUntilEnd = Math.max(1, Math.round(endsAtSeconds - now / 1000));
     restTimer.start(secondsUntilEnd, {
       onExpire: fireRestDone,
@@ -1589,7 +1615,11 @@ export function WorkoutDetail({
   }
 
   function onSetCompleted(weId: string) {
-    if (isActive && workout && shouldRestAfterExercise(workout, weId)) startRestTimer();
+    if (isActive && workout && shouldRestAfterExercise(workout, weId)) {
+      // Per-exercise rest from the plan (e.g. 4 min squats, 90 s raises).
+      const rest = workout.workoutExercises.find((we) => we.id === weId)?.restSeconds;
+      startRestTimer(rest ?? defaultRestSeconds);
+    }
     void pushWatchWorkoutState();
   }
 

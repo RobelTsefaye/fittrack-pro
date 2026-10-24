@@ -100,3 +100,23 @@ describe("summarizeWorkout", () => {
     expect(summarizeWorkout({ workoutExercises: [] }).ratio).toBe(0);
   });
 });
+
+describe("double progression", () => {
+  const set = (weight: number, reps: number, setNumber = 1) => ({ setNumber, weight, reps, rpe: null });
+  const range = { min: 6, max: 8 };
+
+  it("adds weight and resets reps once every set hit the top of the range", () => {
+    expect(suggestProgression([[set(100, 8), set(100, 8, 2)]], "KG", range)).toEqual([
+      { setIndex: 0, weight: 102.5, reps: 6, kind: "increase" },
+      { setIndex: 1, weight: 102.5, reps: 6, kind: "increase" },
+    ]);
+  });
+
+  it("otherwise keeps the weight and aims for one more rep, within the range", () => {
+    expect(suggestProgression([[set(100, 8), set(100, 6, 2), set(100, 4, 3)]], "KG", range)).toEqual([
+      { setIndex: 0, weight: 100, reps: 8, kind: "hold" },
+      { setIndex: 1, weight: 100, reps: 7, kind: "hold" },
+      { setIndex: 2, weight: 100, reps: 6, kind: "hold" },
+    ]);
+  });
+});

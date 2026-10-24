@@ -4,6 +4,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -14,9 +15,10 @@ import { useI18n } from "@/lib/i18n-provider";
 interface BodyWeightChartProps {
   data: { date: string; weight: number; avg7?: number }[];
   unitLabel: string;
+  goalWeight?: number | null;
 }
 
-export function BodyWeightChart({ data, unitLabel }: BodyWeightChartProps) {
+export function BodyWeightChart({ data, unitLabel, goalWeight }: BodyWeightChartProps) {
   const { t } = useI18n();
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -46,6 +48,15 @@ export function BodyWeightChart({ data, unitLabel }: BodyWeightChartProps) {
             name === "avg7" ? t("bodyWeight.chartSeriesAvg") : t("bodyWeight.chartSeriesWeight"),
           ]}
         />
+        {goalWeight != null ? (
+          <ReferenceLine
+            y={goalWeight}
+            stroke="var(--color-chart-4)"
+            strokeDasharray="6 4"
+            ifOverflow="extendDomain"
+            label={{ value: `${t("bodyWeight.goal")} ${goalWeight}`, position: "insideTopRight", fontSize: 11, fill: "var(--muted-foreground)" }}
+          />
+        ) : null}
         {/* Daily weigh-ins as faint dots; the 7-day mean is the real trend. */}
         <Line
           type="monotone"

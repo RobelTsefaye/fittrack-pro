@@ -54,8 +54,31 @@ type Pse = {
   exerciseId: string;
   order: number;
   targetSets: number;
+  repMin?: number | null;
+  repMax?: number | null;
+  restSeconds?: number | null;
   exercise: ExerciseRef;
 };
+
+type PsePatch = {
+  targetSets?: number;
+  repMin?: number | null;
+  repMax?: number | null;
+  restSeconds?: number | null;
+};
+
+const REST_OPTIONS = [60, 90, 120, 150, 180, 240, 300] as const;
+
+function formatRest(seconds: number) {
+  return seconds % 60 === 0 ? `${seconds / 60} min` : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")} min`;
+}
+
+/** "" → null, otherwise an int in [1, 100] (undefined when invalid). */
+function parseReps(value: string): number | null | undefined {
+  if (value.trim() === "") return null;
+  const n = parseInt(value, 10);
+  return Number.isInteger(n) && n >= 1 && n <= 100 ? n : undefined;
+}
 
 type PlanSession = {
   id: string;
@@ -77,14 +100,14 @@ type PlanDetail = {
 interface SortablePseRowProps {
   pse: Pse;
   onRemove: (pseId: string) => void;
-  onUpdateTargetSets: (pseId: string, value: string) => void;
+  onUpdatePse: (pseId: string, patch: PsePatch) => void;
   targetSetsLabel: string;
 }
 
 function SortablePseRow({
   pse,
   onRemove,
-  onUpdateTargetSets,
+  onUpdatePse,
   targetSetsLabel,
 }: SortablePseRowProps) {
   const { t } = useI18n();
@@ -101,8 +124,9 @@ function SortablePseRow({
     <li
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 rounded-lg border px-2 py-1.5 text-sm"
+      className="space-y-1.5 rounded-lg border px-2 py-1.5 text-sm"
     >
+      <div className="flex items-center gap-2">
       <button
         type="button"
         className="cursor-grab touch-none shrink-0 text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
@@ -131,9 +155,8 @@ function SortablePseRow({
           defaultValue={pse.targetSets}
           key={`${pse.id}-${pse.targetSets}`}
           onBlur={(e) => {
-            if (e.target.value !== String(pse.targetSets)) {
-              onUpdateTargetSets(pse.id, e.target.value);
-            }
+            const n = parseInt(e.target.value, 10);
+            if (n !== pse.targetSets && n >= 1 && n <= 20) onUpdatePse(pse.id, { targetSets: n });
           }}
         />
       </div>
@@ -147,6 +170,60 @@ function SortablePseRow({
       >
         <Trash2 className="h-4 w-4" />
       </Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pl-7 text-xs text-muted-foreground">
+        <label className="flex items-center gap-1.5" title={t("plans.repRangeHint")}>
+          {t("plans.repRange")}
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={100}
+            placeholder="–"
+            aria-label={`${t("plans.repRange")} min`}
+            className="h-7 w-12 px-1 text-center text-xs"
+            defaultValue={pse.repMin ?? ""}
+            key={`${pse.id}-min-${pse.repMin}`}
+            onBlur={(e) => {
+              const v = parseReps(e.target.value);
+              if (v !== undefined && v !== (pse.repMin ?? null)) onUpdatePse(pse.id, { repMin: v });
+            }}
+          />
+          –
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={100}
+            placeholder="–"
+            aria-label={`${t("plans.repRange")} max`}
+            className="h-7 w-12 px-1 text-center text-xs"
+            defaultValue={pse.repMax ?? ""}
+            key={`${pse.id}-max-${pse.repMax}`}
+            onBlur={(e) => {
+              const v = parseReps(e.target.value);
+              if (v !== undefined && v !== (pse.repMax ?? null)) onUpdatePse(pse.id, { repMax: v });
+            }}
+          />
+        </label>
+        <label className="flex items-center gap-1.5">
+          {t("plans.rest")}
+          <select
+            className="h-7 rounded-md border bg-transparent px-1.5 text-xs text-foreground"
+            value={pse.restSeconds ?? ""}
+            onChange={(e) =>
+              onUpdatePse(pse.id, { restSeconds: e.target.value === "" ? null : Number(e.target.value) })
+            }
+          >
+            <option value="">{t("plans.restDefault")}</option>
+            {REST_OPTIONS.map((sec) => (
+              <option key={sec} value={sec}>
+                {formatRest(sec)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
     </li>
   );
 }
@@ -162,7 +239,7 @@ interface SortableSessionCardProps {
   onPickExercise: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onRemovePse: (pseId: string) => void;
-  onUpdateTargetSets: (pseId: string, value: string) => void;
+  onUpdatePse: (pseId: string, patch: PsePatch) => void;
   onExerciseDragEnd: (sessionId: string, event: DragEndEvent) => void;
   t: (key: string) => string;
 }
@@ -176,7 +253,7 @@ function SortableSessionCard({
   onPickExercise,
   onDeleteSession,
   onRemovePse,
-  onUpdateTargetSets,
+  onUpdatePse,
   onExerciseDragEnd,
   t,
 }: SortableSessionCardProps) {
@@ -251,7 +328,7 @@ function SortableSessionCard({
                         key={pse.id}
                         pse={pse}
                         onRemove={onRemovePse}
-                        onUpdateTargetSets={onUpdateTargetSets}
+                        onUpdatePse={onUpdatePse}
                         targetSetsLabel={t("plans.targetSets")}
                       />
                     ))}
@@ -498,14 +575,16 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
     if (res.ok) await load();
   }
 
-  async function updateTargetSets(pseId: string, value: string) {
-    const n = parseInt(value, 10);
-    if (Number.isNaN(n) || n < 1 || n > 20) return;
-    await fetch(`/api/plan-session-exercises/${pseId}`, {
+  async function updatePse(pseId: string, patch: PsePatch) {
+    const res = await fetch(`/api/plan-session-exercises/${pseId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetSets: n }),
+      body: JSON.stringify(patch),
     });
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      toast.error(json?.error ?? t("common.saveFailed"));
+    }
     await load();
   }
 
@@ -669,7 +748,7 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
                   onPickExercise={setPickerSessionId}
                   onDeleteSession={deleteSession}
                   onRemovePse={removePse}
-                  onUpdateTargetSets={updateTargetSets}
+                  onUpdatePse={updatePse}
                   onExerciseDragEnd={handleExerciseDragEnd}
                   t={t}
                 />

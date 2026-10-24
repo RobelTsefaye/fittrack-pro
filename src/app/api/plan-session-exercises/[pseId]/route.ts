@@ -37,6 +37,9 @@ export const PATCH = withApi(async function PATCH(
     where: { id: pseId },
     data: {
       ...(parsed.data.targetSets != null ? { targetSets: parsed.data.targetSets } : {}),
+      ...(parsed.data.repMin !== undefined ? { repMin: parsed.data.repMin } : {}),
+      ...(parsed.data.repMax !== undefined ? { repMax: parsed.data.repMax } : {}),
+      ...(parsed.data.restSeconds !== undefined ? { restSeconds: parsed.data.restSeconds } : {}),
     },
     include: {
       exercise: {

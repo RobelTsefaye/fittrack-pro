@@ -101,9 +101,13 @@ export function computeRestTimerEndsAt(workout: WorkoutData): number | null {
   if (latestWorkoutExerciseId && !shouldRestAfterExercise(workout, latestWorkoutExerciseId)) {
     return null;
   }
+  // Per-exercise rest (from the plan) for the exercise whose set started it.
+  const exerciseRest = latestWorkoutExerciseId
+    ? workout.workoutExercises.find((we) => we.id === latestWorkoutExerciseId)?.restSeconds
+    : null;
   return (
     anchor / 1000 +
-    (workout.restTimerDefaultSeconds ?? DEFAULT_REST_TIMER) +
+    (exerciseRest ?? workout.restTimerDefaultSeconds ?? DEFAULT_REST_TIMER) +
     (workout.restTimerAdjustSeconds ?? 0)
   );
 }

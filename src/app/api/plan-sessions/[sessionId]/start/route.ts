@@ -41,6 +41,9 @@ export const POST = withApi(async function POST(
           workoutId: w.id,
           exerciseId: pse.exerciseId,
           order: pse.order,
+          repMin: pse.repMin,
+          repMax: pse.repMax,
+          restSeconds: pse.restSeconds,
         },
       });
       for (let i = 1; i <= pse.targetSets; i++) {

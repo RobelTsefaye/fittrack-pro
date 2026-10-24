@@ -23,6 +23,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { withSevenDayAverage } from "@/features/tracking/weight-average";
 import { WeightTrendCard } from "@/features/health/components/weight-trend-card";
 import { todayLocalISO } from "@/lib/date-only";
+import { toast } from "sonner";
+import { authenticatedFetch } from "@/lib/native/native-auth-token";
 import { useI18n } from "@/lib/i18n-provider";
 import {
   applyOpToCache,
@@ -104,6 +106,45 @@ export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Goal weight lives in user settings (optional, may be missing offline).
+  const [goalWeight, setGoalWeight] = useState<number | null>(null);
+  const [goalDraft, setGoalDraft] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    void authenticatedFetch("/api/settings", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const g = json?.data?.goalWeight;
+        if (!cancelled && typeof g === "number") {
+          setGoalWeight(g);
+          setGoalDraft(String(g));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function saveGoal() {
+    const trimmed = goalDraft.trim().replace(",", ".");
+    const next = trimmed === "" ? null : Number(trimmed);
+    if (next !== null && (!Number.isFinite(next) || next <= 0)) return;
+    if (next === goalWeight) return;
+    const res = await authenticatedFetch("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ goalWeight: next }),
+    }).catch(() => null);
+    if (res?.ok) {
+      setGoalWeight(next);
+      toast.success(t("bodyWeight.goalSaved"));
+    } else {
+      toast.error(t("common.saveFailed"));
+    }
+  }
 
   // Reload from server after sync completes
   useEffect(() => {
@@ -315,9 +356,35 @@ export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
         </Card>
 
         <Card className="min-h-[280px]">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
             <CardTitle className="text-base">{t("bodyWeight.trendTitle")}</CardTitle>
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {t("bodyWeight.goal")}
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                placeholder="–"
+                aria-label={t("bodyWeight.goalPlaceholder")}
+                value={goalDraft}
+                onChange={(e) => setGoalDraft(e.target.value)}
+                onBlur={() => void saveGoal()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                }}
+                className="h-7 w-16 px-1 text-center text-xs"
+              />
+              {unitLabel}
+            </label>
           </CardHeader>
+          {goalWeight != null && lastWeight != null && Math.abs(goalWeight - lastWeight) >= 0.05 ? (
+            <p className="-mt-3 px-6 text-xs text-muted-foreground">
+              {t("bodyWeight.toGoal", {
+                delta: (goalWeight - lastWeight > 0 ? "+" : "") + (Math.round((goalWeight - lastWeight) * 10) / 10),
+                unit: unitLabel,
+              })}
+            </p>
+          ) : null}
           <CardContent className="h-[220px]">
             {loading ? (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -328,7 +395,7 @@ export function BodyWeightTracker({ weightUnit }: BodyWeightTrackerProps) {
                 {t("bodyWeight.trendHint")}
               </div>
             ) : (
-              <BodyWeightChart data={chartData} unitLabel={unitLabel} />
+              <BodyWeightChart data={chartData} unitLabel={unitLabel} goalWeight={goalWeight} />
             )}
           </CardContent>
         </Card>

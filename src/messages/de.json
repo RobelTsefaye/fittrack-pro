@@ -455,7 +455,11 @@
     "removeExercise": "Entfernen",
     "fromPlanLink": "Pläne",
     "moreActions": "Plan-Aktionen",
-    "nameSaved": "Name gespeichert"
+    "nameSaved": "Name gespeichert",
+    "repRange": "Wdh.",
+    "repRangeHint": "Wiederholungsbereich für die Progression",
+    "rest": "Pause",
+    "restDefault": "Standard"
   },
   "exercises": {
     "title": "Übungen",
@@ -541,7 +545,11 @@
     "notesEditLabel": "Notizen",
     "chartSeriesAvg": "7-Tage-Schnitt",
     "addNote": "Notiz hinzufügen",
-    "lastEntry": "Zuletzt: {weight} {unit}"
+    "lastEntry": "Zuletzt: {weight} {unit}",
+    "goal": "Ziel",
+    "goalPlaceholder": "Zielgewicht",
+    "goalSaved": "Ziel gespeichert",
+    "toGoal": "noch {delta} {unit} bis zum Ziel"
   },
   "offline": {
     "banner": "Du bist offline — Änderungen werden lokal gespeichert und synchronisiert, sobald du wieder verbunden bist.",
