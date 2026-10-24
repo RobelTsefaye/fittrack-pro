@@ -2,7 +2,12 @@
 export function parseDateOnlyUtc(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);
   if (!y || !m || !d) throw new Error("Invalid date");
-  return new Date(Date.UTC(y, m - 1, d));
+  const date = new Date(Date.UTC(y, m - 1, d));
+  // Date.UTC silently rolls over (2024-02-30 → 2024-03-01); reject instead.
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) {
+    throw new Error("Invalid date");
+  }
+  return date;
 }
 
 export function formatDateOnlyUtc(d: Date): string {

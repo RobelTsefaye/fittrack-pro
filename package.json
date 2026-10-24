@@ -18,7 +18,9 @@
     "demo:ai": "node scripts/demo-ai-fetch.mjs",
     "db:clear-incomplete": "npx tsx scripts/delete-incomplete-workouts.ts",
     "format": "prettier --write",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.71",
@@ -70,6 +72,8 @@
     "eslint-config-next": "16.2.2",
     "prettier": "^3.9.10",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.7"
   }
 }
