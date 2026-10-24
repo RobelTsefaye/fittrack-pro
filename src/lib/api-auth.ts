@@ -19,8 +19,9 @@ export async function resolveUserIdBySecret(secret: string): Promise<string | nu
 }
 
 /**
- * Web session (cookie) or `Authorization: Bearer <api_token>` for whitelisted routes.
- * API tokens are created in Settings and only grant access to AI + export endpoints.
+ * Web session (cookie) or `Authorization: Bearer <api_token>`. API tokens are
+ * created in Settings (or minted by native login) and work on every route
+ * that authenticates through this function / `requireUserId()`.
  */
 export async function resolveUserIdForDataApi(): Promise<string | null> {
   const session = await auth();
@@ -30,22 +31,5 @@ export async function resolveUserIdForDataApi(): Promise<string | null> {
   const authz = h.get("authorization");
   if (!authz?.startsWith("Bearer ")) return null;
 
-  const secret = authz.slice(7).trim();
-  if (!secret) return null;
-
-  const tokenHash = hashApiTokenSecret(secret);
-  const row = await prisma.apiToken.findUnique({
-    where: { tokenHash },
-    select: { id: true, userId: true },
-  });
-  if (!row) return null;
-
-  void prisma.apiToken
-    .update({
-      where: { id: row.id },
-      data: { lastUsedAt: new Date() },
-    })
-    .catch(() => {});
-
-  return row.userId;
+  return resolveUserIdBySecret(authz.slice(7).trim());
 }
