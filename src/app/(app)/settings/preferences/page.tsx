@@ -11,7 +11,8 @@ import { useI18n } from "@/lib/i18n-provider";
 import { DEFAULT_SETTINGS, type InitialSettings } from "@/features/settings/types";
 
 const selectClass =
-  "appearance-none bg-transparent text-right text-[0.9375rem] text-[var(--sys-label2)] outline-none cursor-pointer pr-5";
+  // Full row height (44 px) as the touch target, the value right-aligned as on iOS.
+  "appearance-none bg-transparent text-right text-[0.9375rem] text-[var(--sys-label2)] outline-none cursor-pointer pr-5 h-11 -my-2.5 min-w-[7rem]";
 export default function PreferencesPage() {
   const { t } = useI18n();
   const { setTheme } = useTheme();
@@ -105,7 +106,7 @@ export default function PreferencesPage() {
               onChange={(e) =>
                 setSettings({ ...settings, restTimerDefault: Number(e.target.value) })
               }
-              className="w-16 bg-transparent text-right text-[0.9375rem] text-[var(--sys-label2)] outline-none"
+              className="h-11 -my-2.5 w-16 bg-transparent text-right text-[0.9375rem] text-[var(--sys-label2)] outline-none"
             />
             <span className="text-sm text-[var(--sys-label3)]">s</span>
           </label>

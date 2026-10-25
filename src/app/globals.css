@@ -651,3 +651,8 @@ html, body {
 /* ── Plans: one chip per day, in its split's colour ── */
 .plan-card { transition: transform 160ms var(--ease-out); }
 .plan-card:active { transform: scale(0.985); }
+
+/* ── iPhone: text fields at 16 px, or Safari / the app's web view zooms in on focus ── */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea { font-size: 16px !important; }
+}

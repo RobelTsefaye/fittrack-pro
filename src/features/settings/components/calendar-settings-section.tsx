@@ -133,7 +133,7 @@ export function CalendarSettingsSection({ kind }: { kind: "training" | "cardio" 
             type="time"
             value={hhmm(time)}
             onChange={(e) => setTime(e.target.value)}
-            className="bg-transparent text-right text-[0.9375rem] text-[var(--sys-label2)] outline-none"
+            className="h-11 -my-2.5 bg-transparent text-right text-[0.9375rem] text-[var(--sys-label2)] outline-none"
           />
         </label>
         <label className="ios-row" htmlFor={`${prefix}-duration`}>
@@ -147,7 +147,7 @@ export function CalendarSettingsSection({ kind }: { kind: "training" | "cardio" 
             max={1439}
             value={duration}
             onChange={(e) => setDuration(Number(e.target.value))}
-            className="w-16 bg-transparent text-right text-[0.9375rem] text-[var(--sys-label2)] outline-none"
+            className="h-11 -my-2.5 w-16 bg-transparent text-right text-[0.9375rem] text-[var(--sys-label2)] outline-none"
           />
           <span className="text-sm text-[var(--sys-label3)]">min</span>
         </label>

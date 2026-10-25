@@ -129,7 +129,7 @@ function SortablePseRow({
       <div className="flex items-center gap-2">
       <button
         type="button"
-        className="cursor-grab touch-none shrink-0 text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
+        className="-my-2 -ml-2 cursor-grab touch-none shrink-0 py-2 pl-2 pr-0.5 text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
         aria-label="Drag to reorder"
         {...attributes}
         {...listeners}
@@ -151,7 +151,7 @@ function SortablePseRow({
           type="number"
           min={1}
           max={20}
-          className="h-8 w-14 text-center"
+          className="h-9 w-14 text-center"
           defaultValue={pse.targetSets}
           key={`${pse.id}-${pse.targetSets}`}
           onBlur={(e) => {
@@ -181,7 +181,7 @@ function SortablePseRow({
             max={100}
             placeholder="–"
             aria-label={`${t("plans.repRange")} min`}
-            className="h-7 w-12 px-1 text-center text-xs"
+            className="h-9 w-12 px-1 text-center text-sm"
             defaultValue={pse.repMin ?? ""}
             key={`${pse.id}-min-${pse.repMin}`}
             onBlur={(e) => {
@@ -197,7 +197,7 @@ function SortablePseRow({
             max={100}
             placeholder="–"
             aria-label={`${t("plans.repRange")} max`}
-            className="h-7 w-12 px-1 text-center text-xs"
+            className="h-9 w-12 px-1 text-center text-sm"
             defaultValue={pse.repMax ?? ""}
             key={`${pse.id}-max-${pse.repMax}`}
             onBlur={(e) => {
@@ -209,7 +209,7 @@ function SortablePseRow({
         <label className="flex items-center gap-1.5">
           {t("plans.rest")}
           <select
-            className="h-7 rounded-md border bg-transparent px-1.5 text-xs text-foreground"
+            className="h-9 rounded-md border bg-transparent px-1.5 text-sm text-foreground"
             value={pse.restSeconds ?? ""}
             onChange={(e) =>
               onUpdatePse(pse.id, { restSeconds: e.target.value === "" ? null : Number(e.target.value) })
@@ -274,10 +274,10 @@ function SortableSessionCard({
     <li ref={setNodeRef} style={style}>
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0 pb-2">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex w-full items-center gap-2 min-w-0">
             <button
               type="button"
-              className="cursor-grab touch-none shrink-0 text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing"
+              className="-my-2 -ml-2 cursor-grab touch-none shrink-0 py-2 pl-2 pr-0.5 text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing"
               aria-label="Drag to reorder day"
               {...attributes}
               {...listeners}
@@ -285,8 +285,17 @@ function SortableSessionCard({
               <GripVertical className="h-4 w-4" />
             </button>
             <CardTitle className="text-base">{s.name}</CardTitle>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-auto text-destructive hover:text-destructive"
+              onClick={() => onDeleteSession(s.id)}
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="sr-only">{t("plans.removeDay")}</span>
+            </Button>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2">
             <Button size="sm" onClick={() => onStart(s.id)} disabled={startingId === s.id}>
               <Play className="mr-1 h-3.5 w-3.5" />
               {startingId === s.id ? t("plans.starting") : t("plans.startThisDay")}
@@ -294,15 +303,6 @@ function SortableSessionCard({
             <Button size="sm" variant="outline" onClick={() => onPickExercise(s.id)}>
               <Plus className="mr-1 h-3.5 w-3.5" />
               {t("workouts.addExercise")}
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-destructive hover:text-destructive"
-              onClick={() => onDeleteSession(s.id)}
-            >
-              <Trash2 className="h-4 w-4" />
-              <span className="sr-only">{t("plans.removeDay")}</span>
             </Button>
           </div>
         </CardHeader>
