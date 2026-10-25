@@ -7,15 +7,11 @@ import { useI18n } from "@/lib/i18n-provider";
 import { ROUTES } from "@/lib/constants";
 
 /**
- * Back-navigation button for top-level pages that are only reachable via the
- * "Mehr" (More) menu on mobile (health, records, body-weight, plate-
- * calculator, settings, exercises) — those pages aren't primary bottom-tab
- * destinations, so unlike dashboard/workouts/coach/plans there's no other
- * one-tap way back. Always returns to "Mehr" (rather than router.back())
- * since that's the only place these pages are linked from on mobile, and a
- * fixed destination is predictable regardless of how the page was reached.
+ * Back-navigation button for pages below a tab (settings sub-pages, exercise
+ * details). A fixed destination is predictable regardless of how the page was
+ * reached; the default is the settings overview.
  */
-export function BackButton({ href = ROUTES.more }: { href?: string }) {
+export function BackButton({ href = ROUTES.settings }: { href?: string }) {
   const router = useRouter();
   const { t } = useI18n();
 

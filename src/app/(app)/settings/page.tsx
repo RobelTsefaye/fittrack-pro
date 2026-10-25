@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
-import { CalendarDays, Download, HeartPulse, KeyRound, Settings2, Target } from "lucide-react";
+import { CalendarDays, Download, HeartPulse, KeyRound, Settings2 } from "lucide-react";
 import { RequireAuth } from "@/components/auth/require-auth";
-import { BackButton } from "@/components/layout/back-button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { loadCachedUser } from "@/lib/cached-user";
 import { useI18n } from "@/lib/i18n-provider";
@@ -26,7 +25,6 @@ export default function SettingsPage() {
 
   return (
     <RequireAuth>
-      <BackButton />
       <div className="space-y-5">
         <div>
           <h1 className="page-title">{t("settings.title")}</h1>
@@ -57,11 +55,6 @@ export default function SettingsPage() {
             label={t("settings.menuTraining")}
           />
           <SettingsRow href="/settings/cardio" icon={HeartPulse} label={t("settings.menuCardio")} />
-          <SettingsRow
-            href="/settings/nutrition-plan"
-            icon={Target}
-            label={t("settings.menuNutritionPlan")}
-          />
           <SettingsRow href="/settings/tokens" icon={KeyRound} label={t("settings.menuTokens")} />
           <SettingsRow href="/settings/export" icon={Download} label={t("settings.menuExport")} />
         </div>

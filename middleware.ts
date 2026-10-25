@@ -16,12 +16,18 @@ export default auth((req) => {
 
   if (isPublic) {
     // Authenticated users on landing/login/register go straight to the app.
-    // This means the home-screen icon (start_url=/dashboard) and any direct
-    // visit to "/" both land on the dashboard for logged-in users.
+    // This means the home-screen icon (start_url=/workouts) and any direct
+    // visit to "/" both land on the workouts for logged-in users.
     if (req.auth?.user) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
+      return NextResponse.redirect(new URL("/workouts", req.url));
     }
     return NextResponse.next();
+  }
+
+  // Pages that moved to Nexus (body weight, health, coach, …): old links and
+  // bookmarks land on the workouts instead of a 404.
+  if (/^\/(dashboard|coach|body-weight|health|records|plate-calculator|more)(\/|$)/.test(pathname)) {
+    return NextResponse.redirect(new URL("/workouts", req.url));
   }
 
   if (!req.auth?.user) {

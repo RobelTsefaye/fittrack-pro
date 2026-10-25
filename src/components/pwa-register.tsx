@@ -8,11 +8,8 @@ import { useEffect } from "react";
 const OFFLINE_ROUTES = [
   "/workouts/new",
   "/workouts",
-  "/dashboard",
-  "/body-weight",
+  "/plans",
   "/exercises",
-  "/records",
-  "/plate-calculator",
   "/settings",
 ];
 

@@ -6,19 +6,13 @@ import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import {
-  LayoutDashboard,
   Dumbbell,
   ListChecks,
   ClipboardList,
-  Scale,
   Settings,
-  Sparkles,
-  Calculator,
-  Trophy,
   X,
   LogOut,
   ChevronRight,
-  HeartPulse,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { APP_NAME, ROUTES } from "@/lib/constants";
@@ -32,19 +26,11 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
+// Training only: body weight, health and the coach are in Nexus now.
 const mainNav = [
-  { labelKey: "nav.dashboard"  as const, href: ROUTES.dashboard,  icon: LayoutDashboard },
   { labelKey: "nav.workouts"   as const, href: ROUTES.workouts,   icon: Dumbbell },
   { labelKey: "nav.plans"      as const, href: ROUTES.plans,      icon: ClipboardList },
   { labelKey: "nav.exercises"  as const, href: ROUTES.exercises,  icon: ListChecks },
-  { labelKey: "nav.bodyWeight" as const, href: ROUTES.bodyWeight, icon: Scale },
-  { labelKey: "nav.health"     as const, href: ROUTES.health,     icon: HeartPulse },
-  { labelKey: "nav.records"    as const, href: ROUTES.records,    icon: Trophy },
-  { labelKey: "nav.coach"      as const, href: ROUTES.coach,      icon: Sparkles },
-];
-
-const toolsNav = [
-  { labelKey: "nav.plateCalc" as const, href: ROUTES.plateCalculator, icon: Calculator },
 ];
 
 const accountNav = [
@@ -173,21 +159,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         <div className="space-y-0.5">
           <SectionLabel label={t("nav.sectionTraining")} />
           {mainNav.map((item) => (
-            <NavItem
-              key={item.href}
-              href={item.href}
-              icon={item.icon}
-              label={t(item.labelKey)}
-              isActive={isActive(item.href)}
-              onClick={onClose}
-            />
-          ))}
-        </div>
-
-        {/* Tools section */}
-        <div className="space-y-0.5">
-          <SectionLabel label={t("nav.sectionTools")} />
-          {toolsNav.map((item) => (
             <NavItem
               key={item.href}
               href={item.href}

@@ -101,7 +101,7 @@ export function LoginForm() {
         return;
       }
 
-      router.push("/dashboard");
+      router.push("/workouts");
       router.refresh();
       return;
     }
@@ -118,7 +118,7 @@ export function LoginForm() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push("/workouts");
     router.refresh();
   }
 

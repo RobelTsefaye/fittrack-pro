@@ -45,20 +45,16 @@ export const ROUTES = {
   home: "/",
   login: "/login",
   register: "/register",
-  dashboard: "/dashboard",
+  // FitTrack is only training now (body weight, health and the coach live in Nexus):
+  // the start page after login is the workout list.
+  dashboard: "/workouts",
   workouts: "/workouts",
   newWorkout: "/workouts/new",
   cardioWorkout: "/workouts/cardio",
   plans: "/plans",
   exercises: "/exercises",
   exercisesUsage: "/exercises/usage",
-  bodyWeight: "/body-weight",
   settings: "/settings",
-  coach: "/coach",
-  plateCalculator: "/plate-calculator",
-  records: "/records",
-  health: "/health",
-  more: "/more",
 } as const;
 
 /**

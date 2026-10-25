@@ -91,7 +91,7 @@ export function RegisterForm() {
         return;
       }
 
-      router.push("/dashboard");
+      router.push("/workouts");
       router.refresh();
       return;
     }
@@ -107,7 +107,7 @@ export function RegisterForm() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push("/workouts");
     router.refresh();
   }
 

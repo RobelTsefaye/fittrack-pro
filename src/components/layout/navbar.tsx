@@ -16,16 +16,10 @@ function usePageTitle() {
   const pathname = usePathname();
   const { t } = useI18n();
 
-  if (pathname === ROUTES.dashboard)           return t("nav.dashboard");
   if (pathname.startsWith(ROUTES.workouts))    return t("nav.workouts");
   if (pathname.startsWith(ROUTES.plans))       return t("nav.plans");
   if (pathname.startsWith(ROUTES.exercises))   return t("nav.exercises");
-  if (pathname.startsWith(ROUTES.bodyWeight))  return t("nav.bodyTracking");
   if (pathname.startsWith(ROUTES.settings))    return t("nav.settings");
-  if (pathname.startsWith(ROUTES.coach))           return t("nav.coach");
-  if (pathname.startsWith(ROUTES.plateCalculator)) return t("nav.plateCalc");
-  if (pathname.startsWith(ROUTES.records))         return t("nav.records");
-  if (pathname === ROUTES.more)                    return t("nav.more");
   return "";
 }
 

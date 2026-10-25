@@ -2,32 +2,17 @@
 
 import Link from "@/components/app-link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Dumbbell,
-  Sparkles,
-  ClipboardList,
-  MoreHorizontal,
-} from "lucide-react";
+import { Dumbbell, ClipboardList, ListChecks, Settings } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
 import { useI18n } from "@/lib/i18n-provider";
 
+// Training only: workouts, plans, the exercise library and settings.
 const TABS = [
-  { href: ROUTES.dashboard, icon: LayoutDashboard, labelKey: "nav.dashboard" as const },
-  { href: ROUTES.workouts,  icon: Dumbbell,        labelKey: "nav.workouts"  as const },
-  { href: ROUTES.coach,     icon: Sparkles,         labelKey: "nav.coachShort" as const },
-  { href: ROUTES.plans,     icon: ClipboardList,    labelKey: "nav.plans"     as const },
-  { href: ROUTES.more,      icon: MoreHorizontal,   labelKey: "nav.more"      as const },
+  { href: ROUTES.workouts,  icon: Dumbbell,      labelKey: "nav.workouts"  as const },
+  { href: ROUTES.plans,     icon: ClipboardList, labelKey: "nav.plans"     as const },
+  { href: ROUTES.exercises, icon: ListChecks,    labelKey: "nav.exercises" as const },
+  { href: ROUTES.settings,  icon: Settings,      labelKey: "nav.settings"  as const },
 ] as const;
-
-const MORE_ROUTES = [
-  ROUTES.exercises,
-  ROUTES.records,
-  ROUTES.bodyWeight,
-  ROUTES.plateCalculator,
-  ROUTES.settings,
-  ROUTES.more,
-];
 
 const VOLT = "#D4FF3A";
 const DIM  = "#83838C";
@@ -37,9 +22,6 @@ export function BottomTabBar() {
   const { t } = useI18n();
 
   function isActive(href: string) {
-    if (href === ROUTES.more) {
-      return MORE_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
-    }
     return pathname === href || pathname.startsWith(href + "/");
   }
 

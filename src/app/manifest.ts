@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "FitTrack Pro",
     short_name: "FitTrack",
     description: "Intelligent fitness tracking — train offline, sync when online.",
-    start_url: "/dashboard",
+    start_url: "/workouts",
     scope: "/",
     display: "standalone",
     display_override: ["standalone", "minimal-ui"],
