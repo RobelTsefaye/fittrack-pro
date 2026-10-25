@@ -24,6 +24,7 @@ export function BottomTabBar() {
   function isActive(href: string) {
     return pathname === href || pathname.startsWith(href + "/");
   }
+  const activeIndex = TABS.findIndex((tab) => isActive(tab.href));
 
   return (
     <nav
@@ -42,13 +43,21 @@ export function BottomTabBar() {
       >
         {/* Floating pill */}
         <div
-          className="tab-pill mx-3 flex h-[58px] items-stretch overflow-hidden md:mx-auto md:max-w-lg"
+          className="tab-pill relative mx-3 flex h-[58px] items-stretch overflow-hidden md:mx-auto md:max-w-lg"
           style={{
             background: "rgba(28,28,32,0.94)",
             borderRadius: 22,
             border: "1px solid rgba(255,255,255,0.08)",
           }}
         >
+          {/* One marker that glides to the active tab (instead of one per tab). */}
+          {activeIndex >= 0 && (
+            <span
+              aria-hidden
+              className="tab-marker"
+              style={{ left: `calc(${(activeIndex + 0.5) * (100 / TABS.length)}% - 14px)`, transform: "none" }}
+            />
+          )}
           {TABS.map(({ href, icon: Icon, labelKey }) => {
             const active = isActive(href);
             return (
@@ -58,20 +67,13 @@ export function BottomTabBar() {
                 aria-current={active ? "page" : undefined}
                 className="relative flex flex-1 flex-col items-center justify-center gap-[3px] transition-opacity active:opacity-60"
               >
-                {/* Active indicator bar */}
-                {active && (
-                  <span
-                    className="absolute top-[5px] h-[3px] w-7 rounded-full"
-                    style={{ background: VOLT, boxShadow: `0 0 10px ${VOLT}` }}
-                  />
-                )}
                 <Icon
-                  className="mt-1 h-[1.2rem] w-[1.2rem]"
+                  className="tab-icon mt-1 h-[1.2rem] w-[1.2rem]"
                   style={{ color: active ? VOLT : DIM }}
                   strokeWidth={1.7}
                 />
                 <span
-                  className="text-[0.5625rem] font-semibold leading-none tracking-[0.03em]"
+                  className="text-[0.5625rem] font-semibold leading-none tracking-[0.03em] transition-colors duration-200"
                   style={{ color: active ? VOLT : DIM }}
                 >
                   {t(labelKey)}

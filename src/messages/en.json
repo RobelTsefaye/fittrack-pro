@@ -369,7 +369,16 @@
     "summaryRecords": "New records",
     "summaryNotePlaceholder": "How did it go? (optional)",
     "summaryNoteSave": "Save & close",
-    "summaryNoteSaved": "Note saved"
+    "summaryNoteSaved": "Note saved",
+    "week": {
+      "title": "This week",
+      "sessionOne": "session",
+      "sessionMany": "sessions",
+      "sets": "sets",
+      "time": "time",
+      "streak": "weeks in a row",
+      "streakHint": "Weeks in a row with at least one workout"
+    }
   },
   "cardio": {
     "pickTitle": "Start cardio",

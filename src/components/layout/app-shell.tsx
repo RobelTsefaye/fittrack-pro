@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { ActiveWorkoutBanner, type ActiveWorkoutItem } from "@/components/layout/active-workout-banner";
 import { CardioActiveBanner } from "@/components/layout/cardio-active-banner";
 import { RestTimerProvider } from "@/features/workouts/rest-timer-context";
@@ -15,6 +16,8 @@ export function AppShell({
   children: React.ReactNode;
   initialActiveWorkout?: ActiveWorkoutItem | null;
 }) {
+  // Keyed by the path, so every page change rises in once.
+  const pathname = usePathname();
   return (
     <div className="relative flex h-dvh max-h-dvh min-h-dvh overflow-hidden bg-background">
       {/* Ambient aurora + grid backdrop (dark mode, purely decorative) */}
@@ -42,7 +45,7 @@ export function AppShell({
             id="main-content"
             className="main-scroll flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-4 pt-2 pb-5 sm:px-6 md:px-8 md:pt-4 md:pb-7 lg:px-10 lg:pt-8 tab-bar-safe"
           >
-            <div className="mx-auto w-full max-w-5xl xl:max-w-6xl">
+            <div key={pathname} className="page-in mx-auto w-full max-w-5xl xl:max-w-6xl">
               {children}
             </div>
           </main>

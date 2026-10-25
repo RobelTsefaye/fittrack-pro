@@ -25,6 +25,13 @@ Gym-goers who want to track workouts, monitor progress, and get intelligent insi
 | Validation | Zod |
 
 ## Status
+- **Workout-only (UI)**: the app shows only training — Workouts (with a "this week" card: sessions, sets,
+  time, Mon–Sun in split colours, week streak), Plans (day chips per split), Exercises, Settings. Dashboard,
+  coach, body weight, health, records and the plate calculator pages are gone (old URLs redirect to
+  `/workouts`, see `middleware.ts`); body weight, health and coaching are shown in the personal dashboard
+  Nexus, which reads them through the unchanged `/api/ai/*`, `/api/body-weight` and `/api/health-data`
+  routes. Motion: pages rise in (`.page-in` in `app-shell.tsx`), one glide marker in the tab bar,
+  counting numbers (`src/lib/use-count-up.ts`), split colours (`src/lib/split-hue.ts`).
 - **Current Phase**: Phase 6 — Advanced Features
 - **Last major update**: Dashboard & analytics (Phase 5) — live stats, volume/consistency charts, PRs, body-weight sparkline, recent workouts, top volume exercises; dashboard JSON APIs under `/api/dashboard/*`
 - **Started**: 2026-04-03

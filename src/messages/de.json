@@ -369,7 +369,16 @@
     "summaryRecords": "Neue Rekorde",
     "summaryNotePlaceholder": "Wie lief's? (optional)",
     "summaryNoteSave": "Speichern & schließen",
-    "summaryNoteSaved": "Notiz gespeichert"
+    "summaryNoteSaved": "Notiz gespeichert",
+    "week": {
+      "title": "Diese Woche",
+      "sessionOne": "Einheit",
+      "sessionMany": "Einheiten",
+      "sets": "Sätze",
+      "time": "Zeit",
+      "streak": "Wochen am Stück",
+      "streakHint": "Wochen in Folge mit mindestens einem Training"
+    }
   },
   "cardio": {
     "pickTitle": "Cardio starten",

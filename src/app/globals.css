@@ -574,3 +574,80 @@ html, body {
 @keyframes hero-spin {
   to { --hero-angle: 360deg; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Motion (as in Nexus): short, eased out, no bounce. Pages rise in, the active
+ * tab's marker glides, rows give way under the finger.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.page-in { animation: page-in 280ms var(--ease-out) both; }
+
+.workout-row {
+  transition: background-color 120ms var(--ease-out), transform 160ms var(--ease-out);
+}
+.workout-row:active { background: rgba(255, 255, 255, 0.04); transform: scale(0.985); }
+@media (hover: hover) { .workout-row:hover { background: rgba(255, 255, 255, 0.025); } }
+
+/* Glass cards and grouped rows press in a little. */
+.ios-group > a, .ios-group > button, a[data-glass], button[data-glass] {
+  transition: transform 160ms var(--ease-out), background-color 120ms var(--ease-out);
+}
+.ios-group > a:active, .ios-group > button:active, a[data-glass]:active, button[data-glass]:active { transform: scale(0.985); }
+
+/* ── This week (workouts) ── */
+.week-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  padding: 18px 18px 16px;
+  animation: page-in 320ms var(--ease-out) both;
+}
+.week-hero::before {
+  content: "";
+  position: absolute;
+  inset: -40% -20% auto auto;
+  width: 70%;
+  height: 140%;
+  background: radial-gradient(closest-side, rgba(212, 255, 58, 0.16), transparent);
+  pointer-events: none;
+}
+.week-hero-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #83838c; }
+.week-hero-number { margin-top: 4px; font-size: 44px; font-weight: 800; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; color: #fff; }
+.week-hero-number span { margin-left: 8px; font-size: 15px; font-weight: 600; letter-spacing: 0; color: #9a9aa2; }
+.week-hero-streak { font-size: 12px; font-weight: 600; color: #d4ff3a; background: rgba(212, 255, 58, 0.1); border-radius: 999px; padding: 5px 10px; white-space: nowrap; }
+.week-hero-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 18px; }
+.week-hero-day { display: grid; justify-items: center; gap: 6px; animation: fade-up 260ms var(--ease-out) both; }
+.week-hero-dot { width: 100%; max-width: 36px; height: 36px; border-radius: 11px; background: rgba(255, 255, 255, 0.06); transition: background-color 300ms var(--ease-out); }
+.week-hero-day[data-today] .week-hero-dot { outline: 1.5px solid rgba(212, 255, 58, 0.7); outline-offset: 2px; }
+.week-hero-weekday { font-size: 11px; font-weight: 600; color: #83838c; }
+.week-hero-day[data-today] .week-hero-weekday { color: #d4ff3a; }
+.week-hero-stats { display: flex; gap: 22px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.07); }
+.week-hero-stats div { display: flex; align-items: baseline; gap: 6px; }
+.week-hero-stats b { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; color: #fff; }
+.week-hero-stats span { font-size: 12px; color: #9a9aa2; }
+
+/* ── Tab bar: one marker that glides to the active tab ── */
+.tab-marker {
+  position: absolute;
+  top: 5px;
+  height: 3px;
+  width: 28px;
+  border-radius: 999px;
+  background: #d4ff3a;
+  box-shadow: 0 0 10px #d4ff3a;
+  transition: left 320ms var(--ease-out);
+}
+.tab-icon { transition: transform 200ms var(--ease-out), color 200ms var(--ease-out); }
+[aria-current="page"] .tab-icon { transform: translateY(-1px) scale(1.08); }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-in, .week-hero, .week-hero-day { animation: none; }
+  .tab-marker, .workout-row { transition: none; }
+}
+
+/* ── Plans: one chip per day, in its split's colour ── */
+.plan-card { transition: transform 160ms var(--ease-out); }
+.plan-card:active { transform: scale(0.985); }

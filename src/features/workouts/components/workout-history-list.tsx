@@ -13,6 +13,8 @@ import { listOfflineOriginWorkouts } from "@/lib/offline/workout-offline-store";
 import { Capacitor } from "@capacitor/core";
 import { WatchConnectivity } from "@/lib/native/watch-connectivity";
 import type { WorkoutListItemDTO } from "@/features/workouts/workouts-list-data";
+import { splitHue } from "@/lib/split-hue";
+import { WeekHero } from "@/features/workouts/components/week-hero";
 
 type WorkoutListItem = WorkoutListItemDTO;
 type NativeTerminalWorkout = {
@@ -261,6 +263,8 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
         </Link>
       </div>
 
+      {!loading && workouts.length > 0 && <WeekHero workouts={workouts} />}
+
       {/* ── Empty state ─────────────────────────── */}
       {!loading && workouts.length === 0 && (
         <div
@@ -308,7 +312,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
             {group.label}
           </p>
           <div
-            className="overflow-hidden rounded-[16px]"
+            className="stagger-children overflow-hidden rounded-[16px]"
             data-glass
           >
             {group.items.map((w, i) => {
@@ -317,6 +321,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
               const exerciseCount = w.workoutExercises.length;
               const setCount = w.workoutExercises.reduce((n, we) => n + we.sets.length, 0);
               const dur = formatDuration(w.durationSeconds);
+              const hue = splitHue(w.name);
 
               return (
                 // A div with button semantics, not <button>: the row contains
@@ -326,7 +331,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                   key={w.id}
                   role="button"
                   tabIndex={isAwaitingSync ? -1 : 0}
-                  className="group w-full cursor-pointer text-left transition-colors active:bg-white/[0.04]"
+                  className="workout-row group w-full cursor-pointer text-left"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -350,9 +355,8 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                   <div
                     className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl"
                     style={{
-                      background: isActive
-                        ? "rgba(212,255,58,0.14)"
-                        : "rgba(255,255,255,0.06)",
+                      background: isActive ? "rgba(212,255,58,0.14)" : `${hue}1f`,
+                      boxShadow: isActive ? undefined : `inset 0 0 0 1px ${hue}33`,
                     }}
                   >
                     {isActive ? (
@@ -363,8 +367,8 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                     ) : (
                       <Dumbbell
                         className="h-4.5 w-4.5 h-[18px] w-[18px]"
-                        style={{ color: "#9A9AA2" }}
-                        strokeWidth={1.7}
+                        style={{ color: hue }}
+                        strokeWidth={1.8}
                       />
                     )}
                   </div>

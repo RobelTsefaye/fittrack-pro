@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/lib/i18n-provider";
 import { savePlansCache, loadPlansCache } from "@/lib/offline/screen-caches";
 import { planHref } from "@/lib/workout-href";
+import { splitHue } from "@/lib/split-hue";
 
 type PlanRow = {
   id: string;
@@ -25,6 +26,7 @@ type PlanRow = {
   description: string | null;
   updatedAt: string;
   _count: { sessions: number };
+  sessions?: Array<{ id: string; name: string }>;
 };
 
 export function PlansList() {
@@ -144,21 +146,35 @@ export function PlansList() {
           </CardContent>
         </Card>
       ) : (
-        <ul className="space-y-2">
+        <ul className="stagger-children space-y-2">
           {plans.map((p) => (
             <li key={p.id}>
-              <Link href={planHref(p.id)}>
+              <Link href={planHref(p.id)} className="plan-card block">
                 <Card className="transition-colors hover:bg-muted/40">
-                  <CardContent className="flex flex-col gap-1 py-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="font-medium">{p.name}</p>
-                      {p.description ? (
-                        <p className="text-sm text-muted-foreground line-clamp-2">{p.description}</p>
-                      ) : null}
+                  <CardContent className="flex flex-col gap-3 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[15px] font-semibold">{p.name}</p>
+                        {p.description ? (
+                          <p className="text-sm text-muted-foreground line-clamp-2">{p.description}</p>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-muted-foreground shrink-0">
+                        {t("plans.sessionCount", { count: p._count.sessions })}
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground shrink-0">
-                      {t("plans.sessionCount", { count: p._count.sessions })}
-                    </p>
+                    {p.sessions?.length ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {p.sessions.map((s) => {
+                          const hue = splitHue(s.name);
+                          return (
+                            <span key={s.id} className="plan-chip rounded-lg px-2.5 py-1 text-xs font-semibold" style={{ color: hue, background: `${hue}1a`, boxShadow: `inset 0 0 0 1px ${hue}33` }}>
+                              {s.name}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    ) : null}
                   </CardContent>
                 </Card>
               </Link>
