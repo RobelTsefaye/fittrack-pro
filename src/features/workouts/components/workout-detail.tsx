@@ -352,7 +352,7 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
             {isActive && (
               <button
                 type="button"
-                className="mt-0.5 cursor-grab touch-none shrink-0 text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
+                className="-my-2 -ml-2 cursor-grab touch-none shrink-0 py-2.5 pl-2 pr-1 text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
                 aria-label={t("workouts.dragToReorderAria")}
                 {...attributes}
                 {...listeners}
@@ -375,7 +375,7 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
               {we.supersetGroup != null ? <Badge variant="secondary" className="mt-1 text-[10px]">{t("workouts.supersetLabel")}</Badge> : null}
             </div>
           </div>
-          {isActive && <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-xs" className="shrink-0" aria-label={t("workouts.removeExerciseAria")} />}><MoreHorizontal className="h-4 w-4" /></DropdownMenuTrigger><DropdownMenuContent align="end">
+          {isActive && <DropdownMenu><DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon-xs" className="-m-2 size-11 shrink-0" aria-label={t("workouts.removeExerciseAria")} />}><MoreHorizontal className="h-4 w-4" /></DropdownMenuTrigger><DropdownMenuContent align="end">
             {canGroupWithNext && <DropdownMenuItem onClick={() => onGroupWithNext(we.id)}>{t("workouts.supersetGroupWithNext")}</DropdownMenuItem>}
             {we.supersetGroup != null && <DropdownMenuItem onClick={() => onUngroup(we.id)}>{t("workouts.supersetDissolve")}</DropdownMenuItem>}
             <DropdownMenuItem variant="destructive" onClick={() => onRemove(we.id)}><Trash2 className="mr-2 h-4 w-4" />{t("workouts.removeExerciseAria")}</DropdownMenuItem>

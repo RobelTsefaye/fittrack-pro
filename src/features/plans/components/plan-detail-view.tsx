@@ -41,6 +41,7 @@ import { startPlanSessionOffline } from "@/lib/offline/plan-session-offline";
 import { useI18n } from "@/lib/i18n-provider";
 import { toast } from "sonner";
 import { ExercisePickerDialog } from "@/features/workouts/components/exercise-picker-dialog";
+import { splitHue } from "@/lib/split-hue";
 
 type ExerciseRef = {
   id: string;
@@ -86,7 +87,11 @@ type PlanSession = {
   order: number;
   notes: string | null;
   exercises: Pse[];
+  /** Fixed weekdays, 0 = Monday … 6 = Sunday. */
+  weekdays?: number[];
 };
+
+const WEEKDAY_KEYS = ["weekdayMon", "weekdayTue", "weekdayWed", "weekdayThu", "weekdayFri", "weekdaySat", "weekdaySun"] as const;
 
 type PlanDetail = {
   id: string;
@@ -238,6 +243,7 @@ interface SortableSessionCardProps {
   onStart: (sessionId: string) => void;
   onPickExercise: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
+  onSetWeekdays: (sessionId: string, weekdays: number[]) => void;
   onRemovePse: (pseId: string) => void;
   onUpdatePse: (pseId: string, patch: PsePatch) => void;
   onExerciseDragEnd: (sessionId: string, event: DragEndEvent) => void;
@@ -252,11 +258,13 @@ function SortableSessionCard({
   onStart,
   onPickExercise,
   onDeleteSession,
+  onSetWeekdays,
   onRemovePse,
   onUpdatePse,
   onExerciseDragEnd,
   t,
 }: SortableSessionCardProps) {
+  const days = s.weekdays ?? [];
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: s.id });
 
@@ -307,6 +315,29 @@ function SortableSessionCard({
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Bound to weekdays: the workouts page then offers this day to start on those days. */}
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t("plans.fixedDays")}</p>
+            <div className="flex gap-1.5" role="group" aria-label={t("plans.fixedDays")}>
+              {WEEKDAY_KEYS.map((key, i) => {
+                const on = days.includes(i);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => onSetWeekdays(s.id, on ? days.filter((d) => d !== i) : [...days, i])}
+                    className="h-10 flex-1 rounded-xl text-[13px] font-semibold transition-colors duration-150 active:scale-95"
+                    style={on
+                      ? { background: splitHue(s.name), color: "#0A0A0A" }
+                      : { background: "rgba(255,255,255,0.06)", color: "#9A9AA2" }}
+                  >
+                    {t(`settings.${key}`)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             {t("plans.exercisesInDay")}
           </p>
@@ -556,6 +587,22 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
     await load();
   }
 
+  // A weekday belongs to one day per plan: shown at once, the server frees it on the other day.
+  async function setWeekdays(sessionId: string, weekdays: number[]) {
+    setPlan((prev) => prev && {
+      ...prev,
+      sessions: prev.sessions.map((s) => s.id === sessionId
+        ? { ...s, weekdays: [...weekdays].sort() }
+        : { ...s, weekdays: (s.weekdays ?? []).filter((d) => !weekdays.includes(d)) }),
+    });
+    const res = await fetch(`/api/plan-sessions/${sessionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ weekdays }),
+    }).catch(() => null);
+    if (!res?.ok) await load();
+  }
+
   async function deleteSession(sessionId: string) {
     if (!confirm(t("plans.removeDayConfirm"))) return;
     await fetch(`/api/plan-sessions/${sessionId}`, { method: "DELETE" });
@@ -750,6 +797,7 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
                   onStart={startSession}
                   onPickExercise={setPickerSessionId}
                   onDeleteSession={deleteSession}
+                  onSetWeekdays={setWeekdays}
                   onRemovePse={removePse}
                   onUpdatePse={updatePse}
                   onExerciseDragEnd={handleExerciseDragEnd}

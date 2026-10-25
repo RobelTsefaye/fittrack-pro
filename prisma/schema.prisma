@@ -227,6 +227,7 @@ model PlanSession {
   name        String
   order       Int
   notes       String?
+  weekdays    Int[]    @default([]) // fixed training days, Monday-first: 0=Mo .. 6=So (like trainingWeekdays)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

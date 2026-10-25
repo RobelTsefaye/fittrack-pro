@@ -378,6 +378,13 @@
       "time": "Zeit",
       "streak": "Wochen am Stück",
       "streakHint": "Wochen in Folge mit mindestens einem Training"
+    },
+    "today": {
+      "title": "Heute",
+      "start": "Starten",
+      "tomorrow": "Morgen",
+      "rest": "Heute Ruhetag",
+      "done": "{name} heute erledigt"
     }
   },
   "cardio": {
@@ -468,7 +475,8 @@
     "repRange": "Wdh.",
     "repRangeHint": "Wiederholungsbereich für die Progression",
     "rest": "Pause",
-    "restDefault": "Standard"
+    "restDefault": "Standard",
+    "fixedDays": "Feste Tage"
   },
   "exercises": {
     "title": "Übungen",

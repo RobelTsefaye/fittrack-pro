@@ -12,7 +12,7 @@ export const GET = withApi(async function GET() {
     include: {
       _count: { select: { sessions: true } },
       // Day names for the coloured chips in the list.
-      sessions: { select: { id: true, name: true }, orderBy: { order: "asc" } },
+      sessions: { select: { id: true, name: true, weekdays: true }, orderBy: { order: "asc" } },
     },
   });
 

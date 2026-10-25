@@ -68,6 +68,31 @@ export async function computeTrainingSchedule(
     where: { userId },
     select: { trainingWeekdays: true, trainingTimeMinutes: true, trainingDurationMinutes: true },
   });
+  // Workout days bound to weekdays (plan → day → Mo/Di/…) win over the rotation.
+  const fixed = await prisma.workoutPlan.findFirst({
+    where: { userId, sessions: { some: { weekdays: { isEmpty: false } } } },
+    orderBy: { updatedAt: "desc" },
+    select: { name: true, sessions: { orderBy: { order: "asc" }, select: { name: true, weekdays: true } } },
+  });
+  if (fixed) {
+    const start = parseDateOnlyUtc(todayLocal);
+    const result: CalendarEntry[] = [];
+    for (let offset = 1; offset <= horizonDays; offset++) {
+      const day = new Date(start.getTime() + offset * DAY_MS);
+      const session = fixed.sessions.find((s) => s.weekdays.includes((day.getUTCDay() + 6) % 7));
+      if (!session) continue;
+      const date = formatDateOnlyUtc(day);
+      result.push({
+        date,
+        sourceDate: date,
+        title: session.name,
+        notes: fixed.name,
+        startMinutes: settings?.trainingTimeMinutes ?? 1080,
+        durationMinutes: settings?.trainingDurationMinutes ?? 90,
+      });
+    }
+    return result;
+  }
   const weekdays = new Set(settings?.trainingWeekdays ?? []);
   if (weekdays.size === 0) return [];
   const next = await getNextPlanSession(userId);

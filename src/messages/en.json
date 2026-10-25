@@ -378,6 +378,13 @@
       "time": "time",
       "streak": "weeks in a row",
       "streakHint": "Weeks in a row with at least one workout"
+    },
+    "today": {
+      "title": "Today",
+      "start": "Start",
+      "tomorrow": "Tomorrow",
+      "rest": "Rest day today",
+      "done": "{name} done today"
     }
   },
   "cardio": {
@@ -468,7 +475,8 @@
     "repRange": "Reps",
     "repRangeHint": "Target rep range for progression",
     "rest": "Rest",
-    "restDefault": "Default"
+    "restDefault": "Default",
+    "fixedDays": "Fixed days"
   },
   "exercises": {
     "title": "Exercises",

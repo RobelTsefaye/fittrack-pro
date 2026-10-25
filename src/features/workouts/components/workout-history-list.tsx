@@ -15,6 +15,7 @@ import { WatchConnectivity } from "@/lib/native/watch-connectivity";
 import type { WorkoutListItemDTO } from "@/features/workouts/workouts-list-data";
 import { splitHue } from "@/lib/split-hue";
 import { WeekHero } from "@/features/workouts/components/week-hero";
+import { TodayStart } from "@/features/workouts/components/today-start";
 
 type WorkoutListItem = WorkoutListItemDTO;
 type NativeTerminalWorkout = {
@@ -263,6 +264,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
         </Link>
       </div>
 
+      {!loading && <TodayStart workouts={workouts} />}
       {!loading && workouts.length > 0 && <WeekHero workouts={workouts} />}
 
       {/* ── Empty state ─────────────────────────── */}

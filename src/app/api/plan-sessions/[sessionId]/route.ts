@@ -30,13 +30,27 @@ export const PATCH = withApi(async function PATCH(
     );
   }
 
-  const updated = await prisma.planSession.update({
-    where: { id: sessionId },
-    data: {
-      ...(parsed.data.name != null ? { name: parsed.data.name } : {}),
-      ...(parsed.data.notes !== undefined ? { notes: parsed.data.notes } : {}),
-      ...(parsed.data.order != null ? { order: parsed.data.order } : {}),
-    },
+  const weekdays = parsed.data.weekdays ? [...new Set(parsed.data.weekdays)].sort() : undefined;
+  const updated = await prisma.$transaction(async (tx) => {
+    // A weekday belongs to one workout day per plan: taking it here frees it elsewhere.
+    if (weekdays?.length) {
+      const siblings = await tx.planSession.findMany({
+        where: { planId: existing.planId, id: { not: sessionId }, weekdays: { hasSome: weekdays } },
+        select: { id: true, weekdays: true },
+      });
+      for (const s of siblings) {
+        await tx.planSession.update({ where: { id: s.id }, data: { weekdays: s.weekdays.filter((d) => !weekdays.includes(d)) } });
+      }
+    }
+    return tx.planSession.update({
+      where: { id: sessionId },
+      data: {
+        ...(parsed.data.name != null ? { name: parsed.data.name } : {}),
+        ...(parsed.data.notes !== undefined ? { notes: parsed.data.notes } : {}),
+        ...(parsed.data.order != null ? { order: parsed.data.order } : {}),
+        ...(weekdays ? { weekdays } : {}),
+      },
+    });
   });
 
   return NextResponse.json({ data: updated });
