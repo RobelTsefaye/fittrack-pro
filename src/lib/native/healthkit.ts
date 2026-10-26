@@ -14,6 +14,11 @@ const HealthKit = registerPlugin<HealthKitPlugin>("HealthKit");
 const INITIAL_SYNC_DAYS = 90;
 const ROUTINE_SYNC_DAYS = 2;
 const LAST_SUCCESSFUL_SYNC_KEY = "fittrack-healthkit-last-successful-sync";
+// Bumped when past days were stored wrong and must be read again in full
+// (2026-10: steps/active calories came from a single source, and the background
+// sync wrote today's partial values onto yesterday).
+const RESYNC_VERSION = "2";
+const RESYNC_KEY = "fittrack-healthkit-resync-version";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type HealthKitSyncResult = {
@@ -27,6 +32,7 @@ let activeSync: Promise<HealthKitSyncResult> | null = null;
 
 function daysToSync(now: number): number {
   try {
+    if (localStorage.getItem(RESYNC_KEY) !== RESYNC_VERSION) return INITIAL_SYNC_DAYS;
     const lastSuccessfulSync = Number(localStorage.getItem(LAST_SUCCESSFUL_SYNC_KEY));
     if (!Number.isFinite(lastSuccessfulSync) || lastSuccessfulSync <= 0 || lastSuccessfulSync > now) {
       return INITIAL_SYNC_DAYS;
@@ -45,6 +51,7 @@ function daysToSync(now: number): number {
 function markSyncSuccessful(now: number) {
   try {
     localStorage.setItem(LAST_SUCCESSFUL_SYNC_KEY, String(now));
+    localStorage.setItem(RESYNC_KEY, RESYNC_VERSION);
   } catch {
     // A later sync can safely fall back to the initial import window.
   }

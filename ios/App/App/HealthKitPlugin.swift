@@ -326,16 +326,12 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             store.execute(q)
         }
 
-        // Cumulative fields (steps, active/basal calories, exercise time) are
-        // each independently tracked by BOTH the iPhone's motion coprocessor
-        // AND the Apple Watch — a plain .cumulativeSum across all sources
-        // adds them together instead of picking one, roughly doubling the
-        // real value whenever the phone was carried while the watch was worn
-        // (the normal case). Fix: use .separateBySource and take ONLY the
-        // source whose name contains "Watch" — the Watch is the single
-        // source of truth whenever it is present. If it is absent (Watch not
-        // worn/charging), use HealthKit's aggregate for the remaining sources
-        // so iPhone-only days do not disappear from the app.
+        // Cumulative fields (steps, active/basal calories, exercise time): HealthKit's
+        // statistics queries already merge iPhone and Watch without double counting
+        // (by the source priority in Health), which is exactly what the Health and
+        // Fitness apps show. Picking one source "with Watch in its name" instead was
+        // wrong: the FitTrack Watch app writes its own workout energy and steps, so
+        // on some days only that session's calories (or a handful of steps) came over.
         func runPreferredSourceSumQuery(id: HKQuantityTypeIdentifier, field: String, unit: HKUnit) {
             guard let type = HKObjectType.quantityType(forIdentifier: id) else { return }
             guard type.is(compatibleWith: unit) else { return }
@@ -344,14 +340,12 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             interval.day = 1
             let anchor = calendar.startOfDay(for: startDate)
             let predicate = HKQuery.predicateForSamples(withStart: startDate, end: now, options: .strictStartDate)
-            let q = HKStatisticsCollectionQuery(quantityType: type, quantitySamplePredicate: predicate, options: [.cumulativeSum, .separateBySource], anchorDate: anchor, intervalComponents: interval)
+            let q = HKStatisticsCollectionQuery(quantityType: type, quantitySamplePredicate: predicate, options: .cumulativeSum, anchorDate: anchor, intervalComponents: interval)
             q.initialResultsHandler = { _, collection, _ in
                 defer { group.leave() }
                 var pending: [(String, Double)] = []
                 collection?.enumerateStatistics(from: startDate, to: now) { stats, _ in
-                    let watchSource = stats.sources?.first(where: { $0.name.localizedCaseInsensitiveContains("watch") })
-                    let quantity = watchSource.flatMap { stats.sumQuantity(for: $0) } ?? stats.sumQuantity()
-                    guard let value = quantity?.doubleValue(for: unit) else { return }
+                    guard let value = stats.sumQuantity()?.doubleValue(for: unit) else { return }
                     pending.append((dateKey(stats.startDate), value))
                 }
                 resultsQueue.sync {
@@ -420,13 +414,10 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 let stepsQuery = HKStatisticsQuery(
                     quantityType: stepType,
                     quantitySamplePredicate: windowPredicate,
-                    options: [.cumulativeSum, .separateBySource]
+                    options: .cumulativeSum
                 ) { _, stats, _ in
                     defer { group.leave() }
-                    guard let stats else { return }
-                    let watchSource = stats.sources?.first(where: { $0.name.localizedCaseInsensitiveContains("watch") })
-                    let quantity = watchSource.flatMap { stats.sumQuantity(for: $0) } ?? stats.sumQuantity()
-                    guard let value = quantity?.doubleValue(for: .count()), value > 0 else { return }
+                    guard let value = stats?.sumQuantity()?.doubleValue(for: .count()), value > 0 else { return }
                     resultsQueue.sync {
                         stepsToSubtract[dateKey(workout.startDate), default: 0] += value
                     }
