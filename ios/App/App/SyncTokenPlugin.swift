@@ -24,6 +24,7 @@ public class SyncTokenPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         SyncTokenStore.save(token)
         BackgroundSyncManager.schedule()
+        BackgroundSyncManager.startObservers()
         call.resolve()
     }
 

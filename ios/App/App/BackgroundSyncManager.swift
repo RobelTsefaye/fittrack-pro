@@ -44,6 +44,46 @@ enum BackgroundSyncManager {
         try? BGTaskScheduler.shared.submit(request)
     }
 
+    // ── HealthKit background delivery ────────────────────────────────────────
+    // BGAppRefresh alone runs when iOS feels like it (often not at all for an app
+    // that is rarely opened), so the resting heart rate the Watch writes during the
+    // day only reached the server on the next app launch. Observer queries with
+    // background delivery wake the app when new samples land (at most hourly).
+    private static let observedTypes: [HKQuantityTypeIdentifier] = [.restingHeartRate, .heartRateVariabilitySDNN, .stepCount]
+    private static var observersStarted = false
+    private static let lastSyncKey = "healthBackgroundLastSync"
+
+    /// Call at launch (iOS relaunches the app in the background for deliveries,
+    /// so the queries must exist again before didFinishLaunching returns) and
+    /// after a sync token was stored.
+    static func startObservers() {
+        guard !observersStarted, HKHealthStore.isHealthDataAvailable(),
+              SyncTokenStore.loadForBackgroundUse() != nil else { return }
+        observersStarted = true
+        for id in observedTypes {
+            guard let type = HKObjectType.quantityType(forIdentifier: id) else { continue }
+            let query = HKObserverQuery(sampleType: type, predicate: nil) { _, completion, error in
+                guard error == nil else { completion(); return }
+                Task {
+                    await syncIfDue()
+                    completion()
+                }
+            }
+            store.execute(query)
+            store.enableBackgroundDelivery(for: type, frequency: .hourly) { _, _ in }
+        }
+    }
+
+    /// Several types often update together (steps + HRV): one upload per 10 minutes is plenty.
+    private static func syncIfDue() async {
+        let defaults = UserDefaults.standard
+        let last = defaults.double(forKey: lastSyncKey)
+        let now = Date().timeIntervalSince1970
+        guard now - last > 10 * 60 else { return }
+        defaults.set(now, forKey: lastSyncKey)
+        _ = await performSync()
+    }
+
     private static func handle(task: BGAppRefreshTask) {
         schedule() // queue the next run regardless of this one's outcome
 
@@ -63,9 +103,14 @@ enum BackgroundSyncManager {
 
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: Date())
-        var snapshot: [String: Any] = [
-            "date": ISO8601DateFormatter().string(from: startOfDay).prefix(10).description,
-        ]
+        // Local calendar day. ISO8601DateFormatter defaults to UTC, which turned local
+        // midnight into the previous date and wrote today's values onto yesterday.
+        let day = DateFormatter()
+        day.calendar = Calendar(identifier: .gregorian)
+        day.locale = Locale(identifier: "en_US_POSIX")
+        day.timeZone = .current
+        day.dateFormat = "yyyy-MM-dd"
+        var snapshot: [String: Any] = ["date": day.string(from: startOfDay)]
 
         async let steps = sum(.stepCount, unit: .count(), since: startOfDay)
         async let activeCalories = sum(.activeEnergyBurned, unit: .kilocalorie(), since: startOfDay)
