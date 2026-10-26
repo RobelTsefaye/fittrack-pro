@@ -12,7 +12,10 @@ const config: CapacitorConfig = {
   // instead of a `server.url` webview redirect.
   webDir: 'out',
   ios: {
-    contentInset: 'automatic',
+    // 'never': the page itself reaches under the status bar and pads with
+    // env(safe-area-inset-*) (top bar, tab bar). 'automatic' added the status
+    // bar height a second time on top of that — a blank strip above the top bar.
+    contentInset: 'never',
     // Capacitor's debug bridge logs plugin responses verbatim. Native auth
     // tokens travel through that bridge from the Keychain to JS, so keeping
     // logging enabled would expose them in Xcode/Console output.

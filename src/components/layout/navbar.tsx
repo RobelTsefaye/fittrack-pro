@@ -80,7 +80,16 @@ export function MobileTopBar() {
     ?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) ?? "?";
 
   return (
-    <header className={cn("shrink-0 lg:hidden", "safe-top-pad")}>
+    // The bar's background sits on the header so it also fills the status-bar
+    // area (safe-top-pad) instead of leaving a differently coloured strip above.
+    <header
+      className={cn("shrink-0 lg:hidden", "safe-top-pad")}
+      style={{
+        background: "rgba(7,7,8,0.92)",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+      }}
+    >
       {/* Top bar — fixed height. The offline state shows as an inline icon
           rather than an extra banner row on purpose: a row that inserts/
           removes here would push the whole scroll area below it up/down. On
@@ -89,12 +98,7 @@ export function MobileTopBar() {
           bar a constant height means connectivity changes never move content. */}
       <div
         className="flex h-12 items-center gap-3 px-4"
-        style={{
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-          background: "rgba(7,7,8,0.92)",
-          backdropFilter: "blur(16px)",
-          WebkitBackdropFilter: "blur(16px)",
-        }}
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
       >
         <span
           className={cn(
