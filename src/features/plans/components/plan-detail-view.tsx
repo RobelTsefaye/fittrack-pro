@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "@/components/app-link";
 import { useRouter } from "next/navigation";
-import { workoutHref } from "@/lib/workout-href";
-import { ArrowLeft, GripVertical, MoreHorizontal, Plus, Trash2, Play } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { planHref, workoutHref } from "@/lib/workout-href";
+import { ArrowLeft, ArrowRightLeft, GripVertical, MoreHorizontal, Plus, Trash2, Play } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   DndContext,
   closestCenter,
@@ -243,6 +243,9 @@ interface SortableSessionCardProps {
   onStart: (sessionId: string) => void;
   onPickExercise: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
+  /** The user's other plans, for "move this day to …". */
+  otherPlans: { id: string; name: string }[];
+  onMoveSession: (sessionId: string, planId: string) => void;
   onSetWeekdays: (sessionId: string, weekdays: number[]) => void;
   onRemovePse: (pseId: string) => void;
   onUpdatePse: (pseId: string, patch: PsePatch) => void;
@@ -258,6 +261,8 @@ function SortableSessionCard({
   onStart,
   onPickExercise,
   onDeleteSession,
+  otherPlans,
+  onMoveSession,
   onSetWeekdays,
   onRemovePse,
   onUpdatePse,
@@ -293,15 +298,26 @@ function SortableSessionCard({
               <GripVertical className="h-4 w-4" />
             </button>
             <CardTitle className="text-base">{s.name}</CardTitle>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="ml-auto text-destructive hover:text-destructive"
-              onClick={() => onDeleteSession(s.id)}
-            >
-              <Trash2 className="h-4 w-4" />
-              <span className="sr-only">{t("plans.removeDay")}</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button type="button" size="sm" variant="ghost" className="ml-auto" aria-label={t("plans.dayActions")} />}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {otherPlans.map((p) => (
+                  <DropdownMenuItem key={p.id} onClick={() => onMoveSession(s.id, p.id)}>
+                    <ArrowRightLeft className="mr-2 h-4 w-4" />
+                    {t("plans.moveTo")} {p.name}
+                  </DropdownMenuItem>
+                ))}
+                {otherPlans.length ? <DropdownMenuSeparator /> : null}
+                <DropdownMenuItem variant="destructive" onClick={() => onDeleteSession(s.id)}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {t("plans.removeDay")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2">
             <Button size="sm" onClick={() => onStart(s.id)} disabled={startingId === s.id}>
@@ -603,6 +619,36 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
     if (!res?.ok) await load();
   }
 
+  // Other plans for "move this day to …" (names only; the list page has the details).
+  const [otherPlans, setOtherPlans] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    fetch("/api/plans")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        const list = (json?.data ?? []) as { id: string; name: string }[];
+        setOtherPlans(list.filter((p) => p.id !== planId).map((p) => ({ id: p.id, name: p.name })));
+      })
+      .catch(() => {});
+  }, [planId]);
+
+  async function moveSession(sessionId: string, targetPlanId: string) {
+    const target = otherPlans.find((p) => p.id === targetPlanId);
+    const res = await fetch(`/api/plan-sessions/${sessionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ planId: targetPlanId }),
+    }).catch(() => null);
+    const json = res ? await res.json().catch(() => null) : null;
+    if (!res?.ok) {
+      toast.error(json?.error ?? t("common.saveFailed"));
+      return;
+    }
+    toast.success(`${t("plans.movedTo")} ${target?.name ?? ""}`.trim());
+    // This plan had no other day and is gone now: continue in the plan it went to.
+    if (json?.deletedPlanId === planId) router.push(planHref(targetPlanId));
+    else await load();
+  }
+
   async function deleteSession(sessionId: string) {
     if (!confirm(t("plans.removeDayConfirm"))) return;
     await fetch(`/api/plan-sessions/${sessionId}`, { method: "DELETE" });
@@ -797,6 +843,8 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
                   onStart={startSession}
                   onPickExercise={setPickerSessionId}
                   onDeleteSession={deleteSession}
+                  otherPlans={otherPlans}
+                  onMoveSession={moveSession}
                   onSetWeekdays={setWeekdays}
                   onRemovePse={removePse}
                   onUpdatePse={updatePse}

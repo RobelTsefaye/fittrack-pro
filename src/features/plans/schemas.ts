@@ -21,6 +21,8 @@ export const updatePlanSessionSchema = z.object({
   order: z.number().int().min(0).optional(),
   /** Fixed weekdays for this day (0 = Monday … 6 = Sunday); a weekday belongs to one day per plan. */
   weekdays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+  /** Move the day (with its exercises and workout history) into another plan. */
+  planId: z.string().uuid().optional(),
 });
 
 export const addPlanSessionExerciseSchema = z.object({
