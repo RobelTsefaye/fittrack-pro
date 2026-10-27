@@ -51,10 +51,10 @@ enum BackgroundSyncManager {
     // keeps its data locked while the iPhone is locked, so deliveries arrive after
     // the first unlock, and never for an app the user swiped away.
     private static let observedTypes: [(HKSampleType?, Bool)] = [
-        (HKObjectType.categoryType(forIdentifier: .sleepAnalysis), true),      // true: always sync, no throttle
-        (HKObjectType.quantityType(forIdentifier: .restingHeartRate), true),
-        (HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN), false),
-        (HKObjectType.quantityType(forIdentifier: .stepCount), false),
+        (HKObjectType.categoryType(forIdentifier: .sleepAnalysis) as HKSampleType?, true),      // true: always sync, no throttle
+        (HKObjectType.quantityType(forIdentifier: .restingHeartRate) as HKSampleType?, true),
+        (HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN) as HKSampleType?, false),
+        (HKObjectType.quantityType(forIdentifier: .stepCount) as HKSampleType?, false),
     ]
     private static var observersStarted = false
     private static let lastSyncKey = "healthBackgroundLastSync"
