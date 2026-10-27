@@ -11,11 +11,9 @@ import WidgetKit
  * top-up," not a replacement for the foreground sync in
  * native-health-sync.tsx which remains the primary, reliable path.
  *
- * Deliberately scoped down vs. the full HealthKitPlugin.swift sync: just
- * today's steps/active calories/resting HR/HRV via simple statistics
- * queries, no sleep-session clustering, no Watch-only source filtering. The
- * fuller, source-accurate sync still happens on next foreground. This keeps
- * the background task fast and low-risk to run without a live app UI.
+ * It sends the same snapshots as an app launch (HealthKitPlugin.dailySnapshots
+ * for today and yesterday: sleep sessions, vitals, steps, energy), triggered by
+ * HealthKit background delivery when new data lands and by BGAppRefresh.
  *
  * Background tasks have no WKWebView, so no session cookie — auth uses the
  * user's API token (Settings → API Tokens) stored in the Keychain via
@@ -46,10 +44,18 @@ enum BackgroundSyncManager {
 
     // ── HealthKit background delivery ────────────────────────────────────────
     // BGAppRefresh alone runs when iOS feels like it (often not at all for an app
-    // that is rarely opened), so the resting heart rate the Watch writes during the
-    // day only reached the server on the next app launch. Observer queries with
-    // background delivery wake the app when new samples land (at most hourly).
-    private static let observedTypes: [HKQuantityTypeIdentifier] = [.restingHeartRate, .heartRateVariabilitySDNN, .stepCount]
+    // that is rarely opened), so what the Watch writes only reached the server on
+    // the next app launch. Observer queries with background delivery wake the app
+    // when new samples land: sleep when the night ends (the recovery score of the
+    // morning), resting HR and HRV during the day, steps at most hourly. HealthKit
+    // keeps its data locked while the iPhone is locked, so deliveries arrive after
+    // the first unlock, and never for an app the user swiped away.
+    private static let observedTypes: [(HKSampleType?, Bool)] = [
+        (HKObjectType.categoryType(forIdentifier: .sleepAnalysis), true),      // true: always sync, no throttle
+        (HKObjectType.quantityType(forIdentifier: .restingHeartRate), true),
+        (HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN), false),
+        (HKObjectType.quantityType(forIdentifier: .stepCount), false),
+    ]
     private static var observersStarted = false
     private static let lastSyncKey = "healthBackgroundLastSync"
 
@@ -60,38 +66,28 @@ enum BackgroundSyncManager {
         guard !observersStarted, HKHealthStore.isHealthDataAvailable(),
               SyncTokenStore.loadForBackgroundUse() != nil else { return }
         observersStarted = true
-        for id in observedTypes {
-            guard let type = HKObjectType.quantityType(forIdentifier: id) else { continue }
+        for case let (type?, important) in observedTypes {
             let query = HKObserverQuery(sampleType: type, predicate: nil) { _, completion, error in
                 guard error == nil else { completion(); return }
                 Task {
-                    await syncIfDue()
+                    await syncIfDue(force: important)
                     completion()
                 }
             }
             store.execute(query)
-            store.enableBackgroundDelivery(for: type, frequency: .hourly) { _, _ in }
+            store.enableBackgroundDelivery(for: type, frequency: important ? .immediate : .hourly) { _, _ in }
         }
     }
 
-    /// Several types often update together (steps + HRV): one upload per 10 minutes is plenty.
-    private static func syncIfDue() async {
+    /// Steps and HRV often update together: one upload per 10 minutes is plenty.
+    /// Sleep and resting HR always go through — they make the morning's score.
+    private static func syncIfDue(force: Bool) async {
         let defaults = UserDefaults.standard
         let last = defaults.double(forKey: lastSyncKey)
         let now = Date().timeIntervalSince1970
-        guard now - last > 10 * 60 else { return }
+        guard force || now - last > 10 * 60 else { return }
         defaults.set(now, forKey: lastSyncKey)
         _ = await performSync()
-    }
-
-    private static func handle(task: BGAppRefreshTask) {
-        schedule() // queue the next run regardless of this one's outcome
-
-        let work = Task {
-            let success = await performSync()
-            task.setTaskCompleted(success: success)
-        }
-        task.expirationHandler = { work.cancel() }
     }
 
     private static func performSync() async -> Bool {
@@ -101,46 +97,32 @@ enum BackgroundSyncManager {
         _ = await WatchAPIProxy.flushPendingOfflineWorkout()
         guard HKHealthStore.isHealthDataAvailable() else { return false }
 
-        let calendar = Calendar.current
-        let startOfDay = calendar.startOfDay(for: Date())
-        // Local calendar day. ISO8601DateFormatter defaults to UTC, which turned local
-        // midnight into the previous date and wrote today's values onto yesterday.
-        let day = DateFormatter()
-        day.calendar = Calendar(identifier: .gregorian)
-        day.locale = Locale(identifier: "en_US_POSIX")
-        day.timeZone = .current
-        day.dateFormat = "yyyy-MM-dd"
-        var snapshot: [String: Any] = ["date": day.string(from: startOfDay)]
-
-        async let steps = sum(.stepCount, unit: .count(), since: startOfDay)
-        async let activeCalories = sum(.activeEnergyBurned, unit: .kilocalorie(), since: startOfDay)
-        async let restingHR = average(.restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), since: startOfDay)
-        async let hrv = average(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), since: startOfDay)
-
-        if let v = await steps { snapshot["steps"] = v }
-        if let v = await activeCalories { snapshot["activeCalories"] = v }
-        if let v = await restingHR { snapshot["restingHeartRate"] = v }
-        if let v = await hrv { snapshot["hrv"] = v }
-
-        guard snapshot.count > 1 else { return true } // nothing new, not an error
-
-        guard let url = URL(string: "\(apiBaseURL)/api/health-data") else { return false }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: snapshot)
-
-        do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            let success = (response as? HTTPURLResponse).map { $0.statusCode < 400 } ?? false
-            if success {
-                Task { await refreshWidgetSnapshots(token: token) }
-            }
-            return success
-        } catch {
-            return false
+        // Today and yesterday, built exactly like an app launch does (sleep sessions,
+        // vitals, steps, energy) — HealthKitPlugin.dailySnapshots.
+        let snapshots: [[String: Any]] = await withCheckedContinuation { cont in
+            HealthKitPlugin.dailySnapshots(days: 2, store: store) { cont.resume(returning: $0 ?? []) }
         }
+        guard !snapshots.isEmpty else { return true } // nothing readable (locked?), not an error
+        guard let url = URL(string: "\(apiBaseURL)/api/health-data") else { return false }
+
+        var success = true
+        for snapshot in snapshots {
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.httpBody = try? JSONSerialization.data(withJSONObject: snapshot)
+            do {
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if (response as? HTTPURLResponse).map({ $0.statusCode >= 400 }) ?? true { success = false }
+            } catch {
+                success = false
+            }
+        }
+        if success {
+            await refreshWidgetSnapshots(token: token)
+        }
+        return success
     }
 
     private static func refreshWidgetSnapshots(token: String) async {
@@ -214,27 +196,5 @@ enum BackgroundSyncManager {
               let json = String(data: data, encoding: .utf8) else { return false }
         UserDefaults(suiteName: "group.com.robeltsefaye.fittrackpro")?.set(json, forKey: key)
         return true
-    }
-
-    private static func sum(_ id: HKQuantityTypeIdentifier, unit: HKUnit, since start: Date) async -> Double? {
-        guard let type = HKObjectType.quantityType(forIdentifier: id) else { return nil }
-        return await withCheckedContinuation { continuation in
-            let predicate = HKQuery.predicateForSamples(withStart: start, end: Date(), options: .strictStartDate)
-            let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, stats, _ in
-                continuation.resume(returning: stats?.sumQuantity()?.doubleValue(for: unit))
-            }
-            store.execute(query)
-        }
-    }
-
-    private static func average(_ id: HKQuantityTypeIdentifier, unit: HKUnit, since start: Date) async -> Double? {
-        guard let type = HKObjectType.quantityType(forIdentifier: id) else { return nil }
-        return await withCheckedContinuation { continuation in
-            let predicate = HKQuery.predicateForSamples(withStart: start, end: Date(), options: .strictStartDate)
-            let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: predicate, options: .discreteAverage) { _, stats, _ in
-                continuation.resume(returning: stats?.averageQuantity()?.doubleValue(for: unit))
-            }
-            store.execute(query)
-        }
     }
 }

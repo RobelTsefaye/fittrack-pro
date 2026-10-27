@@ -16,8 +16,9 @@ const ROUTINE_SYNC_DAYS = 2;
 const LAST_SUCCESSFUL_SYNC_KEY = "fittrack-healthkit-last-successful-sync";
 // Bumped when past days were stored wrong and must be read again in full
 // (2026-10: steps/active calories came from a single source, and the background
-// sync wrote today's partial values onto yesterday).
-const RESYNC_VERSION = "2";
+// sync wrote today's partial values onto yesterday; v3: the oldest day and its
+// night were read only from mid-day, so partial values overwrote whole days).
+const RESYNC_VERSION = "3";
 const RESYNC_KEY = "fittrack-healthkit-resync-version";
 const DAY_MS = 24 * 60 * 60 * 1000;
 

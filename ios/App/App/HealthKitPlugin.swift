@@ -81,12 +81,25 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
     /// exerciseMinutes, calories, vo2Max, and nutrition intake fields).
     @objc func queryDailySnapshots(_ call: CAPPluginCall) {
         let days = call.getInt("days") ?? 90
+        HealthKitPlugin.dailySnapshots(days: days, store: store) { data in
+            guard let data else { call.reject("Invalid range"); return }
+            call.resolve(["data": data])
+        }
+    }
+
+    /// The snapshot builder behind queryDailySnapshots, shared with
+    /// BackgroundSyncManager so the background sync sends exactly what an
+    /// app launch sends (sleep, vitals, steps, energy) instead of a subset.
+    static func dailySnapshots(days: Int, store: HKHealthStore, completion: @escaping ([[String: Any]]?) -> Void) {
         let calendar = Calendar(identifier: .gregorian)
         let now = Date()
-        guard let startDate = calendar.date(byAdding: .day, value: -days, to: now) else {
-            call.reject("Invalid range")
+        // From midnight: starting `days` × 24 h back (mid-day) read the oldest day
+        // only partly, and that half-day then overwrote its complete record.
+        guard let back = calendar.date(byAdding: .day, value: -days, to: now) else {
+            completion(nil)
             return
         }
+        let startDate = calendar.startOfDay(for: back)
 
         let group = DispatchGroup()
         // HealthKit query completion handlers can fire concurrently on
@@ -112,7 +125,12 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         // Sleep — mirror the priority chain in route.ts: stage sum > asleep > inBed.
         group.enter()
         let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
-        let sleepPredicate = HKQuery.predicateForSamples(withStart: startDate, end: now, options: .strictStartDate)
+        // A night that ends on the first day began the evening before: read from
+        // 18 h earlier so it is whole (a cut-off night lost against a nap), but
+        // only write days inside the range — earlier nights are incomplete here.
+        let sleepFrom = startDate.addingTimeInterval(-18 * 3600)
+        let firstDay = dateKey(startDate)
+        let sleepPredicate = HKQuery.predicateForSamples(withStart: sleepFrom, end: now, options: .strictStartDate)
         let sleepQuery = HKSampleQuery(sampleType: sleepType, predicate: sleepPredicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, _ in
             defer { group.leave() }
             guard let samples = samples as? [HKCategorySample] else { return }
@@ -214,7 +232,7 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 return f
             }()
 
-            for (dayKey, best) in bestByDay {
+            for (dayKey, best) in bestByDay where dayKey >= firstDay {
                 ensureRecord(dayKey)
                 results[dayKey]?["sleepDuration"] = best.total
                 results[dayKey]?["sleepDeepMinutes"] = Int(best.deep * 60)
@@ -422,7 +440,7 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                         stepsToSubtract[dateKey(workout.startDate), default: 0] += value
                     }
                 }
-                self.store.execute(stepsQuery)
+                store.execute(stepsQuery)
             }
         }
         store.execute(workoutQuery)
@@ -432,7 +450,7 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 guard subtract > 0, let steps = results[key]?["steps"] as? Double else { continue }
                 results[key]?["steps"] = max(0, steps - subtract)
             }
-            call.resolve(["data": Array(results.values)])
+            completion(Array(results.values))
         }
     }
 
