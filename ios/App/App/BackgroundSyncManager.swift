@@ -90,6 +90,16 @@ enum BackgroundSyncManager {
         _ = await performSync()
     }
 
+    private static func handle(task: BGAppRefreshTask) {
+        schedule() // queue the next run regardless of this one's outcome
+
+        let work = Task {
+            let success = await performSync()
+            task.setTaskCompleted(success: success)
+        }
+        task.expirationHandler = { work.cancel() }
+    }
+
     private static func performSync() async -> Bool {
         guard let token = SyncTokenStore.loadForBackgroundUse() else { return false }
         // The queue is independent of HealthKit and must get a chance to
