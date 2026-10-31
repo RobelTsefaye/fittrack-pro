@@ -21,7 +21,7 @@ export const GET = withApi(async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Exercise not found" }, { status: 404 });
   }
 
-  const sets = await fetchCompletedSetsForExercise(exerciseId, userId);
+  const sets = await fetchCompletedSetsForExercise(userId, exerciseId);
 
   return NextResponse.json({
     data: {

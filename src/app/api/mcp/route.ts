@@ -356,7 +356,7 @@ async function callTool(
       if (!exerciseId) throw new Error("Missing exerciseId");
       const exercise = await findExerciseVisibleToUser(exerciseId, userId);
       if (!exercise) throw new Error(`Exercise not found: ${exerciseId}`);
-      const sets = await fetchCompletedSetsForExercise(exerciseId, userId);
+      const sets = await fetchCompletedSetsForExercise(userId, exerciseId);
       return json({
         data: {
           ...envelope("exercise-history"),
