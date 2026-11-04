@@ -5,7 +5,7 @@
 //  A local (non-push) notification for the rest timer's expiry, scheduled
 //  directly on the Watch — mirrors local-notifications.ts on the phone side.
 //
-//  RestTimerRow's own haptic (WKInterfaceDevice.play(.notification)) only
+//  RestCard's own haptic (WKInterfaceDevice.play(.notification)) only
 //  fires while that view is actually on screen and ticking, which requires
 //  the Watch app to be foreground-active; a backgrounded/screen-off Watch
 //  never gets there, so the countdown could reach zero in total silence

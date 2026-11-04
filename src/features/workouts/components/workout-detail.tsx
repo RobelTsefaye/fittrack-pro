@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "@/components/app-link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -54,6 +54,7 @@ import { useWorkoutTimer } from "../hooks/use-workout-timer";
 import { sortSetsForDisplay } from "../set-sort";
 import { buildWarmupRamp } from "../warmup";
 import { nextWorkingSet } from "../progression";
+import { CardioAfterPicker } from "@/features/cardio/cardio-after-picker";
 import { useI18n } from "@/lib/i18n-provider";
 import type { WorkoutData, WorkoutExerciseData, WorkoutSetData } from "@/features/workouts/workout-types";
 import { shouldRestAfterExercise } from "@/features/workouts/superset-utils";
@@ -106,6 +107,8 @@ type NativeWatchPending = {
  *  this component and would reset a ref — must not interrupt whatever the
  *  user is doing on their wrist a second time. */
 const wokenWatchWorkoutIds = new Set<string>();
+
+const noopSubscribe = () => () => {};
 
 function nativeWatchPendingToWorkout(pending: NativeWatchPending): WorkoutData {
   return {
@@ -585,6 +588,14 @@ export function WorkoutDetail({
   const { formatted: elapsedLabel } = useWorkoutTimer(startedAt);
 
   const isActive = workout && !workout.completedAt;
+  // "Cardio danach" stays offered for 3 h after finishing. Minute-resolution
+  // clock read after hydration only (the server snapshot is 0), so the
+  // server-rendered page never disagrees with the client.
+  const nowMinute = useSyncExternalStore(noopSubscribe, () => Math.floor(Date.now() / 60_000), () => 0);
+  const cardioOfferOpen =
+    !!workout?.completedAt &&
+    nowMinute > 0 &&
+    nowMinute * 60_000 - new Date(workout.completedAt).getTime() < 3 * 3600_000;
   // Keep the phone awake for the whole session, not only during rest.
   useScreenWakeLock(!!isActive);
   const weightLabel = weightUnit === "LB" ? "lb" : "kg";
@@ -1724,8 +1735,8 @@ export function WorkoutDetail({
     }
   }
 
-  /** Closes the finish dialog, saving the note first when one was written. */
-  async function closeSummary() {
+  /** Closes the finish dialog, saving the note first when one was written. False when saving failed (dialog stays open). */
+  async function closeSummary(): Promise<boolean> {
     const note = summaryNote.trim();
     if (note && note !== (workout?.notes ?? "").trim()) {
       setSavingSummaryNote(true);
@@ -1741,16 +1752,17 @@ export function WorkoutDetail({
           toast.success(t("workouts.summaryNoteSaved"));
         } else {
           toast.error(t("common.saveFailed"));
-          return;
+          return false;
         }
       } catch {
         toast.error(t("common.saveFailed"));
-        return;
+        return false;
       } finally {
         setSavingSummaryNote(false);
       }
     }
     setCompletionSummary(null);
+    return true;
   }
 
   async function cancelWorkout() {
@@ -1972,6 +1984,9 @@ export function WorkoutDetail({
         </p>
       ) : null}
 
+      {/* Day flagged "Cardio danach": still offered for a while after finishing (also after an offline finish, which has no summary dialog). */}
+      {workout.completedAt && workout.cardioAfter && cardioOfferOpen ? <CardioAfterPicker /> : null}
+
       {workout.completedAt && reviseCompletedSets ? (
         // While correcting, the way out stays visible (not hidden in the menu).
         <div className="sticky top-2 z-10">{reviseToggle}</div>
@@ -2180,6 +2195,7 @@ export function WorkoutDetail({
                   </ul>
                 </div>
               ) : null}
+              {workout.cardioAfter ? <CardioAfterPicker beforeStart={closeSummary} /> : null}
               <Textarea
                 value={summaryNote}
                 onChange={(e) => setSummaryNote(e.target.value)}

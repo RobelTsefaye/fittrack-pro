@@ -228,6 +228,7 @@ model PlanSession {
   order       Int
   notes       String?
   weekdays    Int[]    @default([]) // fixed training days, Monday-first: 0=Mo .. 6=So (like trainingWeekdays)
+  cardioAfter Boolean  @default(false) // offer a cardio session (indoor run/bike, elliptical) on phone + Watch once this day is finished
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

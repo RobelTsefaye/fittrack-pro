@@ -27,6 +27,8 @@ export const GET = withApi(async function GET(
           },
           orderBy: { order: "asc" },
         },
+        // Only the flag: whether to offer cardio after this day (phone summary + Watch).
+        planSession: { select: { cardioAfter: true } },
       },
     }),
     // Included here (not just read separately by the phone's own settings
@@ -43,8 +45,13 @@ export const GET = withApi(async function GET(
     return NextResponse.json({ error: "Workout not found" }, { status: 404 });
   }
 
+  const { planSession, ...rest } = workout;
   return NextResponse.json({
-    data: { ...workout, restTimerDefaultSeconds: settings?.restTimerDefault ?? DEFAULT_REST_TIMER },
+    data: {
+      ...rest,
+      cardioAfter: planSession?.cardioAfter ?? false,
+      restTimerDefaultSeconds: settings?.restTimerDefault ?? DEFAULT_REST_TIMER,
+    },
   });
 });
 

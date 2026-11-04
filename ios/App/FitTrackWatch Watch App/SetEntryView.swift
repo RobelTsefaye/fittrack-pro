@@ -2,20 +2,21 @@
 //  SetEntryView.swift
 //  FitTrackWatch Watch App
 //
-//  Weight + reps entry for a single set, using the Digital Crown for fast
-//  input. Saves via PhoneWorkoutObserver.logSet (WatchConnectivity
-//  sendMessage → phone → REST API), then reports back to KraftLoggingView
-//  so the local set list + personal-record haptic can update.
+//  Weight + reps for one set, Digital Crown first. Prefilled with the same
+//  proposal the "Jetzt" card shows (logged value → the phone's progression
+//  suggestion → last time → the set above). Saves via
+//  PhoneWorkoutObserver.logSet (WatchConnectivity → phone → REST API);
+//  correcting an already logged set works the same way.
 //
 
 import SwiftUI
+import WatchKit
 
 struct SetEntryView: View {
     @ObservedObject var phoneObserver: PhoneWorkoutObserver
     let workoutId: String
+    let exercise: WatchWorkoutExercise
     let set: WatchSet
-    let exerciseName: String
-    let onSaved: (WatchSet, Bool) -> Void
 
     @State private var weight: Double
     @State private var reps: Double
@@ -23,39 +24,45 @@ struct SetEntryView: View {
     @State private var errorMessage: String?
     @Environment(\.dismiss) private var dismiss
 
-    init(phoneObserver: PhoneWorkoutObserver, workoutId: String, set: WatchSet, exerciseName: String, onSaved: @escaping (WatchSet, Bool) -> Void) {
+    init(phoneObserver: PhoneWorkoutObserver, workoutId: String, exercise: WatchWorkoutExercise, set: WatchSet) {
         self.phoneObserver = phoneObserver
         self.workoutId = workoutId
+        self.exercise = exercise
         self.set = set
-        self.exerciseName = exerciseName
-        self.onSaved = onSaved
-        // Prefill with what was actually logged, then the last session's
-        // values for this exact set, and only fall back to a generic
-        // default when neither exists (first time ever logging this set).
-        _weight = State(initialValue: set.weight ?? set.previousWeight ?? 20)
-        _reps = State(initialValue: Double(set.reps ?? set.previousReps ?? 10))
+        let proposal = exercise.proposal(for: set)
+        _weight = State(initialValue: proposal.weight)
+        _reps = State(initialValue: Double(proposal.reps))
     }
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 10) {
-                Text(exerciseName)
-                    .font(.caption)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                Text(set.isWarmup ? "Warm-up" : "Satz \(set.setNumber)")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(set.isWarmup ? .orange : .secondary)
+            VStack(spacing: 8) {
+                VStack(spacing: 1) {
+                    Text(exercise.exercise.name)
+                        .font(.system(size: 14, weight: .semibold))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                    Text(caption)
+                        .font(.system(size: 12))
+                        .foregroundStyle(set.isWarmup ? Theme.rest : Theme.label2)
+                }
 
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     CrownStepperField(label: "Gewicht", unit: "kg", value: $weight, step: 2.5, range: 0...400)
                     CrownStepperField(label: "Wdh.", unit: "reps", value: $reps, step: 1, range: 0...50)
                 }
 
+                if let hint {
+                    Text(hint)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.label2)
+                        .multilineTextAlignment(.center)
+                }
+
                 if let errorMessage {
                     Text(errorMessage)
-                        .font(.caption2)
-                        .foregroundStyle(.red)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.danger)
                         .multilineTextAlignment(.center)
                 }
 
@@ -63,48 +70,63 @@ struct SetEntryView: View {
                     save()
                 } label: {
                     if isSaving {
-                        ProgressView()
+                        ProgressView().tint(Theme.voltInk)
                     } else {
-                        Label("Speichern", systemImage: "checkmark")
+                        Label(set.isCompleted ? "Korrigieren" : "Speichern", systemImage: "checkmark")
                     }
                 }
-                .tint(.green)
+                .buttonStyle(VoltButtonStyle())
                 .disabled(isSaving)
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
         }
-        .navigationTitle("Satz \(set.setNumber)")
+        .navigationTitle(set.isWarmup ? "Aufwärmen" : "Satz \(exercise.workingPosition(of: set) ?? set.setNumber)")
+    }
+
+    private var caption: String {
+        var parts: [String] = []
+        if set.isWarmup {
+            parts.append("Aufwärmsatz")
+        } else if let position = exercise.workingPosition(of: set) {
+            parts.append("Satz \(position) von \(exercise.workingSetCount)")
+        }
+        if let target = exercise.targetText { parts.append(target) }
+        return parts.joined(separator: " · ")
+    }
+
+    private var hint: String? {
+        var parts: [String] = []
+        if let w = set.suggestedWeight, let r = set.suggestedReps {
+            parts.append("Vorschlag \(Fmt.setLine(weight: w, reps: r))")
+        }
+        if let w = set.previousWeight, let r = set.previousReps {
+            parts.append("zuletzt \(Fmt.setLine(weight: w, reps: r))")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private func save() {
         isSaving = true
         errorMessage = nil
-        phoneObserver.logSet(workoutId: workoutId, setId: set.id, weight: weight, reps: Int(reps)) { result in
+        let loggedWeight = weight
+        let loggedReps = Int(reps)
+        phoneObserver.logSet(workoutId: workoutId, setId: set.id, weight: loggedWeight, reps: loggedReps) { result in
             DispatchQueue.main.async {
                 isSaving = false
                 switch result {
                 case .success(let personalRecord):
                     var updated = set
-                    updated.weight = weight
-                    updated.reps = Int(reps)
+                    updated.weight = loggedWeight
+                    updated.reps = loggedReps
                     updated.isCompleted = true
-                    onSaved(updated, personalRecord)
+                    phoneObserver.applyLoggedSet(exerciseId: exercise.id, updatedSet: updated)
+                    WKInterfaceDevice.current().play(personalRecord ? .notification : .success)
                     dismiss()
                 case .failure(let error):
                     errorMessage = error.localizedDescription
+                    WKInterfaceDevice.current().play(.failure)
                 }
             }
         }
-    }
-}
-
-#Preview {
-    NavigationStack {
-        SetEntryView(
-            phoneObserver: PhoneWorkoutObserver(),
-            workoutId: "preview-workout-1",
-            set: WatchSet(id: "set2", setNumber: 2, reps: nil, weight: nil, isCompleted: false),
-            exerciseName: "Bankdrücken"
-        ) { _, _ in }
     }
 }

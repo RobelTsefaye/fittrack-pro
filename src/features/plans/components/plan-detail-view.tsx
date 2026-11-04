@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "@/components/app-link";
 import { useRouter } from "next/navigation";
 import { planHref, workoutHref } from "@/lib/workout-href";
-import { ArrowLeft, ArrowRightLeft, GripVertical, MoreHorizontal, Plus, Trash2, Play } from "lucide-react";
+import { ArrowLeft, ArrowRightLeft, GripVertical, HeartPulse, MoreHorizontal, Plus, Trash2, Play } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   DndContext,
@@ -89,6 +89,8 @@ type PlanSession = {
   exercises: Pse[];
   /** Fixed weekdays, 0 = Monday … 6 = Sunday. */
   weekdays?: number[];
+  /** Offer cardio (indoor run/bike, elliptical on the Watch) once this day is finished. */
+  cardioAfter?: boolean;
 };
 
 const WEEKDAY_KEYS = ["weekdayMon", "weekdayTue", "weekdayWed", "weekdayThu", "weekdayFri", "weekdaySat", "weekdaySun"] as const;
@@ -247,6 +249,7 @@ interface SortableSessionCardProps {
   otherPlans: { id: string; name: string }[];
   onMoveSession: (sessionId: string, planId: string) => void;
   onSetWeekdays: (sessionId: string, weekdays: number[]) => void;
+  onSetCardioAfter: (sessionId: string, cardioAfter: boolean) => void;
   onRemovePse: (pseId: string) => void;
   onUpdatePse: (pseId: string, patch: PsePatch) => void;
   onExerciseDragEnd: (sessionId: string, event: DragEndEvent) => void;
@@ -264,6 +267,7 @@ function SortableSessionCard({
   otherPlans,
   onMoveSession,
   onSetWeekdays,
+  onSetCardioAfter,
   onRemovePse,
   onUpdatePse,
   onExerciseDragEnd,
@@ -354,6 +358,30 @@ function SortableSessionCard({
               })}
             </div>
           </div>
+          {/* After this day the finish summary (and the Watch) offer indoor run/bike or elliptical. */}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!!s.cardioAfter}
+            onClick={() => onSetCardioAfter(s.id, !s.cardioAfter)}
+            className="flex w-full items-center gap-3 rounded-xl bg-white/[0.04] px-3 py-2.5 text-left transition-colors active:scale-[0.99]"
+          >
+            <HeartPulse className="h-4 w-4 shrink-0" style={{ color: s.cardioAfter ? splitHue(s.name) : "#9A9AA2" }} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">{t("plans.cardioAfter")}</span>
+              <span className="block text-xs text-muted-foreground">{t("plans.cardioAfterHint")}</span>
+            </span>
+            <span
+              aria-hidden
+              className="relative h-6 w-10 shrink-0 rounded-full transition-colors"
+              style={{ background: s.cardioAfter ? splitHue(s.name) : "rgba(255,255,255,0.14)" }}
+            >
+              <span
+                className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left]"
+                style={{ left: s.cardioAfter ? "1.125rem" : "0.125rem" }}
+              />
+            </span>
+          </button>
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             {t("plans.exercisesInDay")}
           </p>
@@ -619,6 +647,19 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
     if (!res?.ok) await load();
   }
 
+  async function setCardioAfter(sessionId: string, cardioAfter: boolean) {
+    setPlan((prev) => prev && {
+      ...prev,
+      sessions: prev.sessions.map((s) => (s.id === sessionId ? { ...s, cardioAfter } : s)),
+    });
+    const res = await fetch(`/api/plan-sessions/${sessionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cardioAfter }),
+    }).catch(() => null);
+    if (!res?.ok) await load();
+  }
+
   // Other plans for "move this day to …" (names only; the list page has the details).
   const [otherPlans, setOtherPlans] = useState<{ id: string; name: string }[]>([]);
   useEffect(() => {
@@ -846,6 +887,7 @@ export function PlanDetailView({ planId }: PlanDetailViewProps) {
                   otherPlans={otherPlans}
                   onMoveSession={moveSession}
                   onSetWeekdays={setWeekdays}
+                  onSetCardioAfter={setCardioAfter}
                   onRemovePse={removePse}
                   onUpdatePse={updatePse}
                   onExerciseDragEnd={handleExerciseDragEnd}

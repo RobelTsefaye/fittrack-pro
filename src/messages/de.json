@@ -434,7 +434,13 @@
     "activeSessionBannerAria": "Zum laufenden Cardio-Training wechseln",
     "pipStart": "Bild-in-Bild starten",
     "pipStop": "Bild-in-Bild beenden",
-    "pipFailed": "Bild-in-Bild konnte nicht gestartet werden"
+    "pipFailed": "Bild-in-Bild konnte nicht gestartet werden",
+    "after": {
+      "title": "Cardio dranhängen?",
+      "subtitle": "Startet in FitTrack auf der Apple Watch – Puls, Zone und Kalorien live.",
+      "running": "Laufband",
+      "cycling": "Indoor-Rad"
+    }
   },
   "plans": {
     "title": "Pläne",
@@ -479,7 +485,9 @@
     "repRangeHint": "Wiederholungsbereich für die Progression",
     "rest": "Pause",
     "restDefault": "Standard",
-    "fixedDays": "Feste Tage"
+    "fixedDays": "Feste Tage",
+    "cardioAfter": "Cardio danach",
+    "cardioAfterHint": "Nach diesem Tag Laufband, Rad oder Crosstrainer auf der Uhr anbieten"
   },
   "exercises": {
     "title": "Übungen",

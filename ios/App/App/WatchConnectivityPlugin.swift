@@ -447,14 +447,28 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
         type: String,
         fields: [String: Any],
         call: CAPPluginCall,
-        attemptsLeft: Int = 8
+        attemptsLeft: Int = 20
     ) {
         if WCSession.default.isReachable {
             sendRequestToWatch(type: type, fields: fields, call: call)
             return
         }
         guard attemptsLeft > 0 else {
-            call.reject("Uhr wurde gestartet, antwortet aber nicht — bitte erneut versuchen")
+            // startWatchApp succeeded, so the Watch app was launched with the
+            // workout configuration and starts the session itself in
+            // WKApplicationDelegate.handle(_:) — it just isn't reachable for
+            // an interactive reply yet. Queue duration/zone for it
+            // (transferUserInfo is delivered once it is) and let the phone
+            // show the live view, which fills as soon as the first sample
+            // arrives, instead of reporting a failure for a running session.
+            if type == "startCardio" {
+                var plan = fields
+                plan["type"] = "applyCardioPlan"
+                WCSession.default.transferUserInfo(plan)
+                call.resolve(["started": true, "deferred": true])
+            } else {
+                call.reject("Uhr wurde gestartet, antwortet aber nicht — bitte erneut versuchen")
+            }
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in

@@ -6,7 +6,7 @@
 //  polyline on a native MapKit map — the watchOS-native equivalent of what
 //  Apple's own Workout app shows, no Google Maps SDK needed/available on
 //  watchOS. Shown as an extra swipe page alongside the HR/calorie screen
-//  for Laufen/Radfahren only (see LiveWorkoutView).
+//  for Laufen/Radfahren only (see SessionLiveView).
 //
 
 import SwiftUI

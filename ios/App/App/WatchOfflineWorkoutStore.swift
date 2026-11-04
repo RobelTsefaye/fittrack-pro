@@ -325,7 +325,18 @@ struct WatchCachedPlanCatalog: Codable {
     }
 }
 struct WatchCachedPlan: Codable { let id: String; let name: String; let sessions: [WatchCachedPlanSession] }
-struct WatchCachedPlanSession: Codable { let id: String; let name: String; let order: Int; let exercises: [WatchCachedPlanExercise] }
+struct WatchCachedPlanSession: Codable {
+    let id: String
+    let name: String
+    let order: Int
+    let exercises: [WatchCachedPlanExercise]
+    // Kept when the cached catalog is re-encoded and replayed to the Watch
+    // (planCatalogJSON): its home screen picks "today" from the weekdays and
+    // offers cardio after a day flagged cardioAfter. Optional so catalogs
+    // cached before these fields existed still decode.
+    let weekdays: [Int]?
+    let cardioAfter: Bool?
+}
 struct WatchCachedPlanExercise: Codable { let id: String; let targetSets: Int; let exercise: OfflineExerciseInfo }
 /// One prior working set — only the fields the offline set hint needs. Extra
 /// JSON keys (setNumber, rpe) are ignored by Codable.

@@ -66,6 +66,40 @@ export function registerWatchWorkoutRequestHandler(): void {
   onWatchRequest(handleWatchRequest);
 }
 
+/**
+ * Last-session sets per exercise for the workouts the Watch is logging.
+ * Every re-push after a logged set must carry them again — otherwise the
+ * Watch loses its "last time" hint and the progression suggestion for all
+ * remaining sets the moment the first one is logged (the native proxy
+ * re-fetches them each time; this JS path used to drop them).
+ */
+const previousLogsByWorkout = new Map<string, Record<string, PreviousLogEntry>>();
+
+async function previousLogsFor(workoutId: string): Promise<Record<string, PreviousLogEntry> | undefined> {
+  const cached = previousLogsByWorkout.get(workoutId);
+  if (cached) return cached;
+  try {
+    const res = await fetch(`/api/workouts/${workoutId}/previous-logs`);
+    if (!res.ok) return undefined;
+    const json = (await res.json()) as { data: Record<string, PreviousLogEntry> };
+    previousLogsByWorkout.set(workoutId, json.data);
+    return json.data;
+  } catch {
+    // Non-fatal: the Watch falls back to its own defaults.
+    return undefined;
+  }
+}
+
+/** Fetches the workout and pushes it (with hints) to the Watch; returns the JSON for a direct reply. */
+async function pushWorkoutToWatch(workoutId: string): Promise<string | undefined> {
+  const detailRes = await fetch(`/api/workouts/${workoutId}`);
+  if (!detailRes.ok) return undefined;
+  const { data: workout } = (await detailRes.json()) as { data: WorkoutData };
+  const previousLogs = await previousLogsFor(workoutId);
+  await syncActiveWorkoutToWatch(workout, previousLogs);
+  return JSON.stringify(toWatchWorkoutPayload(workout, previousLogs));
+}
+
 async function handleWatchRequest(message: Record<string, unknown>): Promise<Record<string, unknown>> {
   const type = message.type as string | undefined;
 
@@ -76,33 +110,31 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
       if (!res.ok) return { error: `Start fehlgeschlagen (${res.status})` };
       const { data } = (await res.json()) as { data: { id: string } };
 
-      const detailRes = await fetch(`/api/workouts/${data.id}`);
-      if (!detailRes.ok) return { error: `Laden fehlgeschlagen (${detailRes.status})` };
-      const { data: workout } = (await detailRes.json()) as { data: WorkoutData };
+      // Deliver the workout via application context (inside
+      // pushWorkoutToWatch), not only the sendMessage reply: two sequential
+      // network round-trips (start + detail fetch) are slow enough over a
+      // real network that WatchConnectivity can silently drop a delayed
+      // reply, leaving the Watch spinning forever with no error. The
+      // application context has no such timeout — the Watch picks it up via
+      // PhoneWorkoutObserver and routes into the logging screen as soon as
+      // it arrives. The JSON rides the reply too, for when it is fast.
+      const workoutJSON = await pushWorkoutToWatch(data.id);
+      if (!workoutJSON) return { error: "Laden fehlgeschlagen" };
+      return { started: true, workoutJSON };
+    }
 
-      // Best-effort — a freshly started session usually has no prior
-      // sessions with this exact combination of exercises yet, so a failure
-      // here just means the Watch falls back to its own defaults.
-      let previousLogs: Record<string, PreviousLogEntry> | undefined;
-      try {
-        const prevRes = await fetch(`/api/workouts/${data.id}/previous-logs`);
-        if (prevRes.ok) {
-          const json = (await prevRes.json()) as { data: Record<string, PreviousLogEntry> };
-          previousLogs = json.data;
-        }
-      } catch {
-        // Non-fatal.
-      }
-
-      // Deliver the workout via application context, not the sendMessage
-      // reply: two sequential network round-trips (start + detail fetch)
-      // are slow enough over a real network that WatchConnectivity can
-      // silently drop a delayed reply, leaving the Watch spinning forever
-      // with no error. application context has no such timeout — the Watch
-      // picks it up via PhoneWorkoutObserver and ContentView routes into
-      // KraftLoggingView as soon as it arrives.
-      await syncActiveWorkoutToWatch(workout, previousLogs);
-      return { started: true };
+    case "addSet": {
+      // One more working set for an exercise, same as "+ Satz" on the phone.
+      const workoutId = message.workoutId as string;
+      const workoutExerciseId = message.workoutExerciseId as string;
+      const res = await fetch(`/api/workouts/${workoutId}/exercises/${workoutExerciseId}/sets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) return { error: `Satz hinzufügen fehlgeschlagen (${res.status})` };
+      const workoutJSON = await pushWorkoutToWatch(workoutId);
+      return workoutJSON ? { done: true, workoutJSON } : { done: true };
     }
 
     case "logSet": {
@@ -117,11 +149,8 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
       });
       if (!res.ok) return { error: `Speichern fehlgeschlagen (${res.status})` };
       const json = (await res.json()) as { data: unknown; personalRecord: boolean };
-      const detailRes = await fetch(`/api/workouts/${workoutId}`);
-      if (!detailRes.ok) return { set: json.data, personalRecord: json.personalRecord };
-      const { data: workout } = (await detailRes.json()) as { data: WorkoutData };
-      const workoutJSON = JSON.stringify(toWatchWorkoutPayload(workout));
-      await syncActiveWorkoutToWatch(workout);
+      const workoutJSON = await pushWorkoutToWatch(workoutId);
+      if (!workoutJSON) return { set: json.data, personalRecord: json.personalRecord };
       return { set: json.data, personalRecord: json.personalRecord, workoutJSON };
     }
 
@@ -137,16 +166,13 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
         body: JSON.stringify({ deltaSeconds }),
       });
       if (!res.ok) return { error: `Anpassen fehlgeschlagen (${res.status})` };
-      const detailRes = await fetch(`/api/workouts/${workoutId}`);
-      if (detailRes.ok) {
-        const { data: workout } = (await detailRes.json()) as { data: WorkoutData };
-        await syncActiveWorkoutToWatch(workout);
-      }
+      await pushWorkoutToWatch(workoutId);
       return { done: true };
     }
 
     case "finishWorkout": {
       const workoutId = message.workoutId as string;
+      previousLogsByWorkout.delete(workoutId);
       // Ack immediately instead of waiting for the complete-request +
       // context-clear round trip to finish: the same request/reply timing
       // issue that made startSession unreliable (see above) applies here
@@ -168,6 +194,7 @@ async function handleWatchRequest(message: Record<string, unknown>): Promise<Rec
 
     case "cancelWorkout": {
       const workoutId = message.workoutId as string;
+      previousLogsByWorkout.delete(workoutId);
       void (async () => {
         try {
           const res = await fetch(`/api/workouts/${workoutId}`, { method: "DELETE" });

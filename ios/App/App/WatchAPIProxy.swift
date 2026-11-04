@@ -73,6 +73,8 @@ enum WatchAPIProxy {
             return await startSession(message: message, token: token)
         case "logSet":
             return await logSet(message: message, token: token)
+        case "addSet":
+            return await addSet(message: message, token: token)
         case "adjustRestTimer":
             return await adjustRestTimer(message: message, token: token)
         case "finishWorkout":
@@ -195,6 +197,43 @@ enum WatchAPIProxy {
             // `workoutJSON` as "nothing authoritative to apply, keep the
             // optimistic local update."
             var reply: [String: Any] = ["personalRecord": result.personalRecord]
+            if let json = fetched?.json { reply["workoutJSON"] = json }
+            return (reply, contextUpdate)
+        } catch {
+            return (["error": describeError(error)], nil)
+        }
+    }
+
+    /// One more working set for an exercise — "+ Satz" on the Watch, same as
+    /// on the phone. Offline it lands in the native queue; the replay creates
+    /// the server set like any other set added while offline.
+    private static func addSet(
+        message: [String: Any],
+        token: String
+    ) async -> (reply: [String: Any], contextUpdate: ContextUpdate?) {
+        guard let workoutId = message["workoutId"] as? String,
+              let workoutExerciseId = message["workoutExerciseId"] as? String else {
+            return (["error": "Missing workoutId/workoutExerciseId"], nil)
+        }
+        if var pending = WatchOfflineWorkoutStore.load(), pending.id == workoutId {
+            guard let index = pending.workoutExercises.firstIndex(where: { $0.id == workoutExerciseId }) else {
+                return (["error": "Übung nicht gefunden"], nil)
+            }
+            let nextNumber = (pending.workoutExercises[index].sets.map(\.setNumber).max() ?? 0) + 1
+            pending.workoutExercises[index].sets.append(
+                OfflineWorkoutSet(id: UUID().uuidString, setNumber: nextNumber, weight: nil, reps: nil, isCompleted: false, completedAt: nil)
+            )
+            WatchOfflineWorkoutStore.save(pending)
+            let json = jsonString(buildOfflineWatchWorkoutPayload(pending)) ?? "{}"
+            return (["done": true, "workoutJSON": json], .setActiveWorkout(json: json))
+        }
+        do {
+            try await requestNoContent(
+                "/api/workouts/\(workoutId)/exercises/\(workoutExerciseId)/sets", method: "POST", token: token, body: [:]
+            )
+            let fetched = try? await fetchWorkoutPayload(workoutId: workoutId, token: token)
+            let contextUpdate: ContextUpdate? = fetched.map { .setActiveWorkout(json: $0.json) }
+            var reply: [String: Any] = ["done": true]
             if let json = fetched?.json { reply["workoutJSON"] = json }
             return (reply, contextUpdate)
         } catch {
@@ -765,9 +804,14 @@ enum WatchAPIProxy {
     }
 
     private static func buildOfflineWatchWorkoutPayload(_ pending: PendingOfflineWorkout) -> [String: Any] {
-        [
+        // The cardio-after flag lives on the plan day; offline it comes from
+        // the cached catalog, same source the offline skeleton was built from.
+        let cardioAfter = WatchOfflineWorkoutStore.loadPlanCatalog()?.session(id: pending.planSessionId)?.cardioAfter ?? false
+        return [
             "id": pending.id,
             "name": pending.name,
+            "planSessionId": pending.planSessionId,
+            "cardioAfter": cardioAfter,
             "startedAt": pending.startedAt,
             "restTimerEndsAt": nullable(offlineRestTimerEndsAt(pending)),
             "workoutExercises": pending.workoutExercises.map { exercise in
@@ -895,7 +939,13 @@ enum WatchAPIProxy {
            workout.workoutExercises.last(where: { $0.supersetGroup == group })?.id != latestWorkoutExerciseId {
             return nil
         }
-        return anchor + (workout.restTimerDefaultSeconds ?? defaultRestSeconds) + (workout.restTimerAdjustSeconds ?? 0)
+        // The finished exercise's own plan rest wins over the user default —
+        // same as latestRestAnchor in watch-connectivity.ts (this used to
+        // ignore it, so a per-exercise rest showed on the phone but not here).
+        let exerciseRest = latestWorkoutExerciseId.flatMap { id in
+            workout.workoutExercises.first(where: { $0.id == id })?.restSeconds
+        }
+        return anchor + (exerciseRest ?? workout.restTimerDefaultSeconds ?? defaultRestSeconds) + (workout.restTimerAdjustSeconds ?? 0)
     }
 
     private static let isoFormatterWithFractionalSeconds: ISO8601DateFormatter = {
@@ -918,14 +968,18 @@ enum WatchAPIProxy {
             // history exists for that exercise) — flatten the double-optional
             // from chaining through the also-optional dictionary.
             let prevSets: [ApiPreviousSetEntry]? = (previousLogs?[we.exercise.id]).flatMap { $0 }
-            // Matched by position among working (non-warmup) sets, same as
-            // the phone's own hint and the JS sync path — not by raw
-            // setNumber, which drifts whenever either session has a warmup.
+            let suggestions = progressionSuggestions(previous: prevSets, repMin: we.repMin, repMax: we.repMax)
+            // Matched by position among working (non-warmup) sets, in display
+            // order (warm-ups first), same as the phone's own hint and the JS
+            // sync path — not by raw setNumber, which drifts whenever either
+            // session has a warmup.
             var workingIndex = 0
-            let sets: [[String: Any]] = we.sets.map { s in
+            let sets: [[String: Any]] = sortedForDisplay(we.sets).map { s in
                 var prev: ApiPreviousSetEntry?
+                var suggestion: (weight: Double, reps: Int)?
                 if !s.isWarmup {
                     if let prevSets, workingIndex < prevSets.count { prev = prevSets[workingIndex] }
+                    suggestion = suggestions[workingIndex]
                     workingIndex += 1
                 }
                 return [
@@ -937,11 +991,15 @@ enum WatchAPIProxy {
                     "isWarmup": s.isWarmup,
                     "previousWeight": nullable(prev?.weight),
                     "previousReps": nullable(prev?.reps),
+                    "suggestedWeight": nullable(suggestion?.weight),
+                    "suggestedReps": nullable(suggestion?.reps),
                 ]
             }
             return [
                 "id": we.id,
                 "supersetGroup": nullable(we.supersetGroup),
+                "repMin": nullable(we.repMin),
+                "repMax": nullable(we.repMax),
                 "exercise": [
                     "id": we.exercise.id,
                     "name": we.exercise.name,
@@ -953,10 +1011,53 @@ enum WatchAPIProxy {
         return [
             "id": workout.id,
             "name": nullable(workout.name),
+            "planSessionId": nullable(workout.planSessionId),
+            "cardioAfter": workout.cardioAfter ?? false,
             "startedAt": workout.startedAt,
             "restTimerEndsAt": nullable(computeRestTimerEndsAt(workout)),
             "workoutExercises": workoutExercises,
         ]
+    }
+
+    /// Warm-ups first, then by set number — sortSetsForDisplay in set-sort.ts.
+    private static func sortedForDisplay(_ sets: [ApiSetEntry]) -> [ApiSetEntry] {
+        sets.sorted { a, b in
+            if a.isWarmup != b.isWarmup { return a.isWarmup }
+            return a.setNumber < b.setNumber
+        }
+    }
+
+    /// Mirrors suggestProgression in progression.ts (kg steps of 2.5) so the
+    /// Watch prefills the same weight × reps the phone recommends next to
+    /// each set. Keyed by working-set index of the previous session.
+    /// With a rep range (double progression): once every logged set reached
+    /// the top, all sets go up one step and restart at the bottom; otherwise
+    /// the weight holds and each set aims for one more rep. Without a range:
+    /// +2.5 kg once the first set reached 5 reps / later sets 10.
+    private static func progressionSuggestions(
+        previous: [ApiPreviousSetEntry]?,
+        repMin: Int?,
+        repMax: Int?
+    ) -> [Int: (weight: Double, reps: Int)] {
+        guard let previous, !previous.isEmpty else { return [:] }
+        var out: [Int: (weight: Double, reps: Int)] = [:]
+        if let low = repMin, let high = repMax {
+            let logged = previous.filter { $0.weight != nil && $0.reps != nil }
+            let allAtTop = !logged.isEmpty && logged.allSatisfy { ($0.reps ?? 0) >= high }
+            for (index, entry) in previous.enumerated() {
+                guard let weight = entry.weight, let reps = entry.reps else { continue }
+                out[index] = allAtTop
+                    ? (weight: weight + 2.5, reps: low)
+                    : (weight: weight, reps: min(high, max(low, reps + 1)))
+            }
+        } else {
+            for (index, entry) in previous.enumerated() {
+                guard let weight = entry.weight, let reps = entry.reps else { continue }
+                let increase = reps >= (index == 0 ? 5 : 10)
+                out[index] = (weight: weight + (increase ? 2.5 : 0), reps: reps)
+            }
+        }
+        return out
     }
 
     /// JSONSerialization needs `NSNull`, not a Swift `nil`, to represent a
@@ -987,6 +1088,9 @@ private struct ApiWorkoutResponse: Decodable { let data: ApiWorkout }
 private struct ApiWorkout: Decodable {
     let id: String
     let name: String?
+    let planSessionId: String?
+    /// Plan day flagged "Cardio danach" (GET /api/workouts/:id); optional for older deploys.
+    let cardioAfter: Bool?
     let startedAt: String
     let restTimerDefaultSeconds: Double?
     let restTimerAdjustSeconds: Double?
@@ -995,6 +1099,10 @@ private struct ApiWorkout: Decodable {
 private struct ApiWorkoutExercise: Decodable {
     let id: String
     let supersetGroup: Int?
+    /// Plan targets copied onto the workout exercise (double progression / per-exercise rest).
+    let repMin: Int?
+    let repMax: Int?
+    let restSeconds: Double?
     let exercise: ApiExerciseInfo
     let sets: [ApiSetEntry]
 }

@@ -3,10 +3,15 @@
 //  FitTrackWatch Watch App
 //
 //  Codable mirrors of the phone app's plan/workout JSON shapes, used by the
-//  standalone strength-training flow (session picker + set logging). Kept
-//  intentionally minimal — only the fields the Watch UI actually renders —
-//  since the phone-side sync (watch-workout-sync.ts) forwards the full API
-//  response and we just decode what we need.
+//  strength-training flow (session picker + set logging). Kept intentionally
+//  minimal — only the fields the Watch UI actually renders — since the
+//  phone-side sync (watch-workout-sync.ts / WatchAPIProxy.swift) forwards the
+//  full shape and we just decode what we need.
+//
+//  Optional fields are declared `var x: T?` without a default value: that
+//  way the memberwise initializer gives them `nil` (previews keep compiling)
+//  AND the synthesized Decodable init still decodes them. A `let … = nil`
+//  would silently be skipped by Decodable.
 //
 
 import Foundation
@@ -18,6 +23,11 @@ struct WatchPlanSession: Codable, Identifiable, Hashable {
     let name: String
     let order: Int
     let exercises: [WatchExerciseTemplate]
+    /// Fixed training days, Monday-first (0 = Mo … 6 = So) — "Heute" on the
+    /// home screen, same rule as the phone's workouts page.
+    var weekdays: [Int]?
+    /// Offer cardio after this day (PlanSession.cardioAfter).
+    var cardioAfter: Bool?
 }
 
 struct WatchExerciseTemplate: Codable, Identifiable, Hashable {
@@ -32,7 +42,7 @@ struct WatchExerciseInfo: Codable, Hashable {
     let muscleGroup: String
 }
 
-struct WatchPlanCatalogEntry: Codable, Identifiable {
+struct WatchPlanCatalogEntry: Codable, Identifiable, Hashable {
     let id: String
     let name: String
     let sessions: [WatchPlanSession]
@@ -64,15 +74,12 @@ struct WatchActiveWorkout: Codable, Identifiable, Hashable {
     /// String rather than decoding straight to `Date` since Foundation's
     /// `.iso8601` JSONDecoder strategy doesn't handle the fractional-seconds
     /// format Prisma's serialized DateTime uses; see `startedAtDate`.
-    // Declared `var` (optional) rather than `let … = nil`: a `let` with a
-    // default value is treated as already-initialized and is SILENTLY SKIPPED
-    // by Swift's synthesized Decodable init, so `startedAt` would always be
-    // nil no matter what the phone sent — defeating the whole point of the
-    // server-clock sync (the Watch timer would restart from "now" on every
-    // mirrored workout). An optional `var` with no default still gets an
-    // implicit nil in the memberwise initializer (so #Preview call sites that
-    // omit it keep compiling) AND is properly decoded.
     var startedAt: String?
+    /// The plan day this workout was started from.
+    var planSessionId: String?
+    /// The plan day asks for cardio afterwards — the finish screen then
+    /// offers treadmill, indoor bike or elliptical.
+    var cardioAfter: Bool?
 
     /// Parsed `startedAt`, used as the base for the Watch's own elapsed-time
     /// display so it doesn't drift from the phone's — both then compute
@@ -97,6 +104,8 @@ struct WatchActiveWorkout: Codable, Identifiable, Hashable {
         case workoutExercises
         case restTimerEndsAt
         case startedAt
+        case planSessionId
+        case cardioAfter
     }
 }
 
@@ -105,6 +114,9 @@ struct WatchWorkoutExercise: Codable, Identifiable, Hashable {
     let supersetGroup: Int?
     let exercise: WatchExerciseInfo
     var sets: [WatchSet]
+    /// Target rep range from the plan (double progression), e.g. 8–12.
+    var repMin: Int?
+    var repMax: Int?
 }
 
 struct WatchSet: Codable, Identifiable, Hashable {
@@ -122,4 +134,74 @@ struct WatchSet: Codable, Identifiable, Hashable {
     /// value for not-yet-logged sets — never overwrites an already-logged one.
     var previousWeight: Double?
     var previousReps: Int?
+    /// The phone's progression recommendation for this set (same numbers it
+    /// shows next to the set) — the Watch's first choice for prefilling.
+    var suggestedWeight: Double?
+    var suggestedReps: Int?
+}
+
+// MARK: - Helpers shared by the logging screens
+
+extension WatchWorkoutExercise {
+    var completedCount: Int { sets.filter(\.isCompleted).count }
+    var workingSetCount: Int { sets.filter { !$0.isWarmup }.count }
+
+    /// "Ziel 8–12" when the plan has a rep range.
+    var targetText: String? {
+        guard let repMin, let repMax else { return nil }
+        return repMin == repMax ? "Ziel \(repMin)" : "Ziel \(repMin)–\(repMax)"
+    }
+
+    /// Position among the working sets ("Satz 2 von 4"); nil for a warm-up.
+    func workingPosition(of set: WatchSet) -> Int? {
+        guard !set.isWarmup else { return nil }
+        let working = sets.filter { !$0.isWarmup }
+        return working.firstIndex(where: { $0.id == set.id }).map { $0 + 1 }
+    }
+
+    /// What the Watch proposes for a set, in the phone's order of preference:
+    /// what was logged, the progression suggestion, last time, the set above
+    /// (like the phone's "same as above"), else a neutral start.
+    func proposal(for set: WatchSet) -> (weight: Double, reps: Int) {
+        if set.isCompleted, let w = set.weight, let r = set.reps { return (w, r) }
+        if let w = set.suggestedWeight, let r = set.suggestedReps { return (w, r) }
+        if let w = set.previousWeight, let r = set.previousReps { return (w, r) }
+        if let index = sets.firstIndex(where: { $0.id == set.id }), index > 0 {
+            for above in sets[..<index].reversed() where above.weight != nil || above.reps != nil {
+                return (above.weight ?? 20, above.reps ?? 10)
+            }
+        }
+        return (set.weight ?? set.previousWeight ?? 20, set.reps ?? set.previousReps ?? 10)
+    }
+}
+
+extension WatchActiveWorkout {
+    var completedSetCount: Int { workoutExercises.reduce(0) { $0 + $1.completedCount } }
+    var totalSetCount: Int { workoutExercises.reduce(0) { $0 + $1.sets.count } }
+
+    /// Moved weight of the completed working sets (kg).
+    var volume: Double {
+        workoutExercises.reduce(0) { sum, exercise in
+            sum + exercise.sets.reduce(0) { inner, set in
+                guard set.isCompleted, !set.isWarmup, let w = set.weight, let r = set.reps else { return inner }
+                return inner + w * Double(r)
+            }
+        }
+    }
+
+    /// The set to do next. Exercises in order; inside a superset the members
+    /// alternate (A1, B1, A2, B2 …) — whichever member has done the fewest
+    /// sets goes next, ties by position.
+    var nextOpen: (exercise: WatchWorkoutExercise, set: WatchSet)? {
+        guard let first = workoutExercises.first(where: { $0.sets.contains { !$0.isCompleted } }) else { return nil }
+        var pick = first
+        if let group = first.supersetGroup {
+            let openMembers = workoutExercises.filter { $0.supersetGroup == group && $0.sets.contains { !$0.isCompleted } }
+            if let fewest = openMembers.min(by: { $0.completedCount < $1.completedCount }) {
+                pick = fewest
+            }
+        }
+        guard let set = pick.sets.first(where: { !$0.isCompleted }) else { return nil }
+        return (pick, set)
+    }
 }

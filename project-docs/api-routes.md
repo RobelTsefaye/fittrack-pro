@@ -39,7 +39,7 @@ export const GET = withApi(async function GET(req: NextRequest) {
 |--------|-------|-------------|
 | GET | `/api/workouts` | List workouts (paginated, filterable) |
 | POST | `/api/workouts` | Start new workout |
-| GET | `/api/workouts/:id` | Get workout with exercises and sets |
+| GET | `/api/workouts/:id` | Get workout with exercises and sets; also `cardioAfter` (from the plan day) and `restTimerDefaultSeconds` |
 | PATCH | `/api/workouts/:id` | Update workout (`name` nullable, `notes`) |
 | DELETE | `/api/workouts/:id` | Delete workout |
 | POST | `/api/workouts/:id/complete` | Mark workout complete (sets `completedAt`, `durationSeconds`) |
@@ -49,6 +49,14 @@ export const GET = withApi(async function GET(req: NextRequest) {
 | POST | `/api/workouts/:id/exercises/:weId/sets` | Add set |
 | PATCH | `/api/workouts/:id/sets/:setId` | Update set (reps, weight, complete); verifies set belongs to workout; may create `PersonalRecord` when first completing a working set with weight + reps (beats prior best Epley 1RM) |
 | DELETE | `/api/workouts/:id/sets/:setId` | Delete set (removes linked `PersonalRecord` if any) |
+
+## Plans
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/api/plans` | Plans with day names and weekdays |
+| GET | `/api/plans/:planId` | Plan with all days (incl. `weekdays`, `cardioAfter`) and exercises — also pushed to the Watch as its catalog |
+| PATCH | `/api/plan-sessions/:sessionId` | Update a day: `name`, `notes`, `order`, `weekdays`, `cardioAfter` (offer cardio after this day), `planId` (move) |
+| POST | `/api/plan-sessions/:sessionId/start` | Start a workout from this day |
 
 ## Body Weight
 | Method | Route | Description |

@@ -2,9 +2,9 @@
 //  CrownStepperField.swift
 //  FitTrackWatch Watch App
 //
-//  A compact numeric field driven by the Digital Crown, used for fast
-//  weight/reps entry on the small Series 9 screen — tapping +/- works too,
-//  but the Crown is the primary, fastest input method mid-set.
+//  A compact numeric field driven by the Digital Crown — tap to focus (volt
+//  outline), then turn; +/- work too. Stacked vertically so two fit side by
+//  side (weight + reps) without clipping the outer buttons.
 //
 
 import SwiftUI
@@ -20,43 +20,51 @@ struct CrownStepperField: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        // Vertical layout (plus / value / minus stacked) instead of the
-        // previous single-row minus-value-plus: two of these side by side
-        // (weight + reps) put 6 elements across in one row, which overflows
-        // the screen width and clips the outer buttons — weight's minus and
-        // reps' plus were unreachable. Stacking keeps each field narrow.
-        VStack(spacing: 4) {
-            Text(label)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+        VStack(spacing: 3) {
+            Text(label.uppercased())
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Theme.label2)
 
             Button {
                 value = min(range.upperBound, value + step)
                 crownValue = value
             } label: {
-                Image(systemName: "plus.circle.fill")
+                Image(systemName: "plus")
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(maxWidth: .infinity, minHeight: 22)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Theme.label2)
 
             Text(formattedValue)
-                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .font(.system(size: 26, weight: .semibold, design: .rounded))
                 .monospacedDigit()
-                .frame(minWidth: 46)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .foregroundStyle(isFocused ? Theme.volt : .white)
 
             Button {
                 value = max(range.lowerBound, value - step)
                 crownValue = value
             } label: {
-                Image(systemName: "minus.circle.fill")
+                Image(systemName: "minus")
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(maxWidth: .infinity, minHeight: 22)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Theme.label2)
 
             Text(unit)
-                .font(.system(size: 9))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 10))
+                .foregroundStyle(Theme.label2)
         }
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(isFocused ? Theme.volt : Color.clear, lineWidth: 1.5)
+        )
         .focusable(true)
         .focused($isFocused)
         .digitalCrownRotation($crownValue, from: range.lowerBound, through: range.upperBound, by: step, sensitivity: .medium, isContinuous: false)
@@ -68,6 +76,6 @@ struct CrownStepperField: View {
     }
 
     private var formattedValue: String {
-        value.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", value) : String(format: "%.1f", value)
+        Fmt.weight(value)
     }
 }

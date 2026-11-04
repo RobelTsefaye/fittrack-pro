@@ -2,18 +2,10 @@
 //  KraftSessionPickerView.swift
 //  FitTrackWatch Watch App
 //
-//  Lets the user pick the upcoming strength-training session (e.g. "Limbs"
-//  or "Torso" — freeform PlanSession names from the phone, not a fixed
-//  enum) straight from the Watch, then starts it on the phone via
-//  WatchConnectivity. Reached from ContentView's "Kraft" entry instead of
-//  immediately starting an HKWorkoutSession.
-//
-//  Doesn't navigate anywhere itself on success — once the phone finishes
-//  creating the workout, it pushes it via `updateApplicationContext`, which
-//  sets `phoneObserver.activeWorkout` and makes ContentView's top-level
-//  Group switch straight into KraftLoggingView, replacing this whole
-//  picker/NavigationStack. See PhoneWorkoutObserver.swift for why this
-//  doesn't ride the sendMessage reply instead.
+//  All plan days (freeform names from the phone, e.g. "Limbs", "Torso",
+//  "Calves + forearms"), coloured like on the phone, today marked. Tapping
+//  one starts it on the phone via WatchConnectivity; ContentView switches to
+//  the logging screen as soon as the workout arrives.
 //
 
 import SwiftUI
@@ -29,48 +21,75 @@ struct KraftSessionPickerView: View {
             if phoneObserver.planSessions.isEmpty {
                 emptyState
             } else {
-                List {
-                    Section {
-                        Text("Training wählen")
-                            .font(.headline)
-                            .listRowBackground(Color.clear)
-                    }
-                    ForEach(phoneObserver.planSessions) { session in
-                        Button {
-                            start(session)
-                        } label: {
-                            HStack {
-                                Text(session.name)
-                                Spacer()
-                                if startingSessionId == session.id {
-                                    ProgressView()
-                                }
+                ScrollView {
+                    VStack(spacing: 6) {
+                        ForEach(phoneObserver.planSessions) { session in
+                            Button {
+                                start(session)
+                            } label: {
+                                row(session)
                             }
+                            .buttonStyle(TileButtonStyle())
+                            .disabled(startingSessionId != nil)
                         }
-                        .disabled(startingSessionId != nil)
                     }
+                    .padding(.horizontal, 2)
                 }
             }
         }
-        .navigationTitle("Kraft")
-        .alert("Fehler", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
+        .navigationTitle("Trainingstage")
+        .alert("Start fehlgeschlagen", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("OK") { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
         }
     }
 
+    private func row(_ session: WatchPlanSession) -> some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(Theme.hue(for: session.name))
+                .frame(width: 10, height: 10)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(session.name)
+                    .font(.system(size: 15, weight: .semibold))
+                    .lineLimit(2)
+                Text(subtitle(session))
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.label2)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            if startingSessionId == session.id {
+                ProgressView()
+                    .frame(width: 20)
+            } else {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.hue(for: session.name))
+            }
+        }
+    }
+
+    private func subtitle(_ session: WatchPlanSession) -> String {
+        var parts: [String] = []
+        if phoneObserver.todaySession?.id == session.id { parts.append("Heute") }
+        parts.append("\(session.exercises.count) Übungen")
+        if session.cardioAfter == true { parts.append("+ Cardio") }
+        return parts.joined(separator: " · ")
+    }
+
     private var emptyState: some View {
         VStack(spacing: 8) {
             Image(systemName: "list.bullet.rectangle")
                 .font(.system(size: 22))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.label2)
             Text("Kein Trainingsplan geladen")
-                .font(.caption)
+                .font(.footnote)
                 .multilineTextAlignment(.center)
             Text("Öffne die App auf dem iPhone, um die Pläne zu synchronisieren.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.label2)
                 .multilineTextAlignment(.center)
         }
         .padding()
@@ -88,30 +107,5 @@ struct KraftSessionPickerView: View {
                 // phoneObserver.activeWorkout arrives — nothing to do here.
             }
         }
-    }
-}
-
-#Preview("Sessions geladen") {
-    // #Preview's trailing closure is a ViewBuilder context — a bare
-    // assignment statement (Void-returning) directly in it gets treated as
-    // "this should be a View" and fails to compile, so the mutation happens
-    // inside an ordinary immediately-invoked closure instead.
-    let observer: PhoneWorkoutObserver = {
-        let o = PhoneWorkoutObserver()
-        o.planSessions = [
-            WatchPlanSession(id: "s1", name: "Push", order: 0, exercises: []),
-            WatchPlanSession(id: "s2", name: "Pull", order: 1, exercises: []),
-            WatchPlanSession(id: "s3", name: "Legs", order: 2, exercises: []),
-        ]
-        return o
-    }()
-    return NavigationStack {
-        KraftSessionPickerView(phoneObserver: observer)
-    }
-}
-
-#Preview("Kein Plan geladen") {
-    NavigationStack {
-        KraftSessionPickerView(phoneObserver: PhoneWorkoutObserver())
     }
 }

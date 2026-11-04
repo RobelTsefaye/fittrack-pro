@@ -20,35 +20,52 @@ struct SimpleError: Error, LocalizedError, ExpressibleByStringLiteral {
  * streams heart rate + active calories in real time via HKLiveWorkoutBuilder,
  * and saves the finished workout to HealthKit on end. The saved workout
  * lands in the same HealthKit store the phone's HealthKitPlugin.swift
- * already reads from — no extra sync code needed, it just shows up in the
- * app's Cardio section on the next sync like any other Apple Watch workout.
+ * already reads from — it shows up in Apple Fitness and in the app's Cardio
+ * section on the next sync like any other Apple Watch workout.
  */
 @MainActor
 final class WorkoutManager: NSObject, ObservableObject {
     @Published var isRunning = false
     @Published var isPaused = false
+    /// True between `start` and HealthKit confirming the session (or failing).
+    @Published private(set) var isStarting = false
     @Published var elapsedSeconds: Int = 0
     @Published var heartRate: Double = 0
     @Published var activeCalories: Double = 0
     @Published var stepCount: Int = 0
+    /// Walking/running or cycling distance as the Watch measures it (treadmill included).
+    @Published var distanceMeters: Double = 0
     @Published var authorizationGranted = false
     @Published var errorMessage: String?
     /// Human-readable dump of authorizationStatus(for:) per share type —
     /// HealthKit only ever reveals real grant/deny status for *share*
     /// (write) types, never read-only ones, so this is the most we can ever
-    /// know in-app about why a session might be failing. Surfaced directly
-    /// in AuthorizationView since Watch Settings > Health doesn't reliably
-    /// list every requested category either.
+    /// know in-app about why a session might be failing.
     @Published var shareAuthorizationDebug: String?
 
-    /// Set in `start()`, cleared in `resetState()` — lets views (LiveWorkoutView)
-    /// decide whether to show RouteMapView without needing their own copy of
+    /// Set in `start()`, cleared in `resetState()` — lets views decide
+    /// whether to show zones, steps or the route without their own copy of
     /// the indoor/outdoor mapping.
     @Published private(set) var currentActivityType: HKWorkoutActivityType?
     @Published private(set) var activePlan: CardioSessionPlan?
     @Published var sessionAlert: CardioSessionAlert?
 
     enum CardioSessionAlert: Equatable { case enteredTargetZone, leftTargetZone, halftime, stepGoalReached }
+
+    /// What a just-ended session amounted to — handed to the coordinator for
+    /// the finish screen. `saved` is false for a discarded session.
+    struct FinishedSession {
+        let activityType: HKWorkoutActivityType
+        let plan: CardioSessionPlan?
+        let durationSeconds: Int
+        let activeCalories: Double
+        let averageHeartRate: Double?
+        let distanceMeters: Double
+        let saved: Bool
+    }
+
+    /// Called once per ended session (saved or discarded), on the main actor.
+    var onSessionFinished: ((FinishedSession) -> Void)?
 
     var isCardioActivity: Bool {
         guard let type = currentActivityType else { return false }
@@ -67,19 +84,17 @@ final class WorkoutManager: NSObject, ObservableObject {
         return !plan.isIndoor && (plan.activityType == .running || plan.activityType == .cycling || plan.activityType == .walking)
     }
 
-    /// Current HR zone (1-5), nil below Zone 1 or with no reading yet. A
-    /// plain computed property is enough — views already re-render on every
-    /// `heartRate` change, so this is always fresh without a second
-    /// `@Published` to keep in sync.
+    /// A session exists (starting, running, paused or ending).
+    var hasSession: Bool { session != nil }
+
+    /// Current HR zone (1-5), nil below Zone 1 or with no reading yet.
     var currentHeartRateZone: Int? {
         HeartRateZones.zone(forBpm: heartRate)
     }
 
     /// Most recent heart rate sample HealthKit has, independent of whether a
-    /// workout is currently running — the paired Watch/iPhone share the same
-    /// underlying HealthKit store, so this reflects whichever device (Watch
-    /// wrist sensor, or synced from iPhone) recorded last. Used by
-    /// HealthDashboardView when there's no live workout to stream from.
+    /// workout is currently running. Used by HealthDashboardView when there's
+    /// no live workout to stream from.
     @Published var latestHeartRate: Double?
     @Published var restingHeartRate: Double?
     @Published var heartRateVariability: Double?
@@ -93,14 +108,25 @@ final class WorkoutManager: NSObject, ObservableObject {
     private var totalPausedDuration: TimeInterval = 0
     /// Set by `cancel()` so the `.ended` delegate callback discards the
     /// workout instead of saving it — `session.end()` drives both "finish"
-    /// and "cancel" through the same state transition, so this flag is the
-    /// only way to tell them apart once the delegate fires.
+    /// and "cancel" through the same state transition.
     private var isCancelling = false
+    /// stop()/cancel() was called for the current session. A `start()` that
+    /// arrives meanwhile (finish strength → start cardio right away) must
+    /// only queue behind it — it must NOT turn the pending save into a
+    /// discard, which used to throw away the strength workout's heart rate
+    /// and calories.
+    @Published private(set) var isEnding = false
+    /// Title of a start waiting for the previous session to finish saving
+    /// (finish strength → tap cardio): the live screen shows it right away.
+    @Published private(set) var queuedStartTitle: String?
+    /// `.ended` arrived for the current session — the watchdog below only
+    /// steps in when it never does, never while a save is in flight.
+    private var endedReceived = false
+    /// Identifies the current session for delayed callbacks (watchdog).
+    private var sessionToken = UUID()
 
     /// A `start()` call that arrived while a previous session was still
-    /// live — see the guard at the top of `start()`. Replayed from
-    /// `resetState()` once that previous session has actually finished
-    /// tearing down.
+    /// live — replayed from `resetState()` once that one has torn down.
     private var pendingStart: (plan: CardioSessionPlan, startedAt: Date?)?
     private var sessionAlertShownAt: Date?
     private var zoneMonitor: CardioZoneMonitor?
@@ -109,19 +135,20 @@ final class WorkoutManager: NSObject, ObservableObject {
     private var stepGoalFired = false
 
     /// Fired once `beginCollection` actually confirms the session started
-    /// (or failed to). The Watch's own UI-driven start() calls omit this
-    /// (fire-and-forget, `isRunning`/`errorMessage` drive the UI directly);
-    /// a phone-initiated cardio-start request needs a definite yes/no to
-    /// reply with, since the phone has no other way to know whether
-    /// HealthKit actually accepted the session — see
-    /// PhoneWorkoutObserver's "startCardio" handler.
+    /// (or failed to). A phone-initiated cardio-start request needs a
+    /// definite yes/no to reply with.
     private var startCompletion: ((Result<Void, SimpleError>) -> Void)?
+
+    private var heartRateType: HKQuantityType { HKObjectType.quantityType(forIdentifier: .heartRate)! }
+    private var bpm: HKUnit { HKUnit.count().unitDivided(by: .minute()) }
 
     private var readTypes: Set<HKObjectType> {
         [
             HKObjectType.quantityType(forIdentifier: .heartRate)!,
             HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
             HKObjectType.quantityType(forIdentifier: .stepCount)!,
+            HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)!,
+            HKObjectType.quantityType(forIdentifier: .distanceCycling)!,
             HKObjectType.quantityType(forIdentifier: .restingHeartRate)!,
             HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!,
             HKObjectType.activitySummaryType(),
@@ -133,6 +160,8 @@ final class WorkoutManager: NSObject, ObservableObject {
             HKObjectType.workoutType(),
             HKObjectType.quantityType(forIdentifier: .heartRate)!,
             HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
+            HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)!,
+            HKObjectType.quantityType(forIdentifier: .distanceCycling)!,
         ]
     }
 
@@ -155,9 +184,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     }
 
     /// Dumps authorizationStatus(for:) for every share type into
-    /// shareAuthorizationDebug. Only share types report real status —
-    /// .notDetermined/.sharingDenied/.sharingAuthorized — read types always
-    /// report .notDetermined regardless of the actual decision, by design.
+    /// shareAuthorizationDebug. Only share types report real status.
     private func logShareAuthorizationStatus() {
         let lines = shareTypes.map { type -> String in
             let name: String
@@ -165,6 +192,8 @@ final class WorkoutManager: NSObject, ObservableObject {
             case HKObjectType.workoutType(): name = "Workout"
             case HKObjectType.quantityType(forIdentifier: .heartRate): name = "Herzfrequenz"
             case HKObjectType.quantityType(forIdentifier: .activeEnergyBurned): name = "Kalorien"
+            case HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning): name = "Distanz Gehen/Laufen"
+            case HKObjectType.quantityType(forIdentifier: .distanceCycling): name = "Distanz Rad"
             default: name = type.identifier
             }
             let status: String
@@ -177,13 +206,9 @@ final class WorkoutManager: NSObject, ObservableObject {
             return "\(name): \(status)"
         }
         shareAuthorizationDebug = lines.sorted().joined(separator: "\n")
-        print("WorkoutManager share authorization:\n\(shareAuthorizationDebug ?? "")")
     }
 
-    /// Populates latestHeartRate/restingHeartRate/heartRateVariability with
-    /// the newest sample HealthKit has for each — a point-in-time snapshot
-    /// for HealthDashboardView, not a live stream (unlike heartRate above,
-    /// which only updates while an HKWorkoutSession is running).
+    /// Point-in-time snapshot for HealthDashboardView (not a live stream).
     func loadHealthSnapshot() {
         fetchLatestSample(.heartRate, unit: .count().unitDivided(by: .minute())) { [weak self] value in
             self?.latestHeartRate = value
@@ -213,38 +238,50 @@ final class WorkoutManager: NSObject, ObservableObject {
         store.execute(query)
     }
 
+    // MARK: - Start
+
     /// `startedAt` overrides the session's base timestamp — used for
     /// phone-mirrored workouts so the Watch's elapsed-time display counts
-    /// from the same server clock the phone's own timer uses, instead of
-    /// from whenever the Watch's own HKWorkoutSession happened to finish
-    /// authorizing/starting (a few seconds later, visibly out of sync).
-    /// Manual Watch-only starts (Laufen/Radfahren tapped directly here) pass
-    /// nil and just use "now", same as before.
+    /// from the same server clock the phone's own timer uses.
     func start(
         plan: CardioSessionPlan,
         startedAt: Date? = nil,
         completion: ((Result<Void, SimpleError>) -> Void)? = nil
     ) {
-        startCompletion = completion
-        // A previous session can still be live here if its own end/cancel
-        // signal from the phone hadn't arrived yet (WatchConnectivity
-        // delivery isn't instant) when the user started a *new* workout
-        // instead of waiting. HealthKit only allows one active
-        // HKWorkoutSession at a time — without this guard, overwriting
-        // `session`/`builder` below while the old session's own `.ended`
-        // delegate callback was still pending made that callback operate on
-        // the *new* session's builder instead, and — since `isCancelling`
-        // reflects the old session's own cancel() call, or wasn't set at
-        // all for one abandoned this way — the old, already-abandoned
-        // workout could end up silently *saved* to Health instead of
-        // discarded. Ending it here first (as a cancel, since the app has
-        // already moved on) and deferring the actual start until that
-        // finishes tearing down avoids both problems.
+        // The same activity is already live — typically the phone launched
+        // this app with `startWatchApp` (the session began in
+        // WKApplicationDelegate.handle) and its own "startCardio" message
+        // with duration/zone arrives a moment later. Take the plan over
+        // instead of tearing the session down and starting a second one.
+        if session != nil, !isEnding, currentActivityType == plan.activityType, activePlan?.isIndoor == plan.isIndoor {
+            adopt(plan)
+            if isRunning {
+                completion?(.success(()))
+            } else if let completion {
+                let earlier = startCompletion
+                startCompletion = { result in
+                    earlier?(result)
+                    completion(result)
+                }
+            }
+            return
+        }
+
+        replaceStartCompletion(with: completion)
+        // HealthKit allows one active HKWorkoutSession at a time. A previous
+        // one still tearing down (its own stop/cancel already requested)
+        // just finishes first; the new start is replayed from resetState().
         guard session == nil else {
             pendingStart = (plan, startedAt)
-            isCancelling = true
-            stopTimer()
-            endSessionOrForceReset()
+            queuedStartTitle = plan.title
+            if !isEnding {
+                // A *different* live session is being replaced. Keep what it
+                // recorded unless it was an accidental few seconds.
+                isCancelling = elapsedSeconds < 60
+                isEnding = true
+                stopTimer()
+                endSessionOrForceReset()
+            }
             return
         }
         beginSession(plan: plan, startedAt: startedAt)
@@ -265,31 +302,64 @@ final class WorkoutManager: NSObject, ObservableObject {
         start(plan: plan, startedAt: startedAt, completion: completion)
     }
 
+    /// Duration / zone / step goal arrived late for the running session
+    /// (phone's queued "applyCardioPlan"). Ignored for anything else.
+    func applyPlanIfRunning(_ plan: CardioSessionPlan) {
+        guard session != nil, !isEnding, currentActivityType == plan.activityType else { return }
+        adopt(plan)
+    }
+
+    private func adopt(_ plan: CardioSessionPlan) {
+        activePlan = plan
+        zoneMonitor = plan.targetZone.map { CardioZoneMonitor(targetZone: $0) }
+        halftimeFired = false
+        autoStopFired = false
+        stepGoalFired = false
+    }
+
+    /// Only one caller can wait for a start; an older one learns it was superseded.
+    private func replaceStartCompletion(with completion: ((Result<Void, SimpleError>) -> Void)?) {
+        let previous = startCompletion
+        startCompletion = completion
+        previous?(.failure("Durch einen neuen Start ersetzt"))
+    }
+
     private func beginSession(plan: CardioSessionPlan, startedAt: Date?) {
         currentActivityType = plan.activityType
         activePlan = plan
         zoneMonitor = plan.targetZone.map { CardioZoneMonitor(targetZone: $0) }
+        errorMessage = nil
+        sessionToken = UUID()
+        let token = sessionToken
+        isEnding = false
+        endedReceived = false
         let config = HKWorkoutConfiguration()
         config.activityType = plan.activityType
         config.locationType = plan.isIndoor ? .indoor : .outdoor
 
         do {
-            session = try HKWorkoutSession(healthStore: store, configuration: config)
-            builder = session?.associatedWorkoutBuilder()
+            let newSession = try HKWorkoutSession(healthStore: store, configuration: config)
+            let newBuilder = newSession.associatedWorkoutBuilder()
             let dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: config)
             if let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) {
                 dataSource.enableCollection(for: stepType, predicate: nil)
             }
-            builder?.dataSource = dataSource
-            session?.delegate = self
-            builder?.delegate = self
+            newBuilder.dataSource = dataSource
+            newSession.delegate = self
+            newBuilder.delegate = self
+            session = newSession
+            builder = newBuilder
+            isStarting = true
 
             let start = startedAt ?? Date()
             startDate = start
-            session?.startActivity(with: start)
-            builder?.beginCollection(withStart: start) { [weak self] success, error in
+            newSession.startActivity(with: start)
+            newBuilder.beginCollection(withStart: start) { [weak self] success, error in
                 Task { @MainActor in
-                    guard let self else { return }
+                    // The session may have been stopped/replaced meanwhile —
+                    // then this answer belongs to nobody anymore.
+                    guard let self, self.sessionToken == token else { return }
+                    self.isStarting = false
                     let completion = self.startCompletion
                     self.startCompletion = nil
                     if let error = error {
@@ -298,6 +368,7 @@ final class WorkoutManager: NSObject, ObservableObject {
                         self.errorMessage = error.localizedDescription
                         self.logShareAuthorizationStatus()
                         self.session?.end()
+                        self.builder?.discardWorkout()
                         self.resetState()
                         completion?(.failure(SimpleError(error.localizedDescription)))
                         return
@@ -308,15 +379,69 @@ final class WorkoutManager: NSObject, ObservableObject {
                 }
             }
         } catch {
+            isStarting = false
             errorMessage = error.localizedDescription
+            currentActivityType = nil
+            activePlan = nil
+            zoneMonitor = nil
             let completion = startCompletion
             startCompletion = nil
             completion?(.failure(SimpleError(error.localizedDescription)))
         }
     }
 
+    // MARK: - Recovery after a crash
+
+    /// watchOS relaunches the app after a crash during a workout
+    /// (WKApplicationDelegate.handleActiveWorkoutRecovery) — reattach to the
+    /// still-running session instead of losing it.
+    func recoverActiveSession() {
+        store.recoverActiveWorkoutSession { [weak self] recovered, _ in
+            guard let recovered else { return }
+            Task { @MainActor in
+                self?.attach(recovered: recovered)
+            }
+        }
+    }
+
+    private func attach(recovered: HKWorkoutSession) {
+        guard session == nil else { return }
+        let config = recovered.workoutConfiguration
+        let recoveredBuilder = recovered.associatedWorkoutBuilder()
+        recoveredBuilder.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: config)
+        recovered.delegate = self
+        recoveredBuilder.delegate = self
+        session = recovered
+        builder = recoveredBuilder
+        sessionToken = UUID()
+        isEnding = false
+        endedReceived = false
+        currentActivityType = config.activityType
+        activePlan = CardioSessionPlan(
+            activityType: config.activityType,
+            isIndoor: config.locationType == .indoor,
+            durationMinutes: nil,
+            targetZone: nil,
+            stepGoal: nil
+        )
+        let start = recovered.startDate ?? recoveredBuilder.startDate ?? Date()
+        startDate = start
+        // Active time from the builder; everything else since the start was paused.
+        totalPausedDuration = max(0, Date().timeIntervalSince(start) - recoveredBuilder.elapsedTime)
+        isRunning = true
+        isPaused = recovered.state == .paused
+        if isPaused {
+            pauseStartDate = Date()
+        } else {
+            startTimer()
+        }
+    }
+
+    // MARK: - Stop / pause
+
     /// Ends the workout and saves it to HealthKit.
     func stop() {
+        isEnding = true
         stopTimer()
         endSessionOrForceReset()
     }
@@ -324,30 +449,28 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// Ends the workout and discards it — nothing gets saved to HealthKit.
     func cancel() {
         isCancelling = true
+        isEnding = true
         stopTimer()
         endSessionOrForceReset()
     }
 
     /// `session.end()` only works from the running/paused states. If the
     /// session died into HealthKit's error state (common in the simulator,
-    /// which has no live heart-rate source), no transition is allowed and
-    /// `.ended` never fires — which used to leave `isRunning` stuck true and
-    /// the UI unable to ever leave the workout screens. The state check alone
-    /// isn't enough either: HealthKit doesn't expose its internal error state
-    /// through `session.state` (it can still report `.running`), so a 2s
-    /// watchdog force-resets if `.ended` never arrives.
+    /// which has no live heart-rate source), `.ended` never fires — a
+    /// watchdog resets after 3 s, but ONLY if `.ended` never arrived for
+    /// this very session (it used to fire while a slow save was still
+    /// running and discard a perfectly good workout).
     private func endSessionOrForceReset() {
         guard let session, session.state == .running || session.state == .paused else {
             builder?.discardWorkout()
             resetState()
             return
         }
+        let token = sessionToken
         session.end()
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            guard let self, self.isRunning else { return }
-            // .ended never fired — the session is wedged in an internal
-            // error state. Discard and reset so the UI can move on.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self, self.sessionToken == token, !self.endedReceived, self.session != nil else { return }
             self.builder?.discardWorkout()
             self.resetState()
         }
@@ -361,11 +484,23 @@ final class WorkoutManager: NSObject, ObservableObject {
         session?.resume()
     }
 
+    /// Average heart rate of the current session so far.
+    private var averageHeartRate: Double? {
+        builder?.statistics(for: heartRateType)?.averageQuantity()?.doubleValue(for: bpm)
+    }
+
+    /// Time, calories and average heart rate of the running session — taken
+    /// by the coordinator right before it stops a strength session.
+    func snapshot() -> (durationSeconds: Int, activeCalories: Double, averageHeartRate: Double?) {
+        (elapsedSeconds, activeCalories, averageHeartRate)
+    }
+
     private func startTimer() {
+        timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, let start = self.startDate else { return }
-                self.elapsedSeconds = Int(Date().timeIntervalSince(start) - self.totalPausedDuration)
+                self.elapsedSeconds = max(0, Int(Date().timeIntervalSince(start) - self.totalPausedDuration))
                 self.handleTick()
             }
         }
@@ -376,17 +511,26 @@ final class WorkoutManager: NSObject, ObservableObject {
         timer = nil
     }
 
+    /// Back to idle. A start someone is still waiting for (the phone's
+    /// "startCardio" reply) and that no queued start takes over is answered
+    /// with a failure here — nothing else would ever answer it.
     private func resetState() {
+        stopTimer()
         isRunning = false
         isPaused = false
+        isStarting = false
         elapsedSeconds = 0
         heartRate = 0
         activeCalories = 0
         stepCount = 0
+        distanceMeters = 0
         startDate = nil
         pauseStartDate = nil
         totalPausedDuration = 0
         isCancelling = false
+        isEnding = false
+        endedReceived = false
+        sessionToken = UUID()
         session = nil
         builder = nil
         currentActivityType = nil
@@ -398,12 +542,17 @@ final class WorkoutManager: NSObject, ObservableObject {
         sessionAlert = nil
         sessionAlertShownAt = nil
 
-        // See the `session == nil` guard in start() — replays a start that
-        // arrived while the previous session was still tearing down, now
-        // that it actually has.
+        // Replays a start that arrived while the previous session was still
+        // tearing down, now that it actually has.
+        queuedStartTitle = nil
         if let pending = pendingStart {
             pendingStart = nil
             beginSession(plan: pending.plan, startedAt: pending.startedAt)
+        } else {
+            // A failed/aborted start nobody else will answer.
+            let completion = startCompletion
+            startCompletion = nil
+            completion?(.failure(SimpleError(errorMessage ?? "Training konnte nicht gestartet werden")))
         }
     }
 
@@ -451,11 +600,69 @@ final class WorkoutManager: NSObject, ObservableObject {
             showAlert(.halftime)
         }
     }
+
+    // MARK: - Session end (called from the delegate, on the main actor)
+
+    private func sessionDidEnd(at date: Date) {
+        endedReceived = true
+        stopTimer()
+        let summary = FinishedSession(
+            activityType: currentActivityType ?? .other,
+            plan: activePlan,
+            durationSeconds: elapsedSeconds,
+            activeCalories: activeCalories,
+            averageHeartRate: averageHeartRate,
+            distanceMeters: distanceMeters,
+            saved: !isCancelling
+        )
+        guard let builder else {
+            resetState()
+            return
+        }
+        let discard = isCancelling
+        builder.endCollection(withEnd: date) { [weak self] _, _ in
+            Task { @MainActor in
+                guard let self else { return }
+                if discard {
+                    builder.discardWorkout()
+                    self.resetState()
+                    self.onSessionFinished?(summary)
+                    return
+                }
+                builder.finishWorkout { workout, error in
+                    Task { @MainActor in
+                        if let error = error { self.errorMessage = error.localizedDescription }
+                        if workout != nil {
+                            // Tell the phone a new session just landed in
+                            // HealthKit so it syncs it to the server right
+                            // away (transferUserInfo: queued, delivered even
+                            // if the phone isn't reachable right now).
+                            if WCSession.isSupported(), WCSession.default.activationState == .activated {
+                                WCSession.default.transferUserInfo(["type": "cardioSaved"])
+                            }
+                        }
+                        self.resetState()
+                        self.onSessionFinished?(FinishedSession(
+                            activityType: summary.activityType,
+                            plan: summary.plan,
+                            durationSeconds: summary.durationSeconds,
+                            activeCalories: summary.activeCalories,
+                            averageHeartRate: summary.averageHeartRate,
+                            distanceMeters: summary.distanceMeters,
+                            saved: workout != nil
+                        ))
+                    }
+                }
+            }
+        }
+    }
 }
 
 extension WorkoutManager: HKWorkoutSessionDelegate {
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {
         Task { @MainActor in
+            // Late callbacks from an already replaced session are ignored.
+            guard workoutSession === self.session else { return }
             switch toState {
             case .paused:
                 self.isPaused = true
@@ -470,35 +677,7 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
                 self.startTimer()
 
             case .ended:
-                self.builder?.endCollection(withEnd: Date()) { [weak self] _, _ in
-                    guard let self else { return }
-                    if self.isCancelling {
-                        self.builder?.discardWorkout()
-                        Task { @MainActor in self.resetState() }
-                    } else {
-                        self.builder?.finishWorkout { workout, error in
-                            Task { @MainActor in
-                                if let error = error { self.errorMessage = error.localizedDescription }
-                                if workout != nil {
-                                    // Tell the phone a new cardio session just
-                                    // landed in HealthKit so it can sync it to
-                                    // the server right away — without this, the
-                                    // workout only appears after the phone app's
-                                    // next foreground sync, which is also rate-
-                                    // limited to every 15 min (so "finish run,
-                                    // check phone" showed nothing).
-                                    // transferUserInfo (not sendMessage): queued
-                                    // and delivered even if the phone isn't
-                                    // reachable right now.
-                                    if WCSession.isSupported(), WCSession.default.activationState == .activated {
-                                        WCSession.default.transferUserInfo(["type": "cardioSaved"])
-                                    }
-                                }
-                                self.resetState()
-                            }
-                        }
-                    }
-                }
+                self.sessionDidEnd(at: date)
 
             default:
                 break
@@ -508,13 +687,11 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
 
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
         Task { @MainActor in
-            // The session is unrecoverable once it reports a failure (it sits
-            // in an error state that allows no further transitions), so tear
-            // everything down — otherwise isRunning stays true forever and
-            // the UI can never leave the workout screens.
+            guard workoutSession === self.session else { return }
+            // The session is unrecoverable once it reports a failure, so tear
+            // everything down — otherwise isRunning stays true forever.
             self.errorMessage = error.localizedDescription
             self.logShareAuthorizationStatus()
-            self.stopTimer()
             self.builder?.discardWorkout()
             self.resetState()
         }
@@ -524,17 +701,20 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
 extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
     nonisolated func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didCollectDataOf collectedTypes: Set<HKSampleType>) {
         Task { @MainActor in
+            guard workoutBuilder === self.builder else { return }
             for type in collectedTypes {
                 guard let quantityType = type as? HKQuantityType,
                       let statistics = workoutBuilder.statistics(for: quantityType) else { continue }
 
                 if quantityType == HKObjectType.quantityType(forIdentifier: .heartRate) {
-                    let unit = HKUnit.count().unitDivided(by: .minute())
-                    self.heartRate = statistics.mostRecentQuantity()?.doubleValue(for: unit) ?? self.heartRate
+                    self.heartRate = statistics.mostRecentQuantity()?.doubleValue(for: self.bpm) ?? self.heartRate
                 } else if quantityType == HKObjectType.quantityType(forIdentifier: .activeEnergyBurned) {
                     self.activeCalories = statistics.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? self.activeCalories
                 } else if quantityType == HKObjectType.quantityType(forIdentifier: .stepCount) {
                     self.stepCount = Int(statistics.sumQuantity()?.doubleValue(for: .count()) ?? Double(self.stepCount))
+                } else if quantityType == HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)
+                            || quantityType == HKObjectType.quantityType(forIdentifier: .distanceCycling) {
+                    self.distanceMeters = statistics.sumQuantity()?.doubleValue(for: .meter()) ?? self.distanceMeters
                 }
             }
         }

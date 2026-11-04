@@ -4,7 +4,7 @@
 //
 //  Pace / speed / distance breakdown for outdoor workouts (Laufen/Radfahren),
 //  as its own swipe page alongside the metrics and map screens (see
-//  LiveWorkoutView) — the map has no spare room for more than a one-line
+//  SessionLiveView) — the map has no spare room for more than a one-line
 //  distance readout, so the fuller numbers get their own dedicated page.
 //
 

@@ -3,6 +3,8 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import type { WorkoutData } from "@/features/workouts/workout-types";
 import { shouldRestAfterExercise } from "@/features/workouts/superset-utils";
+import { sortSetsForDisplay } from "@/features/workouts/set-sort";
+import { suggestProgression, type RepRange } from "@/features/workouts/progression";
 import type { PreviousLogEntry } from "@/features/workouts/previous-logs-types";
 import { DEFAULT_REST_TIMER } from "@/lib/constants";
 
@@ -146,6 +148,12 @@ export function toWatchWorkoutPayload(
   return {
     id: workout.id,
     name: workout.name,
+    // The Watch offers indoor run/bike or elliptical right after finishing
+    // a day flagged "Cardio danach" (PlanSession.cardioAfter) — same offer
+    // as the phone's finish summary. planSessionId lets it fall back to its
+    // own plan catalog when an older payload lacks the flag.
+    planSessionId: workout.planSessionId ?? null,
+    cardioAfter: workout.cardioAfter ?? false,
     // ISO string — the Watch parses this and uses it as the base for its
     // own elapsed-time display instead of "whenever the Watch's own
     // HKWorkoutSession happened to start collecting," which lagged the
@@ -157,23 +165,34 @@ export function toWatchWorkoutPayload(
     // explicitly "clear" it later — see computeRestTimerEndsAt above.
     restTimerEndsAt: computeRestTimerEndsAt(workout),
     workoutExercises: workout.workoutExercises.map((we) => {
-      const prevSets = previousLogs?.[we.exercise.id];
-      // Matched by position among working (non-warmup) sets, same as the
-      // phone's own hint (workout-detail.tsx's getPreviousHintForSet) — not
-      // by raw setNumber, which drifts whenever either session has a warmup
-      // set: setNumber then includes gaps that don't line up between
-      // sessions, silently attaching one set's history to the next.
+      const prevSets = previousLogs?.[we.exercise.id] ?? null;
+      const range: RepRange | null =
+        we.repMin != null && we.repMax != null ? { min: we.repMin, max: we.repMax } : null;
+      // Same recommendation the phone shows next to each set (double
+      // progression within the plan's rep range) — the Watch prefills it, so
+      // both devices suggest the same weight × reps.
+      const suggestions = prevSets ? suggestProgression([prevSets], "KG", range) : [];
+      // Matched by position among working (non-warmup) sets, in display
+      // order (warm-ups first), same as the phone's own hint
+      // (workout-detail.tsx's getPreviousHintForSet) — not by raw
+      // setNumber, which drifts whenever either session has a warmup set:
+      // setNumber then includes gaps that don't line up between sessions,
+      // silently attaching one set's history to the next.
       let workingIndex = 0;
       return {
         id: we.id,
         supersetGroup: we.supersetGroup ?? null,
+        repMin: we.repMin ?? null,
+        repMax: we.repMax ?? null,
         exercise: {
           id: we.exercise.id,
           name: we.exercise.name,
           muscleGroup: we.exercise.muscleGroup,
         },
-        sets: we.sets.map((s) => {
-          const prev = s.isWarmup ? undefined : prevSets?.[workingIndex];
+        sets: sortSetsForDisplay(we.sets).map((s) => {
+          const index = workingIndex;
+          const prev = s.isWarmup ? undefined : prevSets?.[index];
+          const suggestion = s.isWarmup ? undefined : suggestions.find((x) => x.setIndex === index);
           if (!s.isWarmup) workingIndex++;
           return {
             id: s.id,
@@ -184,6 +203,8 @@ export function toWatchWorkoutPayload(
             isWarmup: s.isWarmup,
             previousWeight: prev?.weight ?? null,
             previousReps: prev?.reps ?? null,
+            suggestedWeight: suggestion?.weight ?? null,
+            suggestedReps: suggestion?.reps ?? null,
           };
         }),
       };

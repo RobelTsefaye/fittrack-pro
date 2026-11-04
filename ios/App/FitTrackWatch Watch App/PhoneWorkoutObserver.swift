@@ -10,6 +10,10 @@ import Combine
  * can just mirror it instead of starting a separate session.
  */
 final class PhoneWorkoutObserver: NSObject, ObservableObject {
+    /// The app-wide instance (owned by WatchCoordinator). Only one object may
+    /// be the WCSession delegate; previews create their own throwaway ones.
+    static let shared = PhoneWorkoutObserver()
+
     /// The full workout currently running on the paired iPhone, kept in sync
     /// via `updateApplicationContext` (see WatchConnectivityPlugin.swift on
     /// the phone side). Non-nil for the whole lifetime of a phone-started
@@ -18,10 +22,10 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     @Published var activeWorkout: WatchActiveWorkout? {
         didSet {
             guard oldValue?.workoutId != activeWorkout?.workoutId else { return }
-            guard oldValue != nil, activeWorkout == nil else { return }
+            guard let cleared = oldValue, activeWorkout == nil else { return }
             let wasCancelled = pendingCancellation
             pendingCancellation = false
-            onActiveWorkoutCleared?(wasCancelled)
+            onActiveWorkoutCleared?(wasCancelled, cleared)
         }
     }
 
@@ -41,9 +45,11 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     /// only reacts once some view happens to be actively observing this
     /// property again — until then, a workout cancelled from the phone left
     /// the HKWorkoutSession (and its HR measurement) running indefinitely.
-    var onActiveWorkoutCleared: ((_ wasCancelled: Bool) -> Void)?
+    /// Also hands over the last known state of the workout that just ended
+    /// (sets, volume, cardio-after flag) for the finish screen.
+    var onActiveWorkoutCleared: ((_ wasCancelled: Bool, _ workout: WatchActiveWorkout) -> Void)?
 
-    /// Set once in ContentView.onAppear — a phone-initiated cardio-start
+    /// Set once in WatchCoordinator.activate — a phone-initiated cardio-start
     /// request needs to drive the shared WorkoutManager, which ContentView
     /// (not this observer) owns. Returns the HealthKit-confirmed outcome so
     /// the reply sent back to the phone reflects reality, not just "request
@@ -52,14 +58,55 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
     /// call site below hops there before invoking it.
     var onCardioStartRequested: (@MainActor (_ plan: CardioSessionPlan) async -> Result<Void, SimpleError>)?
 
-    /// Set once in ContentView.onAppear — ends/discards the shared
+    /// Set once in WatchCoordinator.activate — ends/discards the shared
     /// WorkoutManager session in response to a phone-initiated stop request.
     var onCardioStopRequested: (@MainActor (_ discard: Bool) -> Void)?
+
+    /// Duration/zone for a cardio session the phone launched while this app
+    /// wasn't reachable yet ("applyCardioPlan", queued via transferUserInfo).
+    var onCardioPlanReceived: (@MainActor (_ plan: CardioSessionPlan) -> Void)?
 
     /// Strength-training plan catalog pushed from the phone, backing the
     /// standalone Kraft session picker. Empty until the phone app has synced
     /// at least once (see watch-workout-sync.ts on the phone side).
     @Published var planSessions: [WatchPlanSession] = []
+
+    /// The same catalog grouped by plan (phone order) — "Heute" follows the
+    /// phone's rule: the first plan that binds days to weekdays.
+    @Published var plans: [WatchPlanCatalogEntry] = []
+
+    /// Today's plan day, Monday-first weekdays like the phone (0 = Mo).
+    var todaySession: WatchPlanSession? {
+        planSession(onWeekday: Self.mondayFirstWeekday(Date()))
+    }
+
+    /// The next bound day after today: ("Morgen" | weekday name, session).
+    var nextSession: (label: String, session: WatchPlanSession)? {
+        let today = Self.mondayFirstWeekday(Date())
+        let names = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
+        for offset in 1...7 {
+            let day = (today + offset) % 7
+            if let found = planSession(onWeekday: day) {
+                return (offset == 1 ? "Morgen" : names[day], found)
+            }
+        }
+        return nil
+    }
+
+    func planSession(id: String?) -> WatchPlanSession? {
+        guard let id else { return nil }
+        return planSessions.first { $0.id == id }
+    }
+
+    private func planSession(onWeekday day: Int) -> WatchPlanSession? {
+        guard let plan = plans.first(where: { $0.sessions.contains { !($0.weekdays ?? []).isEmpty } }) else { return nil }
+        return plan.sessions.first { ($0.weekdays ?? []).contains(day) }
+    }
+
+    private static func mondayFirstWeekday(_ date: Date) -> Int {
+        // Calendar weekday: 1 = Sunday … 7 = Saturday → 0 = Monday … 6 = Sunday.
+        (Calendar.current.component(.weekday, from: date) + 5) % 7
+    }
 
     /// Recovery Score pushed from the phone (health-dashboard.tsx), backing
     /// HealthDashboardView. Nil until the phone has computed at least one —
@@ -133,6 +180,7 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
             if let catalogJSON = context["planCatalog"] as? String,
                let data = catalogJSON.data(using: .utf8),
                let catalog = try? JSONDecoder().decode(WatchPlanCatalog.self, from: data) {
+                self.plans = catalog.plans
                 self.planSessions = catalog.plans.flatMap { $0.sessions }.sorted { $0.order < $1.order }
             }
 
@@ -276,6 +324,23 @@ final class PhoneWorkoutObserver: NSObject, ObservableObject {
                     }
                 }
                 completion(.success(reply["personalRecord"] as? Bool ?? false))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+
+    /// Adds one more working set to an exercise ("+ Satz", like on the phone).
+    func addSet(workoutId: String, workoutExerciseId: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        sendRequest(type: "addSet", fields: ["workoutId": workoutId, "workoutExerciseId": workoutExerciseId]) { result in
+            switch result {
+            case .success(let reply):
+                if let workoutJSON = reply["workoutJSON"] as? String {
+                    DispatchQueue.main.async {
+                        self.applyActiveWorkout(fromJSON: workoutJSON)
+                    }
+                }
+                completion(.success(()))
             case .failure(let error):
                 completion(.failure(error))
             }
@@ -430,6 +495,11 @@ extension PhoneWorkoutObserver: WCSessionDelegate {
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         handleWorkoutClearedIfNeeded(userInfo)
         handleStopCardioIfNeeded(userInfo)
+        if userInfo["type"] as? String == "applyCardioPlan", let plan = CardioSessionPlan(message: userInfo) {
+            Task { @MainActor in
+                self.onCardioPlanReceived?(plan)
+            }
+        }
     }
 
     /// Phone-initiated requests that expect a reply — currently only the

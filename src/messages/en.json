@@ -434,7 +434,13 @@
     "activeSessionBannerAria": "Switch to the active cardio session",
     "pipStart": "Start Picture in Picture",
     "pipStop": "Stop Picture in Picture",
-    "pipFailed": "Couldn't start Picture in Picture"
+    "pipFailed": "Couldn't start Picture in Picture",
+    "after": {
+      "title": "Add cardio?",
+      "subtitle": "Starts in FitTrack on your Apple Watch — heart rate, zone and calories live.",
+      "running": "Treadmill",
+      "cycling": "Indoor bike"
+    }
   },
   "plans": {
     "title": "Plans",
@@ -479,7 +485,9 @@
     "repRangeHint": "Target rep range for progression",
     "rest": "Rest",
     "restDefault": "Default",
-    "fixedDays": "Fixed days"
+    "fixedDays": "Fixed days",
+    "cardioAfter": "Cardio afterwards",
+    "cardioAfterHint": "Offer treadmill, bike or elliptical on the Watch after this day"
   },
   "exercises": {
     "title": "Exercises",

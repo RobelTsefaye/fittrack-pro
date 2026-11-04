@@ -41,6 +41,10 @@ export type WorkoutData = {
   completedAt: string | null;
   durationSeconds: number | null;
   planSessionId: string | null;
+  /** The plan day asks for cardio afterwards (PlanSession.cardioAfter) — the
+   *  finish summary and the Watch then offer indoor run/bike or elliptical.
+   *  Optional: offline-constructed and older cached workouts don't carry it. */
+  cardioAfter?: boolean;
   workoutExercises: WorkoutExerciseData[];
   /** User's configured rest-timer duration (Settings), only present on the
    *  GET /api/workouts/:id response — optional so local/offline-constructed

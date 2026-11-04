@@ -64,6 +64,7 @@ export const PATCH = withApi(async function PATCH(
         ...(parsed.data.notes !== undefined ? { notes: parsed.data.notes } : {}),
         ...(order != null ? { order } : {}),
         ...(weekdays ? { weekdays } : {}),
+        ...(parsed.data.cardioAfter !== undefined ? { cardioAfter: parsed.data.cardioAfter } : {}),
         ...(targetPlanId ? { planId: targetPlanId } : {}),
       },
     });

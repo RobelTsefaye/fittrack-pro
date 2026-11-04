@@ -8,6 +8,7 @@ FitnessApp/
 │   ├── database-schema.md
 │   ├── api-routes.md
 │   ├── ai-api.md                    # AI / LLM-oriented endpoints
+│   ├── apple-watch.md               # Watch app: screens, cardio after a day, phone ↔ Watch messages
 │   ├── file-map.md                  # ← You are here
 │   ├── roadmap.md
 │   └── handoff-prompt.md

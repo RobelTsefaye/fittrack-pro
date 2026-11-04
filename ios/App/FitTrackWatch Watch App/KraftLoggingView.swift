@@ -2,12 +2,15 @@
 //  KraftLoggingView.swift
 //  FitTrackWatch Watch App
 //
-//  Lists the exercises/sets of an active strength-training workout (started
-//  from KraftSessionPickerView) and lets the user tap into SetEntryView to
-//  log weight/reps for each set. Intentionally independent of
-//  WorkoutManager/HKWorkoutSession — this is a pure logging flow, not tied
-//  to HR/calorie tracking, so it can't be interrupted by ContentView
-//  switching to LiveWorkoutView.
+//  Logging a strength workout. Top to bottom:
+//   • time and progress
+//   • the rest countdown (±15 s, synced with the phone bar and Live Activity)
+//   • "Jetzt": the next set with the phone's suggestion — one tap logs it,
+//     "Anpassen" opens the Crown entry
+//   • every exercise with its sets (tap to log or correct) and "+ Satz"
+//   • finish
+//  Reads only `phoneObserver.activeWorkout`, the single source of truth that
+//  both the phone's pushes and the Watch's own logs flow through.
 //
 
 import SwiftUI
@@ -17,94 +20,112 @@ struct KraftLoggingView: View {
     @ObservedObject var phoneObserver: PhoneWorkoutObserver
     /// Fallback for the single frame between finishing and ContentView
     /// tearing this view down (when `activeWorkout` briefly goes nil).
-    /// Otherwise everything reads from `phoneObserver.activeWorkout` — the
-    /// single source of truth — so phone-side edits and Watch-side logs both
-    /// stay reflected here (see PhoneWorkoutObserver.applyLoggedSet).
     let initialWorkout: WatchActiveWorkout
 
+    @State private var loggingSetId: String?
+    @State private var addingExerciseId: String?
+    @State private var actionError: String?
     @State private var isFinishing = false
-    @State private var finishError: String?
 
     private var workout: WatchActiveWorkout {
         phoneObserver.activeWorkout ?? initialWorkout
     }
 
+    private var hue: Color { Theme.hue(for: workout.name ?? "") }
+
     var body: some View {
-        List {
-            // The elapsed workout clock previously only existed on
-            // LiveWorkoutView (one swipe away, page 2) — this is the default
-            // landing page (1) during a strength workout, so the clock was
-            // never visible at all while actually logging sets. Derived
-            // purely from `startedAt` (not WorkoutManager, which this view
-            // is intentionally independent of) so it works identically for
-            // phone-mirrored and Watch-only sessions.
-            if let startedAt = workout.startedAtDate {
-                Section {
-                    ElapsedTimeRow(startedAt: startedAt)
-                }
-            }
+        // ScrollView, not List: the "Jetzt" card holds two controls, and in
+        // a watchOS list row every button of the row fires together.
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 8) {
+                StatusRow(workout: workout, hue: hue)
 
-            if let endsAt = workout.restTimerEndsAt {
-                Section {
-                    RestTimerRow(endsAt: endsAt, phoneObserver: phoneObserver, workoutId: workout.workoutId)
+                if let endsAt = workout.restTimerEndsAt {
+                    RestCard(endsAt: endsAt, phoneObserver: phoneObserver, workoutId: workout.workoutId)
                 }
-            }
 
-            ForEach(workout.workoutExercises) { exercise in
-                Section {
+                if let next = workout.nextOpen {
+                    NowCard(
+                        phoneObserver: phoneObserver,
+                        workoutId: workout.workoutId,
+                        exercise: next.exercise,
+                        set: next.set,
+                        hue: hue,
+                        isLogging: loggingSetId == next.set.id
+                    ) {
+                        quickLog(exercise: next.exercise, set: next.set)
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label("Alle Sätze erledigt", systemImage: "checkmark.seal.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Theme.volt)
+                        Text("Unten beenden – oder mit „+ Satz“ weitermachen.")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.label2)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                if let actionError {
+                    Text(actionError)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.danger)
+                }
+
+                ForEach(workout.workoutExercises) { exercise in
+                    ExerciseHeader(exercise: exercise, hue: hue)
+                        .padding(.top, 8)
                     ForEach(exercise.sets) { set in
                         NavigationLink {
-                            SetEntryView(
-                                phoneObserver: phoneObserver,
-                                workoutId: workout.workoutId,
-                                set: set,
-                                exerciseName: exercise.exercise.name
-                            ) { updated, _ in
-                                phoneObserver.applyLoggedSet(exerciseId: exercise.id, updatedSet: updated)
-                            }
+                            SetEntryView(phoneObserver: phoneObserver, workoutId: workout.workoutId, exercise: exercise, set: set)
                         } label: {
-                            setRow(set)
+                            SetRow(exercise: exercise, set: set, isNext: workout.nextOpen?.set.id == set.id, hue: hue)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 9)
+                                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
+                        .buttonStyle(.plain)
                     }
-                } header: {
-                    HStack {
-                        Text(exercise.exercise.name)
-                        if exercise.supersetGroup != nil {
-                            Text("Superset")
-                                .foregroundStyle(.orange)
+                    Button {
+                        addSet(to: exercise)
+                    } label: {
+                        HStack(spacing: 6) {
+                            if addingExerciseId == exercise.id {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "plus")
+                                Text("Satz")
+                            }
                         }
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Theme.label2)
+                        .frame(maxWidth: .infinity, minHeight: 34)
+                        .background(Theme.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
+                    .buttonStyle(.plain)
+                    .disabled(addingExerciseId != nil)
                 }
-            }
 
-            Section {
                 Button {
                     finish()
                 } label: {
                     if isFinishing {
-                        ProgressView()
+                        ProgressView().tint(Theme.voltInk)
                     } else {
                         Label("Workout beenden", systemImage: "flag.checkered")
                     }
                 }
-                .tint(.red)
+                .buttonStyle(VoltButtonStyle())
                 .disabled(isFinishing)
-
-                if let finishError {
-                    Text(finishError)
-                        .font(.caption2)
-                        .foregroundStyle(.red)
-                }
+                .padding(.top, 10)
             }
+            .padding(.horizontal, 2)
         }
         .navigationTitle(workout.name ?? "Training")
-        // RestTimerRow's own haptic only fires while it's actually on
-        // screen and ticking (needs the Watch app foreground-active) — this
-        // schedules a real watchOS notification as a backstop, delivered
-        // (with its own haptic) even if the app is backgrounded when the
-        // rest period ends. Rescheduled on every new endsAt so it always
-        // reflects the freshest server-computed value, including nudges
-        // from the phone bar or Live Activity.
+        // RestCard's own haptic only fires while it's on screen and ticking —
+        // this schedules a real watchOS notification as a backstop, delivered
+        // even if the app is in the background when the rest ends.
         .onChange(of: workout.restTimerEndsAt) { _, newValue in
             if let newValue {
                 WatchRestTimerNotifications.schedule(endsAt: newValue)
@@ -119,146 +140,233 @@ struct KraftLoggingView: View {
         }
     }
 
-    @ViewBuilder
-    private func setRow(_ set: WatchSet) -> some View {
-        HStack {
-            // isWarmup was missing from the Watch payload entirely — every
-            // set rendered identically as "Satz N", so a warmup set logged
-            // on the phone looked like a normal working set here.
-            if set.isWarmup {
-                Text("Warm-up")
-                    .foregroundStyle(.orange)
-            } else {
-                Text("Satz \(set.setNumber)")
-            }
-            Spacer()
-            if set.isCompleted {
-                Text("\(formattedWeight(set.weight)) kg × \(set.reps ?? 0)")
-                    .foregroundStyle(.secondary)
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else {
-                Image(systemName: "circle")
-                    .foregroundStyle(.secondary)
+    // MARK: - Actions
+
+    /// Logs the next set with the proposed values (suggestion → last time →
+    /// set above), exactly what the "Jetzt" card shows.
+    private func quickLog(exercise: WatchWorkoutExercise, set: WatchSet) {
+        guard loggingSetId == nil else { return }
+        let proposal = exercise.proposal(for: set)
+        loggingSetId = set.id
+        actionError = nil
+        phoneObserver.logSet(workoutId: workout.workoutId, setId: set.id, weight: proposal.weight, reps: proposal.reps) { result in
+            DispatchQueue.main.async {
+                loggingSetId = nil
+                switch result {
+                case .success(let personalRecord):
+                    var updated = set
+                    updated.weight = proposal.weight
+                    updated.reps = proposal.reps
+                    updated.isCompleted = true
+                    phoneObserver.applyLoggedSet(exerciseId: exercise.id, updatedSet: updated)
+                    WKInterfaceDevice.current().play(personalRecord ? .notification : .success)
+                case .failure(let error):
+                    actionError = error.localizedDescription
+                    WKInterfaceDevice.current().play(.failure)
+                }
             }
         }
-        .font(.system(size: 14))
     }
 
-    private func formattedWeight(_ w: Double?) -> String {
-        guard let w else { return "–" }
-        return w.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", w) : String(format: "%.1f", w)
+    private func addSet(to exercise: WatchWorkoutExercise) {
+        addingExerciseId = exercise.id
+        actionError = nil
+        phoneObserver.addSet(workoutId: workout.workoutId, workoutExerciseId: exercise.id) { result in
+            DispatchQueue.main.async {
+                addingExerciseId = nil
+                if case .failure(let error) = result {
+                    actionError = error.localizedDescription
+                }
+            }
+        }
     }
 
     private func finish() {
         isFinishing = true
-        finishError = nil
+        actionError = nil
         phoneObserver.finishWorkout(workoutId: workout.workoutId) { result in
             DispatchQueue.main.async {
                 switch result {
                 case .success:
-                    WatchRestTimerNotifications.cancel()
-                    // Exit locally right away (tears this view down via
-                    // ContentView) instead of depending on the phone's
-                    // context-clear push, which can lag or never arrive —
-                    // see PhoneWorkoutObserver.endWorkoutLocally.
+                    // Leave right away (the phone's clear push can lag); the
+                    // coordinator saves the HR session and shows the summary.
                     phoneObserver.endWorkoutLocally(workout.workoutId)
                 case .failure(let error):
                     isFinishing = false
-                    finishError = error.localizedDescription
+                    actionError = error.localizedDescription
                 }
             }
         }
     }
 }
 
-/// Ticking elapsed-time-since-start display, race-free for the same reason
-/// as `RestTimerRow` below: a pure function of `startedAt`, never
-/// client-tracked state, so it reads identically regardless of when this
-/// view happened to appear.
-private struct ElapsedTimeRow: View {
-    let startedAt: Date
+// MARK: - Pieces
+
+/// Elapsed time (from the server start, so it matches the phone) and sets done.
+private struct StatusRow: View {
+    let workout: WatchActiveWorkout
+    let hue: Color
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            HStack {
-                Label("Dauer", systemImage: "clock")
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(formattedElapsed(context.date.timeIntervalSince(startedAt)))
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
+        HStack(alignment: .firstTextBaseline) {
+            if let startedAt = workout.startedAtDate {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(Fmt.clock(Int(context.date.timeIntervalSince(startedAt))))
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.volt)
+                }
             }
+            Spacer(minLength: 4)
+            Text("\(workout.completedSetCount)/\(workout.totalSetCount)")
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(hue)
+            Text("Sätze")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.label2)
         }
-    }
-
-    private func formattedElapsed(_ seconds: TimeInterval) -> String {
-        let total = max(0, Int(seconds))
-        let h = total / 3600
-        let m = (total % 3600) / 60
-        let s = total % 60
-        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
     }
 }
 
-/// Ticking countdown to `endsAt` (epoch seconds) — derived purely from
-/// server data (most recent set completion, or workout start) by both the
-/// phone's push and the Watch's own no-phone-open native path, so it's
-/// identical and race-free regardless of which device completed the last
-/// set or which one is currently connected. Self-hides once expired; no
-/// separate "stop" signal needed.
-private struct RestTimerRow: View {
+/// The next set, big, with the proposal and one-tap logging.
+private struct NowCard: View {
+    @ObservedObject var phoneObserver: PhoneWorkoutObserver
+    let workoutId: String
+    let exercise: WatchWorkoutExercise
+    let set: WatchSet
+    let hue: Color
+    let isLogging: Bool
+    let onDone: () -> Void
+
+    var body: some View {
+        let proposal = exercise.proposal(for: set)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Eyebrow(text: "Jetzt", color: hue)
+                if exercise.supersetGroup != nil {
+                    Text("SUPERSATZ")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Theme.rest)
+                }
+            }
+            Text(exercise.exercise.name)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+            Text(setCaption)
+                .font(.footnote)
+                .foregroundStyle(Theme.label2)
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(Fmt.weight(proposal.weight))
+                    .font(.system(size: 30, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                Text("kg")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.label2)
+                Text("×")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundStyle(Theme.label2)
+                Text("\(proposal.reps)")
+                    .font(.system(size: 30, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            if let hint {
+                Text(hint)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.label2)
+                    .lineLimit(2)
+            }
+            HStack(spacing: 6) {
+                Button(action: onDone) {
+                    if isLogging {
+                        ProgressView().tint(Theme.voltInk)
+                    } else {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 18, weight: .bold))
+                    }
+                }
+                .buttonStyle(VoltButtonStyle())
+                .disabled(isLogging)
+                NavigationLink {
+                    SetEntryView(phoneObserver: phoneObserver, workoutId: workoutId, exercise: exercise, set: set)
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 50, height: 44)
+                        .background(Theme.raised, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(12)
+        .background(
+            LinearGradient(colors: [hue.opacity(0.22), Theme.surface], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+    }
+
+    private var setCaption: String {
+        var parts: [String] = []
+        if set.isWarmup {
+            parts.append("Aufwärmsatz")
+        } else if let position = exercise.workingPosition(of: set) {
+            parts.append("Satz \(position) von \(exercise.workingSetCount)")
+        }
+        if let target = exercise.targetText { parts.append(target) }
+        return parts.joined(separator: " · ")
+    }
+
+    /// Where the proposal comes from — like the phone's hint under a set.
+    private var hint: String? {
+        if set.suggestedWeight != nil, let w = set.previousWeight, let r = set.previousReps {
+            return "Vorschlag · zuletzt \(Fmt.setLine(weight: w, reps: r))"
+        }
+        if let w = set.previousWeight, let r = set.previousReps {
+            return "Letztes Mal \(Fmt.setLine(weight: w, reps: r))"
+        }
+        return nil
+    }
+}
+
+/// Rest countdown — a pure function of `endsAt` (server data), so it reads
+/// the same on every device. ±15 s is applied here at once and persisted
+/// server-side, so the phone bar and Live Activity follow.
+private struct RestCard: View {
     let endsAt: Double
     let phoneObserver: PhoneWorkoutObserver
     let workoutId: String
 
-    /// Optimistic local nudge shown immediately on tap, before the
-    /// server round trip confirms it — see `adjust(_:)`. Reset whenever
-    /// `endsAt` actually changes: either a genuinely new rest period
-    /// started, or the confirmed, server-computed `endsAt` (which now
-    /// already includes this nudge) came back from that same round trip.
-    /// Stable across the ~1s re-syncs of the *same* period, since those
-    /// repeatedly carry the identical `endsAt` value.
+    /// Optimistic local nudge until the confirmed `endsAt` comes back.
     @State private var adjustSeconds: Double = 0
-
-    /// The phone's "rest over" message only ever reaches the *phone* (a
-    /// local notification there) — the Watch itself never buzzed when rest
-    /// ended, reported as "notification comes but the Watch doesn't
-    /// vibrate." Fires once per rest period, guarded so the ~1s TimelineView
-    /// re-renders after expiry don't repeat it.
+    /// One haptic per rest period when it runs out on screen.
     @State private var expiredHapticFired = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let remaining = (endsAt + adjustSeconds) - context.date.timeIntervalSince1970
             if remaining > 0 {
-                VStack(spacing: 4) {
-                    HStack {
-                        Label("Pause", systemImage: "timer")
-                            .foregroundStyle(.orange)
-                        Spacer()
-                        Text(formattedRemaining(remaining))
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Eyebrow(text: "Pause", color: Theme.rest)
+                        Text(Fmt.clock(Int(remaining.rounded(.up))))
+                            .font(.system(size: 30, weight: .semibold, design: .rounded))
                             .monospacedDigit()
+                            .foregroundStyle(Theme.rest)
                     }
-                    HStack(spacing: 20) {
-                        Button {
-                            adjust(-15)
-                        } label: {
-                            Label("15s", systemImage: "gobackward.15")
-                        }
-                        Button {
-                            adjust(15)
-                        } label: {
-                            Label("15s", systemImage: "goforward.15")
-                        }
-                    }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.orange)
+                    Spacer(minLength: 0)
+                    nudgeButton("gobackward.15", delta: -15)
+                    nudgeButton("goforward.15", delta: 15)
                 }
+                .padding(10)
+                .background(Theme.rest.opacity(0.16), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             } else {
-                Color.clear.frame(height: 0).onAppear { fireExpiredHapticIfNeeded() }
+                Color.clear
+                    .frame(height: 0)
+                    .onAppear { fireExpiredHapticIfNeeded() }
             }
         }
         .onChange(of: endsAt) { _, _ in
@@ -267,95 +375,85 @@ private struct RestTimerRow: View {
         }
     }
 
+    private func nudgeButton(_ icon: String, delta: Int) -> some View {
+        Button {
+            adjustSeconds += Double(delta)
+            phoneObserver.adjustRestTimer(workoutId: workoutId, deltaSeconds: delta) { _ in
+                // A successful round trip pushes the new endsAt (which resets
+                // the local nudge); a failed one keeps the optimistic nudge.
+            }
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Theme.rest)
+                .frame(width: 34, height: 34)
+                .background(Theme.rest.opacity(0.18), in: Circle())
+        }
+        .buttonStyle(.plain)
+    }
+
     private func fireExpiredHapticIfNeeded() {
         guard !expiredHapticFired else { return }
         expiredHapticFired = true
         WKInterfaceDevice.current().play(.notification)
     }
+}
 
-    /// Applies the nudge instantly here, then persists it server-side (see
-    /// PhoneWorkoutObserver.adjustRestTimer) so the phone bar and Live
-    /// Activity — each computing their own countdown independently —
-    /// converge on the same `endsAt` this Watch already shows. Previously
-    /// this only ever touched `adjustSeconds`, invisible everywhere else —
-    /// reported as "the two timers aren't connected."
-    private func adjust(_ delta: Int) {
-        adjustSeconds += Double(delta)
-        phoneObserver.adjustRestTimer(workoutId: workoutId, deltaSeconds: delta) { _ in
-            // Success or failure, nothing further to do here — a successful
-            // round trip pushes a fresh activeWorkout context whose
-            // restTimerEndsAt already includes this delta, which the
-            // onChange(of: endsAt) above then uses to reset the local
-            // overlay to 0. A failed round trip just leaves the optimistic
-            // local nudge in place, same as before this existed.
+private struct ExerciseHeader: View {
+    let exercise: WatchWorkoutExercise
+    let hue: Color
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(exercise.exercise.name)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.label2)
+                .lineLimit(1)
+            if exercise.supersetGroup != nil {
+                Image(systemName: "link")
+                    .foregroundStyle(Theme.rest)
+            }
+            Spacer(minLength: 2)
+            Text("\(exercise.completedCount)/\(exercise.sets.count)")
+                .font(.system(size: 13, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(exercise.completedCount == exercise.sets.count && !exercise.sets.isEmpty ? Theme.volt : Theme.label2)
+        }
+    }
+}
+
+private struct SetRow: View {
+    let exercise: WatchWorkoutExercise
+    let set: WatchSet
+    let isNext: Bool
+    let hue: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.system(size: 14, weight: isNext ? .semibold : .regular))
+                .foregroundStyle(set.isWarmup ? Theme.rest : (isNext ? hue : .white))
+            Spacer(minLength: 2)
+            if set.isCompleted {
+                Text(Fmt.setLine(weight: set.weight, reps: set.reps))
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Theme.volt)
+            } else {
+                let proposal = exercise.proposal(for: set)
+                Text(Fmt.setLine(weight: proposal.weight, reps: proposal.reps))
+                    .font(.system(size: 13, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.label2)
+                Image(systemName: "circle")
+                    .foregroundStyle(isNext ? hue : Theme.label2)
+            }
         }
     }
 
-    private func formattedRemaining(_ seconds: Double) -> String {
-        let total = max(0, Int(seconds.rounded(.up)))
-        return String(format: "%d:%02d", total / 60, total % 60)
-    }
-}
-
-#Preview("Mit Pausen-Timer") {
-    let mockWorkout = WatchActiveWorkout(
-        workoutId: "preview-workout-1",
-        name: "Push",
-        workoutExercises: [
-            WatchWorkoutExercise(
-                id: "we1", supersetGroup: nil,
-                exercise: WatchExerciseInfo(id: "e1", name: "Bankdrücken", muscleGroup: "Brust"),
-                sets: [
-                    WatchSet(id: "set1", setNumber: 1, reps: 10, weight: 60, isCompleted: true),
-                    WatchSet(id: "set2", setNumber: 2, reps: nil, weight: nil, isCompleted: false),
-                ]
-            ),
-        ],
-        restTimerEndsAt: Date().timeIntervalSince1970 + 62
-    )
-    // #Preview's trailing closure is a ViewBuilder context — a bare
-    // assignment statement (Void-returning) directly in it gets treated as
-    // "this should be a View" and fails to compile. Do the mutation inside
-    // an ordinary immediately-invoked closure instead.
-    let observer: PhoneWorkoutObserver = {
-        let o = PhoneWorkoutObserver()
-        o.activeWorkout = mockWorkout
-        return o
-    }()
-    NavigationStack {
-        KraftLoggingView(phoneObserver: observer, initialWorkout: mockWorkout)
-    }
-}
-
-#Preview {
-    let mockWorkout = WatchActiveWorkout(
-        workoutId: "preview-workout-1",
-        name: "Push",
-        workoutExercises: [
-            WatchWorkoutExercise(
-                id: "we1", supersetGroup: 1,
-                exercise: WatchExerciseInfo(id: "e1", name: "Bankdrücken", muscleGroup: "Brust"),
-                sets: [
-                    WatchSet(id: "set1", setNumber: 1, reps: 10, weight: 60, isCompleted: true),
-                    WatchSet(id: "set2", setNumber: 2, reps: nil, weight: nil, isCompleted: false),
-                    WatchSet(id: "set3", setNumber: 3, reps: nil, weight: nil, isCompleted: false),
-                ]
-            ),
-            WatchWorkoutExercise(
-                id: "we2", supersetGroup: 1,
-                exercise: WatchExerciseInfo(id: "e2", name: "Schulterdrücken", muscleGroup: "Schultern"),
-                sets: [
-                    WatchSet(id: "set4", setNumber: 1, reps: nil, weight: nil, isCompleted: false),
-                ]
-            ),
-        ]
-    )
-    let observer: PhoneWorkoutObserver = {
-        let o = PhoneWorkoutObserver()
-        o.activeWorkout = mockWorkout
-        return o
-    }()
-    NavigationStack {
-        KraftLoggingView(phoneObserver: observer, initialWorkout: mockWorkout)
+    private var label: String {
+        if set.isWarmup { return "Aufw." }
+        return "Satz \(exercise.workingPosition(of: set) ?? set.setNumber)"
     }
 }

@@ -15,6 +15,7 @@ import {
   stopCardioSessionOnWatch,
   CardioNotNativeError,
   type CardioActivityType,
+  type CardioSessionConfig,
 } from "@/lib/native/cardio-connectivity";
 import { useCardioLive } from "@/features/cardio/cardio-live-context";
 import {
@@ -49,6 +50,23 @@ function formatElapsed(seconds: number) {
 }
 
 const noopSubscribe = () => () => {};
+
+const CARDIO_TYPES: CardioActivityType[] = ["running", "cycling", "elliptical", "walking"];
+
+/** `?start=running&indoor=1&minutes=30` — set by the "Cardio danach" picker after a workout. */
+function autoStartFromUrl(): CardioSessionConfig | null {
+  const params = new URLSearchParams(window.location.search);
+  const type = params.get("start") as CardioActivityType | null;
+  if (!type || !CARDIO_TYPES.includes(type)) return null;
+  const minutes = Number(params.get("minutes"));
+  return {
+    activityType: type,
+    isIndoor: type === "elliptical" || params.get("indoor") === "1",
+    durationMinutes: Number.isInteger(minutes) && minutes > 0 && minutes <= 240 ? minutes : null,
+    targetZone: null,
+    stepGoal: null,
+  };
+}
 
 export default function CardioWorkoutPage() {
   // Read after hydration: the static native build is prerendered as "web".
@@ -111,6 +129,30 @@ export default function CardioWorkoutPage() {
     void isCardioPipSupported().then(setPipSupported);
   }, []);
 
+  // Opened from "Cardio danach" (finish summary): start on the Watch right
+  // away instead of asking again. The params are dropped first, so a reload
+  // can't start a second session. Deferred to a timer (and only marked done
+  // inside it) so React's dev double-mount still starts exactly once.
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (autoStartedRef.current) return;
+    const config = autoStartFromUrl();
+    if (!config) return;
+    const timer = window.setTimeout(() => {
+      autoStartedRef.current = true;
+      window.history.replaceState(null, "", window.location.pathname);
+      setSelectedType(config.activityType);
+      setIsIndoor(config.isIndoor);
+      setDurationMinutes(config.durationMinutes);
+      setTargetZone(null);
+      setStepGoal(null);
+      setStep("config");
+      void handleStart(config);
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on open
+  }, []);
+
   // The native side also auto-closes PiP the moment a `cardioLiveUpdate`
   // with isRunning:false arrives (see CardioPictureInPicturePlugin.start's
   // relay subscription) — this listener is what keeps the button's own
@@ -145,13 +187,15 @@ export default function CardioWorkoutPage() {
     setStep("config");
   }
 
-  async function handleStart() {
-    if (!selectedType) return;
+  async function handleStart(config?: CardioSessionConfig) {
+    const session: CardioSessionConfig | null =
+      config ?? (selectedType ? { activityType: selectedType, isIndoor, durationMinutes, targetZone, stepGoal } : null);
+    if (!session) return;
     setError(null);
     setStarting(true);
     try {
-      await startCardioSessionOnWatch({ activityType: selectedType, isIndoor, durationMinutes, targetZone, stepGoal });
-      setActivityType(selectedType);
+      await startCardioSessionOnWatch(session);
+      setActivityType(session.activityType);
     } catch (err) {
       if (err instanceof CardioNotNativeError) {
         setError(t("cardio.needsNativeApp"));

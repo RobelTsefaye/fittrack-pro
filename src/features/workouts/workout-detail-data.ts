@@ -21,6 +21,7 @@ export async function getWorkoutDetailData(
           },
           orderBy: { order: "asc" },
         },
+        planSession: { select: { cardioAfter: true } },
       },
     }),
     // See GET /api/workouts/:id — the Watch (JS sync + native no-phone-open
@@ -40,6 +41,7 @@ export async function getWorkoutDetailData(
     completedAt: workout.completedAt?.toISOString() ?? null,
     durationSeconds: workout.durationSeconds,
     planSessionId: workout.planSessionId,
+    cardioAfter: workout.planSession?.cardioAfter ?? false,
     restTimerDefaultSeconds,
     restTimerAdjustSeconds: workout.restTimerAdjustSeconds,
     workoutExercises: workout.workoutExercises.map((we) => ({

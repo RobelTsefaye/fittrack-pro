@@ -63,6 +63,14 @@ User 1──* Workout 1──* WorkoutExercise 1──* Set
 | repMin / repMax | Int? | Target rep range copied from the plan at start (double progression) |
 | restSeconds | Int? | Rest after this exercise; null = user default |
 
+### PlanSession
+| Column | Type | Notes |
+|--------|------|-------|
+| name | String | Free text ("Limbs", "Calves + forearms") |
+| order | Int | Position in the plan |
+| weekdays | Int[] | Fixed training days, Monday-first (0 = Mo … 6 = So); one weekday per plan |
+| cardioAfter | Boolean | Default false. Offer cardio (treadmill, indoor bike, elliptical) after finishing this day — in the phone's finish summary and on the Apple Watch. Migration `20261104120000_plan_session_cardio_after` switched it on for days named like "calves" |
+
 ### PlanSessionExercise
 | Column | Type | Notes |
 |--------|------|-------|
