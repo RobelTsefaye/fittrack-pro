@@ -10,6 +10,7 @@
 //
 
 import SwiftUI
+import HealthKit
 
 struct SessionLiveView: View {
     @ObservedObject var workoutManager: WorkoutManager
