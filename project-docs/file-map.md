@@ -170,3 +170,7 @@ FitnessApp/
 - **Services** hold business logic, called by API routes and server actions
 - **lib/** holds cross-cutting utilities
 - **components/ui/** holds shadcn/ui primitives (auto-generated)
+
+## 3D (three.js)
+- `src/components/pr-celebration.tsx` — `<PrCelebrationHost />` (mounted in `(app)/layout.tsx`): a 3D weight plate with sparks spins in when a set sets a new personal record. three.js is imported dynamically on the first record; skipped with `prefers-reduced-motion`.
+- `src/lib/pr-celebration.ts` — `celebratePersonalRecord()` fires the event; called from `set-row.tsx` next to the PR toast and haptics.

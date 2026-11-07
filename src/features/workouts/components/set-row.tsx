@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { WorkoutSetData } from "@/features/workouts/workout-types";
 import { hapticSetCompleted, hapticPersonalRecord } from "@/lib/native/haptics";
+import { celebratePersonalRecord } from "@/lib/pr-celebration";
 import { perSideSummary } from "@/features/tools/plate-math";
 
 function parseLocaleDecimal(raw: string): number | null {
@@ -186,6 +187,7 @@ export const SetRow = memo(function SetRow({
       if (complete) {
         if (json.personalRecord) {
           void hapticPersonalRecord();
+          celebratePersonalRecord();
           toast.success(t("workouts.newPrToast"), {
             description: t("workouts.newPrToastDesc", {
               weight: json.data?.weight ?? "",

@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { RequireAuth } from "@/components/auth/require-auth";
+import { PrCelebrationHost } from "@/components/pr-celebration";
 
 // Deliberately static — no server-side auth()/data-fetching. A statically-
 // exported build (project-docs/offline-first-roadmap.md Phase 2) pre-renders
@@ -14,6 +15,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <RequireAuth>
       <AppShell>{children}</AppShell>
+      <PrCelebrationHost />
     </RequireAuth>
   );
 }
