@@ -22,7 +22,7 @@ import WidgetKit
  */
 enum BackgroundSyncManager {
     static let taskIdentifier = "com.robeltsefaye.fittrackpro.healthsync"
-    private static let apiBaseURL = "https://fittrack-pro-ashen.vercel.app"
+    private static let apiBaseURL = "https://macbook-air-von-robel.tailfff213.ts.net"
     private static let store = HKHealthStore()
 
     static func register() {

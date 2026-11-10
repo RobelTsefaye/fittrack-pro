@@ -36,7 +36,7 @@ private actor FlushGate {
 }
 
 enum WatchAPIProxy {
-    private static let baseURL = "https://fittrack-pro-ashen.vercel.app"
+    private static let baseURL = "https://macbook-air-von-robel.tailfff213.ts.net"
     /// Matches DEFAULT_REST_TIMER in src/lib/constants.ts — the native proxy
     /// has no access to the user's saved preference (that lives in the web
     /// app's own settings, never synced to the Watch), so this is a

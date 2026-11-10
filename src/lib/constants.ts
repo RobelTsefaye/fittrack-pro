@@ -10,7 +10,7 @@ export const APP_NAME = "FitTrack Pro";
  * need to resolve here instead. See src/components/native-auth-fetch-patch.tsx.
  */
 export const PRODUCTION_API_ORIGIN =
-  process.env.NEXT_PUBLIC_API_ORIGIN ?? "https://fittrack-pro-ashen.vercel.app";
+  process.env.NEXT_PUBLIC_API_ORIGIN ?? "https://macbook-air-von-robel.tailfff213.ts.net";
 
 export const MUSCLE_GROUPS = [
   "CHEST",

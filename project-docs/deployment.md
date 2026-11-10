@@ -1,5 +1,15 @@
 # Deployment Guide — Vercel + Neon
 
+> **Alternative: Self-hosting on the Mac (no Vercel).** Used when Vercel pauses the Hobby account (fair-use limit,
+> Nov 2026). Next.js runs under launchd on port 3005, Tailscale Funnel serves it on
+> `https://macbook-air-von-robel.tailfff213.ts.net` (port 443), Neon stays the database.
+> `scripts/selfhost.sh install | update | status | stop | log`. Needs a `.env` with the production values
+> (`DATABASE_URL`, `DIRECT_DATABASE_URL`, same `AUTH_SECRET` as Vercel so sessions/native tokens stay valid,
+> `AUTH_URL` = the public address, `AUTH_TRUST_HOST=true`, `NEXT_PUBLIC_APP_URL`, AI keys). The native app calls
+> that address (`src/lib/constants.ts` + the four `apiBaseURL`/`baseURL` constants in `ios/App/App/*.swift`);
+> rebuild it with `npm run sync:native`. Nexus on the same Mac can use `FITTRACK_API_URL=http://127.0.0.1:3005`.
+> The Mac must be awake and online (Nexus watchdog keeps it awake on mains power).
+
 ## Overview
 
 | Component | Service    | Tier |

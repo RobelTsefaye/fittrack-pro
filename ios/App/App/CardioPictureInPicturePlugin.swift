@@ -70,7 +70,7 @@ public class CardioPictureInPicturePlugin: CAPPlugin, CAPBridgedPlugin {
     private var lastNativeUpdateAt = Date.distantPast
 
     private var streamTask: Task<Void, Never>?
-    private static let apiBaseURL = "https://fittrack-pro-ashen.vercel.app"
+    private static let apiBaseURL = "https://macbook-air-von-robel.tailfff213.ts.net"
     /// Native relay data (CardioLiveRelay) only ever arrives on the one
     /// device actually paired with the Watch — WCSession.isSupported() is
     /// unconditionally false on iPad, so an iPad running this plugin would

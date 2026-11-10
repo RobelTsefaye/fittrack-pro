@@ -59,7 +59,7 @@ public class WatchConnectivityPlugin: CAPPlugin, CAPBridgedPlugin {
 
     /// Same production host WatchAPIProxy / CardioPictureInPicturePlugin use —
     /// see `relayCardioLiveToServer`.
-    private static let serverBaseURL = "https://fittrack-pro-ashen.vercel.app"
+    private static let serverBaseURL = "https://macbook-air-von-robel.tailfff213.ts.net"
 
     override public func load() {
         guard WCSession.isSupported() else { return }
