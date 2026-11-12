@@ -41,6 +41,16 @@
     "retry": "Nochmal versuchen",
     "saveFailed": "Speichern fehlgeschlagen. Prüfe deine Verbindung."
   },
+  "errorPage": {
+    "title": "Hier ist etwas schiefgelaufen",
+    "description": "Die Seite konnte nicht angezeigt werden. Bereits gespeicherte Daten sind nicht verloren. Versuche es erneut oder gehe zurück.",
+    "retry": "Erneut versuchen",
+    "reload": "App neu laden",
+    "goTraining": "Zum Training",
+    "goHome": "Zur Startseite",
+    "notFoundTitle": "Seite nicht gefunden",
+    "notFoundDescription": "Diese Adresse gibt es nicht oder die Seite wurde verschoben."
+  },
   "auth": {
     "login": {
       "title": "Willkommen zurück",
