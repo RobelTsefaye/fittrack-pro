@@ -69,7 +69,9 @@
       "submitting": "Konto wird erstellt…",
       "hasAccount": "Bereits ein Konto?",
       "signIn": "Anmelden",
-      "signInFailed": "Konto erstellt, Anmeldung fehlgeschlagen. Bitte manuell anmelden."
+      "signInFailed": "Konto erstellt, Anmeldung fehlgeschlagen. Bitte manuell anmelden.",
+      "closedTitle": "Registrierung geschlossen",
+      "closedBody": "Neue Registrierungen sind auf dieser Instanz deaktiviert. Frag den Betreiber nach einem Konto oder melde dich an, falls du schon eins hast."
     }
   },
   "landing": {
