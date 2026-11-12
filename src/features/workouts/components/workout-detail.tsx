@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dialog";
 import { ROUTES, exercisePath, DEFAULT_REST_TIMER } from "@/lib/constants";
 import { workoutHref } from "@/lib/workout-href";
+import { createGuardedPoll } from "@/lib/guarded-poll";
 import type { PreviousLogEntry, PreviousSetEntry } from "@/features/workouts/previous-logs-types";
 import { suggestProgression, type RepRange, type ProgressionSuggestion } from "@/features/workouts/progression";
 import {
@@ -804,8 +805,9 @@ export function WorkoutDetail({
     };
   }, []);
 
-  const loadWorkout = useCallback(async (opts?: { silent?: boolean }) => {
+  const loadWorkout = useCallback(async (opts?: { silent?: boolean; signal?: AbortSignal }) => {
     const silent = opts?.silent ?? false;
+    const signal = opts?.signal;
     if (!silent) setLoading(true);
     setError(null);
 
@@ -854,7 +856,7 @@ export function WorkoutDetail({
       }
 
       try {
-        const res = await fetch(`/api/workouts/${workoutId}`, { credentials: "include" });
+        const res = await fetch(`/api/workouts/${workoutId}`, { credentials: "include", signal });
         if (isStale()) return;
         if (res.status === 404) {
           // A Watch-offline workout whose local UUID just replayed to a new
@@ -896,7 +898,7 @@ export function WorkoutDetail({
               }
               await new Promise((resolve) => setTimeout(resolve, 600));
               if (isStale()) return;
-              const retry = await fetch(`/api/workouts/${workoutId}`, { credentials: "include" });
+              const retry = await fetch(`/api/workouts/${workoutId}`, { credentials: "include", signal });
               if (isStale()) return;
               if (retry.ok) {
                 const j = (await retry.json()) as { data: WorkoutData };
@@ -950,6 +952,8 @@ export function WorkoutDetail({
         setOfflineOriginSession(false);
         setPendingQueue(false);
       } catch {
+        // Poll aborted by its timeout: not an error, keep the current state.
+        if (signal?.aborted) return;
         const snap = await loadWorkoutSnapshot(workoutId);
         if (isStale()) return;
         if (snap) {
@@ -1746,8 +1750,10 @@ export function WorkoutDetail({
   // set logged on the Watch reaches the phone via this poll within ~1s.
   useEffect(() => {
     if (!isActive) return;
+    // In-flight guard + 10s abort: a slow server must not stack requests.
+    const poll = createGuardedPoll((signal) => loadWorkout({ silent: true, signal }));
     const interval = setInterval(() => {
-      void loadWorkout({ silent: true });
+      void poll();
     }, 1000);
     return () => clearInterval(interval);
   }, [isActive, loadWorkout]);
