@@ -41,6 +41,16 @@
     "retry": "Retry",
     "saveFailed": "Couldn't save. Check your connection."
   },
+  "errorPage": {
+    "title": "Something went wrong",
+    "description": "This page could not be displayed. Data you already saved is not lost. Try again or go back.",
+    "retry": "Try again",
+    "reload": "Reload app",
+    "goTraining": "Go to training",
+    "goHome": "Go to home",
+    "notFoundTitle": "Page not found",
+    "notFoundDescription": "This address does not exist or the page has been moved."
+  },
   "auth": {
     "login": {
       "title": "Welcome back",

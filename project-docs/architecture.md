@@ -75,3 +75,12 @@ Code is organized by domain (auth, workouts, exercises, tracking, dashboard) rat
 - Statistics endpoints return structured JSON
 - Exercise and workout data is normalized (not denormalized blobs)
 - Summary/aggregation endpoints designed for LLM consumption
+
+### 8. Fehlerseiten (FT-ERR-03)
+
+- `src/app/error.tsx` (Root) und `src/app/(app)/error.tsx` (geschützte Routen, Navigation bleibt stehen) zeigen bei Renderfehlern eine verständliche Meldung, "Erneut versuchen" (`unstable_retry`, Next 16) und einen Link (Training bzw. Startseite). Gemeinsame Ansicht: `src/components/error-view.tsx`.
+- `src/app/global-error.tsx` fängt Fehler im Root-Layout ab; es hat keinen `I18nProvider` und wählt die Sprache aus `navigator.language` (Texte weiterhin aus `src/messages/{de,en}.json`, Block `errorPage`).
+- `src/app/not-found.tsx` ersetzt die Next-Standard-404.
+- Nutzern werden keine Fehlerdetails gezeigt; der Fehler geht per `console.error` an die Konsole.
+- Native-Export (`NATIVE_BUILD=1`): Alle vier Dateien sind mit `output: "export"` kompatibel (geprüft per Webpack-Build, `404.html` enthält den neuen Text).
+- Test: `src/app/__tests__/error-pages.test.ts`.
