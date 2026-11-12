@@ -49,6 +49,7 @@ import {
 } from "@/lib/offline/screen-caches";
 import { ExercisePickerDialog, type ExercisePickerExercise } from "./exercise-picker-dialog";
 import { SetRow } from "./set-row";
+import { writeOrQueue } from "@/lib/offline/write-or-queue";
 import { useRestTimerActions } from "../rest-timer-context";
 import { useWorkoutTimer } from "../hooks/use-workout-timer";
 import { sortSetsForDisplay } from "../set-sort";
@@ -447,6 +448,14 @@ const SortableExerciseCard = memo(function SortableExerciseCard({
               disabled={rowDisabled}
               offlineHandlers={
                 useLocalWrites && isActive
+                  ? {
+                      patchSet: (body, complete) => patchSetOffline(set.id, body, complete),
+                      deleteSet: () => deleteSetOffline(set.id),
+                    }
+                  : undefined
+              }
+              queueFallback={
+                !useLocalWrites && isActive
                   ? {
                       patchSet: (body, complete) => patchSetOffline(set.id, body, complete),
                       deleteSet: () => deleteSetOffline(set.id),
@@ -1077,9 +1086,12 @@ export function WorkoutDetail({
       next = patchSetInWorkout(prev, setId, merged, complete);
       return next;
     });
-    if (next) {
-      await persistLocal(next, { t: "patch_set", clientSetId: setId, body: merged });
-    }
+    // The updater above may run lazily; never skip the enqueue because of
+    // that (a skipped op would be lost silently) — fall back to the current
+    // render's workout for the snapshot.
+    const snapshot: WorkoutData =
+      (next as WorkoutData | null) ?? patchSetInWorkout(workout, setId, merged, complete);
+    await persistLocal(snapshot, { t: "patch_set", clientSetId: setId, body: merged });
   }
 
   async function deleteSetOffline(setId: string) {
@@ -1108,13 +1120,23 @@ export function WorkoutDetail({
       setSavingName(false);
       return;
     }
-    await fetch(`/api/workouts/${workoutId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ name: nextName }),
-    });
+    const outcome = await writeOrQueue(
+      (signal) =>
+        fetch(`/api/workouts/${workoutId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ name: nextName }),
+          signal,
+        }),
+      async () => {
+        const next = { ...workout, name: nextName };
+        setWorkout(next);
+        await persistLocal(next, { t: "patch_workout", name: nextName });
+      }
+    );
     setSavingName(false);
+    if (outcome.kind === "queued") return;
     await loadWorkout();
   }
 
@@ -1159,9 +1181,9 @@ export function WorkoutDetail({
     await setSupersetGroups(workout.workoutExercises.filter((we) => we.supersetGroup === group).map((we) => ({ id: we.id, group: null })));
   }
 
-  async function handleAddExercise(ex: ExercisePickerExercise) {
+  async function handleAddExercise(ex: ExercisePickerExercise, forceLocal = false) {
     if (!workout || workout.completedAt) return;
-    if (useLocalWrites) {
+    if (useLocalWrites || forceLocal) {
       setAddingExercise(true);
       const weId = crypto.randomUUID();
       const setId = crypto.randomUUID();
@@ -1218,17 +1240,24 @@ export function WorkoutDetail({
     }
 
     setAddingExercise(true);
-    const res = await fetch(`/api/workouts/${workoutId}/exercises`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ exerciseId: ex.id }),
-    });
-    if (!res.ok) {
+    const outcome = await writeOrQueue(
+      (signal) =>
+        fetch(`/api/workouts/${workoutId}/exercises`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ exerciseId: ex.id }),
+          signal,
+        }),
+      // Server unreachable although "online": same local path as offline.
+      () => handleAddExercise(ex, true)
+    );
+    if (outcome.kind === "queued") return;
+    if (outcome.kind === "failed" || !outcome.res.ok) {
       setAddingExercise(false);
       return;
     }
-    const json = await res.json();
+    const json = await outcome.res.json();
     const weId = json.data?.id as string | undefined;
     if (weId) {
       await fetch(`/api/workouts/${workoutId}/exercises/${weId}/sets`, {
@@ -1236,6 +1265,8 @@ export function WorkoutDetail({
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({}),
+      }).catch(() => {
+        // The exercise exists; the first set can be added with "+ set".
       });
     }
     setAddingExercise(false);
@@ -1243,9 +1274,9 @@ export function WorkoutDetail({
     await loadWorkout();
   }
 
-  async function addSet(weId: string, isWarmup?: boolean) {
+  async function addSet(weId: string, isWarmup?: boolean, forceLocal = false) {
     if (!workout) return;
-    if (useLocalWrites) {
+    if (useLocalWrites || forceLocal) {
       const we = workout.workoutExercises.find((w) => w.id === weId);
       if (!we) return;
       const setId = crypto.randomUUID();
@@ -1294,14 +1325,20 @@ export function WorkoutDetail({
       });
       return;
     }
-    const res = await fetch(`/api/workouts/${workoutId}/exercises/${weId}/sets`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(isWarmup ? { isWarmup: true } : {}),
-    });
-    if (!res.ok) return;
-    const json = (await res.json()) as {
+    const outcome = await writeOrQueue(
+      (signal) =>
+        fetch(`/api/workouts/${workoutId}/exercises/${weId}/sets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(isWarmup ? { isWarmup: true } : {}),
+          signal,
+        }),
+      // Server unreachable although "online": same local path as offline.
+      () => addSet(weId, isWarmup, true)
+    );
+    if (outcome.kind !== "response" || !outcome.res.ok) return;
+    const json = (await outcome.res.json()) as {
       data: { set: Record<string, unknown>; sets?: Record<string, unknown>[] };
     };
     const payload = json.data;
@@ -1447,10 +1484,24 @@ export function WorkoutDetail({
       await persistLocal(next, { t: "delete_we", clientWeId: weId });
       return;
     }
-    await fetch(`/api/workouts/${workoutId}/exercises/${weId}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
+    const outcome = await writeOrQueue(
+      (signal) =>
+        fetch(`/api/workouts/${workoutId}/exercises/${weId}`, {
+          method: "DELETE",
+          credentials: "include",
+          signal,
+        }),
+      async () => {
+        if (!workout) return;
+        const next: WorkoutData = {
+          ...workout,
+          workoutExercises: workout.workoutExercises.filter((we) => we.id !== weId),
+        };
+        setWorkout(next);
+        await persistLocal(next, { t: "delete_we", clientWeId: weId });
+      }
+    );
+    if (outcome.kind === "queued") return;
     await loadWorkout();
   }
 

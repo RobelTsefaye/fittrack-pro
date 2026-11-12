@@ -12,6 +12,7 @@ import type { WorkoutSetData } from "@/features/workouts/workout-types";
 import { hapticSetCompleted, hapticPersonalRecord } from "@/lib/native/haptics";
 import { celebratePersonalRecord } from "@/lib/pr-celebration";
 import { perSideSummary } from "@/features/tools/plate-math";
+import { writeOrQueue } from "@/lib/offline/write-or-queue";
 
 function parseLocaleDecimal(raw: string): number | null {
   const t = raw.trim().replace(/\s/g, "").replace(",", ".");
@@ -50,6 +51,13 @@ interface SetRowProps {
     patchSet: (body: Record<string, unknown>, complete: boolean) => Promise<void>;
     deleteSet: () => Promise<void>;
   };
+  /** Online mode only: persist the write via the offline queue when the
+   *  request fails (network error, timeout, 5xx) although the browser claims
+   *  to be online. Without it a failed write is not stored. */
+  queueFallback?: {
+    patchSet: (body: Record<string, unknown>, complete: boolean) => Promise<void>;
+    deleteSet: () => Promise<void>;
+  };
   /** The next open set of its exercise: gets the quick-entry toolbar. */
   isNext?: boolean;
   /** Values of the set right above (same exercise, this workout). */
@@ -77,6 +85,7 @@ export const SetRow = memo(function SetRow({
   onMergeSet,
   onRemoveSet,
   offlineHandlers,
+  queueFallback,
   isNext = false,
   prevSetValues,
   isBarbell = false,
@@ -163,20 +172,34 @@ export const SetRow = memo(function SetRow({
     }
 
     const seq = ++saveSeqRef.current;
-    let res: Response;
-    try {
-      res = await fetch(`/api/workouts/${workoutId}/sets/${set.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
-    } catch {
-      // Network dropped while navigator.onLine still claims online.
-      if (complete) toast.error(t("common.saveFailed"));
+    // Network dropped / server asleep while navigator.onLine still claims
+    // online: store the write in the offline queue instead of losing it.
+    const outcome = await writeOrQueue(
+      (signal) =>
+        fetch(`/api/workouts/${workoutId}/sets/${set.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(data),
+          signal,
+        }),
+      queueFallback ? () => queueFallback.patchSet(data, complete) : undefined
+    );
+    if (outcome.kind === "queued") {
+      if (complete) {
+        void hapticSetCompleted();
+        onComplete();
+      }
+      return;
+    }
+    if (outcome.kind === "failed") {
+      // Unchanged behavior without a queue fallback; if even queueing failed
+      // (IndexedDB), always tell the user the value was not stored.
+      if (complete || queueFallback) toast.error(t("common.saveFailed"));
       onRefresh?.();
       return;
     }
+    const res = outcome.res;
 
     if (res.ok) {
       const json = (await res.json()) as {
@@ -210,11 +233,22 @@ export const SetRow = memo(function SetRow({
       await offlineHandlers.deleteSet();
       return;
     }
-    const res = await fetch(`/api/workouts/${workoutId}/sets/${set.id}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    if (res.ok) {
+    const outcome = await writeOrQueue(
+      (signal) =>
+        fetch(`/api/workouts/${workoutId}/sets/${set.id}`, {
+          method: "DELETE",
+          credentials: "include",
+          signal,
+        }),
+      queueFallback ? () => queueFallback.deleteSet() : undefined
+    );
+    if (outcome.kind === "queued") return;
+    if (outcome.kind === "failed") {
+      if (queueFallback) toast.error(t("common.saveFailed"));
+      onRefresh?.();
+      return;
+    }
+    if (outcome.res.ok) {
       onRemoveSet?.();
     } else {
       onRefresh?.();
