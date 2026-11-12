@@ -204,8 +204,30 @@ export async function rekeyWorkoutLocalState(
       weMapJson: JSON.stringify([...weMap]),
       setMapJson: JSON.stringify([...setMap]),
     });
-    await db.queueIdMap.delete(oldId);
+    // Leave an alias under the old id (instead of deleting the row): the UI
+    // still enqueues under it until the route follows the rekey.
+    await db.queueIdMap.put({ id: oldId, weMapJson: "[]", setMapJson: "[]", aliasOf: newId });
     await db.workouts.delete(oldId);
+  });
+}
+
+/** Server id an old (local) workout id was rekeyed to, if any. */
+export async function resolveWorkoutAlias(oldId: string): Promise<string | null> {
+  const db = getOfflineDb();
+  const row = await db.queueIdMap.get(oldId);
+  return row?.aliasOf && row.aliasOf !== oldId ? row.aliasOf : null;
+}
+
+/** Moves queue rows enqueued under a stale (rekeyed) id onto the current id,
+ *  keeping their `sort` so the order is preserved. Returns the number moved. */
+export async function moveQueueEntries(fromId: string, toId: string): Promise<number> {
+  const db = getOfflineDb();
+  return db.transaction("rw", db.queue, async () => {
+    const rows = await db.queue.where("workoutRouteId").equals(fromId).toArray();
+    if (rows.length > 0) {
+      await db.queue.bulkPut(rows.map((row) => ({ ...row, workoutRouteId: toId })));
+    }
+    return rows.length;
   });
 }
 

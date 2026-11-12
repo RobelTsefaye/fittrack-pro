@@ -119,6 +119,12 @@ export type QueueIdMapRow = {
   id: string;
   weMapJson: string;
   setMapJson: string;
+  /** Set on the row left behind under the OLD local id after a rekey: points
+   *  to the server id. Ops that the UI enqueues under the old id after the
+   *  rekey transaction (it keeps its route id until navigation) are resolved
+   *  through this on the next flush instead of being orphaned. Not indexed,
+   *  so no schema version bump. */
+  aliasOf?: string;
 };
 
 export type PreviousLogCacheRow = {

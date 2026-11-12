@@ -15,6 +15,8 @@ const store = vi.hoisted(() => ({
   removeQueueEntries: vi.fn(),
   rekeyWorkoutLocalState: vi.fn(),
   saveWorkoutSnapshot: vi.fn(),
+  resolveWorkoutAlias: vi.fn(),
+  moveQueueEntries: vi.fn(),
 }));
 vi.mock("@/lib/offline/workout-offline-store", () => store);
 
@@ -27,6 +29,16 @@ function jsonRes(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status });
 }
 
+/**
+ * Zustandsbehaftete Queue: `listQueueForWorkout` liefert, was noch nicht entfernt wurde
+ * (der Flush liest die Queue nach jedem Durchlauf erneut). `live` ist je Workout-ID
+ * die aktuelle Zeilenliste; Tests können während des Flush Zeilen anhängen.
+ */
+let live: Record<string, Row[]>;
+function queue(rows: Row[], routeId = "w1") {
+  live[routeId] = [...rows];
+}
+
 let fetchMock: ReturnType<typeof vi.fn>;
 const calls = () => fetchMock.mock.calls.map(([url, init]) => `${init?.method ?? "GET"} ${url}`);
 
@@ -36,12 +48,28 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   // Node >= 21 hat ein globales `navigator` ohne `onLine` (wäre "offline").
   vi.stubGlobal("navigator", { onLine: true });
+  live = {};
+  store.listQueueForWorkout.mockImplementation(async (id: string) => [...(live[id] ?? [])]);
+  store.removeQueueEntries.mockImplementation(async (ids: string[]) => {
+    for (const id of Object.keys(live)) live[id] = live[id].filter((r) => !ids.includes(r.id));
+  });
+  store.rekeyWorkoutLocalState.mockImplementation(
+    async (oldId: string, newId: string, _d: unknown, _w: unknown, _s: unknown, rowId: string) => {
+      live[newId] = [...(live[newId] ?? []), ...(live[oldId] ?? []).filter((r) => r.id !== rowId)];
+      delete live[oldId];
+    }
+  );
+  store.moveQueueEntries.mockImplementation(async (from: string, to: string) => {
+    const moved = live[from] ?? [];
+    live[to] = [...(live[to] ?? []), ...moved];
+    delete live[from];
+    return moved.length;
+  });
+  store.resolveWorkoutAlias.mockResolvedValue(null);
   store.loadQueueIdMap.mockResolvedValue({ weMap: new Map(), setMap: new Map() });
   store.loadWorkoutSnapshot.mockResolvedValue({ data: { id: "w1" }, offlineOrigin: false });
-  store.removeQueueEntries.mockResolvedValue(undefined);
   store.saveQueueIdMap.mockResolvedValue(undefined);
   store.deleteQueueIdMap.mockResolvedValue(undefined);
-  store.rekeyWorkoutLocalState.mockResolvedValue(undefined);
   store.saveWorkoutSnapshot.mockResolvedValue(undefined);
 });
 
@@ -62,25 +90,28 @@ describe("flushWorkoutQueue", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("IST (Datenverlust-Kandidat): Queue ohne Snapshot wird still verworfen und als Erfolg gemeldet", async () => {
-    store.listQueueForWorkout.mockResolvedValue([
-      row("q1", { t: "post_set", clientWeId: "a", clientSetId: "b" }),
-    ]);
+  it("FT-ARCH-05: Queue ohne Snapshot (und ohne Alias) bleibt erhalten und wird als Fehler gemeldet", async () => {
+    queue([row("q1", { t: "post_set", clientWeId: "a", clientSetId: "b" })]);
     store.loadWorkoutSnapshot.mockResolvedValue(null);
-    await expect(flushWorkoutQueue("w1")).resolves.toEqual({ ok: true });
-    expect(store.removeQueueEntries).toHaveBeenCalledWith(["q1"]);
-    expect(fetchMock).not.toHaveBeenCalled(); // die Ops wurden nie an den Server geschickt
+    await expect(flushWorkoutQueue("w1")).resolves.toEqual({ ok: false, error: "no_snapshot" });
+    expect(store.removeQueueEntries).not.toHaveBeenCalled();
+    expect(store.deleteQueueIdMap).not.toHaveBeenCalled();
+    expect(live.w1).toHaveLength(1);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("offline erstelltes Workout: mappt Client-IDs auf Server-IDs und liefert die neue Workout-ID", async () => {
     store.loadWorkoutSnapshot.mockResolvedValue({ data: { id: "local-1" }, offlineOrigin: true });
-    store.listQueueForWorkout.mockResolvedValue([
-      row("q1", { t: "post_workout", name: "Push" }),
-      row("q2", { t: "post_exercise", exerciseId: "ex1", clientWeId: "cwe" }),
-      row("q3", { t: "post_set", clientWeId: "cwe", clientSetId: "cset" }),
-      row("q4", { t: "patch_set", clientSetId: "cset", body: { reps: 5 } }),
-      row("q5", { t: "complete_workout" }),
-    ]);
+    queue(
+      [
+        row("q1", { t: "post_workout", name: "Push" }),
+        row("q2", { t: "post_exercise", exerciseId: "ex1", clientWeId: "cwe" }),
+        row("q3", { t: "post_set", clientWeId: "cwe", clientSetId: "cset" }),
+        row("q4", { t: "patch_set", clientSetId: "cset", body: { reps: 5 } }),
+        row("q5", { t: "complete_workout" }),
+      ],
+      "local-1"
+    );
     fetchMock
       .mockResolvedValueOnce(jsonRes({ data: { id: "srv-w" } }))
       .mockResolvedValueOnce(jsonRes({ data: { id: "srv-we" } }))
@@ -101,11 +132,12 @@ describe("flushWorkoutQueue", () => {
       "GET /api/workouts/srv-w",
     ]);
     expect(store.rekeyWorkoutLocalState).toHaveBeenCalledTimes(1);
-    expect(store.deleteQueueIdMap).toHaveBeenCalledWith("srv-w");
+    // Nach dem Rekey bleibt die ID-Zuordnung bestehen (späte Ops unter der alten ID brauchen sie).
+    expect(store.deleteQueueIdMap).not.toHaveBeenCalled();
   });
 
   it("entfernt jede erfolgreiche Op sofort; bei Fehler bleibt nur der Rest in der Queue", async () => {
-    store.listQueueForWorkout.mockResolvedValue([
+    queue([
       row("q1", { t: "patch_workout", name: "A" }),
       row("q2", { t: "patch_workout", name: "B" }),
     ]);
@@ -119,7 +151,7 @@ describe("flushWorkoutQueue", () => {
   });
 
   it("Netzwerkfehler (fetch rejects) wird als Fehlerergebnis gemeldet, nicht geworfen", async () => {
-    store.listQueueForWorkout.mockResolvedValue([row("q1", { t: "complete_workout" })]);
+    queue([row("q1", { t: "complete_workout" })]);
     fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     await expect(flushWorkoutQueue("w1")).resolves.toMatchObject({
       ok: false,
@@ -129,9 +161,7 @@ describe("flushWorkoutQueue", () => {
   });
 
   it("IST: patch_set mit 404 zählt als Erfolg; die Änderung geht still verloren", async () => {
-    store.listQueueForWorkout.mockResolvedValue([
-      row("q1", { t: "patch_set", clientSetId: "s1", body: { reps: 8, weight: 100 } }),
-    ]);
+    queue([row("q1", { t: "patch_set", clientSetId: "s1", body: { reps: 8, weight: 100 } })]);
     fetchMock
       .mockResolvedValueOnce(jsonRes({}, 404))
       .mockResolvedValueOnce(jsonRes({ data: { id: "w1" } }));
@@ -141,7 +171,7 @@ describe("flushWorkoutQueue", () => {
   });
 
   it("IST (Inkonsistenz): delete_set toleriert 404, delete_we nicht und blockiert die Queue dauerhaft", async () => {
-    store.listQueueForWorkout.mockResolvedValue([row("q1", { t: "delete_we", clientWeId: "we1" })]);
+    queue([row("q1", { t: "delete_we", clientWeId: "we1" })]);
     fetchMock.mockResolvedValueOnce(jsonRes({}, 404));
     const res = await flushWorkoutQueue("w1");
     expect(res).toMatchObject({ ok: false, error: "delete_we 404" });
@@ -150,7 +180,7 @@ describe("flushWorkoutQueue", () => {
 
   it("KB-11 (IST): Absturz zwischen Server-Erfolg und Queue-Entfernung sendet post_set beim Retry erneut (Dublette)", async () => {
     const queued = [row("q1", { t: "post_set", clientWeId: "we1", clientSetId: "cs1" })];
-    store.listQueueForWorkout.mockResolvedValue(queued);
+    queue(queued);
     store.removeQueueEntries.mockRejectedValueOnce(new Error("IndexedDB aborted"));
     fetchMock
       .mockResolvedValueOnce(jsonRes({ data: { set: { id: "srv-set-1" } } }))
@@ -170,14 +200,97 @@ describe("flushWorkoutQueue", () => {
   });
 
   it("unbekannte Op bricht mit unknown_op ab", async () => {
-    store.listQueueForWorkout.mockResolvedValue([row("q1", { t: "teleport" })]);
+    queue([row("q1", { t: "teleport" })]);
     await expect(flushWorkoutQueue("w1")).resolves.toMatchObject({
       ok: false,
       error: "unknown_op",
     });
   });
 
-  it.todo(
-    "KB-11: Statusanzeige 'synchronisiert' bei verworfener Queue (kein Snapshot) - UI-Zustand in Komponenten, ohne DOM-Umgebung nicht testbar"
-  );
+  describe("FT-ARCH-02: Ops während des Flush", () => {
+    it("Op, die während eines Flush unter derselben ID entsteht, wird im selben Lauf gesendet und nicht vom Abschluss überschrieben", async () => {
+      queue([row("q1", { t: "patch_workout", name: "A" })]);
+      fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+        if (init?.method === "PATCH" && live.w1.length === 1) {
+          // Nutzer tippt weiter, während der erste PATCH unterwegs ist.
+          live.w1.push(row("q2", { t: "patch_set", clientSetId: "s1", body: { reps: 8 } }));
+        }
+        return jsonRes({ data: { id: "w1" } });
+      });
+
+      const res = await flushWorkoutQueue("w1");
+
+      expect(res.ok).toBe(true);
+      expect(calls()).toEqual([
+        "PATCH /api/workouts/w1",
+        "PATCH /api/workouts/w1/sets/s1",
+        "GET /api/workouts/w1",
+      ]);
+      expect(live.w1).toEqual([]);
+      // Erst nach der letzten Op: ID-Map weg, Snapshot mit Serverstand.
+      expect(store.deleteQueueIdMap).toHaveBeenCalledTimes(1);
+    });
+
+    it("nach dem Rekey unter der ALTEN ID angehängte Ops werden auf die neue ID umgehängt und gesendet", async () => {
+      store.loadWorkoutSnapshot.mockResolvedValue({ data: { id: "local-1" }, offlineOrigin: true });
+      queue(
+        [
+          row("q1", { t: "post_workout", name: "Push" }),
+          row("q2", { t: "post_exercise", exerciseId: "ex1", clientWeId: "cwe" }),
+        ],
+        "local-1"
+      );
+      fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+        const key = `${init?.method ?? "GET"} ${url}`;
+        if (key === "POST /api/workouts") return jsonRes({ data: { id: "srv-w" } });
+        if (key === "POST /api/workouts/srv-w/exercises") {
+          // Die UI kennt noch die alte ID und reiht dort eine Op ein (nach dem Rekey).
+          live["local-1"] = [row("q3", { t: "post_set", clientWeId: "cwe", clientSetId: "cset" })];
+          return jsonRes({ data: { id: "srv-we" } });
+        }
+        if (key === "POST /api/workouts/srv-w/exercises/srv-we/sets") {
+          return jsonRes({ data: { set: { id: "srv-set" } } });
+        }
+        return jsonRes({ data: { id: "srv-w" } });
+      });
+
+      const res = await flushWorkoutQueue("local-1");
+
+      expect(res).toEqual({ ok: true, newServerWorkoutId: "srv-w" });
+      expect(store.moveQueueEntries).toHaveBeenCalledWith("local-1", "srv-w");
+      expect(calls()).toContain("POST /api/workouts/srv-w/exercises/srv-we/sets");
+      expect(live["srv-w"]).toEqual([]);
+      expect(live["local-1"]).toBeUndefined();
+    });
+
+    it("späte Ops unter der alten ID (kein Snapshot mehr) werden im nächsten Flush über den Alias aufgelöst statt verworfen", async () => {
+      queue([row("q9", { t: "patch_set", clientSetId: "srv-set", body: { reps: 5 } })], "local-1");
+      store.loadWorkoutSnapshot.mockImplementation(async (id: string) =>
+        id === "srv-w" ? { data: { id: "srv-w" }, offlineOrigin: false } : null
+      );
+      store.resolveWorkoutAlias.mockImplementation(async (id: string) =>
+        id === "local-1" ? "srv-w" : null
+      );
+      fetchMock.mockResolvedValue(jsonRes({ data: { id: "srv-w" } }));
+
+      const res = await flushWorkoutQueue("local-1");
+
+      expect(res).toEqual({ ok: true, newServerWorkoutId: "srv-w" });
+      expect(calls()[0]).toBe("PATCH /api/workouts/srv-w/sets/srv-set");
+      expect(live["srv-w"]).toEqual([]);
+    });
+
+    it("Queue wächst endlos: nach MAX_ROUNDS Fehler queue_busy, Zeilen und ID-Map bleiben", async () => {
+      queue([row("q0", { t: "patch_workout", name: "x" })]);
+      let n = 0;
+      fetchMock.mockImplementation(async () => {
+        live.w1.push(row(`q${++n}`, { t: "patch_workout", name: `n${n}` }));
+        return jsonRes({});
+      });
+      const res = await flushWorkoutQueue("w1");
+      expect(res).toMatchObject({ ok: false, error: "queue_busy" });
+      expect(live.w1.length).toBeGreaterThan(0);
+      expect(store.deleteQueueIdMap).not.toHaveBeenCalled();
+    });
+  });
 });
