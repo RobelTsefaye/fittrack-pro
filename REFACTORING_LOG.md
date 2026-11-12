@@ -16,9 +16,10 @@ Branch `refactor/audit-2026-11` (nichts gepusht). Details: `docs/audit/TRIAGE.md
 | FT-ARCH-08, FT-PERF-03 (P1) | bf90e8f | Poll mit In-Flight-Guard und 10-s-Timeout; Pool-Leerlauf 60 s | `guarded-poll.test.ts` |
 | Doku | df28377, e56f08a | `project-docs/` (Offline-Queue, Poll, Pool, Node 22), `CLAUDE.md` (Next 16, Capacitor, Selbst-Hosting) | – |
 | FT-ERR-01/-02 (B4), FT-SEC-02 (B7), FT-SEC-04/-03 (B8) | 54e9c56, f44e2e3, ff884ec | Satz-Speichern zeigt Fehler und behält Eingaben, PATCH/DELETE atomar; OAuth: signierte client_id, exakte redirect_uri, nur PKCE S256 (Connector muss neu autorisiert werden); Registrierung `FITTRACK_REGISTRATION` Standard geschlossen (Bootstrap ohne Nutzer), Rate-Limit Login/Registrierung | 438 Tests |
+| FT-ERR-03 (Fehlerseiten), FT-PERF-01 (Rekorde gebündelt) | siehe `git log` | `error.tsx`/`global-error.tsx`/`not-found.tsx`; Rekord-Prüfung beim Beenden 1 Lese- + 1 Schreib-Query statt N+1, Semantik unverändert | 461 Tests |
 
 ## Offen (B/C)
-Siehe `docs/audit/TRIAGE.md`. Wichtigste: FT-SEC-02 Rest (Einmal-Code, Token-Ablauf, Zustimmungsseite; braucht Schema), FT-SEC-04 Rest (Zod-Maximallängen, Body-Limit), FT-DEP-01/-02 kritische Paket-Updates (`next`, `next-auth`, `@capacitor/ios`; M, braucht Build auf dem Mac), FT-ARCH-06/-07/-19 Schema-Drift und `db push`-Fallback (M–L, Prisma seriell), FT-ARCH-09 (memo/Closure), Offline-Sync-Zielmodell (Entscheidung 12), FT-PERF-01/-02/-04, FT-ERR-03 (`error.tsx`).
+Siehe `docs/audit/TRIAGE.md`. Wichtigste: FT-SEC-02 Rest (Einmal-Code, Token-Ablauf, Zustimmungsseite; braucht Schema), FT-SEC-04 Rest (Zod-Maximallängen, Body-Limit), FT-DEP-01/-02 kritische Paket-Updates (`next`, `next-auth`, `@capacitor/ios`; M, braucht Build auf dem Mac), FT-ARCH-06/-07/-19 Schema-Drift und `db push`-Fallback (M–L, Prisma seriell), FT-ARCH-09 (memo/Closure), Offline-Sync-Zielmodell (Entscheidung 12), FT-PERF-02/-04/-05.
 Restrisiko aus der Gegenprüfung: kein automatischer Retry bei „online, aber Server down“, Reihenfolge direkter Write gegen Queue, Doppel-Risiko bei Netzfehler nach Commit, Dauer-Toast bei Queue ohne Snapshot.
 
 ## Bewusst nicht gefixt
