@@ -65,8 +65,7 @@ function readPersisted(): Persisted | null {
     return {
       endsAt: typeof p.endsAt === "number" ? p.endsAt : null,
       duration: p.duration,
-      pausedRemaining:
-        typeof p.pausedRemaining === "number" ? p.pausedRemaining : null,
+      pausedRemaining: typeof p.pausedRemaining === "number" ? p.pausedRemaining : null,
     };
   } catch {
     return null;
@@ -128,14 +127,6 @@ export type RestTimerActions = Pick<
 >;
 
 const RestTimerActionsContext = createContext<RestTimerActions | null>(null);
-
-export function useRestTimer(): RestTimerApi {
-  const ctx = useContext(RestTimerContext);
-  if (!ctx) {
-    throw new Error("useRestTimer must be used within RestTimerProvider");
-  }
-  return ctx;
-}
 
 export function useRestTimerActions(): RestTimerActions {
   const ctx = useContext(RestTimerActionsContext);
@@ -347,32 +338,35 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     void scheduleRestTimerNotification(newEndsAt);
   }, [pausedRemaining, requestWakeLock]);
 
-  const adjustTime = useCallback((delta: number) => {
-    if (delta === 0) return;
-    if (activeWorkoutIdRef.current) {
-      persistRestTimerAdjust(activeWorkoutIdRef.current, delta);
-    }
-    if (pausedRemaining != null) {
-      setPausedRemaining((prev) => {
-        if (prev == null) return prev;
-        const next = Math.max(0, prev + delta);
-        void updateRestTimerActivity({ pausedRemainingSeconds: next });
-        return next;
-      });
-      if (delta > 0) setDuration((d) => d + delta);
-      return;
-    }
-    if (endsAt != null) {
-      setEndsAt((e) => {
-        if (e == null) return e;
-        const next = e + delta * 1000;
-        void updateRestTimerActivity({ endsAt: next });
-        void scheduleRestTimerNotification(next);
-        return next;
-      });
-      if (delta > 0) setDuration((d) => d + delta);
-    }
-  }, [endsAt, pausedRemaining]);
+  const adjustTime = useCallback(
+    (delta: number) => {
+      if (delta === 0) return;
+      if (activeWorkoutIdRef.current) {
+        persistRestTimerAdjust(activeWorkoutIdRef.current, delta);
+      }
+      if (pausedRemaining != null) {
+        setPausedRemaining((prev) => {
+          if (prev == null) return prev;
+          const next = Math.max(0, prev + delta);
+          void updateRestTimerActivity({ pausedRemainingSeconds: next });
+          return next;
+        });
+        if (delta > 0) setDuration((d) => d + delta);
+        return;
+      }
+      if (endsAt != null) {
+        setEndsAt((e) => {
+          if (e == null) return e;
+          const next = e + delta * 1000;
+          void updateRestTimerActivity({ endsAt: next });
+          void scheduleRestTimerNotification(next);
+          return next;
+        });
+        if (delta > 0) setDuration((d) => d + delta);
+      }
+    },
+    [endsAt, pausedRemaining]
+  );
 
   const progress =
     duration > 0 ? Math.min(100, Math.max(0, ((duration - remaining) / duration) * 100)) : 0;
@@ -454,9 +448,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
         void cancelRestTimerNotification();
       } else if (nextEndsAt != null) {
         const delta =
-          endsAtRef.current != null
-            ? Math.round((nextEndsAt - endsAtRef.current) / 1000)
-            : 0;
+          endsAtRef.current != null ? Math.round((nextEndsAt - endsAtRef.current) / 1000) : 0;
         if (delta !== 0 && activeWorkoutIdRef.current) {
           persistRestTimerAdjust(activeWorkoutIdRef.current, delta);
         }

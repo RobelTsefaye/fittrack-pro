@@ -18,7 +18,7 @@ const OPTIONS: Array<{ type: CardioActivityType; Icon: typeof Footprints; labelK
 const DURATIONS: Array<number | null> = [null, 20, 30, 45];
 
 /** Cardio page URL that starts the session on the Watch right away (see workouts/cardio/page.tsx). */
-export function cardioStartHref(type: CardioActivityType, minutes: number | null): string {
+function cardioStartHref(type: CardioActivityType, minutes: number | null): string {
   const params = new URLSearchParams({ start: type, indoor: "1" });
   if (minutes) params.set("minutes", String(minutes));
   return `${ROUTES.cardioWorkout}?${params.toString()}`;
@@ -61,7 +61,12 @@ export function CardioAfterPicker({
   }
 
   return (
-    <section className={cn("space-y-3 rounded-2xl bg-primary/[0.07] p-3.5 ring-1 ring-primary/25", className)}>
+    <section
+      className={cn(
+        "space-y-3 rounded-2xl bg-primary/[0.07] p-3.5 ring-1 ring-primary/25",
+        className
+      )}
+    >
       <div className="flex items-start gap-2.5">
         <Watch className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
         <div className="min-w-0">
@@ -86,7 +91,11 @@ export function CardioAfterPicker({
           </button>
         ))}
       </div>
-      <div className="flex items-center gap-1.5" role="group" aria-label={t("cardio.durationLabel")}>
+      <div
+        className="flex items-center gap-1.5"
+        role="group"
+        aria-label={t("cardio.durationLabel")}
+      >
         <span className="mr-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
           {t("cardio.durationLabel")}
         </span>
@@ -98,7 +107,9 @@ export function CardioAfterPicker({
             onClick={() => setMinutes(m)}
             className={cn(
               "h-8 flex-1 rounded-lg text-xs font-semibold tabular-nums transition-colors",
-              minutes === m ? "bg-primary text-primary-foreground" : "bg-white/[0.06] text-muted-foreground"
+              minutes === m
+                ? "bg-primary text-primary-foreground"
+                : "bg-white/[0.06] text-muted-foreground"
             )}
           >
             {m == null ? t("cardio.durationFree") : t("cardio.durationMinutes", { minutes: m })}

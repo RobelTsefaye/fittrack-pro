@@ -144,7 +144,6 @@ FitnessApp/
 │   │   ├── auth.ts                  # NextAuth config
 │   │   ├── utils.ts                 # General utilities
 │   │   ├── constants.ts             # App-wide constants + exercisePath()
-│   │   ├── types.ts                 # Shared TypeScript types
 │   │   ├── strength.ts              # Epley 1RM
 │   │   ├── personal-record.ts     # PR create/remove helpers
 │   │   └── date-only.ts             # UTC / local date helpers for body weight

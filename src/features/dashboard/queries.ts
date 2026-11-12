@@ -24,7 +24,7 @@ function utcDayKey(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function computeWorkoutStreak(completedAts: Date[]): number {
+function computeWorkoutStreak(completedAts: Date[]): number {
   const days = new Set(completedAts.map((d) => utcDayKey(d)));
   if (days.size === 0) return 0;
   const sortedDesc = [...days].sort((a, b) => b.localeCompare(a));
@@ -51,7 +51,11 @@ function isoWeekKey(d: Date): string {
  * completed. The current week only adds to the streak once its goal is met;
  * an unfinished current week never breaks it, so rest days don't hurt.
  */
-export function computeWeekStreak(completedAts: Date[], goal: number, now: Date = new Date()): number {
+export function computeWeekStreak(
+  completedAts: Date[],
+  goal: number,
+  now: Date = new Date()
+): number {
   if (goal <= 0) return 0;
   const perWeek = new Map<string, number>();
   for (const d of completedAts) {
@@ -161,10 +165,7 @@ async function getWorkoutVolumesSince(
 export async function getVolumeBucketsWeekly(userId: string, weekCount = 10) {
   const now = new Date();
   const intervalStart = startOfWeek(subWeeks(now, weekCount - 1), { weekStartsOn: 1 });
-  const weekStarts = eachWeekOfInterval(
-    { start: intervalStart, end: now },
-    { weekStartsOn: 1 }
-  );
+  const weekStarts = eachWeekOfInterval({ start: intervalStart, end: now }, { weekStartsOn: 1 });
 
   const workoutVolumes = await getWorkoutVolumesSince(userId, intervalStart);
 
@@ -243,13 +244,10 @@ export async function getVolumeBucketsMonthly(userId: string, monthCount = 6) {
 }
 
 /** Running max of estimated 1RM per muscle group, by calendar week. */
-export async function getStrengthTrendByMuscleGroup(userId: string, weekCount = 12) {
+async function getStrengthTrendByMuscleGroup(userId: string, weekCount = 12) {
   const now = new Date();
   const intervalStart = startOfWeek(subWeeks(now, weekCount - 1), { weekStartsOn: 1 });
-  const weekStarts = eachWeekOfInterval(
-    { start: intervalStart, end: now },
-    { weekStartsOn: 1 }
-  );
+  const weekStarts = eachWeekOfInterval({ start: intervalStart, end: now }, { weekStartsOn: 1 });
 
   const allPrs = await prisma.personalRecord.findMany({
     where: { userId, estimated1RM: { not: null, gt: 0 } },
@@ -277,7 +275,10 @@ export async function getStrengthTrendByMuscleGroup(userId: string, weekCount = 
     end: endOfWeek(ws, { weekStartsOn: 1 }),
   }));
 
-  const groups: { muscleGroup: string; data: { key: string; label: string; bestE1RM: number | null }[] }[] = [];
+  const groups: {
+    muscleGroup: string;
+    data: { key: string; label: string; bestE1RM: number | null }[];
+  }[] = [];
 
   for (const [mg, prs] of prsByGroup) {
     let i = 0;
@@ -299,10 +300,7 @@ export async function getStrengthTrendByMuscleGroup(userId: string, weekCount = 
 export async function getConsistencyWeekly(userId: string, weekCount = 10) {
   const now = new Date();
   const intervalStart = startOfWeek(subWeeks(now, weekCount - 1), { weekStartsOn: 1 });
-  const weekStarts = eachWeekOfInterval(
-    { start: intervalStart, end: now },
-    { weekStartsOn: 1 }
-  );
+  const weekStarts = eachWeekOfInterval({ start: intervalStart, end: now }, { weekStartsOn: 1 });
 
   const workouts = await prisma.workout.findMany({
     where: {
@@ -339,12 +337,10 @@ export async function getBodyWeightTrend(userId: string, take = 14) {
     orderBy: { date: "desc" },
     take,
   });
-  return [...rows]
-    .reverse()
-    .map((r) => ({
-      date: r.date.toISOString().slice(0, 10),
-      weight: r.weight,
-    }));
+  return [...rows].reverse().map((r) => ({
+    date: r.date.toISOString().slice(0, 10),
+    weight: r.weight,
+  }));
 }
 
 export async function getNextPlanSession(userId: string) {
@@ -431,9 +427,7 @@ export async function getNextPlanSession(userId: string) {
   if (lastWorkout?.name) {
     const lower = lastWorkout.name.toLowerCase();
     const matchIdx = plan.sessions.findIndex(
-      (s) =>
-        lower.includes(s.name.toLowerCase()) ||
-        s.name.toLowerCase().includes(lower)
+      (s) => lower.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(lower)
     );
     if (matchIdx !== -1) {
       nextIdx = (matchIdx + 1) % plan.sessions.length;
@@ -451,7 +445,7 @@ export async function getNextPlanSession(userId: string) {
   };
 }
 
-export async function getRecentWorkouts(userId: string, take = 6) {
+async function getRecentWorkouts(userId: string, take = 6) {
   return prisma.workout.findMany({
     where: { userId, completedAt: { not: null } },
     orderBy: { completedAt: "desc" },
@@ -471,9 +465,7 @@ export async function getTopExercisesByVolume(
   const since = subDays(new Date(), days);
 
   // Aggregated in SQL — one row per exercise instead of one per set.
-  return prisma.$queryRaw<
-    Array<{ exerciseId: string; name: string; volume: number }>
-  >`
+  return prisma.$queryRaw<Array<{ exerciseId: string; name: string; volume: number }>>`
     SELECT we."exerciseId", e.name, SUM(s.reps * s.weight)::float AS volume
     FROM "sets" s
     JOIN "workout_exercises" we ON we.id = s."workoutExerciseId"
@@ -500,10 +492,7 @@ export type HeatmapDay = {
 
 export type HeatmapColumn = HeatmapDay[];
 
-export async function getWorkoutHeatmapGrid(
-  userId: string,
-  weeks = 16
-): Promise<HeatmapColumn[]> {
+async function getWorkoutHeatmapGrid(userId: string, weeks = 16): Promise<HeatmapColumn[]> {
   const today = endOfDay(new Date());
   const gridStart = startOfWeek(subWeeks(today, weeks - 1), { weekStartsOn: 1 });
 
@@ -542,8 +531,7 @@ export async function getWorkoutHeatmapGrid(
         c.level = 0;
         continue;
       }
-      c.level =
-        c.count === 0 ? 0 : Math.min(4, Math.ceil((c.count / max) * 4));
+      c.level = c.count === 0 ? 0 : Math.min(4, Math.ceil((c.count / max) * 4));
     }
   }
 
@@ -595,7 +583,7 @@ export type DashboardClientPayload = {
   nextSession: NextPlanSession;
 };
 
-export function toDashboardClientPayload(raw: DashboardPayload): DashboardClientPayload {
+function toDashboardClientPayload(raw: DashboardPayload): DashboardClientPayload {
   return {
     summary: raw.summary,
     recentPRs: raw.recentPRs.map((pr) => ({
@@ -625,9 +613,7 @@ export function toDashboardClientPayload(raw: DashboardPayload): DashboardClient
   };
 }
 
-export async function getDashboardClientPayload(
-  userId: string
-): Promise<DashboardClientPayload> {
+export async function getDashboardClientPayload(userId: string): Promise<DashboardClientPayload> {
   const tag = dashboardCacheTag(userId);
   return unstable_cache(
     async () => {
@@ -639,7 +625,7 @@ export async function getDashboardClientPayload(
   )();
 }
 
-export async function getDashboardPayload(userId: string): Promise<DashboardPayload> {
+async function getDashboardPayload(userId: string): Promise<DashboardPayload> {
   const [
     summary,
     recentPRs,
