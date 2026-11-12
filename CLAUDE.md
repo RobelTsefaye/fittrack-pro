@@ -3,7 +3,7 @@
 Intelligent fitness tracking app — portfolio project.
 
 ## Tech Stack
-Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui, Prisma, PostgreSQL, NextAuth.js v5, Zod, Recharts
+Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, shadcn/ui, Prisma 7, PostgreSQL (Neon), NextAuth.js v5 (beta), Zod 4, Recharts, AI SDK 6, Capacitor 8 (iOS-App mit Watch/Widgets). **Next.js 16 weicht von älterem Wissen ab: siehe `AGENTS.md`, Doku in `node_modules/next/dist/docs/`.**
 
 ## Commands
 - `npm run dev` — start dev server
@@ -29,7 +29,8 @@ The app schema is ahead of your database. After `DATABASE_URL` is set, run **`np
 - `src/components/` — shared UI components (shadcn/ui in components/ui/)
 - `src/lib/` — utilities (prisma client, auth config, constants)
 - `prisma/` — database schema and migrations
-- **Mobile:** Safari / “Add to Home Screen”; rest timer = wall-clock + `sessionStorage` (no native iOS shell).
+- **Mobile:** Capacitor-iOS-App (`ios/App`, Build `npm run sync:native`, danach `open ios/App/App.xcodeproj`) mit HealthKit, Watch und Widgets; zusätzlich Safari / “Add to Home Screen”. Rest timer = wall-clock + `sessionStorage`.
+- **Betrieb:** Seit Nov 2026 selbst gehostet auf dem Mac (`scripts/selfhost.sh`, launchd `com.fittrack.web`, Port 3005, Tailscale Funnel :443); Vercel ist pausiert (Hobby-Limit). Node 22 (`.nvmrc`).
 
 ## Key Patterns
 - Zod validation on all inputs (shared client/server)
