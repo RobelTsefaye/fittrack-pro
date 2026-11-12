@@ -98,3 +98,52 @@ Geprüft je Hunk:
 - Echte Neon-DB (Leerlauf-Trennung, Kaltstart, Pooler) und echte Serverantworten bei Timeout; kein Netz gegen Produktion.
 - Dexie-Transaktionen real (nur gemockter Store), Rekord-/PR-Semantik bei wiederholtem PATCH.
 - Keine `.env`- oder DB-Inhalte gelesen.
+
+## Zweiter Durchgang
+
+Stand 2026-11-12, `HEAD` = `df28377` (Merge `refactor/FT-ARCH-01b`: `b75dd5c`, `bf824a3`; dazu `b1495b5`, `e6c437e`). Frischer Kontext, nur gelesen und Prüfbefehle ausgeführt; kein Code geändert.
+
+### Gesamturteil
+
+**Freigabe** (Code-Teil B3/P1). B-1 bis B-4 und B-6 sind behoben, B-5 ist als Ausnahme akzeptiert (siehe unten). Ein Restrisiko (R-1) und eine kleine Doku-Ungenauigkeit (D-1) bleiben; beides kein Blocker, aber nachzuziehen bzw. in `KNOWN-BUGS.md` zu vermerken. Gerätetest aus dem ersten Durchgang bleibt offen.
+
+### (a) Beanstandungen aus dem ersten Durchgang
+
+| # | Status | Beleg |
+|---|---|---|
+| B-1 | behoben | `workout-detail.tsx:1348` `if (outcome.kind === "queued") return;` vor dem Toast (`:1349-1352`); lokaler Pfad `addSet(weId, isWarmup, true)` setzt `setWorkout(next)` und `persistLocal(…post_set…)` (`:1325-1332`), der Satz wird also angezeigt. Quelltext-Test `src/features/workouts/__tests__/add-set-queued.test.ts` (schwach, aber ausreichend für die Reihenfolge). |
+| B-2 | behoben | `flush-workout-queue.ts:180` toleriert 404 wie `delete_set` (`:170`)/`patch_set`; Test umgedreht und 500-Fall ergänzt (`flush-workout-queue.test.ts:175-192`). |
+| B-3 | behoben | Alias-Aufruf mit `{ viaAlias: true }` (`:56`); Map und Alias-Zeilen werden nur bei regulärem Flush gelöscht (`:225-228`). Test mit Client-IDs über zwei Alias-Flushes (`flush-workout-queue.test.ts:299-323`), Aufräumtest (`:325-333`). Aufräumregel: `deleteAliasesOf` (`workout-offline-store.ts:221-232`). |
+| B-4 | behoben | `offline-first-roadmap.md` Abschnitt „Audit 2026-11“, `performance-plan.md`, `apple-watch.md`, `deployment.md` (Commit `bf824a3`). |
+| B-5 | akzeptiert | `8b72d24` bleibt ohne `Co-Authored-By` (gemergte Historie, kein Force-Push). Hiermit als bekannte Ausnahme protokolliert; alle anderen Commits in `main..HEAD` haben den Trailer (geprüft per `%(trailers)`). |
+| B-6 | behoben | `07-fehlerbehandlung.md:130` nennt nur noch „Modell-Alias“. |
+
+### (b) Nacharbeit auf neue Fehler geprüft
+
+- **`deleteAliasesOf`** (`workout-offline-store.ts:221-232`): Transaktion über `db.queue` und `db.queueIdMap`, genau die gelesenen/geschriebenen Tabellen. Index `workoutRouteId` existiert (`db.ts:307`), `aliasOf?: string` ist im Typ (`db.ts:127`), Schlüssel `id` (`db.ts:323`). `toArray()` + Filter ist ein Vollscan von `queueIdMap` (klein, unkritisch). OK.
+- **viaAlias-Rekursion**: Rekursion nur ohne Snapshot (`:50-58`); das Ziel hat nach dem Rekey einen Snapshot und keine `aliasOf`-Zeile, also höchstens eine Stufe, keine Schleife. `viaAlias` wird nicht weitergereicht (nicht nötig). Doppel-Flush durch `flushAllQueues` (`flush-all-queues.ts:11-15`, Ziel-ID steht ggf. noch in der Liste): zweiter Aufruf findet leere Queue (`:45-47`) und ist ein No-op. Queue nach Alias-Flush korrekt: `moveQueueEntries` vor dem Replay (`:55`), Runden-Schleife wie bisher.
+- **delete_we 404**: Folge-Ops derselben Übung: `patch_set`/`delete_set` 404 werden ohnehin still entfernt (Altbestand), `post_set` auf eine gelöschte Übung entsteht in der UI nicht (Übung ist weg). Ops vor dem DELETE laufen vorher (Sortierung). Kein neuer Seiteneffekt gefunden.
+- **addSet bei queued**: Satz lokal sichtbar und persistiert (siehe B-1). Stale-Closure-Muster wie H-5 (Altbestand).
+
+**R-1 (Restrisiko, niedrig-mittel) Reihenfolge in `flushAllQueues` kann die Map trotzdem löschen.** `distinctQueuedWorkoutIds` (`workout-offline-store.ts:172-176`) liefert die IDs in Reihenfolge der Queue-Schlüssel (`crypto.randomUUID()`, `:59`), also zufällig. Liegen gleichzeitig Ops unter der alten ID (späte Op der alten Ansicht, z. B. offline nach dem Rekey) und unter der Server-ID (nach der Navigation), und wird die Server-ID zuerst geflusht, löscht der reguläre Pfad die Map (`flush-workout-queue.ts:226`); `deleteAliasesOf` behält zwar die Alias-Zeile (wartende Ops), aber deren Client-IDs lassen sich danach nicht mehr auflösen (`patch_set` → 404 → still entfernt, `post_set` → 404 → Queue hängt). Nicht durch die Nacharbeit eingeführt (vorher identisch), aber der Kommentar `:222-224`/`workout-offline-store.ts:219-220` verspricht mehr Schutz, als der Code gibt.
+**Forderung (Folge-Fix, z. B. FT-ARCH-15):** im regulären Pfad vor dem Replay Zeilen aller Alias-IDs, die auf `currentId` zeigen, per `moveQueueEntries` übernehmen, oder `deleteQueueIdMap` auslassen, solange `deleteAliasesOf` eine Alias-Zeile behalten hat. Bis dahin in `KNOWN-BUGS.md` vermerken.
+
+**H-8 (Hinweis)** Alias-Zeilen und Map des Ziels bleiben liegen, wenn nach dem Alias-Flush nie wieder eine Op unter der Server-ID geflusht wird (`:45-47` kehrt vor dem Aufräumen zurück). Nur kleine IndexedDB-Zeilen, unkritisch. Wird die Server-ID per `purgeWorkoutLocal` (`workout-offline-store.ts:86-94`) entfernt, während eine späte Op unter der alten ID wartet, folgt der nächste Flush dem Alias auf eine ID ohne Snapshot → dauerhaft `no_snapshot` (Klasse H-2).
+
+### (c) Modellkennungen
+
+`grep -rniE 'gemini-[a-z]|claude-(opus|sonnet|haiku|fable)' docs/ ../own-game/docs`: Treffer nur für Anbieter-/Produktwörter („Gemini-Key“, „Gemini-API“, „Gemini-Free-Tier“, „Gemini-Pfad“, „Gemini-Modelle“, „Gemini-Hinweis“), keine konkrete Modell-ID. OK.
+
+### (d) Prüfläufe
+
+- `npm test`: 40 Dateien grün, 1 übersprungen; 397 Tests grün, 11 todo (408 gesamt). Exit 0.
+- `npm run typecheck`: Exit 0.
+- `npm run lint`: Exit 0, keine Ausgabe.
+- `git diff main...HEAD -- prisma .github package.json package-lock.json`: leer.
+
+### (e) project-docs gegen Code
+
+Geprüft: `.nvmrc` = 22; `WRITE_TIMEOUT_MS = 10_000`, 5xx/Netzfehler/Timeout → Fallback, 4xx und (ohne Fallback) 5xx als Antwort (`write-or-queue.ts:8-77`); `CREATE_WRITE` = kein Timeout, nur Netzfehler/502/503 (`:36`), genutzt für Übung und Satz anlegen (`workout-detail.tsx:1258, 1346`); `MAX_ROUNDS = 20`, `queue_busy`, `no_snapshot`; 404-Toleranz für `patch_set`, `delete_set`, `delete_we`, `complete_workout` (`flush-workout-queue.ts:157, 168, 180, 199`); Rekey in einer Transaktion mit Alias-Zeile (`workout-offline-store.ts:189-211`); `POLL_TIMEOUT_MS = 10_000` (`guarded-poll.ts:10`); `idleTimeoutMillis: 60_000`. Stimmt.
+
+**D-1 (Doku, klein)** `offline-first-roadmap.md` (Abschnitt „Audit 2026-11“, letzter Punkt): „or `purgeWorkoutLocal` of the workout“ trifft nur zu, wenn mit der alten ID aufgerufen; `purgeWorkoutLocal(serverId)` löscht nur die eigene Zeile (`workout-offline-store.ts:91`), Alias-Zeilen anderer IDs bleiben. Die Aufrufer (`workout-detail.tsx:922, 1782, 1861, 1883`) nutzen die aktuelle Route-ID.
+**Forderung:** Satz präzisieren („… or `purgeWorkoutLocal` of the old id“) oder streichen.
