@@ -1,6 +1,6 @@
 # AI & automation API
 
-Authenticated JSON endpoints designed for **LLM context**, analytics pipelines, or mobile clients. They intentionally **omit email addresses** and passwords.
+Authenticated JSON endpoints (13 routes under `/api/ai/`, plus `/api/export`) designed for **LLM context**, analytics pipelines, or mobile clients. They intentionally **omit email addresses** and passwords.
 
 Base URL: same origin as the app, path prefix `/api/ai/`.
 
@@ -13,9 +13,9 @@ Base URL: same origin as the app, path prefix `/api/ai/`.
 Authorization: Bearer ftp_<your-secret>
 ```
 
-Tokens are stored as a SHA-256 hash; the full secret is shown **once** when created. Revoke anytime from Settings.
+Tokens are stored as a SHA-256 hash; the full secret is shown **once** when created. Revoke anytime from Settings. Tokens do not expire (see Scope).
 
-**Scope:** tokens authenticate only **read-oriented data routes**: all `GET /api/ai/*` and `GET /api/export` / `GET /api/export/csv`. They cannot create workouts, change settings, or mint new tokens (those still require a normal login session).
+**Scope (Ist-Zustand, XR-SEC-02):** tokens are **not** limited to read routes. `requireUserId()` accepts `Authorization: Bearer ftp_…` on **every** API route, so a token can read **and write or delete** data (e.g. body weight, workouts), export everything, and **create further tokens** (`POST /api/tokens`). There are no scopes and no expiry. Treat a token like a password: revoking a leaked token is not enough if it already minted others, so delete all tokens of the account in that case (rotation steps: `project-docs/deployment.md`). Scopes and expiry are planned, not implemented.
 
 Unauthenticated requests return `401`.
 
@@ -24,6 +24,7 @@ Unauthenticated requests return `401`.
 The token is **long-lived** — you are not meant to generate it every chat. For a **persistent** link so Claude can call your API automatically, use the **MCP server** in this repo:
 
 - `mcp/fittrack-mcp/README.md` — build steps and `claude_desktop_config.json` example  
+- Set `FITTRACK_BASE_URL` to the address the app is served from (currently the Mac / Tailscale Funnel address; `http://localhost:3000` for local dev).
 - After setup, Claude Desktop loads `FITTRACK_BASE_URL` and `FITTRACK_API_TOKEN` from env on every session; you only rotate the token if you revoke it or switch machines.
 
 Plain **claude.ai** in the browser does not run your MCP server; use **Claude Desktop** (or Cursor MCP) for that model.
@@ -42,7 +43,7 @@ Compact snapshot for prompt injection or RAG context.
 
 **Response `data` highlights:**
 
-- `schemaVersion`, `kind: "training-summary"`, `generatedAt`, `windowWeeks`
+- `schemaVersion`, `kind: "training_summary"`, `generatedAt`, `windowWeeks`
 - `athlete`: `displayName`, `weightUnit`, `locale`, `defaultRestSeconds`
 - `snapshot`: dashboard-style totals (all-time / current streak / PR count) from `getDashboardSummary`
 - `window.weekBuckets[]`: per week — `weekStart`, `completedWorkouts`, `volumeLoad` (Σ weight×reps working sets), `workingSets`
@@ -78,7 +79,7 @@ Richer narrative + analysis block for trend questions.
 
 **Response `data` highlights:**
 
-- `kind: "progress-report"`
+- `kind: "progress_report"`
 - `training`: full object from `buildTrainingSummary` (same shape as above, window capped)
 - `analysis.volumeTrend`: first-half vs second-half volume in the window, `percentChangeHalfToHalf`
 - `analysis.bodyWeight`: `entriesInSample`, `firstWeight`, `lastWeight`, `deltaInSample`, and `series[]` — the full `{date, weight}` list for the sample (up to `min(weeks*7, 365)` entries)
@@ -103,7 +104,7 @@ Single payload for **natural-language Q&A** (body weight, what’s next, in-prog
 - `recentCompletedWorkouts[]`: last 10 completions
 - `llmHints[]`: how to interpret the fields (not user-facing copy)
 
-**“Next workout” rule:** FitTrack has no calendar. `suggestedNext` is **rotation within each plan** based on completed workouts that were started from a plan (linked `planSessionId`). Workouts created ad hoc do not advance that rotation.
+**“Next workout” rule:** `suggestedNext` is **rotation within each plan** based on completed workouts that were started from a plan (linked `planSessionId`). Workouts created ad hoc do not advance that rotation.
 
 ### `GET /api/ai/recommendations`
 
@@ -207,7 +208,7 @@ Use exports for backup or offline analysis; use `/api/ai/*` for **structured, pr
 
 ## Example: Claude / ChatGPT tool flow
 
-1. User authorizes the session (cookie or future API token).
+1. User authorizes the session (cookie or personal API token).
 2. For **status / “what’s next” / current weight**, call `GET /api/ai/coach-context` first.
 3. Agent calls `GET /api/ai/training-summary?weeks=8` for volume and PR snapshot.
 4. Agent calls `GET /api/ai/recommendations` for heuristic checks.
@@ -215,5 +216,7 @@ Use exports for backup or offline analysis; use `/api/ai/*` for **structured, pr
 6. Pass `data` JSON into the system prompt as **read-only context**; do not present outputs as medical advice.
 
 ## Schema versioning
+
+- `kind` is not uniform: `training_summary`, `progress_report`, `coach_context` use underscores; the other routes use hyphens (`body-measurements`, `cardio-history`, `exercise-history`, `personal-records`, …). Match the value exactly; do not normalise.
 
 - `schemaVersion: "1.0"` — bump when removing or renaming fields; keep changelog in this file.

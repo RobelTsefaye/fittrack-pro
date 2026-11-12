@@ -6,15 +6,16 @@ Two ways to connect Claude to your training data:
 |---|---|---|
 | Works on phone | ✅ | ❌ |
 | Works on PC | ✅ | ✅ |
-| Extra hosting | none — uses your Vercel app | none — runs on your machine |
+| Extra hosting | none — uses the deployed FitTrack app | none — runs on your machine |
 | Setup effort | 2 min | 5 min |
 
 ---
 
 ## Option A — Remote MCP (phone + PC + web) ← recommended
 
-This uses the `/api/mcp` endpoint built into your deployed Vercel app.
-No extra hosting, no extra cost — it runs alongside your existing app.
+This uses the `/api/mcp` endpoint built into the deployed app (currently self-hosted on the Mac behind the Tailscale
+Funnel, see `project-docs/deployment.md`). No extra hosting — it runs alongside the app, so it is only reachable while
+the Mac is online.
 
 ### 1. Get your API token
 In FitTrack → **Settings → API token** → create a token → copy it.
@@ -25,12 +26,12 @@ In FitTrack → **Settings → API token** → create a token → copy it.
 2. Click **Add custom integration** (or "Add MCP Server")
 3. Fill in:
    - **Name:** FitTrack Pro
-   - **URL:** `https://<your-app>.vercel.app/api/mcp`
-     *(replace `<your-app>` with your actual Vercel subdomain)*
+   - **URL:** `<APP_URL>/api/mcp`
+     *(replace `<APP_URL>` with the address the app is served from, e.g. the Tailscale Funnel address; on Vercel `https://<your-app>.vercel.app`)*
    - **Authentication:** Custom header
      - Header name: `Authorization`
      - Header value: `Bearer ftp_your_token_here`
-4. Save → Claude discovers the 4 tools automatically
+4. Save → Claude discovers the 15 tools automatically (table below)
 
 ### 3. Use from any device
 
@@ -68,9 +69,9 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "fittrack-pro": {
       "command": "node",
-      "args": ["/ABSOLUTE/PATH/TO/FitnessApp/mcp/fittrack-mcp/dist/index.js"],
+      "args": ["/ABSOLUTE/PATH/TO/fittrack-pro/mcp/fittrack-mcp/dist/index.js"],
       "env": {
-        "FITTRACK_BASE_URL": "https://<your-app>.vercel.app",
+        "FITTRACK_BASE_URL": "<APP_URL>",
         "FITTRACK_API_TOKEN": "ftp_paste_your_token_here"
       }
     }
@@ -119,5 +120,6 @@ Restart Claude Desktop after saving.
 
 ## Security
 
-- Anyone with the token can read your AI + export endpoints. Revoke tokens in Settings if a device is lost.
+- A token has **full account access**, not read-only: it works on every API route (read, write, delete, export) and can create further tokens (XR-SEC-02). Revoke tokens in Settings if a device is lost; if a token leaked, delete all tokens of the account. Rotation steps: `project-docs/deployment.md`.
+- The token sits in plain text in `claude_desktop_config.json` (local option); keep that file out of backups and repos.
 - Do not commit files containing your token.
