@@ -49,7 +49,7 @@ import {
 } from "@/lib/offline/screen-caches";
 import { ExercisePickerDialog, type ExercisePickerExercise } from "./exercise-picker-dialog";
 import { SetRow } from "./set-row";
-import { writeOrQueue } from "@/lib/offline/write-or-queue";
+import { CREATE_WRITE, writeOrQueue } from "@/lib/offline/write-or-queue";
 import { useRestTimerActions } from "../rest-timer-context";
 import { useWorkoutTimer } from "../hooks/use-workout-timer";
 import { sortSetsForDisplay } from "../set-sort";
@@ -1250,10 +1250,13 @@ export function WorkoutDetail({
           signal,
         }),
       // Server unreachable although "online": same local path as offline.
-      () => handleAddExercise(ex, true)
+      () => handleAddExercise(ex, true),
+      CREATE_WRITE
     );
     if (outcome.kind === "queued") return;
     if (outcome.kind === "failed" || !outcome.res.ok) {
+      // Not queued on purpose (the server may have applied it): tell the user.
+      toast.error(t("common.saveFailed"));
       setAddingExercise(false);
       return;
     }
@@ -1335,9 +1338,14 @@ export function WorkoutDetail({
           signal,
         }),
       // Server unreachable although "online": same local path as offline.
-      () => addSet(weId, isWarmup, true)
+      () => addSet(weId, isWarmup, true),
+      CREATE_WRITE
     );
-    if (outcome.kind !== "response" || !outcome.res.ok) return;
+    if (outcome.kind !== "response" || !outcome.res.ok) {
+      // Not queued on purpose (the server may have applied it): tell the user.
+      toast.error(t("common.saveFailed"));
+      return;
+    }
     const json = (await outcome.res.json()) as {
       data: { set: Record<string, unknown>; sets?: Record<string, unknown>[] };
     };

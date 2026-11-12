@@ -13,6 +13,28 @@ export function isTransientWriteStatus(status: number): boolean {
   return status >= 500 && status <= 599;
 }
 
+/** 502/503: gateway, tunnel or host is gone, the request most likely never
+ *  reached the app. */
+export function isGatewayDownStatus(status: number): boolean {
+  return status === 502 || status === 503;
+}
+
+export type WriteOptions = {
+  /** Client timeout in ms; `null` disables it (no abort, wait for the server). */
+  timeoutMs?: number | null;
+  /** Which response statuses are queued instead of returned. */
+  queueStatus?: (status: number) => boolean;
+};
+
+/**
+ * Options for POSTs that CREATE something (not idempotent: no client id yet,
+ * FT-ARCH-03). A client-side abort or a 500/504 does not prove the server did
+ * not apply the op, and a replay would duplicate it. So: no timeout, and queue
+ * only on a real network error (fetch throws) or 502/503. Everything else is
+ * returned to the caller, which must tell the user.
+ */
+export const CREATE_WRITE: WriteOptions = { timeoutMs: null, queueStatus: isGatewayDownStatus };
+
 export type WriteOutcome =
   | { kind: "response"; res: Response }
   /** The write failed transiently and was stored via the queue callback. */
@@ -29,10 +51,11 @@ export type WriteOutcome =
 export async function writeOrQueue(
   send: (signal: AbortSignal) => Promise<Response>,
   queue?: () => Promise<void>,
-  timeoutMs: number = WRITE_TIMEOUT_MS
+  options: WriteOptions = {}
 ): Promise<WriteOutcome> {
+  const { timeoutMs = WRITE_TIMEOUT_MS, queueStatus = isTransientWriteStatus } = options;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = timeoutMs === null ? null : setTimeout(() => controller.abort(), timeoutMs);
   let res: Response | null = null;
   let failure: unknown = null;
   try {
@@ -40,9 +63,9 @@ export async function writeOrQueue(
   } catch (error) {
     failure = error;
   } finally {
-    clearTimeout(timer);
+    if (timer !== null) clearTimeout(timer);
   }
-  if (res && !isTransientWriteStatus(res.status)) return { kind: "response", res };
+  if (res && !queueStatus(res.status)) return { kind: "response", res };
   if (!queue) {
     return res ? { kind: "response", res } : { kind: "failed", error: failure };
   }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isTransientWriteStatus, writeOrQueue } from "@/lib/offline/write-or-queue";
+import { CREATE_WRITE, isTransientWriteStatus, writeOrQueue } from "@/lib/offline/write-or-queue";
 
 /**
  * FT-ARCH-01: "online" ist nicht gleich `navigator.onLine`. Schlägt ein Schreibversuch
@@ -63,7 +63,7 @@ describe("writeOrQueue", () => {
           signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
         }),
       queue,
-      1000
+      { timeoutMs: 1000 }
     );
     await vi.advanceTimersByTimeAsync(1000);
     await expect(pending).resolves.toEqual({ kind: "queued" });
@@ -91,4 +91,55 @@ describe("writeOrQueue", () => {
     const srv = await writeOrQueue(async () => res(503));
     expect(srv.kind).toBe("response");
   });
+});
+
+describe("writeOrQueue mit CREATE_WRITE (nicht-idempotente POSTs)", () => {
+  it("kein Client-Timeout: wartet länger als 10 s und reiht NICHT ein", async () => {
+    vi.useFakeTimers();
+    const queue = vi.fn().mockResolvedValue(undefined);
+    let aborted = false;
+    const pending = writeOrQueue(
+      (signal) =>
+        new Promise<Response>((resolve) => {
+          signal.addEventListener("abort", () => (aborted = true));
+          setTimeout(() => resolve(res(200)), 60_000);
+        }),
+      queue,
+      CREATE_WRITE
+    );
+    await vi.advanceTimersByTimeAsync(60_000);
+    const out = await pending;
+    expect(aborted).toBe(false);
+    expect(out.kind).toBe("response");
+    expect(queue).not.toHaveBeenCalled();
+  });
+
+  it("fetch rejects (echter Netzwerkfehler): eingereiht", async () => {
+    const queue = vi.fn().mockResolvedValue(undefined);
+    const out = await writeOrQueue(
+      async () => {
+        throw new TypeError("Failed to fetch");
+      },
+      queue,
+      CREATE_WRITE
+    );
+    expect(out).toEqual({ kind: "queued" });
+  });
+
+  it.each([502, 503])("HTTP %i: eingereiht", async (status) => {
+    const queue = vi.fn().mockResolvedValue(undefined);
+    const out = await writeOrQueue(async () => res(status), queue, CREATE_WRITE);
+    expect(out).toEqual({ kind: "queued" });
+    expect(queue).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([500, 504])(
+    "HTTP %i: NICHT eingereiht, Antwort geht an den Aufrufer (Hinweis, kein stilles Verwerfen)",
+    async (status) => {
+      const queue = vi.fn().mockResolvedValue(undefined);
+      const out = await writeOrQueue(async () => res(status), queue, CREATE_WRITE);
+      expect(out.kind).toBe("response");
+      expect(queue).not.toHaveBeenCalled();
+    }
+  );
 });
