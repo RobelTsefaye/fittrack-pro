@@ -141,3 +141,14 @@ Error responses:
   }
 }
 ```
+
+## Remote-MCP OAuth (`/api/mcp/oauth/*`)
+
+Flow: `register` (RFC 7591) -> `authorize` (Browser, FitTrack-Login) -> `token`.
+
+- `register` verlangt 1-10 `redirect_uris` (https, oder http nur auf `localhost`/`127.0.0.1`/`[::1]`; kein Fragment, keine Userinfo), sonst 400 `invalid_redirect_uri`. Die `client_id` ist zustandslos und signiert (`mcp_<payload>.<hmac>`, `src/lib/oauth-crypto.ts`) und enthält die registrierten URIs; es wird nichts gespeichert.
+- `authorize` prüft zuerst die Signatur der `client_id` und vergleicht `redirect_uri` exakt mit den gebundenen URIs. Fehler: 400 JSON, nie ein Redirect (auch nicht vor dem Login).
+- PKCE ist Pflicht und nur `S256` (`code_challenge`, `code_challenge_method=S256`); `plain` oder fehlendes PKCE: 400. Metadaten (`.well-known/oauth-authorization-server`) bewerben nur `S256`.
+- `token` verlangt dieselbe `redirect_uri` wie bei `authorize` (und, falls gesendet, dieselbe `client_id`) und prüft den `code_verifier` immer.
+- Ältere Clients mit `plain` oder ohne PKCE funktionieren nicht mehr; bestehende Connector-Einrichtungen müssen neu autorisiert werden (neue Registrierung).
+- Noch offen (Schema/UI nötig, FT-SEC-02/-05): Einmal-Code, Token-Ablauf und Scopes (`expires_in` wird deshalb nicht gesendet), Zustimmungsseite.

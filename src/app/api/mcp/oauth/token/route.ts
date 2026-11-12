@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { createHash } from "crypto";
+import { createHash, timingSafeEqual } from "crypto";
 import { decryptOAuthCode } from "@/lib/oauth-crypto";
 
 const CORS = {
@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
   const grantType = form.get("grant_type");
   const code = form.get("code");
   const codeVerifier = form.get("code_verifier");
+  const redirectUri = form.get("redirect_uri");
+  const clientId = form.get("client_id");
 
   if (grantType !== "authorization_code") {
     return json({ error: "unsupported_grant_type" }, 400);
@@ -40,20 +42,26 @@ export async function POST(req: NextRequest) {
     return json({ error: "invalid_grant", error_description: "code expired" }, 400);
   }
 
-  // PKCE verification
-  const cc = payload.cc as string | null;
-  const ccm = (payload.ccm as string | undefined) ?? "plain";
-  if (cc) {
-    if (!codeVerifier) {
-      return json({ error: "invalid_request", error_description: "code_verifier required" }, 400);
-    }
-    const computed =
-      ccm === "S256"
-        ? createHash("sha256").update(codeVerifier).digest("base64url")
-        : codeVerifier;
-    if (computed !== cc) {
-      return json({ error: "invalid_grant", error_description: "PKCE mismatch" }, 400);
-    }
+  // redirect_uri (und client_id, falls gesendet) müssen exakt dem authorize-Request entsprechen.
+  if (!redirectUri || redirectUri !== payload.ru) {
+    return json({ error: "invalid_grant", error_description: "redirect_uri mismatch" }, 400);
+  }
+  if (clientId && clientId !== payload.ci) {
+    return json({ error: "invalid_grant", error_description: "client_id mismatch" }, 400);
+  }
+
+  // PKCE ist Pflicht (nur S256).
+  const cc = payload.cc as string | null | undefined;
+  if (!cc || payload.ccm !== "S256") {
+    return json({ error: "invalid_grant", error_description: "PKCE S256 required" }, 400);
+  }
+  if (!codeVerifier || !/^[A-Za-z0-9\-._~]{43,128}$/.test(codeVerifier)) {
+    return json({ error: "invalid_request", error_description: "code_verifier required" }, 400);
+  }
+  const computed = Buffer.from(createHash("sha256").update(codeVerifier).digest("base64url"));
+  const expected = Buffer.from(cc);
+  if (computed.length !== expected.length || !timingSafeEqual(computed, expected)) {
+    return json({ error: "invalid_grant", error_description: "PKCE mismatch" }, 400);
   }
 
   const secret = payload.s as string | undefined;

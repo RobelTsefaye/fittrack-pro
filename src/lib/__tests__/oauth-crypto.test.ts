@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
-import { decryptOAuthCode, encryptOAuthCode } from "@/lib/oauth-crypto";
+import {
+  decryptOAuthCode,
+  encryptOAuthCode,
+  signOAuthClientId,
+  verifyOAuthClientId,
+} from "@/lib/oauth-crypto";
 
 /**
  * Characterization von `oauth-crypto.ts` (AES-256-GCM-Codes für den MCP-OAuth-Flow).
@@ -104,5 +109,30 @@ describe("oauth-crypto", () => {
     setSecrets("s");
     const expired = { s: "ftp", exp: 1 };
     expect(decryptOAuthCode(encryptOAuthCode(expired))).toEqual(expired);
+  });
+});
+
+describe("signierte client_id (FT-SEC-02)", () => {
+  it("Roundtrip liefert die gebundenen redirect_uris", () => {
+    setSecrets("s3cret-value");
+    const id = signOAuthClientId(["https://a.example/cb", "http://localhost:1/cb"]);
+    expect(verifyOAuthClientId(id)).toEqual({
+      redirectUris: ["https://a.example/cb", "http://localhost:1/cb"],
+    });
+  });
+
+  it("manipuliertes Payload, fremdes Secret und Müll werden abgelehnt (null)", () => {
+    setSecrets("secret-one");
+    const id = signOAuthClientId(["https://a.example/cb"]);
+    const [head, mac] = id.split(".");
+    const evil = Buffer.from(JSON.stringify({ u: ["https://evil.example/"] })).toString(
+      "base64url"
+    );
+    expect(verifyOAuthClientId(`mcp_${evil}.${mac}`)).toBeNull();
+    expect(verifyOAuthClientId(`${head}.`)).toBeNull();
+    expect(verifyOAuthClientId("mcp_abc")).toBeNull();
+    expect(verifyOAuthClientId("")).toBeNull();
+    setSecrets("secret-two");
+    expect(verifyOAuthClientId(id)).toBeNull();
   });
 });

@@ -194,17 +194,16 @@ describe("API-Routen: Auth-Abdeckung", () => {
 describe("Sicherheits-Beobachtungen (IST, vermutlich Findings)", () => {
   const read = (p: string) => readFileSync(join(API_DIR, p), "utf8");
 
-  it("IST: /api/mcp/oauth/authorize validiert redirect_uri nicht gegen registrierte Clients", () => {
+  it("authorize prüft redirect_uri gegen die in der signierten client_id gebundenen URIs (FT-SEC-02)", () => {
     const src = read("mcp/oauth/authorize/route.ts");
-    // Die Registrierung (register/route.ts) speichert redirect_uris nirgends,
-    // authorize leitet an jede übergebene redirect_uri weiter.
-    expect(src).toMatch(/new URL\(redirectUri\)/);
-    expect(src).not.toMatch(/redirect_uris|allowedRedirect|registeredClient/);
+    expect(src).toMatch(/verifyOAuthClientId\(clientId\)/);
+    expect(src).toMatch(/client\.redirectUris\.includes\(redirectUri\)/);
   });
 
-  it("IST: Authorization-Code ist zustandslos (nicht einmalig einlösbar) und PKCE optional", () => {
+  it("IST: Authorization-Code ist zustandslos (nicht einmalig einlösbar, offen); PKCE ist Pflicht", () => {
     const src = read("mcp/oauth/token/route.ts");
-    expect(src).toMatch(/if \(cc\)/); // PKCE nur wenn beim Authorize mitgegeben
+    expect(src).not.toMatch(/if \(cc\)/); // PKCE nicht mehr optional
+    expect(src).toMatch(/PKCE S256 required/);
     expect(src).not.toMatch(/prisma/); // kein Verbrauchs-Marker in der DB
   });
 });
