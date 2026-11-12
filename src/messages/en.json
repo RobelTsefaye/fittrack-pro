@@ -39,7 +39,8 @@
     "inProgress": "In progress",
     "loadFailed": "Could not load data. Check your connection.",
     "retry": "Retry",
-    "saveFailed": "Couldn't save. Check your connection."
+    "saveFailed": "Couldn't save. Check your connection.",
+    "close": "Close"
   },
   "errorPage": {
     "title": "Something went wrong",
@@ -397,7 +398,15 @@
       "tomorrow": "Tomorrow",
       "rest": "Rest day today",
       "done": "{name} done today"
-    }
+    },
+    "setWeightAria": "Weight in {unit}, set {n}",
+    "setRepsAria": "Reps, set {n}",
+    "rpeValueAria": "RPE {value}",
+    "watchOfflineOpenAria": "Open watch workout: {name}",
+    "watchOfflineActive": "Watch workout active offline",
+    "liveBadge": "LIVE",
+    "syncBadge": "SYNC",
+    "syncPendingHint": "Waiting to sync and cannot be opened yet."
   },
   "cardio": {
     "pickTitle": "Start cardio",

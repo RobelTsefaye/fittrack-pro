@@ -39,7 +39,8 @@
     "inProgress": "Läuft",
     "loadFailed": "Daten konnten nicht geladen werden. Prüfe deine Verbindung.",
     "retry": "Nochmal versuchen",
-    "saveFailed": "Speichern fehlgeschlagen. Prüfe deine Verbindung."
+    "saveFailed": "Speichern fehlgeschlagen. Prüfe deine Verbindung.",
+    "close": "Schließen"
   },
   "errorPage": {
     "title": "Hier ist etwas schiefgelaufen",
@@ -397,7 +398,15 @@
       "tomorrow": "Morgen",
       "rest": "Heute Ruhetag",
       "done": "{name} heute erledigt"
-    }
+    },
+    "setWeightAria": "Gewicht in {unit}, Satz {n}",
+    "setRepsAria": "Wiederholungen, Satz {n}",
+    "rpeValueAria": "RPE {value}",
+    "watchOfflineOpenAria": "Watch-Training öffnen: {name}",
+    "watchOfflineActive": "Watch-Training offline aktiv",
+    "liveBadge": "LIVE",
+    "syncBadge": "SYNC",
+    "syncPendingHint": "Wartet auf Synchronisierung und kann noch nicht geöffnet werden."
   },
   "cardio": {
     "pickTitle": "Cardio starten",

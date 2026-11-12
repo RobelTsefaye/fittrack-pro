@@ -275,17 +275,17 @@ export default function CardioWorkoutPage() {
               {selectedType !== "elliptical" ? <div className="space-y-2">
                 <p className="text-sm font-medium">{t("cardio.locationLabel")}</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button variant={!isIndoor ? "default" : "outline"} onClick={() => setIsIndoor(false)}>{t("cardio.outdoor")}</Button>
-                  <Button variant={isIndoor ? "default" : "outline"} onClick={() => setIsIndoor(true)}>{t("cardio.indoor")}</Button>
+                  <Button variant={!isIndoor ? "default" : "outline"} aria-pressed={!isIndoor} onClick={() => setIsIndoor(false)}>{t("cardio.outdoor")}</Button>
+                  <Button variant={isIndoor ? "default" : "outline"} aria-pressed={isIndoor} onClick={() => setIsIndoor(true)}>{t("cardio.indoor")}</Button>
                 </div>
               </div> : null}
               {selectedType === "walking" ? (
                 <div className="space-y-2">
                   <p className="text-sm font-medium">{t("cardio.stepGoalLabel")}</p>
                   <div className="grid grid-cols-3 gap-2">
-                    <Button variant={stepGoal === null ? "default" : "outline"} onClick={() => setStepGoal(null)}>{t("cardio.stepGoalNone")}</Button>
+                    <Button variant={stepGoal === null ? "default" : "outline"} aria-pressed={stepGoal === null} onClick={() => setStepGoal(null)}>{t("cardio.stepGoalNone")}</Button>
                     {[5000, 8000, 10000, 12000, 15000].map((g) => (
-                      <Button key={g} variant={stepGoal === g ? "default" : "outline"} onClick={() => setStepGoal(g)}>{g}</Button>
+                      <Button key={g} variant={stepGoal === g ? "default" : "outline"} aria-pressed={stepGoal === g} onClick={() => setStepGoal(g)}>{g}</Button>
                     ))}
                   </div>
                 </div>
@@ -294,15 +294,15 @@ export default function CardioWorkoutPage() {
                   <div className="space-y-2">
                     <p className="text-sm font-medium">{t("cardio.durationLabel")}</p>
                     <div className="grid grid-cols-3 gap-2">
-                      <Button variant={durationMinutes === null ? "default" : "outline"} onClick={() => setDurationMinutes(null)}>{t("cardio.durationFree")}</Button>
-                      {[30, 45, 60, 75, 90].map((m) => <Button key={m} variant={durationMinutes === m ? "default" : "outline"} onClick={() => setDurationMinutes(m)}>{t("cardio.durationMinutes", { minutes: m })}</Button>)}
+                      <Button variant={durationMinutes === null ? "default" : "outline"} aria-pressed={durationMinutes === null} onClick={() => setDurationMinutes(null)}>{t("cardio.durationFree")}</Button>
+                      {[30, 45, 60, 75, 90].map((m) => <Button key={m} variant={durationMinutes === m ? "default" : "outline"} aria-pressed={durationMinutes === m} onClick={() => setDurationMinutes(m)}>{t("cardio.durationMinutes", { minutes: m })}</Button>)}
                     </div>
                   </div>
                   <div className="space-y-2">
                     <p className="text-sm font-medium">{t("cardio.targetZoneLabel")}</p>
                     <div className="grid grid-cols-3 gap-2">
-                      <Button variant={targetZone === null ? "default" : "outline"} onClick={() => setTargetZone(null)}>{t("cardio.targetZoneNone")}</Button>
-                      {([1, 2, 3, 4, 5] as HeartRateZone[]).map((z) => <Button key={z} variant={targetZone === z ? "default" : "outline"} onClick={() => setTargetZone(z)}>{t("cardio.zoneLabel", { zone: z })}</Button>)}
+                      <Button variant={targetZone === null ? "default" : "outline"} aria-pressed={targetZone === null} onClick={() => setTargetZone(null)}>{t("cardio.targetZoneNone")}</Button>
+                      {([1, 2, 3, 4, 5] as HeartRateZone[]).map((z) => <Button key={z} variant={targetZone === z ? "default" : "outline"} aria-pressed={targetZone === z} onClick={() => setTargetZone(z)}>{t("cardio.zoneLabel", { zone: z })}</Button>)}
                     </div>
                   </div>
                 </>
@@ -343,6 +343,7 @@ export default function CardioWorkoutPage() {
                 size="icon-sm"
                 variant={pipActive ? "default" : "outline"}
                 disabled={pipStarting}
+                aria-pressed={pipActive}
                 onClick={() => void togglePip()}
                 aria-label={pipActive ? t("cardio.pipStop") : t("cardio.pipStart")}
                 title={pipActive ? t("cardio.pipStop") : t("cardio.pipStart")}

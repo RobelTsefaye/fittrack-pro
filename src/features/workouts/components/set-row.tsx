@@ -345,6 +345,7 @@ export const SetRow = memo(function SetRow({
             inputMode="decimal"
             autoComplete="off"
             placeholder={weightUnitLabel}
+            aria-label={t("workouts.setWeightAria", { n: set.setNumber, unit: weightUnitLabel })}
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
             onBlur={() => {
@@ -372,6 +373,7 @@ export const SetRow = memo(function SetRow({
             inputMode="numeric"
             autoComplete="off"
             placeholder={t("workouts.repsPlaceholder")}
+            aria-label={t("workouts.setRepsAria", { n: set.setNumber })}
             value={reps}
             onChange={(e) => setReps(e.target.value)}
             onBlur={() => {
@@ -445,6 +447,7 @@ export const SetRow = memo(function SetRow({
                 key={value}
                 type="button"
                 aria-pressed={rpe === value}
+                aria-label={t("workouts.rpeValueAria", { value })}
                 onClick={() => setRpe((current) => (current === value ? null : value))}
                 className={cn(
                   "h-8 w-8 rounded-full text-[12px] font-semibold tabular-nums transition-colors",
