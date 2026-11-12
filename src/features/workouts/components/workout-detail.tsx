@@ -1506,7 +1506,9 @@ export function WorkoutDetail({
           signal,
         }),
       async () => {
-        if (!workout) return;
+        // No local state to persist: signal failure so writeOrQueue does not
+        // report "queued" for an op that was never stored.
+        if (!workout) throw new Error("no_workout");
         const next: WorkoutData = {
           ...workout,
           workoutExercises: workout.workoutExercises.filter((we) => we.id !== weId),

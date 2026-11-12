@@ -231,6 +231,35 @@ export async function deleteAliasesOf(targetId: string): Promise<void> {
   });
 }
 
+/** Drops only the snapshot of a workout id (no queue rows, no id map). Used for
+ *  the ghost snapshot the UI recreates under an already rekeyed (aliased) id. */
+export async function deleteWorkoutSnapshot(workoutId: string): Promise<void> {
+  const db = tryGetOfflineDb();
+  if (!db) return;
+  await db.workouts.delete(workoutId);
+}
+
+/** Moves queue rows waiting under any alias id that points to `targetId` onto
+ *  `targetId` (keeping `sort`) and drops the ghost snapshots of those alias ids.
+ *  Makes the order of `flushAllQueues` irrelevant. Returns the number moved. */
+export async function adoptAliasQueues(targetId: string): Promise<number> {
+  const db = getOfflineDb();
+  return db.transaction("rw", db.queue, db.queueIdMap, db.workouts, async () => {
+    const aliases = (await db.queueIdMap.toArray()).filter(
+      (r) => r.aliasOf === targetId && r.id !== targetId
+    );
+    let moved = 0;
+    for (const a of aliases) {
+      const rows = await db.queue.where("workoutRouteId").equals(a.id).toArray();
+      if (rows.length === 0) continue;
+      await db.queue.bulkPut(rows.map((row) => ({ ...row, workoutRouteId: targetId })));
+      await db.workouts.delete(a.id);
+      moved += rows.length;
+    }
+    return moved;
+  });
+}
+
 /** Moves queue rows enqueued under a stale (rekeyed) id onto the current id,
  *  keeping their `sort` so the order is preserved. Returns the number moved. */
 export async function moveQueueEntries(fromId: string, toId: string): Promise<number> {
