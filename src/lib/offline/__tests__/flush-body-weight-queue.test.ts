@@ -78,7 +78,34 @@ describe("flushBodyWeightQueue", () => {
     expect(store.removeBodyWeightQueueEntries).toHaveBeenCalledWith(["a"]);
   });
 
-  it.todo(
-    "KB-11: Entfernung erst nach der gesamten Schleife; Prozessende nach erfolgreichem POST, aber vor dem Entfernen, dupliziert Einträge - braucht echte IndexedDB/Prozessabbruch"
-  );
+  it("KB-11 (Replay): Absturz beim Entfernen nach erfolgreichem POST; der nächste Flush sendet denselben POST erneut (Server-Upsert auf userId+date macht das idempotent)", async () => {
+    const queue = [row("a", { t: "post", id: "c1", date: "2026-01-01", weight: 80, notes: "" })];
+    store.listBodyWeightQueue.mockResolvedValue(queue);
+    fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
+    // Prozessende/Fehler beim Entfernen: Eintrag bleibt in der Queue (try und catch rufen remove auf).
+    store.removeBodyWeightQueueEntries.mockRejectedValue(new Error("idb abort"));
+    await expect(flushBodyWeightQueue()).rejects.toThrow("idb abort");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    store.removeBodyWeightQueueEntries.mockReset().mockResolvedValue(undefined);
+    await expect(flushBodyWeightQueue()).resolves.toEqual({ ok: true, flushed: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const bodies = fetchMock.mock.calls.map((c) => c[1].body);
+    expect(bodies[0]).toBe(bodies[1]);
+    expect(JSON.parse(bodies[1])).toEqual({ date: "2026-01-01", weight: 80 });
+  });
+
+  it("KB-11: POST und anschliessendes DELETE werden in Queue-Reihenfolge gesendet, Entfernung erst nach der Schleife", async () => {
+    store.listBodyWeightQueue.mockResolvedValue([
+      row("a", { t: "post", id: "c1", date: "2026-01-01", weight: 80 }),
+      row("b", { t: "delete", id: "srv1" }),
+    ]);
+    fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
+    await flushBodyWeightQueue();
+    expect(fetchMock.mock.calls.map((c) => [c[1].method, c[0]])).toEqual([
+      ["POST", "/api/body-weight"],
+      ["DELETE", "/api/body-weight/srv1"],
+    ]);
+    expect(store.removeBodyWeightQueueEntries).toHaveBeenCalledTimes(1);
+  });
 });

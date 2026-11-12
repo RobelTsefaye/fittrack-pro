@@ -129,8 +129,16 @@ describe("POST /api/health-data", () => {
     expect(arg.where.userId_date.date.toISOString()).toBe("2026-03-10T00:00:00.000Z");
   });
 
+  it("IST, vermutlich Bug: KB-I: nach gelöschtem Apple-Fitness-Training sendet der Client ein kleineres Tagesaggregat; der Server setzt die Kalorien zurück und lässt Workout-Zeilen unberührt", async () => {
+    await POST(req({ date: "2026-03-10", activeCalories: 500, steps: 4000 }));
+    await POST(req({ date: "2026-03-10", activeCalories: 200 }));
+    const updates = prisma.healthSnapshot.upsert.mock.calls.map(([a]) => a.update);
+    expect(updates).toEqual([{ activeCalories: 500, steps: 4000 }, { activeCalories: 200 }]);
+    expect(prisma.appleWorkout.upsert).not.toHaveBeenCalled();
+  });
+
   it.todo(
-    "KB-I: gelöschtes Apple-Fitness-Training lässt Kalorien verschwinden - der Server kennt nur das Tagesaggregat der letzten Sync-Nachricht; Ursache liegt im Client/Health-Auto-Export, hier nicht reproduzierbar"
+    "KB-I: Zielverhalten (Merge/Maximum/Quelle) ist Produktentscheidung von Robel, Schema-Änderung nötig"
   );
 });
 
