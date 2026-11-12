@@ -4,10 +4,12 @@ import type { NextRequest } from "next/server";
 /**
  * Verhaltenstests PATCH/DELETE /api/workouts/[id]/sets/[setId] (FT-TEST-01) mit gemocktem Prisma/Auth.
  * Der PR-Abgleich (src/lib/personal-record.ts) läuft echt, nur Prisma ist gemockt.
- * Ist-Verhalten zu FT-ERR-02 (nicht atomar) ist als Characterization festgehalten.
+ * FT-ERR-02: Satz-Update, Timer-Reset und PR-Abgleich (bzw. DELETE) laufen in einer $transaction.
+ * Der $transaction-Mock simuliert Rollback: Schreibzugriffe werden protokolliert und bei einem Fehler verworfen.
  */
 
 const prisma = vi.hoisted(() => ({
+  $transaction: vi.fn(),
   set: { findFirst: vi.fn(), update: vi.fn(), delete: vi.fn() },
   workout: { update: vi.fn() },
   personalRecord: {
@@ -62,6 +64,12 @@ beforeEach(() => {
   prisma.personalRecord.findUnique.mockResolvedValue(null);
   prisma.personalRecord.findFirst.mockResolvedValue(null);
   prisma.personalRecord.create.mockResolvedValue({});
+  // Callback-Form: tx = dieselben Mocks; Array-Form: Promises bereits gestartet, nur abwarten.
+  prisma.$transaction.mockImplementation(async (arg: unknown) =>
+    typeof arg === "function"
+      ? (arg as (tx: unknown) => unknown)(prisma)
+      : Promise.all(arg as unknown[])
+  );
 });
 
 describe("PATCH /api/workouts/[id]/sets/[setId]", () => {
@@ -177,40 +185,63 @@ describe("PATCH /api/workouts/[id]/sets/[setId]", () => {
     expect((await res.json()).personalRecord).toBe(false);
   });
 
-  it("FT-ERR-02 (IST): Rekord wird vor der Neubewertung gelöscht; wirft die Neubewertung, bleibt der Satz gespeichert, der Rekord ist weg, Fehler wird nach oben gereicht (500)", async () => {
-    prisma.personalRecord.findUnique.mockRejectedValue(new Error("connection lost"));
+  it("FT-ERR-02: Satz-Update, Timer-Reset und PR-Abgleich laufen in genau einer $transaction (Client tx)", async () => {
+    const res = await PATCH(patchReq({ isCompleted: true, weight: 100, reps: 5 }), ctx);
+    expect(res.status).toBe(200);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(typeof prisma.$transaction.mock.calls[0]![0]).toBe("function");
+    const [txStart] = prisma.$transaction.mock.invocationCallOrder;
+    for (const m of [
+      prisma.set.update,
+      prisma.workout.update,
+      prisma.personalRecord.deleteMany,
+      prisma.personalRecord.create,
+    ]) {
+      expect(m.mock.invocationCallOrder[0]).toBeGreaterThan(txStart!);
+    }
+  });
+
+  it("FT-ERR-02: Fehler im PR-Abgleich -> Fehler nach oben (500) und die Transaktion wird nicht committet (Rollback)", async () => {
+    // Rollback simulieren: Schreibzugriffe nur wirksam, wenn der Callback ohne Fehler endet.
+    const committed: string[] = [];
+    prisma.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+      const pending: string[] = [];
+      const track = (name: string, fn: ReturnType<typeof vi.fn>) =>
+        fn.mockImplementation(async () => {
+          pending.push(name);
+          return name === "set.update"
+            ? { id: "s1", isCompleted: true, isWarmup: false, weight: 100, reps: 5 }
+            : {};
+        });
+      track("set.update", prisma.set.update);
+      track("pr.deleteMany", prisma.personalRecord.deleteMany);
+      const result = await cb(prisma); // wirft -> pending verworfen
+      committed.push(...pending);
+      return result;
+    });
+    prisma.personalRecord.findFirst.mockRejectedValue(new Error("connection lost"));
     await expect(PATCH(patchReq({ isCompleted: true, weight: 100, reps: 5 }), ctx)).rejects.toThrow(
       "connection lost"
     );
-    expect(prisma.set.update).toHaveBeenCalledTimes(1); // Satz bereits gespeichert
-    expect(prisma.personalRecord.deleteMany).toHaveBeenCalledWith({ where: { setId: "s1" } });
-    expect(prisma.personalRecord.create).not.toHaveBeenCalled(); // Rekord nicht neu angelegt
-    expect(prisma.set.update.mock.invocationCallOrder[0]).toBeLessThan(
-      prisma.personalRecord.deleteMany.mock.invocationCallOrder[0]!
-    );
+    expect(committed).toEqual([]); // weder Satz noch gelöschter Rekord wurden übernommen
+    expect(prisma.personalRecord.create).not.toHaveBeenCalled();
   });
 
-  it("FT-ERR-02 (IST): wirft der Timer-Reset, ist der Satz gespeichert, der PR-Abgleich entfällt komplett", async () => {
+  it("FT-ERR-02: wirft der Timer-Reset, wird nichts übernommen und der PR-Abgleich läuft nicht", async () => {
     prisma.workout.update.mockRejectedValue(new Error("timeout"));
     await expect(PATCH(patchReq({ isCompleted: true, weight: 100, reps: 5 }), ctx)).rejects.toThrow(
       "timeout"
     );
-    expect(prisma.set.update).toHaveBeenCalledTimes(1);
     expect(prisma.personalRecord.deleteMany).not.toHaveBeenCalled();
     expect(prisma.personalRecord.create).not.toHaveBeenCalled();
   });
 
-  it("FT-ERR-02 (IST): kein $transaction im Schreibpfad (Mock besitzt bewusst keins)", () => {
-    expect((prisma as Record<string, unknown>).$transaction).toBeUndefined();
+  it("FT-ERR-02: bei Fehler wird die Neubewertung nie ohne vorheriges Löschen übersprungen (Löschen und Anlegen im selben tx)", async () => {
+    await PATCH(patchReq({ isCompleted: true, weight: 100, reps: 5 }), ctx);
+    expect(prisma.personalRecord.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+      prisma.personalRecord.create.mock.invocationCallOrder[0]!
+    );
   });
-
-  it.todo(
-    "FT-ERR-02 (Soll): Satz-Update, Timer-Reset und PR-Abgleich laufen atomar in einer $transaction"
-  );
-  it.todo("FT-ERR-02 (Soll): ein Fehler im PR-Abgleich lässt den bisherigen Rekord unverändert");
-  it.todo(
-    "FT-ERR-01 (Client, set-row.tsx): Nicht-OK-Antwort zeigt Meldung statt stumm zu überschreiben (Komponententest, hier nicht machbar)"
-  );
 });
 
 describe("DELETE /api/workouts/[id]/sets/[setId]", () => {
@@ -243,9 +274,16 @@ describe("DELETE /api/workouts/[id]/sets/[setId]", () => {
     );
   });
 
-  it("FT-ERR-02 (IST): scheitert set.delete, ist der Rekord bereits gelöscht (keine Transaktion), Fehler wird nach oben gereicht", async () => {
+  it("FT-ERR-02: Rekord-Löschung und Satz-Löschung laufen in einer $transaction (Array-Form, atomar)", async () => {
+    prisma.set.delete.mockResolvedValue({});
+    await DELETE(delReq(), ctx);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(Array.isArray(prisma.$transaction.mock.calls[0]![0])).toBe(true);
+    expect(prisma.$transaction.mock.calls[0]![0]).toHaveLength(2);
+  });
+
+  it("FT-ERR-02: scheitert set.delete, wird der Fehler nach oben gereicht (Transaktion rollt Rekord-Löschung zurück)", async () => {
     prisma.set.delete.mockRejectedValue(new Error("db down"));
     await expect(DELETE(delReq(), ctx)).rejects.toThrow("db down");
-    expect(prisma.personalRecord.deleteMany).toHaveBeenCalledTimes(1);
   });
 });

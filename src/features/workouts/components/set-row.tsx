@@ -14,6 +14,9 @@ import { celebratePersonalRecord } from "@/lib/pr-celebration";
 import { perSideSummary } from "@/features/tools/plate-math";
 import { writeOrQueue } from "@/lib/offline/write-or-queue";
 
+/** One shared id: repeated failures (stepper taps) replace the toast instead of stacking. */
+const SAVE_FAILED_TOAST_ID = "set-save-failed";
+
 function parseLocaleDecimal(raw: string): number | null {
   const t = raw.trim().replace(/\s/g, "").replace(",", ".");
   if (!t) return null;
@@ -35,7 +38,7 @@ interface SetRowProps {
   weightUnitLabel?: string;
   /** Allow editing weight/reps after set was marked complete (past session correction). */
   unlockCompleted?: boolean;
-  /** Fallback when PATCH fails */
+  /** Fallback when DELETE fails (state sync). Not used for PATCH failures: typed values must stay. */
   onRefresh?: () => void;
   onComplete: () => void;
   disabled?: boolean;
@@ -147,6 +150,10 @@ export const SetRow = memo(function SetRow({
     }
     try {
       await persistSet(complete, repsValue, weightValue);
+    } catch {
+      // Unexpected error (e.g. unreadable response): never a silent
+      // unhandled rejection; the typed values stay in the inputs.
+      toast.error(t("common.saveFailed"), { id: SAVE_FAILED_TOAST_ID });
     } finally {
       if (complete) completingRef.current = false;
     }
@@ -193,10 +200,9 @@ export const SetRow = memo(function SetRow({
       return;
     }
     if (outcome.kind === "failed") {
-      // Unchanged behavior without a queue fallback; if even queueing failed
-      // (IndexedDB), always tell the user the value was not stored.
-      if (complete || queueFallback) toast.error(t("common.saveFailed"));
-      onRefresh?.();
+      // Not stored anywhere (no queue fallback, or queueing failed too):
+      // tell the user and keep the typed values so they can save again.
+      toast.error(t("common.saveFailed"), { id: SAVE_FAILED_TOAST_ID });
       return;
     }
     const res = outcome.res;
@@ -224,7 +230,9 @@ export const SetRow = memo(function SetRow({
         onComplete();
       }
     } else {
-      onRefresh?.();
+      // Rejected (4xx/5xx): do NOT reload the server state, that would
+      // overwrite what the user typed. Keep the inputs, tell the user.
+      toast.error(t("common.saveFailed"), { id: SAVE_FAILED_TOAST_ID });
     }
   }
 
@@ -244,13 +252,14 @@ export const SetRow = memo(function SetRow({
     );
     if (outcome.kind === "queued") return;
     if (outcome.kind === "failed") {
-      if (queueFallback) toast.error(t("common.saveFailed"));
+      toast.error(t("common.saveFailed"), { id: SAVE_FAILED_TOAST_ID });
       onRefresh?.();
       return;
     }
     if (outcome.res.ok) {
       onRemoveSet?.();
     } else {
+      toast.error(t("common.saveFailed"), { id: SAVE_FAILED_TOAST_ID });
       onRefresh?.();
     }
   }
