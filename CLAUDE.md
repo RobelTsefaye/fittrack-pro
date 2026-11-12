@@ -41,3 +41,9 @@ The app schema is ahead of your database. After `DATABASE_URL` is set, run **`np
 
 ## Documentation
 All project docs in `project-docs/` — keep updated when making changes.
+
+## Refactoring-Regeln (Audit 2026-11)
+- Branch `refactor/audit-2026-11`; nicht auf `main` pushen, solange Robel es nicht ausdrücklich erlaubt.
+- Kleine Commits, nach jedem Commit Tests grün. Kein Verhalten ändern; im Zweifel dokumentieren statt fixen (`docs/audit/`).
+- Fixes in eigenen Worktrees/Branches `refactor/<ID>`; Änderungen an Prisma-Schema und Migrationen nie parallel.
+- Keine `.env`, `data/` oder Datenbankinhalte lesen, committen oder ausgeben; keine Modellnamen in Commits/Code/Doku.
