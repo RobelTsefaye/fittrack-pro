@@ -6,13 +6,13 @@ import {
   hashApiTokenSecret,
   apiTokenPrefixLabel,
 } from "@/lib/api-token-crypto";
-import { encryptOAuthCode } from "@/lib/oauth-crypto";
+import { encryptOAuthCode, verifyOAuthClientId } from "@/lib/oauth-crypto";
 
 /**
  * OAuth 2.0 Authorization Endpoint.
  * Claude.ai redirects the user's browser here. We check the FitTrack session,
  * mint a throwaway API token, encrypt it into a short-lived auth code, and
- * redirect back to Claude.ai's redirect_uri.
+ * redirect back to the redirect_uri bound in the signed client_id (exact match, PKCE S256 required).
  */
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
@@ -20,14 +20,33 @@ export async function GET(req: NextRequest) {
   const state = params.get("state") ?? "";
   const responseType = params.get("response_type") ?? "code";
   const codeChallenge = params.get("code_challenge");
-  const codeChallengeMethod = params.get("code_challenge_method") ?? "plain";
+  const codeChallengeMethod = params.get("code_challenge_method");
   const clientId = params.get("client_id") ?? "";
 
-  if (!redirectUri) {
-    return NextResponse.json({ error: "invalid_request", error_description: "redirect_uri required" }, { status: 400 });
+  // Client und redirect_uri zuerst prüfen: bei Fehlern NIE weiterleiten (kein offener Redirect).
+  const client = verifyOAuthClientId(clientId);
+  if (!client) {
+    return badRequest(
+      "invalid_client",
+      "client_id ungültig (zuerst /api/mcp/oauth/register aufrufen)"
+    );
+  }
+  if (!redirectUri || !client.redirectUris.includes(redirectUri)) {
+    return badRequest("invalid_request", "redirect_uri nicht für diesen Client registriert");
   }
   if (responseType !== "code") {
     return errorRedirect(redirectUri, "unsupported_response_type", state);
+  }
+  // PKCE ist Pflicht, nur S256.
+  if (
+    codeChallengeMethod !== "S256" ||
+    !codeChallenge ||
+    !/^[A-Za-z0-9_-]{43,128}$/.test(codeChallenge)
+  ) {
+    return badRequest(
+      "invalid_request",
+      "PKCE erforderlich: code_challenge (S256) und code_challenge_method=S256"
+    );
   }
 
   // Require a logged-in FitTrack session. If missing, bounce to /login with
@@ -69,6 +88,11 @@ export async function GET(req: NextRequest) {
   return NextResponse.redirect(back);
 }
 
+function badRequest(error: string, description: string) {
+  return NextResponse.json({ error, error_description: description }, { status: 400 });
+}
+
+/** Nur mit bereits gegen den Client geprüfter redirect_uri aufrufen. */
 function errorRedirect(redirectUri: string, error: string, state: string) {
   try {
     const url = new URL(redirectUri);
