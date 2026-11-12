@@ -2,7 +2,7 @@ import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { dashboardCacheTag, workoutsListCacheTag } from "@/lib/constants";
-import { recordPersonalRecordIfBest } from "@/lib/personal-record";
+import { recordPersonalRecordsInOrder } from "@/lib/personal-record";
 import { requireUserId, withApi } from "@/lib/api/route-handler";
 
 async function sumWorkoutVolume(workoutId: string): Promise<number> {
@@ -35,10 +35,7 @@ export const POST = withApi(async function POST(
   });
 
   if (!workout) {
-    return NextResponse.json(
-      { error: "Workout not found or already completed" },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "Workout not found or already completed" }, { status: 404 });
   }
 
   const previousWorkout = await prisma.workout.findFirst({
@@ -51,14 +48,10 @@ export const POST = withApi(async function POST(
     select: { id: true },
   });
 
-  const previousVolume = previousWorkout
-    ? await sumWorkoutVolume(previousWorkout.id)
-    : 0;
+  const previousVolume = previousWorkout ? await sumWorkoutVolume(previousWorkout.id) : 0;
 
   const now = new Date();
-  const durationSeconds = Math.round(
-    (now.getTime() - workout.startedAt.getTime()) / 1000
-  );
+  const durationSeconds = Math.round((now.getTime() - workout.startedAt.getTime()) / 1000);
 
   const updated = await prisma.workout.update({
     where: { id },
@@ -93,19 +86,20 @@ export const POST = withApi(async function POST(
     include: {
       workoutExercise: { select: { exerciseId: true } },
     },
+    // Reihenfolge im Workout ist für die Rekord-Semantik maßgeblich.
+    orderBy: [{ workoutExercise: { order: "asc" } }, { setNumber: "asc" }, { id: "asc" }],
   });
 
-  let newPersonalRecords = 0;
-  for (const s of setsForPr) {
-    const result = await recordPersonalRecordIfBest({
-      userId,
+  const { recordedSetIds } = await recordPersonalRecordsInOrder({
+    userId,
+    sets: setsForPr.map((s) => ({
       exerciseId: s.workoutExercise.exerciseId,
       setId: s.id,
       weight: s.weight!,
       reps: s.reps!,
-    });
-    if (result.recorded) newPersonalRecords++;
-  }
+    })),
+  });
+  const newPersonalRecords = recordedSetIds.length;
 
   const currentVolume = await sumWorkoutVolume(id);
 
@@ -117,8 +111,7 @@ export const POST = withApi(async function POST(
   });
 
   const volumeDelta = currentVolume - previousVolume;
-  const volumeDeltaPct =
-    previousVolume > 0 ? (volumeDelta / previousVolume) * 100 : null;
+  const volumeDeltaPct = previousVolume > 0 ? (volumeDelta / previousVolume) * 100 : null;
 
   revalidateTag(dashboardCacheTag(userId), "max");
   revalidateTag(workoutsListCacheTag(userId), "max");
