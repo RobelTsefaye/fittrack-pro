@@ -16,10 +16,10 @@ function usePageTitle() {
   const pathname = usePathname();
   const { t } = useI18n();
 
-  if (pathname.startsWith(ROUTES.workouts))    return t("nav.workouts");
-  if (pathname.startsWith(ROUTES.plans))       return t("nav.plans");
-  if (pathname.startsWith(ROUTES.exercises))   return t("nav.exercises");
-  if (pathname.startsWith(ROUTES.settings))    return t("nav.settings");
+  if (pathname.startsWith(ROUTES.workouts)) return t("nav.workouts");
+  if (pathname.startsWith(ROUTES.plans)) return t("nav.plans");
+  if (pathname.startsWith(ROUTES.exercises)) return t("nav.exercises");
+  if (pathname.startsWith(ROUTES.settings)) return t("nav.settings");
   return "";
 }
 
@@ -76,8 +76,13 @@ export function MobileTopBar() {
   // logged in — see cached-user.ts.
   const [cachedUser] = useState(() => (typeof window === "undefined" ? {} : loadCachedUser()));
   const displayName = session?.user?.name ?? cachedUser.name;
-  const initials = displayName
-    ?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) ?? "?";
+  const initials =
+    displayName
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) ?? "?";
 
   return (
     // The bar's background sits on the header so it also fills the status-bar
@@ -137,6 +142,3 @@ export function MobileTopBar() {
     </header>
   );
 }
-
-/* Legacy named export — kept for any remaining imports */
-export { MobileTopBar as Navbar };

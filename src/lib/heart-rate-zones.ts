@@ -12,7 +12,7 @@
  * user yet).
  */
 
-export const MAX_HEART_RATE = 199; // 220 - 21
+const MAX_HEART_RATE = 199; // 220 - 21
 
 export type HeartRateZone = 1 | 2 | 3 | 4 | 5;
 

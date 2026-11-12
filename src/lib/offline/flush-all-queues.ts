@@ -16,9 +16,3 @@ export async function flushAllQueues(): Promise<FlushResults> {
   const bodyWeight = await flushBodyWeightQueue();
   return { workouts, bodyWeight };
 }
-
-/** @deprecated Use flushAllQueues instead */
-export async function flushAllWorkoutQueues(): Promise<FlushResults["workouts"]> {
-  const r = await flushAllQueues();
-  return r.workouts;
-}

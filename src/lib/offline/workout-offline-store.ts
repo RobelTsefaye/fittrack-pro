@@ -6,10 +6,6 @@ import type { QueuedWorkoutOp } from "./queue-types";
 import type { WorkoutListItemDTO } from "@/features/workouts/workouts-list-data";
 import { getOfflineDb, tryGetOfflineDb } from "./db";
 
-export function isBrowserOffline(): boolean {
-  return typeof navigator !== "undefined" && !navigator.onLine;
-}
-
 async function nextQueueSort(): Promise<number> {
   const db = getOfflineDb();
   const row = await db.meta.get("queue");
@@ -49,10 +45,7 @@ export async function loadWorkoutSnapshot(workoutId: string): Promise<{
   }
 }
 
-export async function enqueueWorkoutOp(
-  workoutRouteId: string,
-  op: QueuedWorkoutOp
-): Promise<void> {
+export async function enqueueWorkoutOp(workoutRouteId: string, op: QueuedWorkoutOp): Promise<void> {
   const db = getOfflineDb();
   const sort = await nextQueueSort();
   await db.queue.add({
@@ -63,9 +56,9 @@ export async function enqueueWorkoutOp(
   });
 }
 
-export async function listQueueForWorkout(workoutRouteId: string): Promise<
-  Array<{ id: string; sort: number; op: QueuedWorkoutOp }>
-> {
+export async function listQueueForWorkout(
+  workoutRouteId: string
+): Promise<Array<{ id: string; sort: number; op: QueuedWorkoutOp }>> {
   const db = getOfflineDb();
   const rows = await db.queue.where("workoutRouteId").equals(workoutRouteId).sortBy("sort");
   return rows.map((r) => ({
@@ -134,7 +127,11 @@ export async function patchWorkoutListCacheEntry(
     const idx = list.findIndex((w) => w.id === id);
     if (idx === -1) return;
     list[idx] = { ...list[idx], ...patch };
-    await db.workoutListCache.put({ id: "default", payload: JSON.stringify(list), updatedAt: Date.now() });
+    await db.workoutListCache.put({
+      id: "default",
+      payload: JSON.stringify(list),
+      updatedAt: Date.now(),
+    });
   } catch {
     // Corrupt cache entry — leave it, the next full network fetch overwrites it anyway.
   }

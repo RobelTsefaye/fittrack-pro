@@ -7,10 +7,6 @@ export function prismaLocaleToUi(locale: string | null | undefined): UiLocale {
   return "en";
 }
 
-export function uiLocaleToPrisma(locale: string | null | undefined): "EN" | "DE" {
-  return locale === "de" || locale === "DE" ? "DE" : "EN";
-}
-
 export function parseLocaleCookie(value: string | null | undefined): UiLocale {
   if (value === "de" || value === "DE") return "de";
   return "en";

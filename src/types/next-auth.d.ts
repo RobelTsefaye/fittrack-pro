@@ -7,7 +7,3 @@ declare module "next-auth" {
     } & DefaultSession["user"];
   }
 }
-
-export type ActionResult<T = void> =
-  | { success: true; data: T }
-  | { success: false; error: string };
