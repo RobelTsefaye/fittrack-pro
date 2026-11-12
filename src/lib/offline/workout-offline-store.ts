@@ -218,6 +218,19 @@ export async function resolveWorkoutAlias(oldId: string): Promise<string | null>
   return row?.aliasOf && row.aliasOf !== oldId ? row.aliasOf : null;
 }
 
+/** Removes the alias rows left behind by a rekey that point to `targetId`,
+ *  unless ops are still queued under the alias id (those need it to resolve). */
+export async function deleteAliasesOf(targetId: string): Promise<void> {
+  const db = getOfflineDb();
+  await db.transaction("rw", db.queue, db.queueIdMap, async () => {
+    const aliases = (await db.queueIdMap.toArray()).filter((r) => r.aliasOf === targetId);
+    for (const a of aliases) {
+      const pending = await db.queue.where("workoutRouteId").equals(a.id).count();
+      if (pending === 0) await db.queueIdMap.delete(a.id);
+    }
+  });
+}
+
 /** Moves queue rows enqueued under a stale (rekeyed) id onto the current id,
  *  keeping their `sort` so the order is preserved. Returns the number moved. */
 export async function moveQueueEntries(fromId: string, toId: string): Promise<number> {

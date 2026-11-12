@@ -112,6 +112,11 @@ Or run it from the Vercel dashboard → Functions → use the Neon SQL Editor to
    Manual alternative: `DATABASE_URL=<prod> node scripts/db-sync-on-build.mjs`.
 4. Push to GitHub → Vercel auto-deploys
 
+### Runtime
+
+- Node 22 (`.nvmrc`); use the same version locally and for the Vercel project.
+- The Prisma pg pool keeps idle connections for 60 s (`idleTimeoutMillis` in `src/lib/prisma.ts`) so requests after a short pause do not reconnect to Neon.
+
 ### Updating Dependencies
 
 ```bash

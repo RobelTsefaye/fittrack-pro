@@ -17,6 +17,7 @@ const store = vi.hoisted(() => ({
   saveWorkoutSnapshot: vi.fn(),
   resolveWorkoutAlias: vi.fn(),
   moveQueueEntries: vi.fn(),
+  deleteAliasesOf: vi.fn(),
 }));
 vi.mock("@/lib/offline/workout-offline-store", () => store);
 
@@ -70,6 +71,7 @@ beforeEach(() => {
   store.loadWorkoutSnapshot.mockResolvedValue({ data: { id: "w1" }, offlineOrigin: false });
   store.saveQueueIdMap.mockResolvedValue(undefined);
   store.deleteQueueIdMap.mockResolvedValue(undefined);
+  store.deleteAliasesOf.mockResolvedValue(undefined);
   store.saveWorkoutSnapshot.mockResolvedValue(undefined);
 });
 
@@ -170,11 +172,21 @@ describe("flushWorkoutQueue", () => {
     expect(store.removeQueueEntries).toHaveBeenCalledWith(["q1"]);
   });
 
-  it("IST (Inkonsistenz): delete_set toleriert 404, delete_we nicht und blockiert die Queue dauerhaft", async () => {
+  it('delete_we toleriert 404 wie delete_set (Zustand "weg" erreicht), die Queue hängt nicht', async () => {
     queue([row("q1", { t: "delete_we", clientWeId: "we1" })]);
-    fetchMock.mockResolvedValueOnce(jsonRes({}, 404));
+    fetchMock
+      .mockResolvedValueOnce(jsonRes({}, 404))
+      .mockResolvedValueOnce(jsonRes({ data: { id: "w1" } }));
     const res = await flushWorkoutQueue("w1");
-    expect(res).toMatchObject({ ok: false, error: "delete_we 404" });
+    expect(res.ok).toBe(true);
+    expect(store.removeQueueEntries).toHaveBeenCalledWith(["q1"]);
+  });
+
+  it("delete_we mit 500 bleibt ein Fehler und die Zeile in der Queue", async () => {
+    queue([row("q1", { t: "delete_we", clientWeId: "we1" })]);
+    fetchMock.mockResolvedValueOnce(jsonRes({}, 500));
+    const res = await flushWorkoutQueue("w1");
+    expect(res).toMatchObject({ ok: false, error: "delete_we 500" });
     expect(store.removeQueueEntries).not.toHaveBeenCalled();
   });
 
@@ -278,6 +290,46 @@ describe("flushWorkoutQueue", () => {
       expect(res).toEqual({ ok: true, newServerWorkoutId: "srv-w" });
       expect(calls()[0]).toBe("PATCH /api/workouts/srv-w/sets/srv-set");
       expect(live["srv-w"]).toEqual([]);
+      // Alias-Pfad: die ID-Map des Ziels und die Alias-Zeile bleiben für weitere
+      // späte Ops der noch offenen alten Ansicht erhalten (Review B-3).
+      expect(store.deleteQueueIdMap).not.toHaveBeenCalled();
+      expect(store.deleteAliasesOf).not.toHaveBeenCalled();
+    });
+
+    it("zweite späte Op unter der alten ID nach einem Alias-Flush geht nicht verloren (Client-ID wird über die erhaltene Map aufgelöst)", async () => {
+      store.loadWorkoutSnapshot.mockImplementation(async (id: string) =>
+        id === "srv-w" ? { data: { id: "srv-w" }, offlineOrigin: false } : null
+      );
+      store.resolveWorkoutAlias.mockImplementation(async (id: string) =>
+        id === "local-1" ? "srv-w" : null
+      );
+      const persisted = {
+        weMap: new Map([["cwe", "srv-we"]]),
+        setMap: new Map([["cset", "srv-set"]]),
+      };
+      store.loadQueueIdMap.mockImplementation(async (id: string) =>
+        id === "srv-w" ? persisted : { weMap: new Map(), setMap: new Map() }
+      );
+      fetchMock.mockImplementation(async () => jsonRes({ data: { id: "srv-w" } }));
+
+      queue([row("q1", { t: "patch_workout", name: "A" })], "local-1");
+      await flushWorkoutQueue("local-1");
+      queue([row("q2", { t: "patch_set", clientSetId: "cset", body: { reps: 6 } })], "local-1");
+      const res = await flushWorkoutQueue("local-1");
+
+      expect(res.ok).toBe(true);
+      expect(calls()).toContain("PATCH /api/workouts/srv-w/sets/srv-set");
+      expect(store.deleteQueueIdMap).not.toHaveBeenCalled();
+    });
+
+    it("regulärer Flush der Server-ID räumt ID-Map und Alias-Zeilen auf", async () => {
+      queue([row("q1", { t: "patch_workout", name: "A" })], "srv-w");
+      store.loadWorkoutSnapshot.mockResolvedValue({ data: { id: "srv-w" }, offlineOrigin: false });
+      fetchMock.mockImplementation(async () => jsonRes({ data: { id: "srv-w" } }));
+      const res = await flushWorkoutQueue("srv-w");
+      expect(res.ok).toBe(true);
+      expect(store.deleteQueueIdMap).toHaveBeenCalledWith("srv-w");
+      expect(store.deleteAliasesOf).toHaveBeenCalledWith("srv-w");
     });
 
     it("Queue wächst endlos: nach MAX_ROUNDS Fehler queue_busy, Zeilen und ID-Map bleiben", async () => {

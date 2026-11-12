@@ -45,3 +45,7 @@ Sessions are recorded by FitTrack on the Watch (`HKWorkoutSession`, indoor runni
 | Watch → phone (userInfo) | `cardioSaved` | Sync the new HealthKit workout now |
 
 Workout payload (`toWatchWorkoutPayload` in TS, `buildWatchWorkoutPayload` in `WatchAPIProxy.swift` — keep both in step): `planSessionId`, `cardioAfter`, `restTimerEndsAt` (per-exercise rest wins over the default), exercises with `repMin`/`repMax`, sets in display order (warm-ups first) with `previousWeight/Reps` and `suggestedWeight/Reps`.
+
+## Sync polling (Audit 2026-11)
+
+The phone's workout screen picks up Watch-logged sets through a 1 s poll. It runs through `createGuardedPoll` (`src/lib/guarded-poll.ts`): no overlapping ticks, 10 s abort. While a write is waiting in the offline queue the screen works on its local copy, so Watch sets only appear after the next flush (see `offline-first-roadmap.md`, "Audit 2026-11").
