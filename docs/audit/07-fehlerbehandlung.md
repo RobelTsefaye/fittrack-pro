@@ -127,7 +127,7 @@ Anzahl: kritisch 0, hoch 3, mittel 10, niedrig 5 (gesamt 18).
 ### Niedrig
 
 **FT-ERR-14** Modell-ID als schwebender Alias, keine Konfiguration
-- Fundstelle: `src/app/api/chat/route.ts:114` (`google("gemini-flash-latest")`, Kommentar: Alias, weil 2.0 abgekündigt), `:117` (`maxOutputTokens: 512` fest)
+- Fundstelle: `src/app/api/chat/route.ts:114` (Modell-Alias im Code fest eingetragen (Kommentar: Alias, weil die ältere Version abgekündigt wurde)), `:117` (`maxOutputTokens: 512` fest)
 - Schweregrad: niedrig
 - Auswirkung: Ein `-latest`-Alias wechselt ohne Änderung im Repo das Modell (Qualität, Antwortformat, Preis, Datenbedingungen, Kontextgröße); Fehler dadurch sind nicht reproduzierbar. Modell-ID, Token-Limit und Provider sind im Code statt in Konfiguration.
 - Fix-Vorschlag: Feste Modell-ID in `AI_CHAT_MODEL` (Env oder `lib/constants`), im Betrieb prüfen/aktualisieren; Limits ebenfalls als Konstanten. (Kein Handlungsbedarf, falls FT-ERR-11 den Endpunkt entfernt.)
