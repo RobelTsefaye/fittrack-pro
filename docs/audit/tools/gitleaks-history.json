@@ -1,0 +1,22 @@
+[
+ {
+  "Description": "Detected a Generic API Key, potentially exposing access to various services and sensitive operations.",
+  "StartLine": 45,
+  "EndLine": 45,
+  "StartColumn": 16,
+  "EndColumn": 44,
+  "Match": "TOKEN: \"REDACTED\"",
+  "Secret": "REDACTED",
+  "File": ".github/workflows/ci.yml",
+  "SymlinkFile": "",
+  "Commit": "dcaad61ea46ed20724f565928bcac5efb6a48791",
+  "Entropy": 4.0219283,
+  "Author": "Robel Tsefaye",
+  "Email": "6ddzpyt9ct@privaterelay.appleid.com",
+  "Date": "2026-11-10T14:17:45Z",
+  "Message": "ci: refresh build cache",
+  "Tags": [],
+  "RuleID": "generic-api-key",
+  "Fingerprint": "dcaad61ea46ed20724f565928bcac5efb6a48791:.github/workflows/ci.yml:generic-api-key:45"
+ }
+]
