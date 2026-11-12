@@ -92,3 +92,8 @@ Datei: `src/features/dashboard/queries.ts`
 - **Dashboard:** bereits gestreamt (Suspense), gecacht (45 s), Queries parallel via `Promise.all`.
 - **Icons:** `optimizePackageImports` für `lucide-react`/`recharts` ist aktiv.
 - **Backdrop-Blur/teure CSS-Effekte:** kaum vorhanden (3 Treffer), kein Renderkosten-Problem.
+
+## Audit 2026-11: polling and DB pool
+
+- **Poll guard** (`src/lib/guarded-poll.ts`, `createGuardedPoll`): the workout screen's 1 s poll skips a tick while the previous one is in flight and aborts it after 10 s (`POLL_TIMEOUT_MS`), so a hanging request or native bridge cannot stack requests.
+- **DB pool**: `idleTimeoutMillis: 60_000` in `src/lib/prisma.ts` (pg default is 10 s), so connections survive the rest between sets instead of reopening TCP+TLS+auth.
