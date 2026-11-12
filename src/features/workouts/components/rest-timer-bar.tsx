@@ -75,9 +75,11 @@ function RestTimerPill({ timer }: RestTimerBarProps) {
     <div
       className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center px-3"
       style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top, 0px))" }}
-      role="status"
-      aria-live="polite"
     >
+      {/* Live region only announces the end of the pause, not the ticking time. */}
+      <span role="status" aria-live="polite" className="sr-only">
+        {done ? t("workouts.restDone") : ""}
+      </span>
       {/* Dark capsule regardless of app theme so it reads as a native notch.
        *  The full-width wrapper is pointer-events-none so its empty edges
        *  never swallow taps on content underneath. */}

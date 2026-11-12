@@ -342,6 +342,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                     borderTop: i > 0 ? "1px solid rgba(255,255,255,0.08)" : "none",
                   }}
                   aria-disabled={isAwaitingSync || undefined}
+                  aria-describedby={isAwaitingSync ? `workout-sync-hint-${w.id}` : undefined}
                   onClick={() => {
                     if (!isAwaitingSync) router.push(workoutHref(w.id));
                   }}
@@ -353,6 +354,11 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                     }
                   }}
                 >
+                  {isAwaitingSync ? (
+                    <span id={`workout-sync-hint-${w.id}`} className="sr-only">
+                      {t("workouts.syncPendingHint")}
+                    </span>
+                  ) : null}
                   {/* Icon */}
                   <div
                     className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl"
@@ -389,7 +395,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                             color: "#D4FF3A",
                           }}
                         >
-                          LIVE
+                          {t("workouts.liveBadge")}
                         </span>
                       )}
                       {isAwaitingSync && (
@@ -397,7 +403,7 @@ export function WorkoutHistoryList({ initialWorkouts = [] }: { initialWorkouts?:
                           className="shrink-0 rounded-md px-1.5 py-[2px] text-[10px] font-bold uppercase tracking-[0.06em]"
                           style={{ background: "rgba(255,184,77,0.14)", color: "#FFB84D" }}
                         >
-                          SYNC
+                          {t("workouts.syncBadge")}
                         </span>
                       )}
                     </div>

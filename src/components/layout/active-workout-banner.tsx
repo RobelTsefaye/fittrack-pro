@@ -138,11 +138,11 @@ export function ActiveWorkoutBanner({ initialActive = null }: { initialActive?: 
         <Link
           href={workoutHref(nativeWatchOffline.id)}
           className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-amber-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={`Watch-Training öffnen: ${nativeWatchOffline.name}`}
+          aria-label={t("workouts.watchOfflineOpenAria", { name: nativeWatchOffline.name })}
         >
           <Dumbbell className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />
           <span className="min-w-0 truncate text-sm">
-            <span className="font-semibold text-foreground">Watch-Training offline aktiv</span>
+            <span className="font-semibold text-foreground">{t("workouts.watchOfflineActive")}</span>
             <span className="mx-1.5 text-[var(--sys-label3)]">—</span>
             <span className="text-[var(--sys-label2)]">{nativeWatchOffline.name}</span>
           </span>
