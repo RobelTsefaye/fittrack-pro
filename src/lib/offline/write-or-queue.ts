@@ -7,10 +7,11 @@
 
 export const WRITE_TIMEOUT_MS = 10_000;
 
-/** 5xx (incl. 502/503/504 from the tunnel or a sleeping host): worth queueing.
- *  4xx are permanent rejections and are NOT queued. */
+/** 502/503/504 (gateway, tunnel or host gone): worth queueing. A plain 500 is
+ *  deterministic (app bug, missing DB column) and would block the queue for
+ *  good, so it is NOT queued; neither are 4xx (permanent rejections). */
 export function isTransientWriteStatus(status: number): boolean {
-  return status >= 500 && status <= 599;
+  return status === 502 || status === 503 || status === 504;
 }
 
 /** 502/503: gateway, tunnel or host is gone, the request most likely never
@@ -44,7 +45,7 @@ export type WriteOutcome =
   | { kind: "failed"; error: unknown };
 
 /**
- * Sends a write; on network error, timeout or 5xx runs `queue` (which must
+ * Sends a write; on network error, timeout or 502/503/504 runs `queue` (which must
  * persist the op locally) and reports `queued`. Non-transient responses are
  * returned untouched for the caller to evaluate.
  */
@@ -53,7 +54,10 @@ export async function writeOrQueue(
   queue?: () => Promise<void>,
   options: WriteOptions = {}
 ): Promise<WriteOutcome> {
-  const { timeoutMs = WRITE_TIMEOUT_MS, queueStatus = isTransientWriteStatus } = options;
+  // The timeout only makes sense with a queue fallback: without one an abort
+  // would turn a slow success into a failure (old behavior: wait).
+  const { timeoutMs = queue ? WRITE_TIMEOUT_MS : null, queueStatus = isTransientWriteStatus } =
+    options;
   const controller = new AbortController();
   const timer = timeoutMs === null ? null : setTimeout(() => controller.abort(), timeoutMs);
   let res: Response | null = null;

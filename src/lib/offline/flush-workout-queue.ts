@@ -1,7 +1,9 @@
 import type { WorkoutData } from "@/features/workouts/workout-types";
 import {
+  adoptAliasQueues,
   deleteAliasesOf,
   deleteQueueIdMap,
+  deleteWorkoutSnapshot,
   listQueueForWorkout,
   loadQueueIdMap,
   loadWorkoutSnapshot,
@@ -41,21 +43,40 @@ export async function flushWorkoutQueue(
   }
 
   let currentId = routeWorkoutId;
+
+  // An alias of this id wins over any snapshot: the UI recreates a snapshot
+  // under the OLD id on every enqueue, so "has a snapshot" does not mean the
+  // id was not rekeyed. Hang the ops onto the server id and drop the ghost
+  // snapshot (it would show up as an offline-origin workout in the list).
+  const alias = await resolveWorkoutAlias(currentId);
+  if (alias && alias !== currentId) {
+    const pending = await listQueueForWorkout(currentId);
+    if (pending.length > 0) {
+      await moveQueueEntries(currentId, alias);
+      await deleteWorkoutSnapshot(currentId);
+      const aliased = await flushWorkoutQueue(alias, { viaAlias: true });
+      return { ...aliased, newServerWorkoutId: aliased.newServerWorkoutId ?? alias };
+    }
+  }
+
+  // Regular flush: take over ops still waiting under alias ids of this id, so
+  // the id map below is not deleted while they need it (flushAllQueues visits
+  // ids in arbitrary order).
+  if (!opts.viaAlias) await adoptAliasQueues(currentId);
+
   const q = await listQueueForWorkout(currentId);
   if (q.length === 0) {
+    // Nothing waiting: clean up leftovers of an earlier alias flush, but never
+    // the alias row of an id that was itself rekeyed.
+    if (!opts.viaAlias && !alias) {
+      await deleteQueueIdMap(currentId);
+      await deleteAliasesOf(currentId);
+    }
     return { ok: true };
   }
 
   const snap = await loadWorkoutSnapshot(currentId);
   if (!snap) {
-    // The id may have been rekeyed to a server id by an earlier flush while
-    // the UI kept enqueuing under the old one: follow the alias.
-    const alias = await resolveWorkoutAlias(currentId);
-    if (alias && alias !== currentId) {
-      await moveQueueEntries(currentId, alias);
-      const aliased = await flushWorkoutQueue(alias, { viaAlias: true });
-      return { ...aliased, newServerWorkoutId: aliased.newServerWorkoutId ?? alias };
-    }
     // No snapshot and no alias: the rows cannot be replayed, but they carry
     // the user's data. Never drop them as "success" — keep them queued and
     // report the problem to the caller.

@@ -13,9 +13,9 @@ afterEach(() => {
 });
 
 describe("isTransientWriteStatus", () => {
-  it("5xx ist transient, 2xx/4xx nicht", () => {
-    for (const s of [500, 502, 503, 504]) expect(isTransientWriteStatus(s)).toBe(true);
-    for (const s of [200, 204, 400, 401, 404, 409, 422])
+  it("nur 502/503/504 sind transient, ein deterministischer 500 sowie 2xx/4xx nicht", () => {
+    for (const s of [502, 503, 504]) expect(isTransientWriteStatus(s)).toBe(true);
+    for (const s of [200, 204, 400, 401, 404, 409, 422, 500, 501, 505])
       expect(isTransientWriteStatus(s)).toBe(false);
   });
 });
@@ -37,14 +37,14 @@ describe("writeOrQueue", () => {
     expect(queue).toHaveBeenCalledTimes(1);
   });
 
-  it.each([500, 502, 503, 504])("HTTP %i: Op wird eingereiht", async (status) => {
+  it.each([502, 503, 504])("HTTP %i: Op wird eingereiht", async (status) => {
     const queue = vi.fn().mockResolvedValue(undefined);
     const out = await writeOrQueue(async () => res(status), queue);
     expect(out).toEqual({ kind: "queued" });
     expect(queue).toHaveBeenCalledTimes(1);
   });
 
-  it.each([400, 401, 404, 409])(
+  it.each([400, 401, 404, 409, 500])(
     "HTTP %i (permanent): nicht einreihen, Antwort an den Aufrufer",
     async (status) => {
       const queue = vi.fn().mockResolvedValue(undefined);
@@ -68,6 +68,31 @@ describe("writeOrQueue", () => {
     await vi.advanceTimersByTimeAsync(1000);
     await expect(pending).resolves.toEqual({ kind: "queued" });
     expect(queue).toHaveBeenCalledTimes(1);
+  });
+
+  it("ohne Queue-Callback gilt kein Client-Timeout (langsame Antwort wird abgewartet)", async () => {
+    vi.useFakeTimers();
+    let aborted = false;
+    const pending = writeOrQueue((signal) => {
+      signal.addEventListener("abort", () => (aborted = true));
+      return new Promise<Response>((resolve) => setTimeout(() => resolve(res(200)), 60_000));
+    });
+    await vi.advanceTimersByTimeAsync(60_000);
+    const out = await pending;
+    expect(aborted).toBe(false);
+    expect(out.kind).toBe("response");
+  });
+
+  it("Queue-Callback wirft (z. B. kein lokaler Stand): failed statt queued", async () => {
+    const out = await writeOrQueue(
+      async () => {
+        throw new TypeError("Failed to fetch");
+      },
+      async () => {
+        throw new Error("no_workout");
+      }
+    );
+    expect(out.kind).toBe("failed");
   });
 
   it("Einreihen schlägt fehl (IndexedDB): failed, damit der Aufrufer es melden kann", async () => {

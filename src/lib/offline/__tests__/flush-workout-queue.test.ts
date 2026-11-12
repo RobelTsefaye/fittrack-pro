@@ -18,6 +18,8 @@ const store = vi.hoisted(() => ({
   resolveWorkoutAlias: vi.fn(),
   moveQueueEntries: vi.fn(),
   deleteAliasesOf: vi.fn(),
+  deleteWorkoutSnapshot: vi.fn(),
+  adoptAliasQueues: vi.fn(),
 }));
 vi.mock("@/lib/offline/workout-offline-store", () => store);
 
@@ -72,6 +74,8 @@ beforeEach(() => {
   store.saveQueueIdMap.mockResolvedValue(undefined);
   store.deleteQueueIdMap.mockResolvedValue(undefined);
   store.deleteAliasesOf.mockResolvedValue(undefined);
+  store.deleteWorkoutSnapshot.mockResolvedValue(undefined);
+  store.adoptAliasQueues.mockResolvedValue(0);
   store.saveWorkoutSnapshot.mockResolvedValue(undefined);
 });
 
@@ -90,6 +94,22 @@ describe("flushWorkoutQueue", () => {
     store.listQueueForWorkout.mockResolvedValue([]);
     await expect(flushWorkoutQueue("w1")).resolves.toEqual({ ok: true });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("leere Queue (regulärer Flush der Server-ID): räumt ID-Map und Alias-Zeilen auf", async () => {
+    store.listQueueForWorkout.mockResolvedValue([]);
+    await expect(flushWorkoutQueue("srv-w")).resolves.toEqual({ ok: true });
+    expect(store.deleteQueueIdMap).toHaveBeenCalledWith("srv-w");
+    expect(store.deleteAliasesOf).toHaveBeenCalledWith("srv-w");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("leere Queue bei einer ID, die selbst einen Alias hat: nichts löschen (UI hängt noch unter der alten ID)", async () => {
+    store.listQueueForWorkout.mockResolvedValue([]);
+    store.resolveWorkoutAlias.mockResolvedValue("srv-w");
+    await expect(flushWorkoutQueue("local-1")).resolves.toEqual({ ok: true });
+    expect(store.deleteQueueIdMap).not.toHaveBeenCalled();
+    expect(store.deleteAliasesOf).not.toHaveBeenCalled();
   });
 
   it("FT-ARCH-05: Queue ohne Snapshot (und ohne Alias) bleibt erhalten und wird als Fehler gemeldet", async () => {
@@ -294,6 +314,53 @@ describe("flushWorkoutQueue", () => {
       // späte Ops der noch offenen alten Ansicht erhalten (Review B-3).
       expect(store.deleteQueueIdMap).not.toHaveBeenCalled();
       expect(store.deleteAliasesOf).not.toHaveBeenCalled();
+    });
+
+    it("Alias gewinnt auch, wenn unter der alten ID wieder ein Snapshot liegt (UI legt ihn bei jedem Enqueue neu an)", async () => {
+      queue([row("q9", { t: "patch_workout", name: "B" })], "local-1");
+      // Geister-Snapshot unter der alten ID: Offline-Origin, würde sonst als post_workout-lose Queue laufen.
+      store.loadWorkoutSnapshot.mockImplementation(async (id: string) =>
+        id === "srv-w"
+          ? { data: { id: "srv-w" }, offlineOrigin: false }
+          : { data: { id: "local-1" }, offlineOrigin: true }
+      );
+      store.resolveWorkoutAlias.mockImplementation(async (id: string) =>
+        id === "local-1" ? "srv-w" : null
+      );
+      fetchMock.mockResolvedValue(jsonRes({ data: { id: "srv-w" } }));
+
+      const res = await flushWorkoutQueue("local-1");
+
+      expect(res).toEqual({ ok: true, newServerWorkoutId: "srv-w" });
+      expect(store.moveQueueEntries).toHaveBeenCalledWith("local-1", "srv-w");
+      expect(store.deleteWorkoutSnapshot).toHaveBeenCalledWith("local-1");
+      expect(calls()[0]).toBe("PATCH /api/workouts/srv-w");
+      expect(store.deleteQueueIdMap).not.toHaveBeenCalled();
+    });
+
+    it("R-1: regulärer Flush der Server-ID übernimmt zuerst die Ops der Alias-IDs, bevor die ID-Map gelöscht wird", async () => {
+      queue([row("q1", { t: "patch_workout", name: "A" })], "srv-w");
+      queue([row("q2", { t: "patch_set", clientSetId: "cset", body: { reps: 7 } })], "local-1");
+      store.adoptAliasQueues.mockImplementation(async (target: string) => {
+        const moved = live["local-1"] ?? [];
+        live[target] = [...(live[target] ?? []), ...moved];
+        delete live["local-1"];
+        return moved.length;
+      });
+      const setMap = new Map([["cset", "srv-set"]]);
+      store.loadQueueIdMap.mockResolvedValue({ weMap: new Map(), setMap });
+      store.loadWorkoutSnapshot.mockResolvedValue({ data: { id: "srv-w" }, offlineOrigin: false });
+      fetchMock.mockImplementation(async () => jsonRes({ data: { id: "srv-w" } }));
+
+      const res = await flushWorkoutQueue("srv-w");
+
+      expect(res.ok).toBe(true);
+      expect(calls()).toContain("PATCH /api/workouts/srv-w/sets/srv-set");
+      expect(store.adoptAliasQueues).toHaveBeenCalledWith("srv-w");
+      expect(store.adoptAliasQueues.mock.invocationCallOrder[0]).toBeLessThan(
+        store.deleteQueueIdMap.mock.invocationCallOrder[0]
+      );
+      expect(live["srv-w"]).toEqual([]);
     });
 
     it("zweite späte Op unter der alten ID nach einem Alias-Flush geht nicht verloren (Client-ID wird über die erhaltene Map aufgelöst)", async () => {
