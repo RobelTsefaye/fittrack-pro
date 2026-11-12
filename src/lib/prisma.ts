@@ -17,7 +17,12 @@ function getConnectionString(): string {
 }
 
 function createPrismaClient() {
-  const adapter = new PrismaPg(getConnectionString());
+  const adapter = new PrismaPg({
+    connectionString: getConnectionString(),
+    // pg default is 10 s: every request after a short pause (rest between
+    // sets) reopened the Neon connection (TCP+TLS+auth). Keep it 60 s.
+    idleTimeoutMillis: 60_000,
+  });
   return new PrismaClient({ adapter });
 }
 
