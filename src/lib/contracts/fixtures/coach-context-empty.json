@@ -1,0 +1,21 @@
+{
+  "data": {
+    "schemaVersion": "1.0",
+    "kind": "coach_context",
+    "generatedAt": "2026-11-12T08:00:00.000Z",
+    "latestBodyWeight": null,
+    "bodyWeightTrend": [],
+    "nutrition": {
+      "days": [],
+      "loggedDays": 0,
+      "averages": { "dietaryCalories": null, "protein": null, "carbs": null, "fat": null },
+      "macroSplit": null
+    },
+    "activeWorkouts": [],
+    "planRotation": [],
+    "primaryPlanId": null,
+    "recentCompletedWorkouts": [],
+    "llmHints": []
+  },
+  "meta": { "endpoint": "coach-context" }
+}

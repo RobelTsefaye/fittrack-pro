@@ -1,0 +1,53 @@
+{
+  "data": {
+    "schemaVersion": "1.0",
+    "kind": "training_summary",
+    "generatedAt": "2026-11-12T08:00:00.000Z",
+    "windowWeeks": 2,
+    "athlete": { "displayName": "Test Person", "weightUnit": "KG", "locale": "DE", "defaultRestSeconds": 120 },
+    "snapshot": {
+      "totalWorkouts": 64,
+      "completedThisWeek": 2,
+      "completedThisMonth": 7,
+      "personalRecordsCount": 18,
+      "workoutStreakDays": 1,
+      "weeklyGoal": 4,
+      "weekStreak": 5
+    },
+    "window": {
+      "weekBuckets": [
+        { "weekStart": "2026-11-02", "completedWorkouts": 4, "volumeLoad": 38250.5, "workingSets": 62 },
+        { "weekStart": "2026-11-09", "completedWorkouts": 2, "volumeLoad": 21400, "workingSets": 31 }
+      ],
+      "dailyVolume": [
+        { "date": "2026-11-10", "volume": 11000 },
+        { "date": "2026-11-11", "volume": 10400 }
+      ],
+      "totals": { "completedWorkouts": 6, "workingSets": 93, "volumeLoad": 59650.5 }
+    },
+    "bodyWeightTrend": [
+      { "date": "2026-11-03", "weight": 81.6 },
+      { "date": "2026-11-10", "weight": 81.9 }
+    ],
+    "nutrition": {
+      "days": [{ "date": "2026-11-10", "dietaryCalories": 2850, "protein": 165, "carbs": 330, "fat": 85 }],
+      "loggedDays": 1,
+      "averages": { "dietaryCalories": 2850, "protein": 165, "carbs": 330, "fat": 85 },
+      "macroSplit": { "proteinPct": 22.2, "carbsPct": 44.4, "fatPct": 33.4 }
+    },
+    "topExercisesByVolume": [
+      { "exerciseId": "00000000-0000-4000-8000-000000000201", "name": "Kniebeuge", "volumeLoad": 15200.5 }
+    ],
+    "recentPersonalRecords": [
+      {
+        "exerciseId": "00000000-0000-4000-8000-000000000201",
+        "exerciseName": "Kniebeuge",
+        "weight": 120,
+        "reps": 5,
+        "estimated1RM": 135,
+        "achievedAt": "2026-11-09T17:30:00.000Z"
+      }
+    ]
+  },
+  "meta": { "endpoint": "training-summary", "weeks": 2 }
+}

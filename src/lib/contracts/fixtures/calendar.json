@@ -1,0 +1,16 @@
+{
+  "data": {
+    "schemaVersion": "1.0",
+    "kind": "calendar",
+    "generatedAt": "2026-11-12T08:00:00.000Z",
+    "horizonDays": 28,
+    "training": {
+      "enabled": true,
+      "events": [
+        { "date": "2026-11-13", "sourceDate": "2026-11-13", "title": "Pull", "notes": null, "startMinutes": 1080, "durationMinutes": 75 }
+      ]
+    },
+    "cardio": { "enabled": false, "events": [] }
+  },
+  "meta": { "endpoint": "calendar", "today": "2026-11-12", "horizonDays": 28 }
+}

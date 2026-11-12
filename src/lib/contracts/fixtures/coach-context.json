@@ -1,0 +1,52 @@
+{
+  "data": {
+    "schemaVersion": "1.0",
+    "kind": "coach_context",
+    "generatedAt": "2026-11-12T08:00:00.000Z",
+    "latestBodyWeight": { "weight": 81.9, "date": "2026-11-10", "notes": null },
+    "bodyWeightTrend": [
+      { "date": "2026-11-03", "weight": 81.6 },
+      { "date": "2026-11-10", "weight": 81.9 }
+    ],
+    "nutrition": {
+      "days": [{ "date": "2026-11-10", "dietaryCalories": 2850, "protein": 165, "carbs": 330, "fat": 85 }],
+      "loggedDays": 1,
+      "averages": { "dietaryCalories": 2850, "protein": 165, "carbs": 330, "fat": 85 },
+      "macroSplit": { "proteinPct": 22.2, "carbsPct": 44.4, "fatPct": 33.4 }
+    },
+    "activeWorkouts": [],
+    "planRotation": [
+      {
+        "planId": "00000000-0000-4000-8000-000000000301",
+        "planName": "Push Pull Legs",
+        "sessions": [
+          {
+            "id": "00000000-0000-4000-8000-000000000302",
+            "name": "Push",
+            "order": 0,
+            "lastCompletedAt": "2026-11-09T18:20:00.000Z",
+            "plannedExercises": [{ "name": "Bankdrücken", "targetSets": 4 }]
+          }
+        ],
+        "suggestedNext": {
+          "planSessionId": "00000000-0000-4000-8000-000000000302",
+          "sessionName": "Push",
+          "reason": "Least-recent plan day in this plan (last done 2026-11-09).",
+          "plannedExercises": [{ "name": "Bankdrücken", "targetSets": 4 }]
+        }
+      }
+    ],
+    "primaryPlanId": "00000000-0000-4000-8000-000000000301",
+    "recentCompletedWorkouts": [
+      {
+        "id": "00000000-0000-4000-8000-000000000401",
+        "name": "Push",
+        "completedAt": "2026-11-09T18:20:00.000Z",
+        "durationSeconds": 3900,
+        "planSessionId": "00000000-0000-4000-8000-000000000302"
+      }
+    ],
+    "llmHints": ["latestBodyWeight is the most recent logged entry (not necessarily today)."]
+  },
+  "meta": { "endpoint": "coach-context" }
+}

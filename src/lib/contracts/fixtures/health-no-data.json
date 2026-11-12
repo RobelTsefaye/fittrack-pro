@@ -1,0 +1,25 @@
+{
+  "data": {
+    "schemaVersion": "1.0",
+    "kind": "health",
+    "generatedAt": "2026-11-12T08:00:00.000Z",
+    "snapshots": [],
+    "recovery": {
+      "score": 0,
+      "level": "none",
+      "sleepScore": null,
+      "hrScore": null,
+      "hrvScore": null,
+      "loadScore": null,
+      "activityScore": null,
+      "trends": { "hrTrend": null, "hrvTrend": null },
+      "baseline": { "restingHR": null, "hrv": null, "steps": null, "activeCalories": null, "daysOfData": 0, "hrDays": 0, "hrvDays": 0, "stepsDays": 0, "calDays": 0 },
+      "trainingLoad": { "acwr": null, "daysSinceLast": null, "consecutiveDays": 0, "acute7dTonnage": null, "chronic28dAvgTonnage": null, "lastTonnage": null, "intensity": null },
+      "sleep": { "durationHours": null, "deepMinutes": null, "remMinutes": null },
+      "vitals": { "respiratoryRate": null, "respiratoryBaseline": null, "respiratoryDays": 0, "wristTemperature": null, "wristTempBaseline": null, "wristTempDays": 0, "tempDelta": null, "penalty": 0 },
+      "illnessWarning": { "active": false, "signals": [] }
+    },
+    "recoveryHistory": []
+  },
+  "meta": { "endpoint": "health", "days": 14, "snapshotCount": 0 }
+}

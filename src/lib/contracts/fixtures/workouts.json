@@ -1,0 +1,31 @@
+{
+  "data": {
+    "schemaVersion": "1.0",
+    "kind": "workouts",
+    "generatedAt": "2026-11-12T08:00:00.000Z",
+    "workouts": [
+      {
+        "id": "00000000-0000-4000-8000-000000000401",
+        "name": "Push",
+        "startedAt": "2026-11-09T17:15:00.000Z",
+        "completedAt": "2026-11-09T18:20:00.000Z",
+        "durationSeconds": 3900,
+        "workoutExercises": [
+          {
+            "exercise": { "id": "00000000-0000-4000-8000-000000000202", "name": "Bankdrücken" },
+            "sets": [{ "id": "00000000-0000-4000-8000-000000000501" }, { "id": "00000000-0000-4000-8000-000000000502" }]
+          }
+        ]
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000402",
+        "name": null,
+        "startedAt": "2026-11-12T07:00:00.000Z",
+        "completedAt": null,
+        "durationSeconds": null,
+        "workoutExercises": []
+      }
+    ]
+  },
+  "meta": { "endpoint": "workouts", "page": 1, "limit": 20, "total": 2, "status": null }
+}

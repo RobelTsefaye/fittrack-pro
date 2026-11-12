@@ -1,0 +1,26 @@
+{
+  "data": {
+    "id": "user-fixture",
+    "email": "test@example.invalid",
+    "name": "Test Person",
+    "createdAt": "2026-01-05T10:00:00.000Z",
+    "updatedAt": "2026-11-01T10:00:00.000Z",
+    "settings": null,
+    "bodyWeights": [
+      { "id": "00000000-0000-4000-8000-000000000601", "userId": "user-fixture", "weight": 81.9, "date": "2026-11-10T00:00:00.000Z", "notes": null, "createdAt": "2026-11-10T06:40:00.000Z" }
+    ],
+    "exercises": [{ "id": "00000000-0000-4000-8000-000000000202", "name": "Bankdrücken" }],
+    "workouts": [
+      {
+        "id": "00000000-0000-4000-8000-000000000401",
+        "startedAt": "2026-11-09T17:15:00.000Z",
+        "completedAt": "2026-11-09T18:20:00.000Z",
+        "workoutExercises": [{ "id": "00000000-0000-4000-8000-000000000701", "sets": [] }]
+      }
+    ],
+    "personalRecords": [
+      { "id": "00000000-0000-4000-8000-000000000801", "weight": 100, "reps": 5, "exercise": { "id": "00000000-0000-4000-8000-000000000202", "name": "Bankdrücken" } }
+    ]
+  },
+  "meta": { "exportedAt": "2026-11-12T08:00:00.000Z", "format": "json" }
+}
