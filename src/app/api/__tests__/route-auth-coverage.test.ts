@@ -166,7 +166,9 @@ describe("API-Routen: Auth-Abdeckung", () => {
   if (Object.keys(UNKLAR).length > 0) {
     console.warn(`[route-auth-coverage] UNKLAR:\n${Object.keys(UNKLAR).join("\n")}`);
   }
-  it.todo("UNKLAR ist leer (Routen ohne erkennbare Auth, nicht eindeutig öffentlich, klären)");
+  it("UNKLAR ist leer (Routen ohne erkennbare Auth, nicht eindeutig öffentlich, klären)", () => {
+    expect(Object.keys(UNKLAR)).toEqual([]);
+  });
 
   it("alle datenführenden Routen sind per withApi gewrappt oder prüfen die Session selbst", () => {
     // Characterization: Routen ohne withApi, die trotzdem Auth haben, sind bekannt/erlaubt.
