@@ -1,5 +1,6 @@
 import type { WorkoutData } from "@/features/workouts/workout-types";
 import {
+  deleteAliasesOf,
   deleteQueueIdMap,
   listQueueForWorkout,
   loadQueueIdMap,
@@ -29,7 +30,11 @@ import {
 const MAX_ROUNDS = 20;
 
 export async function flushWorkoutQueue(
-  routeWorkoutId: string
+  routeWorkoutId: string,
+  // Internal: set on the recursive call that follows an alias. The screen may
+  // still be open under the OLD id and keep enqueuing, so the id map of the
+  // target and the alias rows must stay until a later regular flush.
+  opts: { viaAlias?: boolean } = {}
 ): Promise<{ ok: boolean; newServerWorkoutId?: string; error?: string }> {
   if (typeof navigator !== "undefined" && !navigator.onLine) {
     return { ok: false, error: "offline" };
@@ -48,7 +53,7 @@ export async function flushWorkoutQueue(
     const alias = await resolveWorkoutAlias(currentId);
     if (alias && alias !== currentId) {
       await moveQueueEntries(currentId, alias);
-      const aliased = await flushWorkoutQueue(alias);
+      const aliased = await flushWorkoutQueue(alias, { viaAlias: true });
       return { ...aliased, newServerWorkoutId: aliased.newServerWorkoutId ?? alias };
     }
     // No snapshot and no alias: the rows cannot be replayed, but they carry
@@ -170,7 +175,9 @@ export async function flushWorkoutQueue(
             const res = await api(`/api/workouts/${serverWorkoutId}/exercises/${serverWe}`, {
               method: "DELETE",
             });
-            if (!res.ok) throw new Error(`delete_we ${res.status}`);
+            // Already gone (e.g. the DELETE was applied before a timeout) is the
+            // desired end state — tolerate it like delete_set.
+            if (!res.ok && res.status !== 404) throw new Error(`delete_we ${res.status}`);
             await removeQueueEntries([row.id]);
             break;
           }
@@ -212,7 +219,13 @@ export async function flushWorkoutQueue(
     // After a rekey this run, the UI may still enqueue under the old id until
     // it navigates; those ops are resolved later via the alias and still need
     // the clientId -> serverId maps of the new id. Keep them in that case.
-    if (currentId === routeWorkoutId) await deleteQueueIdMap(currentId);
+    // A regular flush of the current id means the screen is on it, so alias
+    // rows pointing here (and without queued ops) are no longer needed. Not
+    // done on the alias path: the old-id screen may still be open there.
+    if (currentId === routeWorkoutId && !opts.viaAlias) {
+      await deleteQueueIdMap(currentId);
+      await deleteAliasesOf(currentId);
+    }
 
     const fres = await fetch(`/api/workouts/${serverWorkoutId}`, { credentials: "include" });
     if (fres.ok) {

@@ -1345,7 +1345,9 @@ export function WorkoutDetail({
       () => addSet(weId, isWarmup, true),
       CREATE_WRITE
     );
-    if (outcome.kind !== "response" || !outcome.res.ok) {
+    // Queued: the local path already showed and persisted the set.
+    if (outcome.kind === "queued") return;
+    if (outcome.kind === "failed" || !outcome.res.ok) {
       // Not queued on purpose (the server may have applied it): tell the user.
       toast.error(t("common.saveFailed"));
       return;
