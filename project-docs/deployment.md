@@ -142,3 +142,16 @@ npm run build       # Verify nothing breaks
 | `AUTH_SECRET`          | Yes      | NextAuth JWT signing           |
 | `AUTH_URL`            | Yes      | NextAuth callback URLs         |
 | `NEXT_PUBLIC_APP_URL` | No       | Client-side meta tags          |
+| `FITTRACK_REGISTRATION` | No     | `open` / `closed` (default `closed`): sign-up gate, see below |
+
+### Registration gate and rate limits
+
+- `FITTRACK_REGISTRATION` (`open` | `closed`, default `closed`): when `closed`, `POST /api/auth/register` returns 403 and
+  `/register` shows a notice instead of the form. Exception (bootstrap): while the database contains no user at all,
+  registration is allowed, so a fresh instance can create its first account. Set `open` only for a deliberately
+  public instance. The native app (static export) shows the 403 message in the form.
+- In-memory rate limit (`src/lib/rate-limit.ts`, per process, window 15 min): registration 10 attempts, login 20 attempts
+  (NextAuth credentials and `/api/auth/native-login` share one counter). Exceeding it returns 429 with `Retry-After`
+  (NextAuth login: treated like a failed login). A successful login resets the counter. The key is the client IP from
+  `x-forwarded-for` / `x-real-ip` (else `unknown`). Behind the Tailscale Funnel the IP may be identical for every
+  request, so all clients then share one counter; the limits are therefore generous.

@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/features/auth/schemas";
+import { isRegistrationOpen } from "@/lib/registration";
+import { clientKey } from "@/lib/rate-limit";
+import { registerLimiter, tooManyRequests } from "@/lib/auth-rate-limits";
 import { LOCALE_COOKIE, prismaLocaleFromCookieString } from "@/lib/i18n-config";
 
 /**
@@ -15,6 +18,17 @@ import { LOCALE_COOKIE, prismaLocaleFromCookieString } from "@/lib/i18n-config";
  * reference it; nothing else currently does.
  */
 export async function POST(req: NextRequest) {
+  // Rate-Limit zuerst (zählt jeden Versuch, auch abgelehnte), dann Registrierungsschalter.
+  const limit = registerLimiter().hit(clientKey(req.headers));
+  if (!limit.ok) return tooManyRequests(limit.retryAfterSec);
+
+  if (!(await isRegistrationOpen())) {
+    return NextResponse.json(
+      { error: "Registration is closed on this instance." },
+      { status: 403 }
+    );
+  }
+
   const body = await req.json().catch(() => null);
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) {

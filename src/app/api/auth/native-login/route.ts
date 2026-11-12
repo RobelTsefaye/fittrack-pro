@@ -4,6 +4,8 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { hashApiTokenSecret } from "@/lib/api-token-crypto";
+import { clientKey } from "@/lib/rate-limit";
+import { loginLimiter, tooManyRequests } from "@/lib/auth-rate-limits";
 
 /**
  * Password login for the native (Capacitor) shell — mints a long-lived API
@@ -25,6 +27,10 @@ const loginSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const ipKey = clientKey(req.headers);
+  const limit = loginLimiter().hit(ipKey);
+  if (!limit.ok) return tooManyRequests(limit.retryAfterSec);
+
   const body = await req.json().catch(() => null);
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) {
@@ -42,6 +48,8 @@ export async function POST(req: NextRequest) {
   if (!isValid) {
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
   }
+
+  loginLimiter().reset(ipKey);
 
   // 32 random bytes hex-encoded — same secret shape as the tokens created in
   // Settings; `ftp_` prefix matches CLAUDE.md's documented Bearer format.

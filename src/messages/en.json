@@ -69,7 +69,9 @@
       "submitting": "Creating account…",
       "hasAccount": "Already have an account?",
       "signIn": "Sign in",
-      "signInFailed": "Account created but sign-in failed. Please log in manually."
+      "signInFailed": "Account created but sign-in failed. Please log in manually.",
+      "closedTitle": "Registration is closed",
+      "closedBody": "New sign-ups are disabled on this instance. Ask the owner for an account, or sign in if you already have one."
     }
   },
   "landing": {
