@@ -137,3 +137,6 @@ npm run build       # Verify nothing breaks
 | `AUTH_SECRET`          | Yes      | NextAuth JWT signing           |
 | `AUTH_URL`            | Yes      | NextAuth callback URLs         |
 | `NEXT_PUBLIC_APP_URL` | No       | Client-side meta tags          |
+
+## Native build and the Mac service (do not clobber `.next`)
+`npm run build:native` (static export for the Capacitor app) used to build into the default `.next` directory. On the self-hosted Mac that overwrote the production build under the running `next start` (no API routes in the export), so every `/api/*` answered 404 ("Unexpected token '<'" in Nexus) until the next normal build. The export now has its own directory `.next-native/`, which is also the Capacitor `webDir`. After a normal `scripts/selfhost.sh update` nothing else is needed.

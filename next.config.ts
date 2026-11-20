@@ -22,6 +22,10 @@ const nextConfig: NextConfig = {
     allowedDevOrigins: ["192.168.2.45"],
   }),
   ...(isNativeBuild && { output: "export" }),
+  // The native export gets its own build directory: with the default `.next` it overwrote the
+  // production build (no API routes!) under a running `next start` (self-hosting on the Mac), so every
+  // /api/* answered 404 until the next normal build. The static export itself still goes to `out/`.
+  distDir: isNativeBuild ? ".next-native" : ".next",
 };
 
 export default nextConfig;

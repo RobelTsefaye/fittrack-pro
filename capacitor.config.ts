@@ -3,14 +3,14 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.robeltsefaye.fittrackpro',
   appName: 'FitTrack Pro',
-  // `out/` is the static export produced by `npm run build:native` (see
+  // `.next-native/` is the static export produced by `npm run build:native` (see
   // scripts/build-native.mjs + next.config.ts's `isNativeBuild` branch) —
   // bundled into the app so it opens instantly offline, no live server
   // round-trip on launch. API routes (Prisma/NextAuth, can't be statically
   // exported) still live only on the Vercel deployment; the bundled UI calls
   // them via absolute URL (src/lib/native/native-auth-token.ts's fetch patch)
   // instead of a `server.url` webview redirect.
-  webDir: 'out',
+  webDir: '.next-native',
   ios: {
     // 'never': the page itself reaches under the status bar and pads with
     // env(safe-area-inset-*) (top bar, tab bar). 'automatic' added the status

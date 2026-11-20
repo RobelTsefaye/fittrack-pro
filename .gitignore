@@ -49,3 +49,4 @@ next-env.d.ts
 
 # R / editor leftovers
 .Rhistory
+.next-native/
